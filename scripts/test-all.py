@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Gate: mvn verify + ojet build + seed + smoke(login, 1 msg per topic)."""
 import argparse, subprocess, sys
-def run(cmd):
-    print("+"," ".join(cmd)); r=subprocess.run(cmd); return r.returncode
+def run(cmd, cwd=None):
+    print("+"," ".join(cmd)); r=subprocess.run(cmd,cwd=cwd); return r.returncode
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--suite",default="all",choices=["all","backend","frontend","e2e"]); ap.add_argument("--env-file",default=".env"); ap.add_argument("--verbose",action="store_true"); a=ap.parse_args()
     if a.suite in ("all","backend"):
         if run(["./mvnw","-f","backend/pom.xml","verify"]): print("backend FAIL"); return 3
     if a.suite in ("all","frontend"):
-        if run(["ojet","build"],): print("frontend FAIL"); return 3
+        if run(["ojet","build"],cwd="frontend/fluxpay-ui"): print("frontend FAIL"); return 3
     if a.suite in ("all","e2e"):
         if run(["python3","scripts/seed-demo.py"]): print("seed FAIL"); return 3
         import urllib.request, json
