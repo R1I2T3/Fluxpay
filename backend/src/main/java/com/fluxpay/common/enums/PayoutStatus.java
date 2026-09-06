@@ -1,2 +1,8 @@
 package com.fluxpay.common.enums;
-public enum PayoutStatus { PENDING, SUBMITTED, COMPLETED, FAILED }
+
+public enum PayoutStatus {
+  PENDING,
+  SUBMITTED,
+  COMPLETED,
+  FAILED
+}
