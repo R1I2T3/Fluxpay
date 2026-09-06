@@ -1,0 +1,2 @@
+logging.level.com.fluxpay: DEBUG
+springdoc.swagger-ui.path: /swagger-ui.html

@@ -1,0 +1,24 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  datasource:
+    url: ${ORACLE_JDBC_URL}
+    username: ${ORACLE_USERNAME}
+    password: ${ORACLE_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+fluxpay:
+  fx-provider-url: ${FX_PROVIDER_URL}
+  embedding-mode: ${EMBEDDING_MODE:mock}
+  jwt-secret: ${JWT_SECRET}

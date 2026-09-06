@@ -1,0 +1,49 @@
+#!/bin/sh
+# FluxPay pre-commit: auto-format staged Python (ruff) and JS/TS/CSS/HTML/JSON (prettier).
+# Ruff comes from the standalone installer (https://docs.astral.sh/ruff/installation/):
+#   curl -LsSf https://astral.sh/ruff/install.sh | sh
+# Prettier is a devDependency of frontend/fluxpay-ui (npm install --prefix frontend/fluxpay-ui).
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+RUFF="$(command -v ruff || true)"
+[ -z "$RUFF" ] && [ -x "$HOME/.local/bin/ruff" ] && RUFF="$HOME/.local/bin/ruff"
+PRETTIER="$ROOT/frontend/fluxpay-ui/node_modules/.bin/prettier"
+
+PY_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.py' | tr '\n' ' ')
+WEB_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.js' '*.ts' '*.jsx' '*.tsx' '*.json' '*.css' '*.html' | tr '\n' ' ')
+
+if [ -n "$PY_FILES" ]; then
+  if [ -n "$RUFF" ]; then
+    echo "pre-commit: ruff format $PY_FILES"
+    # shellcheck disable=SC2086
+    "$RUFF" format $PY_FILES
+  else
+    echo "pre-commit: WARNING ruff not found; skipping Python format (curl -LsSf https://astral.sh/ruff/install.sh | sh)" >&2
+  fi
+fi
+
+if [ -n "$WEB_FILES" ]; then
+  if [ -x "$PRETTIER" ]; then
+    echo "pre-commit: prettier --write $WEB_FILES"
+    # shellcheck disable=SC2086
+    "$PRETTIER" --write --ignore-unknown $WEB_FILES
+  else
+    echo "pre-commit: WARNING prettier not found; run npm install --prefix frontend/fluxpay-ui" >&2
+  fi
+fi
+
+JAVA_FILES=$(git diff --cached --name-only --diff-filter=ACM -- 'backend/**/*.java' | tr '\n' ' ')
+if [ -n "$JAVA_FILES" ]; then
+  echo "pre-commit: spotless:apply (java)"
+  "$ROOT/mvnw" -q -f "$ROOT/backend/pom.xml" spotless:apply
+  # shellcheck disable=SC2086
+  git add -- $JAVA_FILES
+fi
+
+# Re-stage anything the formatters changed
+# shellcheck disable=SC2086
+[ -n "$PY_FILES$WEB_FILES" ] && git add -- $PY_FILES $WEB_FILES 2>/dev/null || true
+
+exit 0
