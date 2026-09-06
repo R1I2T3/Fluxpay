@@ -1,0 +1,9 @@
+export const routes = [
+ {path:'',redirect:'dashboard'},{path:'dashboard',detail:{label:'Dashboard'}},
+ {path:'login',detail:{label:'Login'}},{path:'register',detail:{label:'Register'}},
+ {path:'kyc',detail:{label:'KYC'}},{path:'wallets',detail:{label:'Wallets'}},
+ {path:'recipients',detail:{label:'Recipients'}},{path:'payments-new',detail:{label:'New Payment'}},
+ {path:'payments-list',detail:{label:'Payments'}},{path:'tracking',detail:{label:'Tracking'}},
+ {path:'screening',detail:{label:'Screening'}},{path:'policies',detail:{label:'Policies'}},
+ {path:'admin-seed',detail:{label:'Admin Seed'}},
+];
