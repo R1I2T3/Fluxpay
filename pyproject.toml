@@ -1,0 +1,7 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["node_modules", "target", "frontend/fluxpay-ui/web", "frontend/fluxpay-ui/.ojet"]
+
+[tool.ruff.format]
+quote-style = "double"

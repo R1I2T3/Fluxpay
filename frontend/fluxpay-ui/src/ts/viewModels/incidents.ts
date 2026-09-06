@@ -5,12 +5,9 @@
  * as shown at https://oss.oracle.com/licenses/upl/
  * @ignore
  */
-import * as AccUtils from "../accUtils";
+import * as AccUtils from '../accUtils';
 class IncidentsViewModel {
-
-  constructor() {
-
-  }
+  constructor() {}
 
   /**
    * Optional ViewModel method invoked after the View is inserted into the
@@ -21,8 +18,8 @@ class IncidentsViewModel {
    * after being disconnected.
    */
   connected(): void {
-    AccUtils.announce("Incidents page loaded.");
-    document.title = "Incidents";
+    AccUtils.announce('Incidents page loaded.');
+    document.title = 'Incidents';
     // implement further logic if needed
   }
 

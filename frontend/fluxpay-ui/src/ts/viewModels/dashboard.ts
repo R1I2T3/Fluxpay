@@ -5,12 +5,9 @@
  * as shown at https://oss.oracle.com/licenses/upl/
  * @ignore
  */
-import * as AccUtils from "../accUtils";
+import * as AccUtils from '../accUtils';
 class DashboardViewModel {
-
-  constructor() {
-
-  }
+  constructor() {}
 
   /**
    * Optional ViewModel method invoked after the View is inserted into the
@@ -21,8 +18,8 @@ class DashboardViewModel {
    * after being disconnected.
    */
   connected(): void {
-    AccUtils.announce("Dashboard page loaded.");
-    document.title = "Dashboard";
+    AccUtils.announce('Dashboard page loaded.');
+    document.title = 'Dashboard';
     // implement further logic if needed
   }
 

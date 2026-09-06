@@ -1,0 +1,8 @@
+node_modules/
+target/
+.ojet/
+web/
+logs/
+package-lock.json
+*.min.*
+frontend/fluxpay-ui/src/css/app-min.css

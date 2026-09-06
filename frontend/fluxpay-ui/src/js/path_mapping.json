@@ -6,14 +6,13 @@
     "jet": {
       "prefix": "https://static.oracle.com/cdn/jet/16.1.0/default/js",
       "css": "https://static.oracle.com/cdn/jet/16.1.0/default/css",
-      "csspreact": "https://static.oracle.com/cdn/jet/16.1.0/3rdparty/oraclejet-preact/amd",      
+      "csspreact": "https://static.oracle.com/cdn/jet/16.1.0/3rdparty/oraclejet-preact/amd",
       "config": "bundles-config.js"
     },
     "3rdparty": "https://static.oracle.com/cdn/jet/16.1.0/3rdparty"
   },
 
   "libs": {
-
     "knockout": {
       "cdn": "3rdparty",
       "cwd": "node_modules/knockout/build/output",
@@ -48,12 +47,24 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/jquery-ui/ui",
       "debug": {
-        "src": ["*.js", "widgets/draggable.js", "widgets/mouse.js", "widgets/sortable.js", "vendor/jquery-color/jquery.color.js"],
+        "src": [
+          "*.js",
+          "widgets/draggable.js",
+          "widgets/mouse.js",
+          "widgets/sortable.js",
+          "vendor/jquery-color/jquery.color.js"
+        ],
         "path": "libs/jquery/jqueryui-amd-#{version}",
         "cdnPath": "jquery/jqueryui-amd-1.13.2"
       },
       "release": {
-        "src": ["*.js", "widgets/draggable.js", "widgets/mouse.js", "widgets/sortable.js", "vendor/jquery-color/jquery.color.js"],
+        "src": [
+          "*.js",
+          "widgets/draggable.js",
+          "widgets/mouse.js",
+          "widgets/sortable.js",
+          "vendor/jquery-color/jquery.color.js"
+        ],
         "path": "libs/jquery/jqueryui-amd-#{version}.min",
         "cdnPath": "jquery/jqueryui-amd-1.13.2.min"
       }
@@ -101,16 +112,16 @@
       "release": {
         "src": ["min*/**"],
         "path": "libs/oj/#{version}",
-		    "pathSuffix": "/min'",
+        "pathSuffix": "/min'",
         "cdnPath": ""
       }
-    },    
+    },
 
     "ojL10n": {
       "cdn": "jet",
       "cwd": "node_modules/@oracle/oraclejet/dist/js/libs/oj",
       "debug": {
-        "src":  "ojL10n.js",
+        "src": "ojL10n.js",
         "path": "libs/oj/#{version}/ojL10n.js",
         "cdnPath": "ojL10n"
       },
@@ -125,7 +136,7 @@
       "cdn": "jet",
       "cwd": "node_modules/@oracle/oraclejet/dist/js/libs/oj/resources",
       "debug": {
-        "src":  ["**"],
+        "src": ["**"],
         "path": "libs/oj/#{version}/resources",
         "cdnPath": "resources"
       },
@@ -140,12 +151,12 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/@oracle/oraclejet-preact/amd",
       "debug": {
-        "src":  ["**"],
+        "src": ["**"],
         "path": "libs/oraclejet-preact/amd",
         "cdnPath": "oraclejet-preact/amd"
       },
       "release": {
-        "src":  ["**"],
+        "src": ["**"],
         "path": "libs/oraclejet-preact/amd",
         "cdnPath": "oraclejet-preact/amd"
       }
@@ -155,17 +166,17 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/@oracle/oraclejet-core-pack/oj-c",
       "debug": {
-        "src":  ["**"],
+        "src": ["**"],
         "path": "libs/packs/oj-c",
         "cdnPath": "../../packs/oj-c/#{version}/min"
       },
       "release": {
-        "src":  ["**"],
+        "src": ["**"],
         "path": "libs/packs/oj-c/min",
         "cdnPath": "../../packs/oj-c/#{version}/min"
       }
     },
-            
+
     "persist": {
       "cdn": "3rdparty",
       "cwd": "node_modules/@oracle/oraclejet/dist/js/libs/persist",
@@ -187,7 +198,7 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/requirejs-text",
       "debug": {
-        "src":  "text.js",
+        "src": "text.js",
         "path": "libs/require/text.js",
         "cdnPath": "require/text"
       },
@@ -202,7 +213,7 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/signals/dist",
       "debug": {
-        "src":  "signals.js",
+        "src": "signals.js",
         "path": "libs/js-signals/signals.js",
         "cdnPath": "js-signals/signals"
       },
@@ -217,7 +228,7 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/@oracle/oraclejet/dist/js/libs/touchr",
       "debug": {
-        "src":  "touchr.js",
+        "src": "touchr.js",
         "path": "libs/touchr/touchr.js",
         "cdnPath": "touchr/touchr"
       },
@@ -227,17 +238,17 @@
         "cdnPath": "touchr/touchr"
       }
     },
-    
+
     "preact": {
       "cdn": "3rdparty",
       "cwd": "node_modules/preact/dist",
       "debug": {
-        "src":  ["preact.umd.js", "preact.umd.js.map"],
+        "src": ["preact.umd.js", "preact.umd.js.map"],
         "path": "libs/preact/dist/preact.umd.js",
         "cdnPath": "preact/dist/preact.umd"
       },
       "release": {
-        "src":  ["preact.umd.js", "preact.umd.js.map"],
+        "src": ["preact.umd.js", "preact.umd.js.map"],
         "path": "libs/preact/dist/preact.umd.js",
         "cdnPath": "preact/dist/preact.umd"
       }
@@ -247,12 +258,12 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/preact/hooks/dist",
       "debug": {
-        "src":  ["hooks.umd.js", "hooks.umd.js.map"],
+        "src": ["hooks.umd.js", "hooks.umd.js.map"],
         "path": "libs/preact/hooks/dist/hooks.umd.js",
         "cdnPath": "preact/hooks/dist/hooks.umd"
       },
       "release": {
-        "src":  ["hooks.umd.js", "hooks.umd.js.map"],
+        "src": ["hooks.umd.js", "hooks.umd.js.map"],
         "path": "libs/preact/hooks/dist/hooks.umd.js",
         "cdnPath": "preact/hooks/dist/hooks.umd"
       }
@@ -262,12 +273,12 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/preact/compat/dist",
       "debug": {
-        "src":  ["compat.umd.js", "compat.umd.js.map"],
+        "src": ["compat.umd.js", "compat.umd.js.map"],
         "path": "libs/preact/compat/dist/compat.umd.js",
         "cdnPath": "preact/compat/dist/compat.umd"
       },
       "release": {
-        "src":  ["compat.umd.js", "compat.umd.js.map"],
+        "src": ["compat.umd.js", "compat.umd.js.map"],
         "path": "libs/preact/compat/dist/compat.umd.js",
         "cdnPath": "preact/compat/dist/compat.umd"
       },
@@ -277,17 +288,17 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/preact/jsx-runtime/dist",
       "debug": {
-        "src":  ["jsxRuntime.umd.js", "jsxRuntime.umd.js.map"],
+        "src": ["jsxRuntime.umd.js", "jsxRuntime.umd.js.map"],
         "path": "libs/preact/jsx-runtime/dist/jsxRuntime.umd.js",
         "cdnPath": "preact/jsx-runtime/dist/jsxRuntime.umd"
       },
       "release": {
-        "src":  ["jsxRuntime.umd.js", "jsxRuntime.umd.js.map"],
+        "src": ["jsxRuntime.umd.js", "jsxRuntime.umd.js.map"],
         "path": "libs/preact/jsx-runtime/dist/jsxRuntime.umd.js",
         "cdnPath": "preact/jsx-runtime/dist/jsxRuntime.umd"
       }
     },
-    
+
     "preact/debug": {
       "cdn": "3rdparty",
       "cwd": "node_modules/preact/debug/dist",
@@ -322,8 +333,8 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/proj4/dist",
       "debug": {
-        "src":  "proj4-src.js",
-        "path": "libs/proj4js/dist/proj4-src.js", 
+        "src": "proj4-src.js",
+        "path": "libs/proj4js/dist/proj4-src.js",
         "cdnPath": "proj4js/dist/proj4"
       },
       "release": {
@@ -332,12 +343,12 @@
         "cdnPath": "proj4js/dist/proj4"
       }
     },
-    
+
     "css": {
       "cdn": "3rdparty",
       "cwd": "node_modules/require-css",
       "debug": {
-        "src":  ["css.js", "css-builder.js", "normalize.js"],
+        "src": ["css.js", "css-builder.js", "normalize.js"],
         "path": "libs/require-css/css.js",
         "cdnPath": "require-css/css"
       },
@@ -386,16 +397,15 @@
       "cdn": "3rdparty",
       "cwd": "node_modules/chai/",
       "debug": {
-         "src": "chai.js",
-         "path": "libs/chai/chai.js",
-         "cdnPath": "chai/chai-4.3.10"
+        "src": "chai.js",
+        "path": "libs/chai/chai.js",
+        "cdnPath": "chai/chai-4.3.10"
       },
       "release": {
-         "src": "chai.js",
-         "path": "libs/chai/chai.js",
-         "cdnPath": "chai/chai-4.3.10.min"
+        "src": "chai.js",
+        "path": "libs/chai/chai.js",
+        "cdnPath": "chai/chai-4.3.10.min"
       }
-   }
-
+    }
   }
 }
