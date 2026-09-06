@@ -6,7 +6,7 @@ Run order: `python3 scripts/start-infra.py` → `python3 scripts/start-backend.p
 
 ## Code formatting (pre-commit hook)
 
-Commits auto-format staged Python (**ruff**) and JS/TS/CSS/HTML/JSON (**prettier**). One-time setup:
+Commits auto-format staged Python (**ruff**), JS/TS/CSS/HTML/JSON (**prettier**) and Java (**Spotless / google-java-format**). One-time setup:
 
 ```bash
 git config core.hooksPath .githooks        # activate the hook
@@ -14,5 +14,5 @@ curl -LsSf https://astral.sh/ruff/install.sh | sh   # ruff binary (~/.local/bin)
 npm install --prefix frontend/fluxpay-ui   # prettier + @devDependencies
 ```
 
-Manual formatting: `ruff format .` / `npx prettier --write .` (configs: `pyproject.toml`, `.prettierrc.json`, `.prettierignore`).
+Manual formatting: `ruff format .` / `npx prettier --write .` / `./mvnw -f backend/pom.xml spotless:apply` (configs: `pyproject.toml`, `.prettierrc.json`, `.prettierignore`, `backend/pom.xml`).
 
