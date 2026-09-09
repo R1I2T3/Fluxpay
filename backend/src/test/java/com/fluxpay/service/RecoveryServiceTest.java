@@ -13,16 +13,24 @@ import com.fluxpay.beans.PayoutAttempt;
 import com.fluxpay.beans.PayoutAttemptStatus;
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.common.event.EventPublisher;
+import com.fluxpay.dto.EventTopics;
+import com.fluxpay.dto.PaymentEventPayload;
 import com.fluxpay.dto.PayoutOutcome;
+import com.fluxpay.dto.RecoveryResult;
+import com.fluxpay.repository.PaymentEventStore;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,8 +41,12 @@ class RecoveryServiceTest {
   @Mock private PayoutRouteRepository routes;
   @Mock private PayoutAttemptRepository attempts;
   @Mock private PayoutExecutionService execution;
+  @Mock private RefundJournalService refunds;
+  @Mock private PaymentEventStore eventStore;
+  @Mock private EventPublisher events;
 
   private RecoveryService recovery;
+  private RecoveryService refundRecovery;
   private PaymentSnapshot payment;
   private PayoutRoute standard;
   private PayoutRoute instant;
@@ -42,6 +54,10 @@ class RecoveryServiceTest {
   @BeforeEach
   void setUp() {
     recovery = new RecoveryService(paymentReader, routes, attempts, execution);
+    Clock fixedClock = Clock.fixed(Instant.parse("2026-09-09T00:00:00Z"), ZoneOffset.UTC);
+    refundRecovery =
+        new RecoveryService(
+            paymentReader, routes, attempts, execution, refunds, eventStore, events, fixedClock);
     payment =
         new PaymentSnapshot(
             "P-001",
@@ -138,6 +154,57 @@ class RecoveryServiceTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("switch route must differ from failed route");
     verify(execution, never()).executeNewAttempt(any(), any(), anyInt(), any(), any());
+  }
+
+  @Test
+  void refundRequiresFailedAttemptPostsJournalAndPublishesDeterministicEvent() {
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(false);
+
+    RecoveryResult result = refundRecovery.refund("P-001", "c-uuid");
+
+    verify(refunds).refund(payment);
+    ArgumentCaptor<PaymentEventPayload> payload =
+        ArgumentCaptor.forClass(PaymentEventPayload.class);
+    verify(events).publish(eq(EventTopics.PAYMENT_REFUNDED), payload.capture(), eq("c-uuid"));
+    assertThat(payload.getValue().eventId())
+        .isEqualTo(
+            PaymentEventPayload.refund(
+                    "P-001", payload.getValue().occurredAt(), payload.getValue().details())
+                .eventId());
+    assertThat(result.idempotentReplay()).isFalse();
+  }
+
+  @Test
+  void refundAfterCompletedIsRejected() {
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(completedAttempt(1, "r-standard")));
+
+    assertThatThrownBy(() -> refundRecovery.refund("P-001", "c-uuid"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("latest payout attempt is not failed");
+    verify(refunds, never()).refund(any());
+    verify(events, never()).publish(any(), any(), any());
+  }
+
+  @Test
+  void storedRefundReplaySkipsLedgerAndPublisher() {
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+    when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(true);
+
+    RecoveryResult result = refundRecovery.refund("P-001", "c-uuid");
+
+    assertThat(result.idempotentReplay()).isTrue();
+    assertThat(result.paymentId()).isEqualTo("P-001");
+    assertThat(result.eventId())
+        .isEqualTo(
+            PaymentEventPayload.refund("P-001", Instant.EPOCH, java.util.Map.of()).eventId());
+    verify(refunds, never()).refund(any());
+    verify(events, never()).publish(any(), any(), any());
+    verify(paymentReader, never()).get(any());
   }
 
   private static PayoutAttempt failedAttempt(int attemptNumber, String routeId) {

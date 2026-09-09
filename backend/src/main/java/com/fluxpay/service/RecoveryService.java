@@ -3,25 +3,31 @@ package com.fluxpay.service;
 import com.fluxpay.beans.PayoutAttempt;
 import com.fluxpay.beans.PayoutAttemptStatus;
 import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.common.event.EventPublisher;
+import com.fluxpay.dto.EventTopics;
+import com.fluxpay.dto.PaymentEventPayload;
 import com.fluxpay.dto.PayoutOutcome;
+import com.fluxpay.dto.RecoveryResult;
+import com.fluxpay.repository.PaymentEventStore;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Retries failed payouts on the same route or switches them to a different active route.
+ * Retries failed payouts on the same route, switches them to a different active route, or posts a
+ * balanced compensating refund.
  *
  * <p>Retry and switch never debit: this class has no {@code LedgerWriter} dependency. Both paths
  * delegate to {@link PayoutExecutionService#executeNewAttempt} which records the next attempt
- * without touching ledgers.
- *
- * <p>Forward-compat (Task 9): refund support plus a {@code RecoveryResult} wrapper will be added
- * via an overloaded constructor carrying the refund journal, event store and publisher. The
- * 4-argument constructor below stays as the stable retry/switch path so Task 8 tests keep
- * compiling.
+ * without touching ledgers. Refund delegates to {@link RefundJournalService} and publishes a
+ * deterministic {@code payment.refunded} event.
  */
 @Service
 @Transactional
@@ -31,16 +37,36 @@ public class RecoveryService {
   private final PayoutRouteRepository routes;
   private final PayoutAttemptRepository attempts;
   private final PayoutExecutionService execution;
+  private final RefundJournalService refunds;
+  private final PaymentEventStore eventStore;
+  private final EventPublisher events;
+  private final Clock clock;
 
   public RecoveryService(
       PaymentReader paymentReader,
       PayoutRouteRepository routes,
       PayoutAttemptRepository attempts,
       PayoutExecutionService execution) {
+    this(paymentReader, routes, attempts, execution, null, null, null, null);
+  }
+
+  public RecoveryService(
+      PaymentReader paymentReader,
+      PayoutRouteRepository routes,
+      PayoutAttemptRepository attempts,
+      PayoutExecutionService execution,
+      RefundJournalService refunds,
+      PaymentEventStore eventStore,
+      EventPublisher events,
+      Clock clock) {
     this.paymentReader = Objects.requireNonNull(paymentReader, "paymentReader must not be null");
     this.routes = Objects.requireNonNull(routes, "routes must not be null");
     this.attempts = Objects.requireNonNull(attempts, "attempts must not be null");
     this.execution = Objects.requireNonNull(execution, "execution must not be null");
+    this.refunds = refunds;
+    this.eventStore = eventStore;
+    this.events = events;
+    this.clock = clock;
   }
 
   public PayoutOutcome retry(String paymentId, String correlationId) {
@@ -70,6 +96,30 @@ public class RecoveryService {
     PaymentSnapshot payment = paymentReader.get(paymentId);
     return execution.executeNewAttempt(
         payment, route, latest.attemptNumber() + 1, "SWITCH", correlationId);
+  }
+
+  public RecoveryResult refund(String paymentId, String correlationId) {
+    Objects.requireNonNull(refunds, "refunds must not be null");
+    Objects.requireNonNull(eventStore, "eventStore must not be null");
+    Objects.requireNonNull(events, "events must not be null");
+    Objects.requireNonNull(clock, "clock must not be null");
+    PayoutAttempt latest = latestFailed(paymentId);
+    Instant now = clock.instant();
+    if (eventStore.contains(paymentId, EventTopics.PAYMENT_REFUNDED)) {
+      String replayEventId = PaymentEventPayload.refund(paymentId, now, Map.of()).eventId();
+      return new RecoveryResult(paymentId, replayEventId, true);
+    }
+    PaymentSnapshot payment = paymentReader.get(paymentId);
+    refunds.refund(payment);
+    String summary = "Refund issued for attempt " + latest.attemptNumber();
+    Map<String, Object> details = new LinkedHashMap<>();
+    details.put("attempt", latest.attemptNumber());
+    details.put("currency", payment.sourceCurrency());
+    details.put("amount", payment.amount());
+    details.put("summary", summary);
+    PaymentEventPayload payload = PaymentEventPayload.refund(paymentId, now, details);
+    events.publish(EventTopics.PAYMENT_REFUNDED, payload, correlationId);
+    return new RecoveryResult(paymentId, payload.eventId(), false);
   }
 
   private PayoutAttempt latestFailed(String paymentId) {
