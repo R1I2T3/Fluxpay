@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate: mvn verify + ojet build + seed + smoke(login, 1 msg per topic)."""
 
-import argparse, subprocess, sys
+import argparse, os, subprocess, sys
 
 from platform_commands import FRONTEND_DIR, PROJECT_ROOT, maven_command, ojet_command, python_command
 
@@ -22,6 +22,12 @@ def main():
         if run(maven_command("-f", "backend/pom.xml", "verify")):
             print("backend FAIL")
             return 3
+        if os.environ.get("KAFKA_BOOTSTRAP_SERVERS") and os.environ.get("ORACLE_JDBC_URL"):
+            if run(maven_command("-f", "backend/pom.xml", "-Dtest=PaymentEventPersistenceIT", "test")):
+                print("persistence IT FAIL")
+                return 3
+        else:
+            print("persistence IT skipped (KAFKA_BOOTSTRAP_SERVERS/ORACLE_JDBC_URL unset)")
     if a.suite in ("all", "frontend"):
         if run(ojet_command("build"), cwd=FRONTEND_DIR):
             print("frontend FAIL")
