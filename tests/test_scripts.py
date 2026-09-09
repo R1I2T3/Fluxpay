@@ -2,6 +2,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -25,8 +26,28 @@ class CompletedProcess:
 
 
 class RunningProcess:
+    def __init__(self, poll_result=None, wait_result=0, interrupt_on_wait=False):
+        self.poll_result = poll_result
+        self.wait_result = wait_result
+        self.interrupt_on_wait = interrupt_on_wait
+        self.wait_calls = 0
+        self.terminated = False
+        self.killed = False
+
+    def poll(self):
+        return self.poll_result
+
+    def wait(self, timeout=None):
+        self.wait_calls += 1
+        if self.interrupt_on_wait and self.wait_calls == 1:
+            raise KeyboardInterrupt
+        return self.wait_result
+
     def terminate(self):
-        pass
+        self.terminated = True
+
+    def kill(self):
+        self.killed = True
 
 
 class HttpResponse:
@@ -43,6 +64,70 @@ class HttpResponse:
 
 
 class ScriptCommandTests(unittest.TestCase):
+    def test_start_backend_stays_attached_after_readiness(self):
+        script = load_script("start-backend")
+        process = RunningProcess(wait_result=9)
+        with (
+            mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script.subprocess, "Popen", return_value=process),
+            mock.patch.object(script.time, "sleep"),
+            mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
+        ):
+            self.assertEqual(script.main(), 9)
+
+        self.assertEqual(process.wait_calls, 1)
+
+    def test_start_backend_returns_if_maven_exits_before_readiness(self):
+        script = load_script("start-backend")
+        process = RunningProcess(poll_result=4)
+        with (
+            mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script.subprocess, "Popen", return_value=process),
+            mock.patch.object(script.time, "sleep"),
+            mock.patch.object(script.urllib.request, "urlopen", side_effect=OSError("not ready")),
+        ):
+            self.assertEqual(script.main(), 4)
+
+        self.assertFalse(process.terminated)
+
+    def test_start_backend_terminates_child_on_keyboard_interrupt(self):
+        script = load_script("start-backend")
+        process = RunningProcess(interrupt_on_wait=True)
+        with (
+            mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script.subprocess, "Popen", return_value=process),
+            mock.patch.object(script.time, "sleep"),
+            mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
+        ):
+            self.assertEqual(script.main(), 130)
+
+        self.assertTrue(process.terminated)
+
+    def test_start_backend_uses_port_from_env_file(self):
+        script = load_script("start-backend")
+        requested_urls = []
+
+        def urlopen(url, timeout):
+            requested_urls.append(url)
+            return HttpResponse()
+
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / ".env"
+            env_file.write_text("SERVER_PORT=8083\n", encoding="utf-8")
+            with (
+                mock.patch.dict(script.os.environ),
+                mock.patch.object(sys, "argv", ["start-backend.py", "--env-file", str(env_file)]),
+                mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()),
+                mock.patch.object(script.time, "sleep"),
+                mock.patch.object(script.urllib.request, "urlopen", side_effect=urlopen),
+            ):
+                script.os.environ.pop("SERVER_PORT", None)
+                self.assertEqual(script.main(), 0)
+                selected_port = script.os.environ["SERVER_PORT"]
+
+        self.assertEqual(selected_port, "8083")
+        self.assertEqual(requested_urls, ["http://localhost:8083/v3/api-docs"])
+
     def test_start_backend_uses_windows_maven_wrapper_from_project_root(self):
         script = load_script("start-backend")
         with (
