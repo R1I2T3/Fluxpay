@@ -1,9 +1,25 @@
 #!/usr/bin/env python3
 """Gate: mvn verify + ojet build + seed + smoke(login, 1 msg per topic)."""
 
-import argparse, os, subprocess, sys
+import argparse, os, shutil, subprocess, sys
 
 from platform_commands import FRONTEND_DIR, PROJECT_ROOT, maven_command, ojet_command, python_command
+
+
+def kafka_script(name):
+    """Locate a bare-metal Kafka CLI script; prefer KAFKA_HOME, then PATH."""
+    home = os.environ.get("KAFKA_HOME", "")
+    suffix = ".bat" if sys.platform == "win32" else ".sh"
+    candidates = []
+    if home:
+        candidates.append(os.path.join(home, "bin", name + suffix))
+    found = shutil.which(name + suffix) or shutil.which(name)
+    if found:
+        candidates.append(found)
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return None
 
 
 def run(cmd, cwd=PROJECT_ROOT):
@@ -58,15 +74,17 @@ def main():
             "payout.completed",
             "payment.refunded",
         ]
+        producer = kafka_script("kafka-console-producer")
+        if producer is None:
+            print("produce SKIP kafka-console-producer.sh not found; set KAFKA_HOME")
+            return 0
+        bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
         for t in topics:
             r1 = subprocess.run(
                 [
-                    "docker",
-                    "exec",
-                    "fluxpay-kafka",
-                    "kafka-console-producer.sh",
+                    producer,
                     "--bootstrap-server",
-                    "localhost:29092",
+                    bootstrap,
                     "--topic",
                     t,
                 ],
