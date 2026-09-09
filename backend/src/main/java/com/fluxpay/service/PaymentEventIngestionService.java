@@ -21,7 +21,7 @@ public class PaymentEventIngestionService {
 
   private final EventEnvelopeCodec codec;
   private final PaymentEventStore store;
-  private final ObjectMapper payloadMapper = new ObjectMapper();
+  private final ObjectMapper payloadMapper = new ObjectMapper().findAndRegisterModules();
 
   public PaymentEventIngestionService(EventEnvelopeCodec codec, PaymentEventStore store) {
     this.codec = Objects.requireNonNull(codec, "codec must not be null");
