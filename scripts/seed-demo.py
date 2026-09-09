@@ -3,6 +3,8 @@
 
 import argparse, json, os, sys, urllib.request
 
+from platform_commands import project_path
+
 BASE = os.environ.get("SEED_BASE_URL", "http://localhost:8080")
 USERS = [
     ("alice@demo.io", "Pass123!", "ADMIN"),
@@ -30,8 +32,9 @@ def main():
     ap.add_argument("--env-file", default=".env")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
-    if os.path.exists(a.env_file):
-        for line in open(a.env_file):
+    env_file = project_path(a.env_file)
+    if os.path.exists(env_file):
+        for line in open(env_file):
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)

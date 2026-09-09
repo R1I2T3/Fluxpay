@@ -3,6 +3,8 @@
 
 import argparse, subprocess, sys
 
+from platform_commands import PROJECT_ROOT
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -19,7 +21,7 @@ def main():
         cmd = ["docker", "compose", "stop"]
     if a.verbose:
         print("+", " ".join(cmd))
-    return subprocess.run(cmd).returncode
+    return subprocess.run(cmd, cwd=PROJECT_ROOT).returncode
 
 
 if __name__ == "__main__":

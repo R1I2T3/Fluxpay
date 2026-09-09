@@ -3,8 +3,10 @@
 
 import argparse, subprocess, sys
 
+from platform_commands import FRONTEND_DIR, PROJECT_ROOT, maven_command, ojet_command, python_command
 
-def run(cmd, cwd=None):
+
+def run(cmd, cwd=PROJECT_ROOT):
     print("+", " ".join(cmd))
     r = subprocess.run(cmd, cwd=cwd)
     return r.returncode
@@ -17,15 +19,15 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     if a.suite in ("all", "backend"):
-        if run(["./mvnw", "-f", "backend/pom.xml", "verify"]):
+        if run(maven_command("-f", "backend/pom.xml", "verify")):
             print("backend FAIL")
             return 3
     if a.suite in ("all", "frontend"):
-        if run(["ojet", "build"], cwd="frontend/fluxpay-ui"):
+        if run(ojet_command("build"), cwd=FRONTEND_DIR):
             print("frontend FAIL")
             return 3
     if a.suite in ("all", "e2e"):
-        if run(["python3", "scripts/seed-demo.py"]):
+        if run(python_command("scripts/seed-demo.py")):
             print("seed FAIL")
             return 3
         import urllib.request, json

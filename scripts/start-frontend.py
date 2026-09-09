@@ -3,6 +3,8 @@
 
 import argparse, os, subprocess, sys
 
+from platform_commands import FRONTEND_DIR, ojet_command
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -10,15 +12,15 @@ def main():
     ap.add_argument("--env-file", default=".env")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
-    if not os.path.isdir("frontend/fluxpay-ui/node_modules"):
+    if not os.path.isdir(FRONTEND_DIR / "node_modules"):
         print("node_modules missing; run: npm install --prefix frontend/fluxpay-ui")
         return 2
     env = dict(os.environ)
     env["API_PROXY"] = "http://localhost:8080"
-    cmd = ["ojet", "serve", "--server-port", str(a.port)]
+    cmd = ojet_command("serve", "--server-port", a.port)
     if a.verbose:
         print("+", " ".join(cmd))
-    return subprocess.run(cmd, cwd="frontend/fluxpay-ui", env=env).returncode
+    return subprocess.run(cmd, cwd=FRONTEND_DIR, env=env).returncode
 
 
 if __name__ == "__main__":

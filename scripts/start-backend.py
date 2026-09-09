@@ -3,8 +3,11 @@
 
 import argparse, os, subprocess, sys, time, urllib.request
 
+from platform_commands import PROJECT_ROOT, maven_command, project_path
+
 
 def load_env(path):
+    path = project_path(path)
     if os.path.exists(path):
         for line in open(path):
             line = line.strip()
@@ -23,7 +26,8 @@ def main():
     load_env(a.env_file)
     os.environ["SERVER_PORT"] = str(a.port)
     p = subprocess.Popen(
-        ["./mvnw", "-f", "backend/pom.xml", "spring-boot:run", f"-Dspring-boot.run.profiles={a.profile}"]
+        maven_command("-f", "backend/pom.xml", "spring-boot:run", f"-Dspring-boot.run.profiles={a.profile}"),
+        cwd=PROJECT_ROOT,
     )
     for _ in range(30):
         time.sleep(2)

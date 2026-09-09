@@ -3,6 +3,8 @@
 
 import argparse, os, socket, subprocess, sys, time
 
+from platform_commands import PROJECT_ROOT, project_path
+
 TOPICS = [
     "payment.initiated",
     "payment.route.selected",
@@ -15,6 +17,7 @@ TOPICS = [
 
 
 def load_env(path):
+    path = project_path(path)
     if os.path.exists(path):
         for line in open(path):
             line = line.strip()
@@ -26,7 +29,7 @@ def load_env(path):
 def run(cmd, verbose=False):
     if verbose:
         print("+", " ".join(cmd))
-    return subprocess.run(cmd, capture_output=not verbose)
+    return subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=not verbose)
 
 
 def wait_port(host, port, timeout=30, verbose=False):
