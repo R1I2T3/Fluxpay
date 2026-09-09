@@ -159,6 +159,21 @@ public class PayoutExecutionService {
     return PayoutOutcome.failed();
   }
 
+  /**
+   * Recovery path (Task 8): resolves the provider from the route code and delegates to the
+   * INITIATED-flush-first path above. Package-visible so {@code RecoveryService} in this package
+   * can retry or switch routes without provider plumbing.
+   */
+  PayoutOutcome executeNewAttempt(
+      PaymentSnapshot payment,
+      PayoutRoute route,
+      int attemptNumber,
+      String reason,
+      String correlationId) {
+    return executeNewAttempt(
+        payment, route, loadProvider(routeCodeOf(route)), attemptNumber, reason, correlationId);
+  }
+
   private PayoutRoute loadActiveRoute(String routeCode) {
     PayoutRoute route =
         routes
