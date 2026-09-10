@@ -1,6 +1,6 @@
 CREATE TABLE payment_events (
   id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
-  payment_id RAW(16) NOT NULL REFERENCES payments(id),
+  payment_id VARCHAR2(50) NOT NULL,
   event_type VARCHAR2(100) NOT NULL,
   event_payload CLOB NOT NULL CHECK (event_payload IS JSON),
   kafka_topic VARCHAR2(150) NOT NULL,

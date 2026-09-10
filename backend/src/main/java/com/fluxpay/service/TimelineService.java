@@ -41,7 +41,7 @@ public class TimelineService {
       throw new IllegalStateException("stored event payload is invalid", e);
     }
     return new TimelineEventResponse(
-        event.eventId(),
+        event.eventId().toString(),
         event.paymentId(),
         event.eventType(),
         event.kafkaTopic(),

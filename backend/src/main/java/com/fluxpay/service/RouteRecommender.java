@@ -55,8 +55,7 @@ public class RouteRecommender {
     BigDecimal offeredRate =
         marketRate.multiply(
             BigDecimal.ONE.subtract(
-                BigDecimal.valueOf(route.fxSpreadPercentage().doubleValue())
-                    .divide(new BigDecimal("100"), MathContext.DECIMAL64)));
+                route.fxSpreadPercentage().divide(ONE_HUNDRED, MathContext.DECIMAL64)));
     BigDecimal recipient = amount.multiply(offeredRate).subtract(route.baseFee());
     return new RouteQuote(
         route, marketRate, offeredRate, recipient.setScale(4, RoundingMode.HALF_EVEN));

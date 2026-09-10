@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.UUID;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,9 +60,10 @@ public class RouteCatalogService {
   public PayoutRoute updateRoute(String routeId, RouteApi.Update update) {
     Objects.requireNonNull(update, "update must not be null");
     requireValid(update);
+    UUID id = parseRouteId(routeId);
     PayoutRoute route =
         routes
-            .findById(routeId)
+            .findById(id)
             .orElseThrow(() -> new NoSuchElementException("route " + routeId + " not found"));
     if (!Objects.equals(route.getVersion(), update.version())) {
       throw new ObjectOptimisticLockingFailureException(PayoutRoute.class, routeId);
@@ -76,7 +78,19 @@ public class RouteCatalogService {
   }
 
   public RouteMetrics.RouteMetric metricFor(String routeId) {
+    return metrics.byRoute(parseRouteId(routeId));
+  }
+
+  public RouteMetrics.RouteMetric metricFor(UUID routeId) {
     return metrics.byRoute(routeId);
+  }
+
+  private static UUID parseRouteId(String routeId) {
+    try {
+      return UUID.fromString(routeId);
+    } catch (IllegalArgumentException e) {
+      throw new NoSuchElementException("route " + routeId + " not found");
+    }
   }
 
   private static void requireValid(RouteApi.Update update) {

@@ -38,10 +38,11 @@ python scripts/start-infra.py --skip-oracle   # Kafka topics only
 
 What the Kafka-owned block does: reads `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`),
 waits for the port, probes `kafka-topics.sh --bootstrap-server <bootstrap> --list`, then creates
-the seven topics idempotently (`--if-not-exists`, 3 partitions, replication factor 1):
+the seven timeline topics plus `payout.recovery.dlt` idempotently (`--if-not-exists`, 3 partitions,
+replication factor 1):
 
 `payment.initiated`, `payment.route.selected`, `payment.screening.completed`, `payout.submitted`,
-`payout.failed`, `payout.completed`, `payment.refunded`.
+`payout.failed`, `payout.completed`, `payment.refunded`, `payout.recovery.dlt` (poison quarantine).
 
 Verify:
 

@@ -59,6 +59,10 @@ class PayoutControllerContractTest {
       UUID.nameUUIDFromBytes("fluxpay:test:owner".getBytes(StandardCharsets.UTF_8));
   private static final UUID OTHER_ID =
       UUID.nameUUIDFromBytes("fluxpay:test:other".getBytes(StandardCharsets.UTF_8));
+  private static final UUID ATTEMPT_ID =
+      UUID.nameUUIDFromBytes("fluxpay:attempt:a-1".getBytes(StandardCharsets.UTF_8));
+  private static final UUID ROUTE_ID =
+      UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
 
   @Autowired private MockMvc mvc;
 
@@ -89,7 +93,7 @@ class PayoutControllerContractTest {
             PaymentStatus.ROUTED);
     completedAttempt =
         PayoutAttempt.initiated(
-            "a-1", "P-001", 1, "r-standard", Instant.parse("2026-09-04T10:00:00Z"));
+            ATTEMPT_ID, "P-001", 1, ROUTE_ID, Instant.parse("2026-09-04T10:00:00Z"));
     completedAttempt.markProcessing();
     completedAttempt.markCompleted("SB-1");
   }
@@ -119,7 +123,7 @@ class PayoutControllerContractTest {
         .andExpect(jsonPath("$.data.status").value("COMPLETED"))
         .andExpect(jsonPath("$.data.attemptNumber").value(1))
         .andExpect(jsonPath("$.data.alreadyConfirmed").value(false))
-        .andExpect(jsonPath("$.data.originalEventId").value("evt-1"));
+        .andExpect(jsonPath("$.data.originalEventId").doesNotExist());
     verify(execution).submit("P-001", "STANDARD_BANK", "cid-pay-1");
   }
 

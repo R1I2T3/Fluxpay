@@ -27,6 +27,14 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>{@link #executeNewAttempt} is package-visible so the Task 8 recovery service in this package
  * can retry or switch routes through the same INITIATED-flush-first path.
+ *
+ * <p><b>Known limitation (tech-debt, see kafka-payout-retries-design.md §Processing):</b> DB
+ * writes, Kafka publishes (via {@code send().join()}), and blocking provider I/O currently share
+ * one Spring transaction. A DB rollback after a Kafka send can leave ghost events; provider latency
+ * holds a DB connection; a crash between provider success and commit can lose the result.
+ * Production requires a transactional outbox + relay with provider I/O outside the DB tx and
+ * idempotent {@code payout:<attemptId>} keys. M4 demo scope keeps the single-tx path but callers
+ * must not assume atomicity.
  */
 @Service
 @Transactional
@@ -90,11 +98,7 @@ public class PayoutExecutionService {
     requireCorrelationId(correlationId);
     PayoutAttempt attempt =
         PayoutAttempt.initiated(
-            UUID.randomUUID().toString(),
-            payment.paymentId(),
-            attemptNumber,
-            route.getId(),
-            clock.instant());
+            UUID.randomUUID(), payment.paymentId(), attemptNumber, route.getId(), clock.instant());
     attempts.saveAndFlush(attempt);
 
     publish(

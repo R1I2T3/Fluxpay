@@ -6,13 +6,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Single canonical payment event mapped to {@code payment_events} per V402 DDL.
  *
- * <p>The {@code id} column is {@code RAW(16)}; like {@link PayoutRoute} the id is modelled as a
- * {@code String} UUID handle on the {@code id} column. The {@code event_payload} column is a JSON
- * {@code CLOB} held here as its serialized JSON string form.
+ * <p>UUID strategy: {@code id} is {@code RAW(16)} UUID storage mapped as {@code UUID}. {@code
+ * payment_id} is the business key (e.g. {@code P-001}) stored as {@code VARCHAR2(50)} with no FK.
+ * The {@code event_payload} column is a JSON {@code CLOB} held here as its serialized JSON string
+ * form.
  */
 @Entity
 @Table(name = "payment_events")
@@ -20,9 +22,9 @@ public class PaymentEvent {
 
   @Id
   @Column(name = "id", columnDefinition = "RAW(16)", nullable = false, updatable = false)
-  private String eventId;
+  private UUID eventId;
 
-  @Column(name = "payment_id", columnDefinition = "RAW(16)", nullable = false)
+  @Column(name = "payment_id", columnDefinition = "VARCHAR2(50)", nullable = false)
   private String paymentId;
 
   @Column(name = "event_type", nullable = false, length = 100)
@@ -44,7 +46,7 @@ public class PaymentEvent {
   protected PaymentEvent() {}
 
   private PaymentEvent(
-      String eventId,
+      UUID eventId,
       String paymentId,
       String eventType,
       String kafkaTopic,
@@ -62,7 +64,7 @@ public class PaymentEvent {
 
   /** Factory used by ingestion to persist a decoded envelope. */
   public static PaymentEvent create(
-      String eventId,
+      UUID eventId,
       String paymentId,
       String eventType,
       String kafkaTopic,
@@ -74,7 +76,7 @@ public class PaymentEvent {
   }
 
   /** Record-style accessors used by ingestion, timeline mapping and tests. */
-  public String eventId() {
+  public UUID eventId() {
     return eventId;
   }
 

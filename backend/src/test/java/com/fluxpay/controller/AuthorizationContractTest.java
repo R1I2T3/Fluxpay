@@ -65,6 +65,8 @@ class AuthorizationContractTest {
       UUID.nameUUIDFromBytes("fluxpay:test:owner".getBytes(StandardCharsets.UTF_8));
   private static final UUID OTHER_ID =
       UUID.nameUUIDFromBytes("fluxpay:test:other".getBytes(StandardCharsets.UTF_8));
+  private static final UUID R_STANDARD =
+      UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
   private static final String UPDATE_BODY =
       "{\"baseFee\":6.00,\"fxSpreadPercentage\":1.0,"
           + "\"estimatedMinutes\":120,\"successRate\":99.00,\"active\":true,\"version\":0}";
@@ -104,7 +106,7 @@ class AuthorizationContractTest {
     when(authorizer.isAdmin(any())).thenReturn(false);
 
     mvc.perform(
-            put("/api/admin/routes/r-standard")
+            put("/api/admin/routes/" + R_STANDARD.toString())
                 .header("Authorization", MockSecurity.bearer(OTHER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-auth-1")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -118,7 +120,7 @@ class AuthorizationContractTest {
   @Test
   void adminEndpointRejectsAnonymous() throws Exception {
     mvc.perform(
-            put("/api/admin/routes/r-standard")
+            put("/api/admin/routes/" + R_STANDARD.toString())
                 .header("X-Correlation-ID", "cid-auth-2")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(UPDATE_BODY))

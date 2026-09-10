@@ -22,6 +22,7 @@ import com.fluxpay.repository.PaymentEventStore;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -36,6 +37,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class RecoveryServiceTest {
+
+  private static final UUID R_STANDARD =
+      UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
+  private static final UUID R_INSTANT =
+      UUID.nameUUIDFromBytes("fluxpay:route:INSTANT_PAYOUT".getBytes(StandardCharsets.UTF_8));
 
   @Mock private PaymentReader paymentReader;
   @Mock private PayoutRouteRepository routes;
@@ -70,7 +76,7 @@ class RecoveryServiceTest {
             PaymentStatus.ROUTED);
     standard =
         PayoutRoute.seed(
-            "r-standard",
+            R_STANDARD,
             "STANDARD_BANK",
             "Standard Bank Rail",
             "Standard Bank",
@@ -81,7 +87,7 @@ class RecoveryServiceTest {
             "99.50");
     instant =
         PayoutRoute.seed(
-            "r-instant",
+            R_INSTANT,
             "INSTANT_PAYOUT",
             "Instant Payout Rail",
             "Instant Provider",
@@ -95,9 +101,9 @@ class RecoveryServiceTest {
   @Test
   void retryReusesRouteAndIncrementsAttemptWithoutLedgerAccess() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
     when(paymentReader.get("P-001")).thenReturn(payment);
-    when(routes.findById("r-standard")).thenReturn(Optional.of(standard));
+    when(routes.findById(R_STANDARD)).thenReturn(Optional.of(standard));
     when(execution.executeNewAttempt(eq(payment), eq(standard), eq(2), eq("RETRY"), eq("c-uuid")))
         .thenReturn(PayoutOutcome.failed());
 
@@ -109,7 +115,7 @@ class RecoveryServiceTest {
   @Test
   void switchUsesADifferentActiveRouteAndIncrementsAttempt() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
     when(paymentReader.get("P-001")).thenReturn(payment);
     when(routes.findByCode("INSTANT_PAYOUT")).thenReturn(Optional.of(instant));
     when(execution.executeNewAttempt(eq(payment), eq(instant), eq(2), eq("SWITCH"), eq("c-uuid")))
@@ -121,7 +127,7 @@ class RecoveryServiceTest {
 
   @Test
   void retryAfterCompletedIsRejected() {
-    PayoutAttempt completed = completedAttempt(1, "r-standard");
+    PayoutAttempt completed = completedAttempt(1, R_STANDARD);
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
         .thenReturn(Optional.of(completed));
 
@@ -135,7 +141,8 @@ class RecoveryServiceTest {
   void switchToInactiveRouteIsRejected() {
     instant.update("7.50", "1.2", 15, "98.00", false);
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
     when(routes.findByCode("INSTANT_PAYOUT")).thenReturn(Optional.of(instant));
 
     assertThatThrownBy(() -> recovery.switchRoute("P-001", "INSTANT_PAYOUT", "c-uuid"))
@@ -147,7 +154,8 @@ class RecoveryServiceTest {
   @Test
   void switchToSameRouteIsRejected() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
     when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(standard));
 
     assertThatThrownBy(() -> recovery.switchRoute("P-001", "STANDARD_BANK", "c-uuid"))
@@ -159,9 +167,10 @@ class RecoveryServiceTest {
   @Test
   void refundRequiresFailedAttemptPostsJournalAndPublishesDeterministicEvent() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
     when(paymentReader.get("P-001")).thenReturn(payment);
     when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(false);
+    when(refunds.isAlreadyRefunded(payment)).thenReturn(false);
 
     RecoveryResult result = refundRecovery.refund("P-001", "c-uuid");
 
@@ -180,7 +189,7 @@ class RecoveryServiceTest {
   @Test
   void refundAfterCompletedIsRejected() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(completedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(completedAttempt(1, R_STANDARD)));
 
     assertThatThrownBy(() -> refundRecovery.refund("P-001", "c-uuid"))
         .isInstanceOf(IllegalStateException.class)
@@ -192,7 +201,7 @@ class RecoveryServiceTest {
   @Test
   void storedRefundReplaySkipsLedgerAndPublisher() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(failedAttempt(1, "r-standard")));
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
     when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(true);
 
     RecoveryResult result = refundRecovery.refund("P-001", "c-uuid");
@@ -207,19 +216,68 @@ class RecoveryServiceTest {
     verify(paymentReader, never()).get(any());
   }
 
-  private static PayoutAttempt failedAttempt(int attemptNumber, String routeId) {
+  @Test
+  void retryAfterRefundIsRejected() {
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(true);
+
+    assertThatThrownBy(() -> refundRecovery.retry("P-001", "c-uuid"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("payment P-001 already refunded");
+    verify(execution, never()).executeNewAttempt(any(), any(), anyInt(), any(), any());
+  }
+
+  @Test
+  void switchAfterRefundIsRejected() {
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(true);
+
+    assertThatThrownBy(() -> refundRecovery.switchRoute("P-001", "INSTANT_PAYOUT", "c-uuid"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("payment P-001 already refunded");
+    verify(execution, never()).executeNewAttempt(any(), any(), anyInt(), any(), any());
+  }
+
+  @Test
+  void fastDoubleRefundReplaysViaLedgerWithoutPublish() {
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    when(eventStore.contains("P-001", EventTopics.PAYMENT_REFUNDED)).thenReturn(false);
+    when(refunds.isAlreadyRefunded(payment)).thenReturn(true);
+
+    RecoveryResult result = refundRecovery.refund("P-001", "c-uuid");
+
+    assertThat(result.idempotentReplay()).isTrue();
+    verify(refunds, never()).refund(any());
+    verify(events, never()).publish(any(), any(), any());
+  }
+
+  private static PayoutAttempt failedAttempt(int attemptNumber, UUID routeId) {
     PayoutAttempt attempt =
         PayoutAttempt.initiated(
-            "a-" + attemptNumber, "P-001", attemptNumber, routeId, Instant.EPOCH);
+            UUID.nameUUIDFromBytes(("a-" + attemptNumber).getBytes(StandardCharsets.UTF_8)),
+            "P-001",
+            attemptNumber,
+            routeId,
+            Instant.EPOCH);
     attempt.markProcessing();
     attempt.markFailed("PROVIDER_TIMEOUT", "Simulated bank timeout");
     return attempt;
   }
 
-  private static PayoutAttempt completedAttempt(int attemptNumber, String routeId) {
+  private static PayoutAttempt completedAttempt(int attemptNumber, UUID routeId) {
     PayoutAttempt attempt =
         PayoutAttempt.initiated(
-            "a-" + attemptNumber, "P-001", attemptNumber, routeId, Instant.EPOCH);
+            UUID.nameUUIDFromBytes(("a-" + attemptNumber).getBytes(StandardCharsets.UTF_8)),
+            "P-001",
+            attemptNumber,
+            routeId,
+            Instant.EPOCH);
     attempt.markProcessing();
     attempt.markCompleted("SB-1");
     return attempt;

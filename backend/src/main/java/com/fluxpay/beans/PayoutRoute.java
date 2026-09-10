@@ -7,15 +7,14 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Payout rail mapped to {@code payout_routes} exactly per V401 DDL.
  *
- * <p>Id strategy note: the DDL declares {@code id RAW(16)}. There is currently no team-wide UUID
- * attribute converter (no entities exist yet), and domain unit tests address routes by short string
- * handles (e.g. {@code "r-standard"}), so the id is modelled as a {@code String} on the {@code id}
- * column. Production callers should persist UUID strings; introducing a shared UUID converter later
- * can replace the mapping without touching {@link #seed} / {@link #update} callers.
+ * <p>Id strategy: the DDL declares {@code id RAW(16)} as UUID storage. The id is modelled as {@code
+ * UUID} and Hibernate maps it to RAW(16) on Oracle. Business lookups use {@code routeCode}; callers
+ * never parse the UUID.
  *
  * <p>{@code active} is {@code NUMBER(1)} on Oracle; it is mapped as {@code boolean} and the
  * Hibernate Oracle dialect persists it as 0/1.
@@ -26,7 +25,7 @@ public class PayoutRoute {
 
   @Id
   @Column(name = "id", columnDefinition = "RAW(16)", nullable = false, updatable = false)
-  private String id;
+  private UUID id;
 
   @Column(name = "route_code", nullable = false, unique = true, length = 50)
   private String routeCode;
@@ -72,7 +71,7 @@ public class PayoutRoute {
    * active=true}, {@code version=0} and fixed timestamps.
    */
   public static PayoutRoute seed(
-      String id,
+      UUID id,
       String code,
       String name,
       String providerName,
@@ -135,7 +134,7 @@ public class PayoutRoute {
         active);
   }
 
-  public String getId() {
+  public UUID getId() {
     return id;
   }
 
@@ -188,7 +187,7 @@ public class PayoutRoute {
   }
 
   /** Record-style aliases used by the recommendation formula and PRD quote shape. */
-  public String id() {
+  public UUID id() {
     return id;
   }
 

@@ -15,6 +15,7 @@ import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.repository.PayoutRouteRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,7 +54,7 @@ class RouteCatalogServiceTest {
             PaymentStatus.ROUTED);
     standard =
         PayoutRoute.seed(
-            "r-standard",
+            UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8)),
             "STANDARD_BANK",
             "Standard Bank Rail",
             "Standard Bank",
@@ -64,7 +65,7 @@ class RouteCatalogServiceTest {
             "99.50");
     instant =
         PayoutRoute.seed(
-            "r-instant",
+            UUID.nameUUIDFromBytes("fluxpay:route:INSTANT_PAYOUT".getBytes(StandardCharsets.UTF_8)),
             "INSTANT_PAYOUT",
             "Instant Payout",
             "Instant Payout Co",
@@ -100,13 +101,13 @@ class RouteCatalogServiceTest {
 
   @Test
   void updateRouteAppliesChangesAndSaves() {
-    when(routes.findById("r-standard")).thenReturn(Optional.of(standard));
+    when(routes.findById(standard.getId())).thenReturn(Optional.of(standard));
     when(routes.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     RouteApi.Update update =
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 0L);
 
-    PayoutRoute updated = service.updateRoute("r-standard", update);
+    PayoutRoute updated = service.updateRoute(standard.getId().toString(), update);
 
     assertThat(updated.getBaseFee()).isEqualByComparingTo("6.00");
     assertThat(updated.getFxSpreadPercentage()).isEqualByComparingTo("1.0");
@@ -117,26 +118,28 @@ class RouteCatalogServiceTest {
 
   @Test
   void updateRouteWithStaleVersionThrowsOptimisticLockingFailure() {
-    when(routes.findById("r-standard")).thenReturn(Optional.of(standard));
+    when(routes.findById(standard.getId())).thenReturn(Optional.of(standard));
     RouteApi.Update stale =
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 5L);
 
-    assertThatThrownBy(() -> service.updateRoute("r-standard", stale))
+    assertThatThrownBy(() -> service.updateRoute(standard.getId().toString(), stale))
         .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     verify(routes, never()).save(any());
   }
 
   @Test
   void updateRouteSaveConflictPropagatesAsOptimisticLockingFailure() {
-    when(routes.findById("r-standard")).thenReturn(Optional.of(standard));
+    when(routes.findById(standard.getId())).thenReturn(Optional.of(standard));
     when(routes.save(any()))
-        .thenThrow(new ObjectOptimisticLockingFailureException(PayoutRoute.class, "r-standard"));
+        .thenThrow(
+            new ObjectOptimisticLockingFailureException(
+                PayoutRoute.class, standard.getId().toString()));
     RouteApi.Update update =
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 0L);
 
-    assertThatThrownBy(() -> service.updateRoute("r-standard", update))
+    assertThatThrownBy(() -> service.updateRoute(standard.getId().toString(), update))
         .isInstanceOf(ObjectOptimisticLockingFailureException.class);
   }
 }

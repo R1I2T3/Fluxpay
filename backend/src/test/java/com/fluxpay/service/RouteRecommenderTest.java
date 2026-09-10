@@ -6,7 +6,9 @@ import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +22,8 @@ class RouteRecommenderTest {
     routes =
         List.of(
             PayoutRoute.seed(
-                "r-standard",
+                UUID.nameUUIDFromBytes(
+                    "fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8)),
                 "STANDARD_BANK",
                 "Standard Bank Rail",
                 "Standard Bank",
@@ -30,7 +33,8 @@ class RouteRecommenderTest {
                 240,
                 "99.50"),
             PayoutRoute.seed(
-                "r-instant",
+                UUID.nameUUIDFromBytes(
+                    "fluxpay:route:INSTANT_PAYOUT".getBytes(StandardCharsets.UTF_8)),
                 "INSTANT_PAYOUT",
                 "Instant Payout",
                 "Instant Payout Co",
@@ -40,7 +44,8 @@ class RouteRecommenderTest {
                 5,
                 "98.00"),
             PayoutRoute.seed(
-                "r-local",
+                UUID.nameUUIDFromBytes(
+                    "fluxpay:route:LOCAL_PARTNER".getBytes(StandardCharsets.UTF_8)),
                 "LOCAL_PARTNER",
                 "Local Partner",
                 "Local Partner Ltd",

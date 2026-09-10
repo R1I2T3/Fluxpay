@@ -57,6 +57,10 @@ class RouteControllerContractTest {
       UUID.nameUUIDFromBytes("fluxpay:test:owner".getBytes(StandardCharsets.UTF_8));
   private static final UUID OTHER_ID =
       UUID.nameUUIDFromBytes("fluxpay:test:other".getBytes(StandardCharsets.UTF_8));
+  private static final UUID R_STANDARD =
+      UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
+  private static final UUID R_INSTANT =
+      UUID.nameUUIDFromBytes("fluxpay:route:INSTANT_PAYOUT".getBytes(StandardCharsets.UTF_8));
 
   @Autowired private MockMvc mvc;
 
@@ -84,7 +88,7 @@ class RouteControllerContractTest {
             PaymentStatus.ROUTED);
     standard =
         PayoutRoute.seed(
-            "r-standard",
+            R_STANDARD,
             "STANDARD_BANK",
             "Standard Bank Rail",
             "Standard Bank",
@@ -95,7 +99,7 @@ class RouteControllerContractTest {
             "99.50");
     instant =
         PayoutRoute.seed(
-            "r-instant",
+            R_INSTANT,
             "INSTANT_PAYOUT",
             "Instant Payout",
             "Instant Payout Co",
@@ -109,10 +113,9 @@ class RouteControllerContractTest {
   @Test
   void listRoutesReturnsCatalogEntriesWithMetrics() throws Exception {
     when(catalog.listRoutes()).thenReturn(List.of(instant, standard));
-    when(catalog.metricFor("r-standard"))
-        .thenReturn(new RouteMetrics.RouteMetric("r-standard", 3L, 4L));
-    when(catalog.metricFor("r-instant"))
-        .thenReturn(new RouteMetrics.RouteMetric("r-instant", 1L, 2L));
+    when(catalog.metricFor(R_STANDARD))
+        .thenReturn(new RouteMetrics.RouteMetric(R_STANDARD, 3L, 4L));
+    when(catalog.metricFor(R_INSTANT)).thenReturn(new RouteMetrics.RouteMetric(R_INSTANT, 1L, 2L));
 
     mvc.perform(
             get("/api/routes")
@@ -156,7 +159,7 @@ class RouteControllerContractTest {
         .andExpect(header().string("X-Correlation-ID", "cid-reco-1"))
         .andExpect(jsonPath("$.correlationId").value("cid-reco-1"))
         .andExpect(jsonPath("$.data.paymentId").value("P-001"))
-        .andExpect(jsonPath("$.data.recommendedRouteId").value("r-standard"))
+        .andExpect(jsonPath("$.data.recommendedRouteId").value(standard.getId().toString()))
         .andExpect(jsonPath("$.data.quotes.length()").value(2))
         .andExpect(jsonPath("$.data.quotes[0].marketRate", closeTo(148.0, 0.0001)))
         .andExpect(jsonPath("$.data.quotes[1].marketRate", closeTo(148.0, 0.0001)));

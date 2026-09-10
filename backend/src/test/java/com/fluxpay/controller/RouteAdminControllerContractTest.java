@@ -46,6 +46,8 @@ class RouteAdminControllerContractTest {
       UUID.nameUUIDFromBytes("fluxpay:test:admin".getBytes(StandardCharsets.UTF_8));
   private static final UUID CUSTOMER_ID =
       UUID.nameUUIDFromBytes("fluxpay:test:customer".getBytes(StandardCharsets.UTF_8));
+  private static final UUID R_STANDARD =
+      UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
 
   @Autowired private MockMvc mvc;
 
@@ -60,7 +62,7 @@ class RouteAdminControllerContractTest {
     MockSecurity.stubJwt(jwt);
     standard =
         PayoutRoute.seed(
-            "r-standard",
+            R_STANDARD,
             "STANDARD_BANK",
             "Standard Bank Rail",
             "Standard Bank",
@@ -75,11 +77,11 @@ class RouteAdminControllerContractTest {
   void adminUpdateReturnsUpdatedRoute() throws Exception {
     when(authorizer.isAdmin(any())).thenReturn(true);
     when(catalog.updateRoute(anyString(), any())).thenReturn(standard);
-    when(catalog.metricFor("r-standard"))
-        .thenReturn(new RouteMetrics.RouteMetric("r-standard", 3L, 4L));
+    when(catalog.metricFor(R_STANDARD))
+        .thenReturn(new RouteMetrics.RouteMetric(R_STANDARD, 3L, 4L));
 
     mvc.perform(
-            put("/api/admin/routes/r-standard")
+            put("/api/admin/routes/" + standard.getId().toString())
                 .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
                 .header("X-Correlation-ID", "cid-admin-1")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -99,7 +101,7 @@ class RouteAdminControllerContractTest {
     when(authorizer.isAdmin(any())).thenReturn(false);
 
     mvc.perform(
-            put("/api/admin/routes/r-standard")
+            put("/api/admin/routes/" + standard.getId().toString())
                 .header("Authorization", MockSecurity.bearer(CUSTOMER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-admin-2")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -117,10 +119,12 @@ class RouteAdminControllerContractTest {
   void staleVersionIsConflict() throws Exception {
     when(authorizer.isAdmin(any())).thenReturn(true);
     when(catalog.updateRoute(anyString(), any()))
-        .thenThrow(new ObjectOptimisticLockingFailureException(PayoutRoute.class, "r-standard"));
+        .thenThrow(
+            new ObjectOptimisticLockingFailureException(
+                PayoutRoute.class, standard.getId().toString()));
 
     mvc.perform(
-            put("/api/admin/routes/r-standard")
+            put("/api/admin/routes/" + standard.getId().toString())
                 .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
                 .header("X-Correlation-ID", "cid-admin-3")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -138,7 +142,7 @@ class RouteAdminControllerContractTest {
     // The frozen SecurityConfig has no 401 entry point, so anonymous requests are denied with
     // 403. Assert the actual frozen behavior instead of inventing a 401 contract.
     mvc.perform(
-            put("/api/admin/routes/r-standard")
+            put("/api/admin/routes/" + standard.getId().toString())
                 .header("X-Correlation-ID", "cid-admin-4")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(

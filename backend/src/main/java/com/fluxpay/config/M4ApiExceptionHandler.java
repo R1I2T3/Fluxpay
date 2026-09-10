@@ -1,6 +1,7 @@
 package com.fluxpay.config;
 
 import com.fluxpay.common.api.ApiError;
+import com.fluxpay.service.EventPublishException;
 import com.fluxpay.service.ForbiddenException;
 import com.fluxpay.service.QuoteExpiredException;
 import com.fluxpay.service.QuoteMismatchException;
@@ -56,5 +57,11 @@ public class M4ApiExceptionHandler {
   public ResponseEntity<ApiError> badRequest(IllegalArgumentException e) {
     return ResponseEntity.badRequest()
         .body(new ApiError(cid(), "BAD_REQUEST", e.getMessage(), Map.of(), Instant.now()));
+  }
+
+  @ExceptionHandler(EventPublishException.class)
+  public ResponseEntity<ApiError> eventPublish(EventPublishException e) {
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        .body(new ApiError(cid(), "EVENT_PUBLISH_FAILED", e.getMessage(), Map.of(), Instant.now()));
   }
 }

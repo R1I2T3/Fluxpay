@@ -10,6 +10,10 @@ public class MockFxRateProvider implements FxRateProvider {
 
   @Override
   public BigDecimal rate(String from, String to) {
+    // Mock supports USD->KES only; fail fast on other pairs to surface wiring bugs.
+    if (!"USD".equals(from) || !"KES".equals(to)) {
+      throw new IllegalArgumentException("mock FX supports USD->KES only, got " + from + "->" + to);
+    }
     return USD_TO_KES_RATE;
   }
 }

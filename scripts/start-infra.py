@@ -13,6 +13,7 @@ TOPICS = [
     "payout.failed",
     "payout.completed",
     "payment.refunded",
+    "payout.recovery.dlt",
 ]
 
 DEFAULT_BOOTSTRAP = "localhost:9092"
@@ -48,7 +49,13 @@ def kafka_script(name):
     suffix = ".bat" if sys.platform == "win32" else ".sh"
     candidates = []
     if home:
+        # Linux: $KAFKA_HOME/bin/kafka-topics.sh, Windows: %KAFKA_HOME%\bin\windows\kafka-topics.bat
+        # or %KAFKA_HOME%\bin\kafka-topics.bat depending on distribution layout.
         candidates.append(os.path.join(home, "bin", name + suffix))
+        if sys.platform == "win32":
+            candidates.append(os.path.join(home, "bin", "windows", name + ".bat"))
+        else:
+            candidates.append(os.path.join(home, "bin", "windows", name + suffix))
     found = shutil.which(name + suffix) or shutil.which(name)
     if found:
         candidates.append(found)
@@ -79,10 +86,11 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     load_env(a.env_file)
-    r = run(["docker", "compose", "up", "-d"], verbose=a.verbose)
-    if r.returncode != 0:
-        print("compose up failed")
-        return 1
+    if not a.skip_oracle:
+        r = run(["docker", "compose", "up", "-d"], verbose=a.verbose)
+        if r.returncode != 0:
+            print("compose up failed")
+            return 1
     if not a.skip_oracle:
         try:
             import oracledb

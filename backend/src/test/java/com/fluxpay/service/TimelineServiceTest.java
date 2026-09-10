@@ -6,16 +6,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentEvent;
 import com.fluxpay.dto.TimelineEventResponse;
 import com.fluxpay.repository.PaymentEventStore;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class TimelineServiceTest {
+  private static final UUID E1 =
+      UUID.nameUUIDFromBytes("fluxpay:e-1".getBytes(StandardCharsets.UTF_8));
+  private static final UUID E2 =
+      UUID.nameUUIDFromBytes("fluxpay:e-2".getBytes(StandardCharsets.UTF_8));
+
   @Test
   void sortsByOccurredAtThenEventIdEvenWhenStoreArrivalIsReversed() {
     PaymentEvent later =
         PaymentEvent.create(
-            "e-2",
+            E2,
             "P-001",
             "payout.failed",
             "payout.failed",
@@ -24,7 +31,7 @@ class TimelineServiceTest {
             Instant.parse("2026-09-04T10:00:02Z"));
     PaymentEvent earlier =
         PaymentEvent.create(
-            "e-1",
+            E1,
             "P-001",
             "payout.submitted",
             "payout.submitted",
@@ -36,7 +43,7 @@ class TimelineServiceTest {
 
     assertThat(service.getTimeline("P-001"))
         .extracting(TimelineEventResponse::eventId)
-        .containsExactly("e-1", "e-2");
+        .containsExactly(E1.toString(), E2.toString());
   }
 
   private static final class StubTimelineStore implements PaymentEventStore {

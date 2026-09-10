@@ -53,7 +53,8 @@ class RefundJournalServiceTest {
         .isEqualByComparingTo(new BigDecimal("10000.00"));
     assertThat(ledger.balancesSnapshot().get(payment.payoutClearingWalletId()))
         .isEqualByComparingTo(new BigDecimal("0.00"));
-    assertThat(ledger.entriesSnapshot()).hasSize(3);
+    // 2 seeded originals (P-001, P-002) + 2 refund lines for P-001
+    assertThat(ledger.entriesSnapshot()).hasSize(4);
     assertThat(ledger.entriesSnapshot().get("payment:P-001:debit")).isEqualTo(originalBefore);
     assertThat(ledger.entriesSnapshot())
         .containsKeys("refund:P-001:clearing:debit", "refund:P-001:sender:credit");

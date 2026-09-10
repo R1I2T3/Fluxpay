@@ -67,15 +67,20 @@ public class PayoutController {
       throw new IllegalArgumentException("routeCode must not be blank");
     }
     gate.assertActiveQuote(payment, body.routeCode());
-    PaymentEligibilityGate.ConfirmOutcome confirm =
-        gate.confirmIdempotent(payment, keyOrRandom(idempotencyKey));
+    String key = keyOrRandom(idempotencyKey);
+    PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
     if (confirm.alreadyConfirmed()) {
       return new ApiResponse<>(
           cid, build(paymentId, body.routeCode(), null, true, confirm.originalEventId()));
     }
-    PayoutOutcome outcome = execution.submit(paymentId, body.routeCode(), cid);
-    return new ApiResponse<>(
-        cid, build(paymentId, body.routeCode(), outcome, false, confirm.originalEventId()));
+    try {
+      PayoutOutcome outcome = execution.submit(paymentId, body.routeCode(), cid);
+      // First execution has no replay source; return null instead of the gate's reservation UUID.
+      return new ApiResponse<>(cid, build(paymentId, body.routeCode(), outcome, false, null));
+    } catch (RuntimeException e) {
+      gate.release(payment, key);
+      throw e;
+    }
   }
 
   @PostMapping("/api/payments/{paymentId}/retry-payout")
@@ -85,14 +90,18 @@ public class PayoutController {
       HttpServletRequest request) {
     String cid = ControllerSupport.correlationId(request);
     PaymentSnapshot payment = owned(paymentId);
-    PaymentEligibilityGate.ConfirmOutcome confirm =
-        gate.confirmIdempotent(payment, keyOrRandom(idempotencyKey));
+    String key = keyOrRandom(idempotencyKey);
+    PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
     if (confirm.alreadyConfirmed()) {
       return new ApiResponse<>(cid, build(paymentId, null, null, true, confirm.originalEventId()));
     }
-    PayoutOutcome outcome = recovery.retry(paymentId, cid);
-    return new ApiResponse<>(
-        cid, build(paymentId, null, outcome, false, confirm.originalEventId()));
+    try {
+      PayoutOutcome outcome = recovery.retry(paymentId, cid);
+      return new ApiResponse<>(cid, build(paymentId, null, outcome, false, null));
+    } catch (RuntimeException e) {
+      gate.release(payment, key);
+      throw e;
+    }
   }
 
   @PostMapping("/api/payments/{paymentId}/switch-route")
@@ -106,15 +115,19 @@ public class PayoutController {
     if (body == null || body.routeCode() == null || body.routeCode().isBlank()) {
       throw new IllegalArgumentException("routeCode must not be blank");
     }
-    PaymentEligibilityGate.ConfirmOutcome confirm =
-        gate.confirmIdempotent(payment, keyOrRandom(idempotencyKey));
+    String key = keyOrRandom(idempotencyKey);
+    PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
     if (confirm.alreadyConfirmed()) {
       return new ApiResponse<>(
           cid, build(paymentId, body.routeCode(), null, true, confirm.originalEventId()));
     }
-    PayoutOutcome outcome = recovery.switchRoute(paymentId, body.routeCode(), cid);
-    return new ApiResponse<>(
-        cid, build(paymentId, body.routeCode(), outcome, false, confirm.originalEventId()));
+    try {
+      PayoutOutcome outcome = recovery.switchRoute(paymentId, body.routeCode(), cid);
+      return new ApiResponse<>(cid, build(paymentId, body.routeCode(), outcome, false, null));
+    } catch (RuntimeException e) {
+      gate.release(payment, key);
+      throw e;
+    }
   }
 
   @PostMapping("/api/payments/{paymentId}/refund")

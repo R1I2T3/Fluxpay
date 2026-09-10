@@ -17,7 +17,7 @@ CREATE TABLE payout_routes (
 
 CREATE TABLE payout_attempts (
   id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
-  payment_id RAW(16) NOT NULL REFERENCES payments(id),
+  payment_id VARCHAR2(50) NOT NULL,
   payout_route_id RAW(16) NOT NULL REFERENCES payout_routes(id),
   attempt_number NUMBER(10) NOT NULL CHECK (attempt_number > 0),
   status VARCHAR2(30) NOT NULL

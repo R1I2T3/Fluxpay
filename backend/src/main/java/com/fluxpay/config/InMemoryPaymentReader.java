@@ -21,6 +21,12 @@ public class InMemoryPaymentReader implements PaymentReader {
       UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes(StandardCharsets.UTF_8));
   public static final UUID P001_SENDER_USER =
       UUID.nameUUIDFromBytes("fluxpay:P-001:user".getBytes(StandardCharsets.UTF_8));
+  public static final UUID P002_SENDER_WALLET =
+      UUID.nameUUIDFromBytes("fluxpay:P-002:sender".getBytes(StandardCharsets.UTF_8));
+  public static final UUID P002_CLEARING_WALLET =
+      UUID.nameUUIDFromBytes("fluxpay:P-002:clearing".getBytes(StandardCharsets.UTF_8));
+  public static final UUID P002_SENDER_USER =
+      UUID.nameUUIDFromBytes("fluxpay:P-002:user".getBytes(StandardCharsets.UTF_8));
 
   private final Map<String, PaymentSnapshot> store =
       Map.of(
@@ -31,6 +37,16 @@ public class InMemoryPaymentReader implements PaymentReader {
               P001_SENDER_WALLET,
               P001_CLEARING_WALLET,
               new BigDecimal("1000.00"),
+              "USD",
+              "KES",
+              PaymentStatus.ROUTED),
+          "P-002",
+          new PaymentSnapshot(
+              "P-002",
+              P002_SENDER_USER,
+              P002_SENDER_WALLET,
+              P002_CLEARING_WALLET,
+              new BigDecimal("500.00"),
               "USD",
               "KES",
               PaymentStatus.ROUTED));

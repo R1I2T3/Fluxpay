@@ -14,9 +14,11 @@ import org.springframework.stereotype.Repository;
 /**
  * Duplicate-safe {@link PaymentEventStore} over Oracle {@code payment_events}.
  *
- * <p>The insert goes through {@link NamedParameterJdbcTemplate} so a unique-key violation on a
- * replayed {@code eventId} only yields {@code false} instead of leaving a Hibernate persistence
- * context unusable. Reads delegate to {@link PaymentEventRepository}.
+ * <p>UUID strategy: {@code id} is RAW(16) bound as 16 bytes from the {@code UUID} event id; {@code
+ * payment_id} is the business key (P-001/P-002) bound as VARCHAR2. The insert goes through {@link
+ * NamedParameterJdbcTemplate} so a unique-key violation on a replayed {@code eventId} only yields
+ * {@code false} instead of leaving a Hibernate persistence context unusable. Reads delegate to
+ * {@link PaymentEventRepository}.
  */
 @Repository
 public class JdbcPaymentEventStore implements PaymentEventStore {
@@ -55,15 +57,13 @@ public class JdbcPaymentEventStore implements PaymentEventStore {
   }
 
   /**
-   * Converts the String UUID event id to the 16-byte RAW(16) {@code id} form (team UUID converter
-   * semantics). Keeps the String-eventId domain model while binding bytes Oracle stores as RAW(16),
-   * so a replayed eventId hits the PK and yields {@code false}.
+   * Converts the UUID event id to the 16-byte RAW(16) {@code id} form. Payment business keys stay
+   * as VARCHAR2 and are bound directly.
    */
-  private static byte[] toRaw16(String eventId) {
-    UUID uuid = UUID.fromString(eventId);
+  private static byte[] toRaw16(UUID eventId) {
     ByteBuffer buf = ByteBuffer.allocate(16);
-    buf.putLong(uuid.getMostSignificantBits());
-    buf.putLong(uuid.getLeastSignificantBits());
+    buf.putLong(eventId.getMostSignificantBits());
+    buf.putLong(eventId.getLeastSignificantBits());
     return buf.array();
   }
 

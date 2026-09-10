@@ -8,6 +8,7 @@ import com.fluxpay.dto.EventTopics;
 import com.fluxpay.dto.PaymentEventEnvelope;
 import com.fluxpay.repository.PaymentEventStore;
 import java.util.Objects;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 /**
@@ -48,7 +49,7 @@ public class PaymentEventIngestionService {
     }
     PaymentEvent event =
         PaymentEvent.create(
-            envelope.eventId(),
+            parseEventId(envelope.eventId()),
             envelope.paymentId(),
             envelope.eventType(),
             receivedTopic,
@@ -56,5 +57,13 @@ public class PaymentEventIngestionService {
             payloadJson,
             envelope.occurredAt());
     return store.appendIfAbsent(event);
+  }
+
+  private static UUID parseEventId(String eventId) {
+    try {
+      return UUID.fromString(eventId);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("eventId must be a UUID: " + eventId, e);
+    }
   }
 }

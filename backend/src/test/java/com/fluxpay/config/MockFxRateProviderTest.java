@@ -1,6 +1,7 @@
 package com.fluxpay.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fluxpay.common.contracts.FxRateProvider;
 import java.math.BigDecimal;
@@ -24,6 +25,17 @@ class MockFxRateProviderTest {
           assertThat(context).hasSingleBean(FxRateProvider.class);
           assertThat(context.getBean(FxRateProvider.class).rate("USD", "KES"))
               .isEqualByComparingTo("148.0000");
+        });
+  }
+
+  @Test
+  void mockRejectsUnsupportedCurrencyPair() {
+    contextRunner.run(
+        context -> {
+          FxRateProvider fx = context.getBean(FxRateProvider.class);
+          assertThatThrownBy(() -> fx.rate("EUR", "KES"))
+              .isInstanceOf(IllegalArgumentException.class)
+              .hasMessageContaining("USD->KES only");
         });
   }
 

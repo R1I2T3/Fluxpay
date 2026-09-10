@@ -24,7 +24,12 @@ public class MockLedgerWriter implements LedgerWriter {
       UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes(StandardCharsets.UTF_8));
   public static final UUID P001_CLEARING_WALLET =
       UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes(StandardCharsets.UTF_8));
+  public static final UUID P002_SENDER_WALLET =
+      UUID.nameUUIDFromBytes("fluxpay:P-002:sender".getBytes(StandardCharsets.UTF_8));
+  public static final UUID P002_CLEARING_WALLET =
+      UUID.nameUUIDFromBytes("fluxpay:P-002:clearing".getBytes(StandardCharsets.UTF_8));
   public static final String ORIGINAL_KEY = "payment:P-001:debit";
+  public static final String P002_ORIGINAL_KEY = "payment:P-002:debit";
 
   /** Single immutable ledger line, exposed via snapshots for tests. */
   public record LedgerEntry(
@@ -36,10 +41,16 @@ public class MockLedgerWriter implements LedgerWriter {
   public MockLedgerWriter() {
     balances.put(P001_SENDER_WALLET, new BigDecimal("9000.00"));
     balances.put(P001_CLEARING_WALLET, new BigDecimal("1000.00"));
+    balances.put(P002_SENDER_WALLET, new BigDecimal("9500.00"));
+    balances.put(P002_CLEARING_WALLET, new BigDecimal("500.00"));
     entries.put(
         ORIGINAL_KEY,
         new LedgerEntry(
             P001_SENDER_WALLET, "DEBIT", new BigDecimal("1000.00"), "USD", ORIGINAL_KEY));
+    entries.put(
+        P002_ORIGINAL_KEY,
+        new LedgerEntry(
+            P002_SENDER_WALLET, "DEBIT", new BigDecimal("500.00"), "USD", P002_ORIGINAL_KEY));
   }
 
   @Override
@@ -82,5 +93,10 @@ public class MockLedgerWriter implements LedgerWriter {
    */
   public synchronized Map<String, LedgerEntry> entriesSnapshot() {
     return Collections.unmodifiableMap(new LinkedHashMap<>(entries));
+  }
+
+  @Override
+  public synchronized boolean contains(String idempotencyKey) {
+    return entries.containsKey(idempotencyKey);
   }
 }

@@ -21,6 +21,7 @@ import com.fluxpay.dto.RecoveryAction;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -67,7 +68,7 @@ class PayoutExecutionServiceTest {
             PaymentStatus.ROUTED);
     standard =
         PayoutRoute.seed(
-            "r-standard",
+            UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8)),
             "STANDARD_BANK",
             "Standard Bank Rail",
             "Standard Bank",

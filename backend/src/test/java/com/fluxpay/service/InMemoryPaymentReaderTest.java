@@ -21,6 +21,15 @@ class InMemoryPaymentReaderTest {
   }
 
   @Test
+  void exposesTheP002DemoPayment() {
+    PaymentSnapshot payment = reader.get("P-002");
+    assertThat(payment.amount()).isEqualByComparingTo(new BigDecimal("500.00"));
+    assertThat(payment.sourceCurrency()).isEqualTo("USD");
+    assertThat(payment.targetCurrency()).isEqualTo("KES");
+    assertThat(payment.senderWalletId()).isNotEqualTo(payment.payoutClearingWalletId());
+  }
+
+  @Test
   void unknownPaymentIsNotFound() {
     assertThatThrownBy(() -> reader.get("P-404"))
         .isInstanceOf(NoSuchElementException.class)

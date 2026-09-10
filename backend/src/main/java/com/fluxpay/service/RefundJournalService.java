@@ -40,4 +40,14 @@ public class RefundJournalService {
         payment.sourceCurrency(),
         "refund:" + payment.paymentId() + ":sender:credit");
   }
+
+  /**
+   * Durable refund probe used before publishing. Ledger idempotency keys are the source of truth so
+   * a fast double-click before timeline ingestion still replays without duplicate publish.
+   */
+  public boolean isAlreadyRefunded(PaymentSnapshot payment) {
+    Objects.requireNonNull(payment, "payment must not be null");
+    return ledger.contains("refund:" + payment.paymentId() + ":clearing:debit")
+        && ledger.contains("refund:" + payment.paymentId() + ":sender:credit");
+  }
 }

@@ -30,6 +30,7 @@ public class InMemoryPaymentEligibilityGate implements PaymentEligibilityGate {
 
   public InMemoryPaymentEligibilityGate() {
     quotes.put("P-001", new QuoteState("STANDARD_BANK", Instant.now().plusSeconds(15 * 60)));
+    quotes.put("P-002", new QuoteState("STANDARD_BANK", Instant.now().plusSeconds(15 * 60)));
   }
 
   @Override
@@ -55,6 +56,13 @@ public class InMemoryPaymentEligibilityGate implements PaymentEligibilityGate {
       String eventId = UUID.randomUUID().toString();
       confirmed.put(key, eventId);
       return new ConfirmOutcome(false, eventId);
+    }
+  }
+
+  @Override
+  public void release(PaymentSnapshot payment, String idempotencyKey) {
+    synchronized (confirmed) {
+      confirmed.remove(payment.paymentId() + ":" + idempotencyKey);
     }
   }
 }

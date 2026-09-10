@@ -10,15 +10,16 @@ import jakarta.persistence.Transient;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Payout attempt mapped to {@code payout_attempts} exactly per V401 DDL.
  *
- * <p>The {@code id} and {@code payout_route_id} columns are {@code RAW(16)}; like {@link
- * PayoutRoute} they are modelled as {@code String} handles. {@code routeId} stays a string handle
- * resolved through the route lookup before the attempt is created. The {@code failure_reason}
- * column carries the terminal error code; the human-readable error message is kept transient for
- * event payloads.
+ * <p>UUID strategy: {@code id} and {@code payout_route_id} are {@code RAW(16)} UUID storage mapped
+ * as {@code UUID}. {@code payment_id} is the business key (e.g. {@code P-001}/{@code P-002}) stored
+ * as {@code VARCHAR2(50)} with no FK to {@code payments(id)}. The {@code failure_reason} column
+ * carries the terminal error code; the human-readable error message is kept transient for event
+ * payloads.
  */
 @Entity
 @Table(
@@ -31,13 +32,13 @@ public class PayoutAttempt {
 
   @Id
   @Column(name = "id", columnDefinition = "RAW(16)", nullable = false, updatable = false)
-  private String id;
+  private UUID id;
 
-  @Column(name = "payment_id", columnDefinition = "RAW(16)", nullable = false)
+  @Column(name = "payment_id", columnDefinition = "VARCHAR2(50)", nullable = false)
   private String paymentId;
 
   @Column(name = "payout_route_id", columnDefinition = "RAW(16)", nullable = false)
-  private String routeId;
+  private UUID routeId;
 
   @Column(name = "attempt_number", nullable = false)
   private int attemptNumber;
@@ -63,7 +64,7 @@ public class PayoutAttempt {
   protected PayoutAttempt() {}
 
   private PayoutAttempt(
-      String id, String paymentId, int attemptNumber, String routeId, Instant initiatedAt) {
+      UUID id, String paymentId, int attemptNumber, UUID routeId, Instant initiatedAt) {
     this.id = Objects.requireNonNull(id, "id must not be null");
     this.paymentId = Objects.requireNonNull(paymentId, "paymentId must not be null");
     if (attemptNumber < 1) {
@@ -76,7 +77,7 @@ public class PayoutAttempt {
   }
 
   public static PayoutAttempt initiated(
-      String id, String paymentId, int attemptNumber, String routeId, Instant initiatedAt) {
+      UUID id, String paymentId, int attemptNumber, UUID routeId, Instant initiatedAt) {
     return new PayoutAttempt(id, paymentId, attemptNumber, routeId, initiatedAt);
   }
 
@@ -130,7 +131,7 @@ public class PayoutAttempt {
     return "PROCESSING";
   }
 
-  public String getId() {
+  public UUID getId() {
     return id;
   }
 
@@ -138,7 +139,7 @@ public class PayoutAttempt {
     return paymentId;
   }
 
-  public String getRouteId() {
+  public UUID getRouteId() {
     return routeId;
   }
 
@@ -171,7 +172,7 @@ public class PayoutAttempt {
   }
 
   /** Record-style aliases used by domain logic and tests. */
-  public String id() {
+  public UUID id() {
     return id;
   }
 
@@ -179,7 +180,7 @@ public class PayoutAttempt {
     return paymentId;
   }
 
-  public String routeId() {
+  public UUID routeId() {
     return routeId;
   }
 

@@ -31,6 +31,15 @@ class PayoutProviderTest {
   }
 
   @Test
+  void standardBankFailCountThenSucceeds() {
+    StandardBankAdapter adapter = new StandardBankAdapter(() -> "STANDARD_BANK:2");
+    PayoutCmd cmd = command("STANDARD_BANK", "1000.00", "5.00");
+    assertThat(adapter.submit(cmd).success()).isFalse();
+    assertThat(adapter.submit(cmd).success()).isFalse();
+    assertThat(adapter.submit(cmd).success()).isTrue();
+  }
+
+  @Test
   void instantAddsTwoFiftyToProviderFee() {
     PayoutResult result =
         new InstantPayoutAdapter().submit(command("INSTANT_PAYOUT", "1000.00", "8.50"));

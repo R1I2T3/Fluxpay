@@ -74,6 +74,7 @@ public class RecoveryService {
   public PayoutOutcome retry(String paymentId, String correlationId) {
     PayoutAttempt latest = latestFailed(paymentId);
     PaymentSnapshot payment = paymentReader.get(paymentId);
+    assertNotRefunded(payment);
     PayoutRoute route =
         routes
             .findById(latest.routeId())
@@ -85,6 +86,8 @@ public class RecoveryService {
 
   public PayoutOutcome switchRoute(String paymentId, String newRouteCode, String correlationId) {
     PayoutAttempt latest = latestFailed(paymentId);
+    PaymentSnapshot earlyPayment = paymentReader.get(paymentId);
+    assertNotRefunded(earlyPayment);
     PayoutRoute route =
         routes
             .findByCode(newRouteCode)
@@ -95,7 +98,7 @@ public class RecoveryService {
     if (route.getId().equals(latest.routeId())) {
       throw new IllegalArgumentException("switch route must differ from failed route");
     }
-    PaymentSnapshot payment = paymentReader.get(paymentId);
+    PaymentSnapshot payment = earlyPayment;
     return execution.executeNewAttempt(
         payment, route, latest.attemptNumber() + 1, "SWITCH", correlationId);
   }
@@ -107,11 +110,20 @@ public class RecoveryService {
     Objects.requireNonNull(clock, "clock must not be null");
     PayoutAttempt latest = latestFailed(paymentId);
     Instant now = clock.instant();
+    // Durable-first guard: ledger keys are idempotent, timeline is async.
+    // If timeline already has refund, replay without touching ledger/publisher.
+    // Otherwise attempt ledger refund (idempotent via refund:<id>:* keys); if ledger already
+    // contains refund entries, treat as replay to avoid duplicate Kafka publish on fast
+    // double-click.
     if (eventStore.contains(paymentId, EventTopics.PAYMENT_REFUNDED)) {
       String replayEventId = PaymentEventPayload.refund(paymentId, now, Map.of()).eventId();
       return new RecoveryResult(paymentId, replayEventId, true);
     }
     PaymentSnapshot payment = paymentReader.get(paymentId);
+    if (refunds.isAlreadyRefunded(payment)) {
+      String replayEventId = PaymentEventPayload.refund(paymentId, now, Map.of()).eventId();
+      return new RecoveryResult(paymentId, replayEventId, true);
+    }
     refunds.refund(payment);
     String summary = "Refund issued for attempt " + latest.attemptNumber();
     Map<String, Object> details = new LinkedHashMap<>();
@@ -134,5 +146,15 @@ public class RecoveryService {
       throw new IllegalStateException("latest payout attempt is not failed");
     }
     return latest;
+  }
+
+  private void assertNotRefunded(PaymentSnapshot payment) {
+    String paymentId = payment.paymentId();
+    if (eventStore != null && eventStore.contains(paymentId, EventTopics.PAYMENT_REFUNDED)) {
+      throw new IllegalStateException("payment " + paymentId + " already refunded");
+    }
+    if (refunds != null && refunds.isAlreadyRefunded(payment)) {
+      throw new IllegalStateException("payment " + paymentId + " already refunded");
+    }
   }
 }

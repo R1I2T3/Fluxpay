@@ -66,7 +66,7 @@ public class RouteController {
 
   static RouteApi.RouteEntry toEntry(PayoutRoute route, RouteMetrics.RouteMetric metric) {
     return new RouteApi.RouteEntry(
-        route.getId(),
+        route.getId().toString(),
         route.getRouteCode(),
         route.getName(),
         route.getProviderName(),
@@ -83,20 +83,20 @@ public class RouteController {
 
   private static RouteApi.RecommendResponse toResponse(
       String paymentId, RoutePreference preference, RouteRecommendation recommendation) {
-    String recommendedId = recommendation.recommended().getId();
+    String recommendedId = recommendation.recommended().getId().toString();
     List<RouteApi.Quote> quotes =
         recommendation.quotes().stream()
             .map(
                 quote ->
                     new RouteApi.Quote(
-                        quote.route().getId(),
+                        quote.route().getId().toString(),
                         quote.route().getName(),
                         quote.marketRate(),
                         quote.offeredRate(),
                         quote.route().getBaseFee(),
                         quote.recipientAmount(),
                         quote.route().getEstimatedMinutes(),
-                        quote.route().getId().equals(recommendedId)))
+                        quote.route().getId().toString().equals(recommendedId)))
             .toList();
     String reason = "preference " + preference + " over " + quotes.size() + " active routes";
     return new RouteApi.RecommendResponse(paymentId, recommendedId, reason, quotes);
