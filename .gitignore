@@ -1,7 +1,14 @@
 target/
+.m2/
 node_modules/
 .env
 *.log
 .ojet/
 logs/
 __pycache__/
+
+# Eclipse workspace metadata and compiled output
+.classpath
+.project
+.settings/
+bin/

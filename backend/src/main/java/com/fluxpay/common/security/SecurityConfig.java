@@ -26,7 +26,14 @@ public class SecurityConfig {
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**")
+                a.requestMatchers(
+                        "/api/auth/**",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        // TODO(M5): remove once JWT auth is wired into the compliance/policy
+                        // flow -- open for now so these endpoints are testable standalone.
+                        "/api/compliance/**",
+                        "/api/policies/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
