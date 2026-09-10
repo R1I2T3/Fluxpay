@@ -13,7 +13,6 @@ class StubRouteAdminAuthorizerTest {
 
   @Test
   void providesTheFallbackAuthorizerWhenNoProductionBeanExists() {
-    contextRunner.run(
-        context -> assertThat(context).hasSingleBean(RouteAdminAuthorizer.class));
+    contextRunner.run(context -> assertThat(context).hasSingleBean(RouteAdminAuthorizer.class));
   }
 }

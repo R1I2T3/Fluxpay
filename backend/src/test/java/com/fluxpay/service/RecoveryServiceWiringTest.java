@@ -13,6 +13,7 @@ class RecoveryServiceWiringTest {
     assertThat(Arrays.stream(RecoveryService.class.getConstructors()))
         .filteredOn(constructor -> constructor.getParameterCount() == 8)
         .singleElement()
-        .satisfies(constructor -> assertThat(constructor.isAnnotationPresent(Autowired.class)).isTrue());
+        .satisfies(
+            constructor -> assertThat(constructor.isAnnotationPresent(Autowired.class)).isTrue());
   }
 }
