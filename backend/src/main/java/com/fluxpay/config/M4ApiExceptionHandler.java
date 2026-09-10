@@ -1,10 +1,10 @@
 package com.fluxpay.config;
 
 import com.fluxpay.common.api.ApiError;
-import com.fluxpay.service.EventPublishException;
-import com.fluxpay.service.ForbiddenException;
-import com.fluxpay.service.QuoteExpiredException;
-import com.fluxpay.service.QuoteMismatchException;
+import com.fluxpay.exception.EventPublishException;
+import com.fluxpay.exception.ForbiddenException;
+import com.fluxpay.exception.QuoteExpiredException;
+import com.fluxpay.exception.QuoteMismatchException;
 import java.time.Instant;
 import java.util.Map;
 import org.slf4j.MDC;

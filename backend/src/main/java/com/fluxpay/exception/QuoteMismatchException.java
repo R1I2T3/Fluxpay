@@ -1,4 +1,4 @@
-package com.fluxpay.service;
+package com.fluxpay.exception;
 
 /** Thrown when the requested route does not match the active quote; mapped to a 409. */
 public class QuoteMismatchException extends RuntimeException {

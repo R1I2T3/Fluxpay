@@ -5,7 +5,7 @@ import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteRecommendation;
-import com.fluxpay.service.ForbiddenException;
+import com.fluxpay.exception.ForbiddenException;
 import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.RouteAdminAuthorizer;

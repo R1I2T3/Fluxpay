@@ -4,7 +4,7 @@ import com.fluxpay.common.event.EventPublisher;
 import com.fluxpay.dto.EventEnvelopeCodec;
 import com.fluxpay.dto.PaymentEventEnvelope;
 import com.fluxpay.dto.PaymentEventPayload;
-import com.fluxpay.service.EventPublishException;
+import com.fluxpay.exception.EventPublishException;
 import java.util.Objects;
 import java.util.concurrent.CompletionException;
 import org.springframework.kafka.core.KafkaTemplate;

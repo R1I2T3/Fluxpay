@@ -2,7 +2,7 @@ package com.fluxpay.controller;
 
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.dto.TimelineEventResponse;
-import com.fluxpay.service.ForbiddenException;
+import com.fluxpay.exception.ForbiddenException;
 import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.RouteAdminAuthorizer;

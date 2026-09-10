@@ -2,6 +2,9 @@ package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fluxpay.adapter.InstantPayoutAdapter;
+import com.fluxpay.adapter.LocalPartnerAdapter;
+import com.fluxpay.adapter.StandardBankAdapter;
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
 import java.math.BigDecimal;

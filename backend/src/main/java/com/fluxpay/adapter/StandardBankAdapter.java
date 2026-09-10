@@ -1,7 +1,8 @@
-package com.fluxpay.service;
+package com.fluxpay.adapter;
 
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
+import com.fluxpay.service.PayoutProvider;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -17,7 +18,7 @@ public class StandardBankAdapter implements PayoutProvider {
           String, java.util.concurrent.atomic.AtomicInteger>
       failureCounts = new java.util.concurrent.ConcurrentHashMap<>();
 
-  StandardBankAdapter(Supplier<String> failureProbe) {
+  public StandardBankAdapter(Supplier<String> failureProbe) {
     this.failureProbe = Objects.requireNonNull(failureProbe, "failureProbe must not be null");
   }
 
