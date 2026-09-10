@@ -128,6 +128,24 @@ class ScriptCommandTests(unittest.TestCase):
         self.assertEqual(selected_port, "8083")
         self.assertEqual(requested_urls, ["http://localhost:8083/v3/api-docs"])
 
+    def test_start_backend_sets_windows_maven_homes_from_userprofile(self):
+        script = load_script("start-backend")
+        with (
+            mock.patch.dict(
+                script.os.environ,
+                {"USERPROFILE": r"C:\Users\Ritesh Jha"},
+                clear=True,
+            ),
+            mock.patch.object(script.sys, "platform", "win32"),
+            mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()),
+            mock.patch.object(script.time, "sleep"),
+            mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
+        ):
+            self.assertEqual(script.main(), 0)
+            self.assertEqual(script.os.environ["MAVEN_USER_HOME"], r"C:\Users\Ritesh Jha\.m2")
+            self.assertEqual(script.os.environ["MAVEN_OPTS"], r'-Duser.home="C:\Users\Ritesh Jha"')
+
     def test_start_backend_uses_windows_maven_wrapper_from_project_root(self):
         script = load_script("start-backend")
         with (

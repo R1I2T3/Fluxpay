@@ -22,7 +22,7 @@ public class PaymentEvent {
   @Column(name = "id", columnDefinition = "RAW(16)", nullable = false, updatable = false)
   private String eventId;
 
-  @Column(name = "payment_id", nullable = false)
+  @Column(name = "payment_id", columnDefinition = "RAW(16)", nullable = false)
   private String paymentId;
 
   @Column(name = "event_type", nullable = false, length = 100)

@@ -28,6 +28,20 @@ def terminate_process(process):
         process.wait()
 
 
+def configure_windows_maven_home():
+    if sys.platform != "win32":
+        return
+
+    userprofile = os.environ.get("USERPROFILE")
+    if not userprofile:
+        return
+
+    os.environ.setdefault("MAVEN_USER_HOME", os.path.join(userprofile, ".m2"))
+    if "-Duser.home=" not in os.environ.get("MAVEN_OPTS", ""):
+        user_home_option = f'-Duser.home="{userprofile}"'
+        os.environ["MAVEN_OPTS"] = f"{os.environ.get('MAVEN_OPTS', '')} {user_home_option}".strip()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int)
@@ -36,6 +50,7 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     load_env(a.env_file)
+    configure_windows_maven_home()
     port = a.port if a.port is not None else int(os.environ.get("SERVER_PORT", "8080"))
     os.environ["SERVER_PORT"] = str(port)
     p = subprocess.Popen(

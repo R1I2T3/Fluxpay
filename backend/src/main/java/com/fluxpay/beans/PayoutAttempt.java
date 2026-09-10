@@ -33,10 +33,10 @@ public class PayoutAttempt {
   @Column(name = "id", columnDefinition = "RAW(16)", nullable = false, updatable = false)
   private String id;
 
-  @Column(name = "payment_id", nullable = false)
+  @Column(name = "payment_id", columnDefinition = "RAW(16)", nullable = false)
   private String paymentId;
 
-  @Column(name = "payout_route_id", nullable = false)
+  @Column(name = "payout_route_id", columnDefinition = "RAW(16)", nullable = false)
   private String routeId;
 
   @Column(name = "attempt_number", nullable = false)

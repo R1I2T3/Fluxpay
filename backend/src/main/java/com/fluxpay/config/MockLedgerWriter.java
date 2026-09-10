@@ -9,9 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
 
 /**
  * Solo {@code mock}-profile ledger used by member-4 tests and local runs.
@@ -21,9 +18,6 @@ import org.springframework.stereotype.Component;
  * payment:P-001:debit}. {@code DEBIT} subtracts and {@code CREDIT} adds; any other entry type or
  * currency is rejected.
  */
-@Component
-@Profile("mock")
-@ConditionalOnMissingBean(LedgerWriter.class)
 public class MockLedgerWriter implements LedgerWriter {
 
   public static final UUID P001_SENDER_WALLET =
