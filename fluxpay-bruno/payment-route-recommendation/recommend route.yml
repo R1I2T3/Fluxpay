@@ -1,0 +1,29 @@
+info:
+  name: recommend route
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:8080/api/payments/P-001/recommend-route
+  headers:
+    - name: Authorization
+      value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMzNiMjU3Ni1iMjdjLTM1Y2EtOTJmMy04NGU0MTMzZWRkY2IiLCJlbWFpbCI6ImEzM2IyNTc2LWIyN2MtMzVjYS05MmYzLTg0ZTQxMzNlZGRjYkBleGFtcGxlLmNvbSIsInJvbGUiOiJDVVNUT01FUiIsImlhdCI6MTc4OTA1NzIxNCwiZXhwIjoxNzg5MDYwODE0fQ.Tty5yE5QugcHGgJRbj0Cxz-P3jciFyrTRjQYfdxQy7E
+    - name: X-Correlation-ID
+      value: demo-reco-1
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "preference": "BALANCED"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

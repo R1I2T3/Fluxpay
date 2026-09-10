@@ -1,0 +1,31 @@
+info:
+  name: Submit Payout — P-002
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: http://localhost:8080/api/payments/P-003/submit-payout
+  headers:
+    - name: Authorization
+      value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MTJkMGEzZi0wODY0LTMwNzItYjMxYi1jNWVhYWNhOWMzNmQiLCJlbWFpbCI6IjgxMmQwYTNmLTA4NjQtMzA3Mi1iMzFiLWM1ZWFhY2E5YzM2ZEBleGFtcGxlLmNvbSIsInJvbGUiOiJDVVNUT01FUiIsImlhdCI6MTc4OTA2MDI4NSwiZXhwIjoxNzg5MDYzODg1fQ.cS6V0skgUBFVTgBfVYyKAq_4cXbPMucNVVoQZncFWQM
+    - name: X-Correlation-ID
+      value: demo-submit-222
+    - name: Idempotency-Key
+      value: demo-key-244
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "routeCode": "STANDARD_BANK"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

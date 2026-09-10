@@ -1,0 +1,24 @@
+info:
+  name: Refund — P-002
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: http://localhost:8080/api/payments/P-002/refund
+  headers:
+    - name: Authorization
+      value: Bearer  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MTJkMGEzZi0wODY0LTMwNzItYjMxYi1jNWVhYWNhOWMzNmQiLCJlbWFpbCI6IjgxMmQwYTNmLTA4NjQtMzA3Mi1iMzFiLWM1ZWFhY2E5YzM2ZEBleGFtcGxlLmNvbSIsInJvbGUiOiJDVVNUT01FUiIsImlhdCI6MTc4OTA1NzMyMCwiZXhwIjoxNzg5MDYwOTIwfQ.vkf9oL1wlOqcYROuBf7elvDfgmRR2x-YkG-iv17hyU4
+    - name: X-Correlation-ID
+      value: demo-refund-1
+  body:
+    type: json
+    data: ""
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
