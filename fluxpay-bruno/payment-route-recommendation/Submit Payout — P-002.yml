@@ -5,10 +5,10 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8080/api/payments/P-003/submit-payout
+  url: http://localhost:3000/api/payments/P-002/submit-payout
   headers:
     - name: Authorization
-      value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MTJkMGEzZi0wODY0LTMwNzItYjMxYi1jNWVhYWNhOWMzNmQiLCJlbWFpbCI6IjgxMmQwYTNmLTA4NjQtMzA3Mi1iMzFiLWM1ZWFhY2E5YzM2ZEBleGFtcGxlLmNvbSIsInJvbGUiOiJDVVNUT01FUiIsImlhdCI6MTc4OTA2MDI4NSwiZXhwIjoxNzg5MDYzODg1fQ.cS6V0skgUBFVTgBfVYyKAq_4cXbPMucNVVoQZncFWQM
+      value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MTJkMGEzZi0wODY0LTMwNzItYjMxYi1jNWVhYWNhOWMzNmQiLCJlbWFpbCI6IjgxMmQwYTNmLTA4NjQtMzA3Mi1iMzFiLWM1ZWFhY2E5YzM2ZEBleGFtcGxlLmNvbSIsInJvbGUiOiJDVVNUT01FUiIsImlhdCI6MTc4OTEwODgyNCwiZXhwIjoxNzg5MTEyNDI0fQ.0ta-_hv7eMMAtzZMg6BGzlNLMcIlk768eTFI_Y92ZSM
     - name: X-Correlation-ID
       value: demo-submit-222
     - name: Idempotency-Key
