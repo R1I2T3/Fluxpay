@@ -75,6 +75,14 @@ backed by Oracle wallet, ledger and idempotency persistence.
 - Missing, foreign and system wallet IDs all return the same non-leaking 404.
   Ledger responses omit internal idempotency keys and never expose another wallet's
   entries or the system-side lines of a journal.
+- Step 7: `scripts/seed_m2.py` funds an existing authenticated demo user through
+  the public wallet API with deterministic idempotency keys, then prints the
+  user's current balances. It does not create users or system wallets and never
+  prints the bearer token.
+- `scripts/check_m2_ledger.py` performs a read-only Oracle check. It reports
+  journal debit/credit imbalances independently per currency and separately lists
+  legacy entries with no journal reference. It does not update data or claim that
+  ledger history reconciles balances created before journaling existed.
 
 ### FX configuration
 
@@ -166,10 +174,50 @@ coverage. Expected constraint-rejection and concurrency tests may log Oracle err
 even when assertions pass. Flyway 10.22.0 reports a compatibility warning for
 Oracle 23.26; these checks run against the real installed database.
 
+### Local M2 scripts
+
+Demo seeding requires the backend to be running with demo funding enabled, an
+existing customer user, and `DEMO_CLEARING` system wallets for USD, INR and EUR.
+Set the authenticated user's UUID and signed bearer token in the current
+PowerShell session, then run:
+
+```powershell
+$env:M2_USER_ID="<existing-user-uuid>"
+$env:M2_BEARER_TOKEN="<signed-jwt>"
+python scripts\seed_m2.py
+Remove-Item Env:M2_BEARER_TOKEN
+```
+
+The script requests USD 500, INR 10000 and EUR 50. Its stable idempotency keys
+make an exact rerun replay the same three operations rather than applying them a
+second time; it does not top balances up to those amounts.
+
+Install the Oracle Python driver once, then run the reconciliation report using
+the private Oracle settings already stored in `.env`:
+
+```powershell
+python -m pip install oracledb
+python scripts\check_m2_ledger.py
+```
+
+The ledger check returns exit code 0 when all grouped journals balance per
+currency, 1 when it finds an imbalance, and 2 for configuration or runtime
+errors. Ungrouped legacy entries are reported separately and do not by themselves
+change the grouped-journal result. This is an on-demand report, not a scheduled
+job.
+
+The Python script suite runs with:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+It contains 16 cases, including six tests for API-only seeding, token secrecy,
+read-only Oracle access, imbalance detection and ungrouped-entry reporting.
+
 ## Next steps (not implemented yet)
 
-1. Reconciliation and local system-wallet seed scripts.
-2. Frontend wallet integration.
+1. Frontend wallet integration.
 
 `PersistentLedgerWriter.append(...)` remains the only runtime mutation path for
 posted balances. Demo receive and FX conversion are implemented; the wallet-list
