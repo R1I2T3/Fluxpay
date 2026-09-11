@@ -1,0 +1,29 @@
+{
+   "action": {
+      "default_icon": {
+         "128": "images/icon-128.png",
+         "256": "images/icon-256.png",
+         "48": "images/icon-48.png",
+         "512": "images/icon-512.png",
+         "96": "images/icon-96.png"
+      }
+   },
+   "background": {
+      "service_worker": "background.js",
+      "type": "module"
+   },
+   "description": "Oracle's Unified Login browser extension offers secure access to Oracle apps.",
+   "host_permissions": [ "*://*/*" ],
+   "icons": {
+      "128": "images/icon-128.png",
+      "256": "images/icon-256.png",
+      "48": "images/icon-48.png",
+      "512": "images/icon-512.png",
+      "96": "images/icon-96.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6rRcagJaZvXYS+yYxIWXIRWjo9xaChXFfib7+qHXcPnVZAFF9iCA/osDj9ZJblsmX8eioraKOcD2rN/+0mmKdsNXNAtnPtact2lOtcg3K/ISUD/aTWGg5VRE520ebZX8tsV4T2MATUSNZdDwZy11XZVwlG8ZGhZ+BMtfWJpBJ0cNyRFNjWQd2PfOQGyGZD2VDTpJHleRbG/BOH0pcaiSmtNX3IxPjO/fGR/VTlPSUId0X64tKkWMi+6IABLw9emldv8B3DW8RC/WzgC/0U7udPM5dmZnC1yOgS22dVf38nBiHfd3Sr8dtJUafv5mgM+RoVfbrdqaV4QcuQlGKQzsBwIDAQAB",
+   "manifest_version": 3,
+   "name": "Oracle Unified Login",
+   "permissions": [ "nativeMessaging", "tabs", "alarms", "webRequest", "declarativeNetRequest", "declarativeNetRequestWithHostAccess", "declarativeNetRequestFeedback", "storage", "cookies", "idle", "webRequestBlocking" ],
+   "version": "1.1.0.1000"
+}

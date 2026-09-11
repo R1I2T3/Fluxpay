@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="./images/icon-48.png" type="image/png">
+    <title>OUL Authentication Successful</title>
+    <style>
+        
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: #E4F1F7; 
+            font-family: "Oracle Sans", "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            /* overflow: scroll; */
+        }
+
+        .header-logo {
+            position: absolute;
+            top: 4vh;
+            left: 4vw;
+            width: clamp(100px, 15vw, 150px);
+            height: auto;
+            z-index: 10;
+        }
+
+        .decorative-image {
+            position: absolute;
+            top: 0;
+            right: 0;
+            /* width: clamp(100px, 38vw, 55rem); */
+            width: 36vw;
+            max-width: 50vw;
+            /* width: 33rem; */
+            /* height: auto; */
+            /* aspect-ratio: 1 / 1;      
+            /* object-fit: contain; */
+            /* height: 60vh; */
+            z-index: 5;
+            object-fit: contain;
+        }
+
+        .success-box {
+            position: absolute;
+            top: clamp(100px,40%,500px);
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.5);
+            /* backdrop-filter: blur(4px); */
+            border-radius: .5rem;
+            padding: clamp(1.5rem, 4vw, 3rem);
+            /* padding: 2.5rem; */
+            /* width: 90%;
+            max-width: 28rem; */
+            /* width: 28rem; */
+            width: clamp(20rem, 50vw, 26rem);   /* 320-512 px */
+            max-width: 90vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            /* gap: clamp(.5px, 2rem, 10vh); */
+            align-items: center;
+            box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.1);
+            z-index: 20;
+            height: clamp(25vh, 250px, 45vh);
+            /* height: 15rem; */
+            overflow: hidden;
+            /* height: max(35vh,250px); */
+            /* height: 20rem; */
+        }
+
+        .login-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            gap: 0.5rem;
+        }
+
+        .login-icon {
+            /* width: 3rem; */
+            width: clamp(2.2rem, 6vw, 3rem);   
+            height: auto;
+        }
+
+        .login-title {
+            font-size: clamp(1rem, 3.2vw, 1.4rem);
+            color: #2d1b3d;
+        }
+
+        .checkmark {
+            width: clamp(3rem, 9vw, 5rem); 
+            /* width: 4rem; */
+            height: auto;
+        }
+
+        .success-message {
+            /* font-size: 1.2rem; */
+            font-size: clamp(1.1rem, 3vw, 1.35rem);
+            font-weight: 600;
+            color: #1a1a1a;
+            text-align: center;
+        }
+
+        .instruction {
+            /* font-size: 1rem; */
+            font-size: clamp(.9rem, 2.5vw, 1.1rem);
+            color: #555;
+            line-height: 1.4;
+            text-align: center;
+            margin-top: .5em;
+        }
+    </style>
+</head>
+<body>
+
+    <img src="./images/oracle-logo.png" alt="Oracle Logo" class="header-logo">
+
+    <img src="./images/bg-image.png" alt="Decorative Bg Image" class="decorative-image">
+
+    <div class="success-box">
+        <div class="login-header">
+            <img src="./images/icon-128.png" alt="OUL Icon" class="login-icon">
+            <span class="login-title">Oracle Unified Login</span>
+        </div>
+        <img src="./images/tick-mark.png" alt="Success Tick Mark" class="checkmark">
+        <div> 
+            <div class="success-message">You have successfully authenticated</div>
+            <div class="instruction">You may close this browser tab</div>
+        </div>
+    </div>
+
+</body>
+</html> 

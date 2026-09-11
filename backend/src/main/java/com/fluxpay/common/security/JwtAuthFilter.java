@@ -6,11 +6,10 @@ import java.io.IOException;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-@Component
 public class JwtAuthFilter extends OncePerRequestFilter {
   private final JwtUtil jwt;
 
@@ -29,7 +28,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         var auth =
             new UsernamePasswordAuthenticationToken(
                 u, null, List.of(new SimpleGrantedAuthority("ROLE_" + u.role())));
-        SecurityContextHolder.getContext().setAuthentication(auth);
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(auth);
+        SecurityContextHolder.setContext(context);
       } catch (Exception ignored) {
         SecurityContextHolder.clearContext();
       }
