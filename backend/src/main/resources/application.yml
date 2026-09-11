@@ -12,6 +12,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          time_zone: UTC
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
   flyway:
     enabled: true
     locations: classpath:db/migration

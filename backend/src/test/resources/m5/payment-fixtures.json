@@ -1,0 +1,21 @@
+{
+  "observation": "2026-09-10T06:30:00Z",
+  "sourceAmount": "100.0000",
+  "sourceCurrency": "USD",
+  "payoutCurrency": "INR",
+  "purpose": "Synthetic household support",
+  "recipientCountry": "IN",
+  "fixtures": [
+    {"name": "LOW", "suffix": 101, "ownerSuffix": 2, "scenario": "LOW"},
+    {"name": "REVIEW", "suffix": 102, "ownerSuffix": 2, "scenario": "TWO_MEDIUM"},
+    {"name": "HIGH", "suffix": 103, "ownerSuffix": 2, "scenario": "HIGH"},
+    {"name": "FOREIGN", "suffix": 104, "ownerSuffix": 3, "scenario": "LOW"},
+    {"name": "UNAVAILABLE", "suffix": 105, "ownerSuffix": 2, "scenario": "UNAVAILABLE"}
+  ],
+  "scenarios": {
+    "LOW": {"kycVerified": true, "priorCompletedPayment": true, "recipientTodayCount": 0},
+    "TWO_MEDIUM": {"kycVerified": true, "priorCompletedPayment": false, "recipientTodayCount": 1},
+    "HIGH": {"kycVerified": false, "priorCompletedPayment": true, "recipientTodayCount": 0},
+    "UNAVAILABLE": {"kycVerified": null, "priorCompletedPayment": true, "recipientTodayCount": 0}
+  }
+}

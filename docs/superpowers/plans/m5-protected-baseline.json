@@ -1,0 +1,158 @@
+[
+  {
+    "path": "backend/pom.xml",
+    "sha256": "1C44D682D777DE5FD5D0F4350CD9F48088F8547019F7407AF38620E9A3B9E673"
+  },
+  {
+    "path": "backend/src/main/resources/application.yml",
+    "sha256": "CE8B91E52F6680B1383A68D751E1AE79E1B7E76C7B446337961D8F1AC133F396"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\web\\GlobalExceptionHandler.java",
+    "sha256": "7D6DC560E8AC8A61031070C350E369C8F641EBD23E87EC2EEFC1DD2DCF00D291"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\web\\CorrelationIdFilter.java",
+    "sha256": "D7322A3F1368344418D605BB11AB0B159633A8C3C7B7C29A16039F5B8A29980B"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\util\\UuidRawCodec.java",
+    "sha256": "AF5B85DD490C3BFAAAA1A7EA0DBC95E3B23176F4F1E026F51068D8F07FA667AE"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\security\\SecurityConfig.java",
+    "sha256": "97AAD9B2520C95221F4662FE13E75AA1236787D3E7BFC0CD7FFA7EDAF6FC2AB9"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\security\\JwtUtil.java",
+    "sha256": "E7764D11E7B8BEBC49E4AE3E15552E120FC5A14779ECD2082FC403AB0FDE0052"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\security\\JwtAuthFilter.java",
+    "sha256": "226536F562F473796177620DDF50B5BB4FA0F0F537098CAFDDB2DCCAF3FC5BC9"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\security\\CurrentUser.java",
+    "sha256": "04F8D6E6480336D82B941E339BE303A0D1AAFE12CEDC584F755FADE24F4DF8DA"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\package-info.java",
+    "sha256": "59B180431F7F67C7D9958B6DE843F01935B7827FF7364285D7BCAECDE771AC41"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\event\\InMemoryEventPublisher.java",
+    "sha256": "156BAFED25E082A6AE6B967E48FB61447279A0994192027F8B4DA50491830622"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\event\\EventPublisher.java",
+    "sha256": "CFA1CAD7F0D9385176CFB66FCFA47B27B0776F7AE433E0E660DD59C83520B039"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\ScreeningVerdict.java",
+    "sha256": "A2A7802ADEE2C18A54D83C680F6252B61DBC31AC7B21F32E292A3103ED6E893E"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\PolicyEffect.java",
+    "sha256": "04140E30BE5A2D2F63A3D80B0E147B84ADB28B27ADB5B51C5DEE5D1FF8D59CF1"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\PolicyCategory.java",
+    "sha256": "26BC88328667009D075765D1FC873A95F53786BD215416AA7E38C9C53CF74AEC"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\PayoutStatus.java",
+    "sha256": "B589B4D5970975F8F06DE56E1234561500E51630B6232E6DE03EF00A6768AD5A"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\PaymentStatus.java",
+    "sha256": "0CA9E25D1686FBFC25948A66A50280D1C5065314FD78F3C6B7A94C15F69A14C3"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\KycStatus.java",
+    "sha256": "7E88C9F8311D441512424DC66638402DFEE7FF75906C2D6D8A7C5EF1683C19E2"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\ComplianceRisk.java",
+    "sha256": "BF0FF8BD8A81A0280EBD84DFD2AA5B9A8D05D4CB920C7E78A69135E8E69A55E8"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\enums\\ComplianceCaseStatus.java",
+    "sha256": "496C91BB60D9C39214DED4CC83974736C68EF99A179B3263D601DAE2A75543DE"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\contracts\\PayoutProvider.java",
+    "sha256": "F16DD0ECA66B791AD34D917F02696E73A2371699EDE9EFAD9C81C0FE7FCA22E5"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\contracts\\LedgerWriter.java",
+    "sha256": "F7BD9FC1F36BD2CA171CA11B4C03FA29F6881A51C93D094799A065F68CEFD8E9"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\contracts\\KycGate.java",
+    "sha256": "21F848A28A1B4842236BE5F4F471BA3AB2CE20608164356DCB8BD7CC2A46A121"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\contracts\\FxRateProvider.java",
+    "sha256": "D25E585DC9CB23D302560E0D0E87FE2B6117A843CD1768DBC373ADF81F8FB8C7"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\contracts\\EmbeddingProvider.java",
+    "sha256": "1E908604A39EF51909B5E203B8957B75CC35F2C5121B56D198F389DC7260CFDE"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\contracts\\ComplianceAssessor.java",
+    "sha256": "DC016692270BB3F9B13A300FCB78B964E3972D5BA4BA799EEDDADCB726F5E31C"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\api\\ApiResponse.java",
+    "sha256": "81C9ED07029F4E9805129FC1BA7BEAC4F6DC4F604849AE3F532E82CAC7C0DA40"
+  },
+  {
+    "path": "backend/src/main/java/com/fluxpay/common\\api\\ApiError.java",
+    "sha256": "F312A35070F430721C1ABCE5C6B53143645A0DFAF754C078776F2F81AC9D4F29"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V604__m5_rich_policy_corpus.sql",
+    "sha256": "87815BDE1FD3EB5F30E96C45F69CBB7B74C4FFDCF5881039E40F87A1A4459857"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V603__m5_seed_data.sql",
+    "sha256": "0A55878F743AF039CA2582B1D43D1690A4A48AEC22C2A9DF49C87BB23F864218"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V602__m5_policy_documents_chunks.sql",
+    "sha256": "8885583097A2BB77B04B343E9875E90BC691BDBCA7AEF9EDD03E5F5DAEE25BB3"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V601__m5_compliance_cases.sql",
+    "sha256": "9727A4375ED36A8976ABB079323F7949208BE5D5F14CC1A31DEA8912981E7D9F"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V502__m1_auth_kyc_extensions.sql",
+    "sha256": "D05425E1C735EA85E366EEC795680F3EA21ABD129C6018FBE2204AEC4461BC00"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V501__event_vector.sql",
+    "sha256": "4982A8F65DC9EDF3FD80C960539A290D6A2DBB69D19773CCB7B504251271776C"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V401__compliance_policy.sql",
+    "sha256": "75AA49672FA4516451084A7807321B65706F82B5325206A493B7E3EF176CECFF"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V301__payment_routing.sql",
+    "sha256": "895F6DE4D5F9BFA427BECCB7E7CAF3A42948FABA237EFF4C3405CEE883426A3D"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V201__wallet_ledger.sql",
+    "sha256": "F9022502CB9C790AF6F744655F44DEEE9A82360A6291A98CC6AA3B16D8B8F37A"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V101__auth_users.sql",
+    "sha256": "2292DA4E772642BE2EB675D7F17D81943915F1AE5777989EA23B8234711A30A4"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration\\V001__00_common_extensions.sql",
+    "sha256": "2C3250AE76A6B8C7B0D55B50620E45754B512855E7AC81903FB480935CFEF745"
+  }
+]

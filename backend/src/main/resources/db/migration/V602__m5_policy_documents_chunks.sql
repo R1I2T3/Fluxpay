@@ -4,6 +4,14 @@
 -- actually being written -- an index over an all-NULL column adds nothing
 -- yet and just adds risk to this pass. embedding stays a plain nullable
 -- VECTOR column for now.
+--
+-- Dimension is 768, not the product spec's original 1536: this project uses
+-- a local Ollama embedding model (nomic-embed-text) instead of an OpenAI-
+-- compatible 1536-dim API model -- see OllamaEmbeddingProvider and
+-- V604__m5_rich_policy_corpus.sql. If you later switch to a provider with a
+-- different output size, either change this to match (no data loss, the
+-- column is still empty pre-indexing) or use the flexible `VECTOR(*, FLOAT32)`
+-- declaration instead of a fixed width.
 
 CREATE TABLE policy_documents (
   id              RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
@@ -20,7 +28,7 @@ CREATE TABLE policy_chunks (
   policy_document_id    RAW(16) NOT NULL REFERENCES policy_documents(id) ON DELETE CASCADE,
   chunk_number          NUMBER(10) NOT NULL,
   content               CLOB NOT NULL,
-  embedding             VECTOR(1536, FLOAT32),
+  embedding             VECTOR(768, FLOAT32),
   created_at            TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
   CONSTRAINT uq_chunk UNIQUE (policy_document_id, chunk_number)
 );

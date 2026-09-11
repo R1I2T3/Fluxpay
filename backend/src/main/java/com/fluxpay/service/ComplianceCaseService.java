@@ -3,6 +3,7 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.ComplianceCase;
 import com.fluxpay.common.enums.ComplianceCaseStatus;
+import com.fluxpay.common.enums.ComplianceRisk;
 import com.fluxpay.dto.ComplianceCaseRequest;
 import com.fluxpay.dto.ComplianceCaseResponse;
 import com.fluxpay.dto.ComplianceDecisionRequest;
@@ -14,6 +15,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@org.springframework.context.annotation.Profile("m5-legacy")
 @Service
 public class ComplianceCaseService {
 
@@ -50,6 +52,34 @@ public class ComplianceCaseService {
     return toResponse(find(id));
   }
 
+  /**
+   * Used by {@link ComplianceAssessmentService}. Idempotent: if a case already exists for this
+   * payment, that case is returned as-is rather than creating a duplicate. LOW risk auto-closes
+   * immediately (no admin action needed); MEDIUM/HIGH stay OPEN for review.
+   */
+  @Transactional
+  public ComplianceCaseResponse createFromAssessment(
+      UUID paymentId, ComplianceRisk risk, List<String> reasons, String suggestedAction) {
+    List<ComplianceCase> existing = repository.findByPaymentIdOrderByCreatedAtDesc(paymentId);
+    if (!existing.isEmpty()) {
+      return toResponse(existing.get(0));
+    }
+    ComplianceCase entity = new ComplianceCase();
+    entity.setPaymentId(paymentId);
+    entity.setRisk(risk);
+    entity.setRiskReasons(writeJson(reasons));
+    entity.setSuggestedAction(suggestedAction);
+    if (risk == ComplianceRisk.LOW) {
+      entity.setStatus(ComplianceCaseStatus.CLOSED);
+      entity.setDecidedBy("SYSTEM_AUTO");
+      entity.setDecidedAt(Instant.now());
+      entity.setDecisionReason("Automatically cleared -- low risk assessment.");
+    } else {
+      entity.setStatus(ComplianceCaseStatus.OPEN);
+    }
+    return toResponse(repository.save(entity));
+  }
+
   @Transactional
   public ComplianceCaseResponse approve(UUID id, ComplianceDecisionRequest request) {
     return decide(id, ComplianceCaseStatus.APPROVED, request);
@@ -84,7 +114,9 @@ public class ComplianceCaseService {
     try {
       return objectMapper.writeValueAsString(reasons);
     } catch (Exception e) {
-      throw new IllegalArgumentException("Unable to serialize risk reasons", e);
+      // IllegalStateException (not IllegalArgumentException) so GlobalExceptionHandler maps it
+      // to a clean 409 instead of falling through to an unhandled 500.
+      throw new IllegalStateException("Unable to serialize risk reasons", e);
     }
   }
 

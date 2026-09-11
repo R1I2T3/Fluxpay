@@ -7,6 +7,13 @@ node_modules/
 logs/
 __pycache__/
 
+# Private M5 environment/token files and rotated runtime logs
+.env.*
+!.env.example
+*.local.env
+*.tokens.json
+*.log.*
+
 # Eclipse workspace metadata and compiled output
 .classpath
 .project

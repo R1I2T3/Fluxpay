@@ -33,7 +33,8 @@ public class SecurityConfig {
                         // TODO(M5): remove once JWT auth is wired into the compliance/policy
                         // flow -- open for now so these endpoints are testable standalone.
                         "/api/compliance/**",
-                        "/api/policies/**")
+                        "/api/policies/**",
+                        "/api/copilot/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
