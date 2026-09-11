@@ -5,6 +5,9 @@ public interface PaymentEligibilityGate {
 
   ConfirmOutcome confirmIdempotent(PaymentSnapshot payment, String idempotencyKey);
 
+  /** Completes a reservation only after execution publishes its terminal event. */
+  void complete(PaymentSnapshot payment, String idempotencyKey, String eventId);
+
   /**
    * Releases a reservation made by {@link #confirmIdempotent} when downstream execution fails.
    * Failed validation must never be stored as a completed confirmation. Default no-op for
@@ -14,7 +17,7 @@ public interface PaymentEligibilityGate {
 
   record ConfirmOutcome(boolean alreadyConfirmed, String originalEventId) {
     public ConfirmOutcome {
-      if (originalEventId == null || originalEventId.isBlank()) {
+      if (alreadyConfirmed && (originalEventId == null || originalEventId.isBlank())) {
         throw new IllegalArgumentException("originalEventId must not be blank");
       }
     }

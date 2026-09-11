@@ -30,6 +30,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(RouteAdminController.class)
@@ -40,6 +41,7 @@ import org.springframework.test.web.servlet.MockMvc;
   M4ApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
+@ActiveProfiles("mock")
 class RouteAdminControllerContractTest {
 
   private static final UUID ADMIN_ID =

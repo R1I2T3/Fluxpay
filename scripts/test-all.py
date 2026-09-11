@@ -12,6 +12,8 @@ def kafka_script(name):
     suffix = ".bat" if sys.platform == "win32" else ".sh"
     candidates = []
     if home:
+        if sys.platform == "win32":
+            candidates.append(os.path.join(home, "bin", "windows", name + suffix))
         candidates.append(os.path.join(home, "bin", name + suffix))
     found = shutil.which(name + suffix) or shutil.which(name)
     if found:

@@ -6,7 +6,6 @@ import com.fluxpay.dto.PaymentEventEnvelope;
 import com.fluxpay.dto.PaymentEventPayload;
 import com.fluxpay.exception.EventPublishException;
 import java.util.Objects;
-import java.util.concurrent.CompletionException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +30,7 @@ public class KafkaEventPublisher implements EventPublisher {
     String json = codec.write(event);
     try {
       kafkaTemplate.send(topic, event.paymentId(), json).join();
-    } catch (CompletionException e) {
+    } catch (RuntimeException e) {
       throw new EventPublishException("Kafka publish failed for " + topic, e);
     }
   }

@@ -4,7 +4,16 @@ import com.fluxpay.beans.PayoutAttemptStatus;
 import java.util.List;
 import java.util.Objects;
 
-public record PayoutOutcome(PayoutAttemptStatus status, List<RecoveryAction> allowed) {
+public record PayoutOutcome(
+    PayoutAttemptStatus status, List<RecoveryAction> allowed, String eventId) {
+  public PayoutOutcome(PayoutAttemptStatus status, List<RecoveryAction> allowed) {
+    this(status, allowed, null);
+  }
+
+  public PayoutOutcome withEventId(String eventId) {
+    return new PayoutOutcome(status, allowed, Objects.requireNonNull(eventId));
+  }
+
   public PayoutOutcome {
     Objects.requireNonNull(status, "status must not be null");
     allowed = allowed == null ? List.of() : List.copyOf(allowed);

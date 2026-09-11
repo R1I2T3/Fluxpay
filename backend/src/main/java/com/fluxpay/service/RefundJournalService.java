@@ -2,6 +2,7 @@ package com.fluxpay.service;
 
 import com.fluxpay.common.contracts.LedgerWriter;
 import java.util.Objects;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
  * by a sender {@code CREDIT}, both for the source amount/currency under deterministic {@code
  * refund:<paymentId>:*} keys. No wallet repository is consulted and no existing entry is mutated.
  */
+@Profile("mock")
 @Service
 public class RefundJournalService {
 
@@ -42,8 +44,8 @@ public class RefundJournalService {
   }
 
   /**
-   * Durable refund probe used before publishing. Ledger idempotency keys are the source of truth so
-   * a fast double-click before timeline ingestion still replays without duplicate publish.
+   * Probe for completed ledger compensation. Publication is tracked independently; a replay may
+   * republish the deterministic refund event until it appears in the timeline.
    */
   public boolean isAlreadyRefunded(PaymentSnapshot payment) {
     Objects.requireNonNull(payment, "payment must not be null");

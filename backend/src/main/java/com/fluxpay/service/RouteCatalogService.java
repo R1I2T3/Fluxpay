@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.context.annotation.Profile;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Catalog over {@code payout_routes}: lists rails, recommends one per payment via the frozen FX
  * rate, and applies admin updates with optimistic locking.
  */
+@Profile("mock")
 @Service
 public class RouteCatalogService {
 

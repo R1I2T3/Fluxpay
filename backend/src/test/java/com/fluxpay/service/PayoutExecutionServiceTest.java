@@ -122,8 +122,9 @@ class PayoutExecutionServiceTest {
 
     assertThat(outcome.status()).isEqualTo(PayoutAttemptStatus.COMPLETED);
     assertThat(outcome.allowed()).isEmpty();
-    verify(events)
-        .publish(eq(EventTopics.PAYOUT_COMPLETED), any(PaymentEventPayload.class), eq("c-uuid"));
+    var published = org.mockito.ArgumentCaptor.forClass(PaymentEventPayload.class);
+    verify(events).publish(eq(EventTopics.PAYOUT_COMPLETED), published.capture(), eq("c-uuid"));
+    assertThat(outcome.eventId()).isEqualTo(published.getValue().eventId());
   }
 
   @Test

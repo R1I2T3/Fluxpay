@@ -34,6 +34,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** HTTP contract for the payment timeline: chronological events behind the owner gate. */
@@ -45,6 +46,7 @@ import org.springframework.test.web.servlet.MockMvc;
   M4ApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
+@ActiveProfiles("mock")
 class TimelineControllerContractTest {
 
   private static final UUID OWNER_ID =

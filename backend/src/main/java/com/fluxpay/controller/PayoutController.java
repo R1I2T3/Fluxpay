@@ -21,12 +21,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+@Profile("mock")
 @RestController
 public class PayoutController {
 
@@ -66,7 +68,6 @@ public class PayoutController {
     if (body == null || body.routeCode() == null || body.routeCode().isBlank()) {
       throw new IllegalArgumentException("routeCode must not be blank");
     }
-    gate.assertActiveQuote(payment, body.routeCode());
     String key = keyOrRandom(idempotencyKey);
     PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
     if (confirm.alreadyConfirmed()) {
@@ -74,8 +75,9 @@ public class PayoutController {
           cid, build(paymentId, body.routeCode(), null, true, confirm.originalEventId()));
     }
     try {
+      gate.assertActiveQuote(payment, body.routeCode());
       PayoutOutcome outcome = execution.submit(paymentId, body.routeCode(), cid);
-      // First execution has no replay source; return null instead of the gate's reservation UUID.
+      gate.complete(payment, key, outcome.eventId());
       return new ApiResponse<>(cid, build(paymentId, body.routeCode(), outcome, false, null));
     } catch (RuntimeException e) {
       gate.release(payment, key);
@@ -97,6 +99,7 @@ public class PayoutController {
     }
     try {
       PayoutOutcome outcome = recovery.retry(paymentId, cid);
+      gate.complete(payment, key, outcome.eventId());
       return new ApiResponse<>(cid, build(paymentId, null, outcome, false, null));
     } catch (RuntimeException e) {
       gate.release(payment, key);
@@ -123,6 +126,7 @@ public class PayoutController {
     }
     try {
       PayoutOutcome outcome = recovery.switchRoute(paymentId, body.routeCode(), cid);
+      gate.complete(payment, key, outcome.eventId());
       return new ApiResponse<>(cid, build(paymentId, body.routeCode(), outcome, false, null));
     } catch (RuntimeException e) {
       gate.release(payment, key);

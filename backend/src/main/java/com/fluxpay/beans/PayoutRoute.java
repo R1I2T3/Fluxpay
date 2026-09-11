@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Payout rail mapped to {@code payout_routes} exactly per V401 DDL.
+ * Payout rail mapped to {@code payout_routes} per the V503 forward migration.
  *
  * <p>Id strategy: the DDL declares {@code id RAW(16)} as UUID storage. The id is modelled as {@code
  * UUID} and Hibernate maps it to RAW(16) on Oracle. Business lookups use {@code routeCode}; callers

@@ -17,6 +17,26 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 class KafkaEventPublisherTest {
   @Test
+  void wrapsSynchronousAndAsynchronousSendFailures() {
+    @SuppressWarnings("unchecked")
+    KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
+    var codec = new EventEnvelopeCodec(new ObjectMapper().findAndRegisterModules());
+    var publisher = new KafkaEventPublisher(kafka, codec);
+    var payload = PaymentEventPayload.random("P-001", Instant.now(), Map.of());
+    var failure = new org.apache.kafka.common.errors.TimeoutException("metadata unavailable");
+    when(kafka.send(anyString(), anyString(), anyString()))
+        .thenThrow(failure)
+        .thenReturn(CompletableFuture.failedFuture(failure));
+
+    for (int i = 0; i < 2; i++) {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> publisher.publish(EventTopics.PAYOUT_SUBMITTED, payload, "c-uuid"))
+          .isInstanceOf(com.fluxpay.exception.EventPublishException.class)
+          .hasRootCauseInstanceOf(org.apache.kafka.common.errors.TimeoutException.class);
+    }
+  }
+
+  @Test
   void sendsOnceWithPaymentIdAsKeyAndACompleteEnvelope() {
     @SuppressWarnings("unchecked")
     KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);

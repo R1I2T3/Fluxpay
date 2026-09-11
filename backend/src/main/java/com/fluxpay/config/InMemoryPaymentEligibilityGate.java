@@ -7,7 +7,7 @@ import com.fluxpay.service.PaymentSnapshot;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Objects;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -51,18 +51,35 @@ public class InMemoryPaymentEligibilityGate implements PaymentEligibilityGate {
     String key = payment.paymentId() + ":" + idempotencyKey;
     synchronized (confirmed) {
       if (confirmed.containsKey(key)) {
+        if (confirmed.get(key) == null) {
+          throw new IllegalStateException("payment request is still in progress");
+        }
         return new ConfirmOutcome(true, confirmed.get(key));
       }
-      String eventId = UUID.randomUUID().toString();
+      confirmed.put(key, null);
+      return new ConfirmOutcome(false, null);
+    }
+  }
+
+  @Override
+  public void complete(PaymentSnapshot payment, String idempotencyKey, String eventId) {
+    Objects.requireNonNull(eventId, "eventId must not be null");
+    if (eventId.isBlank()) {
+      throw new IllegalArgumentException("eventId must not be blank");
+    }
+    synchronized (confirmed) {
+      String key = payment.paymentId() + ":" + idempotencyKey;
+      if (!confirmed.containsKey(key) || confirmed.get(key) != null) {
+        throw new IllegalStateException("no pending payment reservation");
+      }
       confirmed.put(key, eventId);
-      return new ConfirmOutcome(false, eventId);
     }
   }
 
   @Override
   public void release(PaymentSnapshot payment, String idempotencyKey) {
     synchronized (confirmed) {
-      confirmed.remove(payment.paymentId() + ":" + idempotencyKey);
+      confirmed.remove(payment.paymentId() + ":" + idempotencyKey, null);
     }
   }
 }

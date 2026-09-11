@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Payout attempt mapped to {@code payout_attempts} exactly per V401 DDL.
+ * Payout attempt mapped to {@code payout_attempts} per the V503 forward migration.
  *
  * <p>UUID strategy: {@code id} and {@code payout_route_id} are {@code RAW(16)} UUID storage mapped
  * as {@code UUID}. {@code payment_id} is the business key (e.g. {@code P-001}/{@code P-002}) stored

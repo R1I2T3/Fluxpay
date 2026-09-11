@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  * idempotent {@code payout:<attemptId>} keys. M4 demo scope keeps the single-tx path but callers
  * must not assume atomicity.
  */
+@Profile("mock")
 @Service
 @Transactional
 public class PayoutExecutionService {
@@ -96,6 +98,9 @@ public class PayoutExecutionService {
       String reason,
       String correlationId) {
     requireCorrelationId(correlationId);
+    if (!route.isActive()) {
+      throw new IllegalStateException("route " + route.getRouteCode() + " is inactive");
+    }
     PayoutAttempt attempt =
         PayoutAttempt.initiated(
             UUID.randomUUID(), payment.paymentId(), attemptNumber, route.getId(), clock.instant());
@@ -137,30 +142,32 @@ public class PayoutExecutionService {
       attempts.save(attempt);
       Map<String, Object> terminal =
           Map.of("providerRef", result.providerRef(), "providerFee", result.providerFee());
-      publish(
-          EventTopics.PAYOUT_COMPLETED,
-          payment.paymentId(),
-          routeCodeOf(route),
-          attemptNumber,
-          "Payout completed via " + routeCodeOf(route),
-          terminal,
-          correlationId);
-      return PayoutOutcome.completed();
+      String eventId =
+          publish(
+              EventTopics.PAYOUT_COMPLETED,
+              payment.paymentId(),
+              routeCodeOf(route),
+              attemptNumber,
+              "Payout completed via " + routeCodeOf(route),
+              terminal,
+              correlationId);
+      return PayoutOutcome.completed().withEventId(eventId);
     }
 
     attempt.markFailed(result.errorCode(), result.errorMessage());
     attempts.save(attempt);
     Map<String, Object> terminal =
         Map.of("error", result.errorCode(), "errorMessage", result.errorMessage());
-    publish(
-        EventTopics.PAYOUT_FAILED,
-        payment.paymentId(),
-        routeCodeOf(route),
-        attemptNumber,
-        "Payout failed via " + routeCodeOf(route) + ": " + result.errorCode(),
-        terminal,
-        correlationId);
-    return PayoutOutcome.failed();
+    String eventId =
+        publish(
+            EventTopics.PAYOUT_FAILED,
+            payment.paymentId(),
+            routeCodeOf(route),
+            attemptNumber,
+            "Payout failed via " + routeCodeOf(route) + ": " + result.errorCode(),
+            terminal,
+            correlationId);
+    return PayoutOutcome.failed().withEventId(eventId);
   }
 
   /**
@@ -203,7 +210,7 @@ public class PayoutExecutionService {
     }
   }
 
-  private void publish(
+  private String publish(
       String topic,
       String paymentId,
       String routeCode,
@@ -216,8 +223,9 @@ public class PayoutExecutionService {
     details.put("attempt", attemptNumber);
     details.put("summary", summary);
     details.putAll(extra);
-    events.publish(
-        topic, PaymentEventPayload.random(paymentId, clock.instant(), details), correlationId);
+    PaymentEventPayload payload = PaymentEventPayload.random(paymentId, clock.instant(), details);
+    events.publish(topic, payload, correlationId);
+    return payload.eventId();
   }
 
   private static String routeCodeOf(PayoutRoute route) {

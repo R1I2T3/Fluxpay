@@ -16,7 +16,7 @@ class MigrationContractTest {
 
   @Test
   void routesAndAttemptsUseThePrdColumnsAndConstraints() throws IOException {
-    String sql = resource("V401__m4_routes_attempts.sql");
+    String sql = resource("V503__m4_routes_attempts_upgrade.sql");
     assertThat(sql)
         .contains("id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY")
         .contains("route_code VARCHAR2(50) NOT NULL UNIQUE")
@@ -40,7 +40,7 @@ class MigrationContractTest {
 
   @Test
   void paymentEventsUseJsonPayloadAndChronologicalIndex() throws IOException {
-    String sql = resource("V402__m4_payment_events.sql");
+    String sql = resource("V504__m4_payment_events.sql");
     assertThat(sql)
         .contains("id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY")
         .contains("payment_id VARCHAR2(50) NOT NULL")
@@ -49,5 +49,30 @@ class MigrationContractTest {
         .contains("kafka_topic VARCHAR2(150) NOT NULL")
         .contains("occurred_at TIMESTAMP WITH TIME ZONE NOT NULL")
         .contains("CREATE INDEX idx_events_payment ON payment_events(payment_id, occurred_at)");
+  }
+
+  @Test
+  void appliedMigrationsMatchTheOriginalHistory() throws Exception {
+    // Original migrations from commit 43ef969, before M4 reused version 401.
+    assertOriginal(
+        "V301__payment_routing.sql",
+        "7863ab4930b431ddbd58ee7c1b7833052073e28b07d3d404ef6de8bc49677226");
+    assertOriginal(
+        "V401__compliance_policy.sql",
+        "13afcaf439d452496884c90d6a58f259a88bde352f37e5ff64b1b1b8602dff74");
+  }
+
+  private void assertOriginal(String name, String expectedHash) throws Exception {
+    try (var input = getClass().getResourceAsStream("/db/migration/" + name)) {
+      assertThat(input).isNotNull();
+      String sql =
+          new String(input.readAllBytes(), StandardCharsets.UTF_8)
+              .replace("\r", "")
+              .stripTrailing();
+      byte[] hash =
+          java.security.MessageDigest.getInstance("SHA-256")
+              .digest(sql.getBytes(StandardCharsets.UTF_8));
+      assertThat(java.util.HexFormat.of().formatHex(hash)).as(name).isEqualTo(expectedHash);
+    }
   }
 }

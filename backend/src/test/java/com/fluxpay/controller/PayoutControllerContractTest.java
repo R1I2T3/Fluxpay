@@ -42,6 +42,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** HTTP contract for payout submission: owner gate, quote gate, and idempotent confirm. */
@@ -53,6 +54,7 @@ import org.springframework.test.web.servlet.MockMvc;
   M4ApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
+@ActiveProfiles("mock")
 class PayoutControllerContractTest {
 
   private static final UUID OWNER_ID =
@@ -105,7 +107,7 @@ class PayoutControllerContractTest {
     when(gate.confirmIdempotent(eq(payment), eq("key-1")))
         .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(false, "evt-1"));
     when(execution.submit("P-001", "STANDARD_BANK", "cid-pay-1"))
-        .thenReturn(PayoutOutcome.completed());
+        .thenReturn(PayoutOutcome.completed().withEventId("evt-published"));
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
         .thenReturn(Optional.of(completedAttempt));
 
@@ -125,6 +127,7 @@ class PayoutControllerContractTest {
         .andExpect(jsonPath("$.data.alreadyConfirmed").value(false))
         .andExpect(jsonPath("$.data.originalEventId").doesNotExist());
     verify(execution).submit("P-001", "STANDARD_BANK", "cid-pay-1");
+    verify(gate).complete(payment, "key-1", "evt-published");
   }
 
   @Test
@@ -148,6 +151,8 @@ class PayoutControllerContractTest {
 
   @Test
   void expiredQuoteDoesNotCreateAttempt() throws Exception {
+    when(gate.confirmIdempotent(any(), eq("key-3")))
+        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(false, null));
     when(reader.get("P-001")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
     doThrow(new QuoteExpiredException("quote for P-001 is expired or missing"))
@@ -164,12 +169,15 @@ class PayoutControllerContractTest {
         .andExpect(status().isPreconditionFailed())
         .andExpect(jsonPath("$.code").value("QUOTE_EXPIRED"))
         .andExpect(jsonPath("$.correlationId").value("cid-pay-3"));
-    verify(gate, never()).confirmIdempotent(any(), anyString());
+    verify(gate).release(payment, "key-3");
     verify(execution, never()).submit(anyString(), anyString(), anyString());
   }
 
   @Test
   void duplicateIdempotencyKeyReplaysWithoutNewAttempt() throws Exception {
+    doThrow(new QuoteExpiredException("expired since original execution"))
+        .when(gate)
+        .assertActiveQuote(any(), anyString());
     when(reader.get("P-001")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
     when(gate.confirmIdempotent(eq(payment), eq("key-dup")))
@@ -188,6 +196,7 @@ class PayoutControllerContractTest {
         .andExpect(jsonPath("$.data.alreadyConfirmed").value(true))
         .andExpect(jsonPath("$.data.originalEventId").value("orig-evt-9"))
         .andExpect(jsonPath("$.data.attemptNumber").value(1));
+    verify(gate, never()).assertActiveQuote(any(), anyString());
     verify(execution, never()).submit(anyString(), anyString(), anyString());
   }
 

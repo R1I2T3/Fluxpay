@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
  * without touching ledgers. Refund delegates to {@link RefundJournalService} and publishes a
  * deterministic {@code payment.refunded} event.
  */
+@Profile("mock")
 @Service
 @Transactional
 public class RecoveryService {
@@ -80,6 +82,9 @@ public class RecoveryService {
             .findById(latest.routeId())
             .orElseThrow(
                 () -> new NoSuchElementException("route " + latest.routeId() + " not found"));
+    if (!route.isActive()) {
+      throw new IllegalStateException("route " + route.getRouteCode() + " is inactive");
+    }
     return execution.executeNewAttempt(
         payment, route, latest.attemptNumber() + 1, "RETRY", correlationId);
   }
@@ -110,21 +115,17 @@ public class RecoveryService {
     Objects.requireNonNull(clock, "clock must not be null");
     PayoutAttempt latest = latestFailed(paymentId);
     Instant now = clock.instant();
-    // Durable-first guard: ledger keys are idempotent, timeline is async.
-    // If timeline already has refund, replay without touching ledger/publisher.
-    // Otherwise attempt ledger refund (idempotent via refund:<id>:* keys); if ledger already
-    // contains refund entries, treat as replay to avoid duplicate Kafka publish on fast
-    // double-click.
+    // A persisted timeline event proves publication succeeded. Ledger entries alone do not:
+    // the mock ledger survives transaction rollback after a failed Kafka send.
     if (eventStore.contains(paymentId, EventTopics.PAYMENT_REFUNDED)) {
       String replayEventId = PaymentEventPayload.refund(paymentId, now, Map.of()).eventId();
       return new RecoveryResult(paymentId, replayEventId, true);
     }
     PaymentSnapshot payment = paymentReader.get(paymentId);
-    if (refunds.isAlreadyRefunded(payment)) {
-      String replayEventId = PaymentEventPayload.refund(paymentId, now, Map.of()).eventId();
-      return new RecoveryResult(paymentId, replayEventId, true);
+    boolean replay = refunds.isAlreadyRefunded(payment);
+    if (!replay) {
+      refunds.refund(payment);
     }
-    refunds.refund(payment);
     String summary = "Refund issued for attempt " + latest.attemptNumber();
     Map<String, Object> details = new LinkedHashMap<>();
     details.put("attempt", latest.attemptNumber());
@@ -133,10 +134,14 @@ public class RecoveryService {
     details.put("summary", summary);
     PaymentEventPayload payload = PaymentEventPayload.refund(paymentId, now, details);
     events.publish(EventTopics.PAYMENT_REFUNDED, payload, correlationId);
-    return new RecoveryResult(paymentId, payload.eventId(), false);
+    return new RecoveryResult(paymentId, payload.eventId(), replay);
   }
 
   private PayoutAttempt latestFailed(String paymentId) {
+    attempts
+        .lockPayment(paymentId)
+        .orElseThrow(
+            () -> new NoSuchElementException("payout attempt for " + paymentId + " not found"));
     PayoutAttempt latest =
         attempts
             .findFirstByPaymentIdOrderByAttemptNumberDesc(paymentId)

@@ -64,6 +64,17 @@ class HttpResponse:
 
 
 class ScriptCommandTests(unittest.TestCase):
+    def test_kafka_script_finds_standard_windows_installation(self):
+        script = load_script("test-all")
+        producer = os.path.join("kafka", "bin", "windows", "kafka-console-producer.bat")
+        with (
+            mock.patch.dict(os.environ, {"KAFKA_HOME": "kafka"}),
+            mock.patch.object(script.sys, "platform", "win32"),
+            mock.patch.object(script.shutil, "which", return_value=None),
+            mock.patch.object(script.os.path, "exists", side_effect=lambda path: path == producer),
+        ):
+            self.assertEqual(script.kafka_script("kafka-console-producer"), producer)
+
     def test_start_backend_stays_attached_after_readiness(self):
         script = load_script("start-backend")
         process = RunningProcess(wait_result=9)

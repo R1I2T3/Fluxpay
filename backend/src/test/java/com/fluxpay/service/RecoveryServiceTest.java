@@ -59,6 +59,7 @@ class RecoveryServiceTest {
 
   @BeforeEach
   void setUp() {
+    when(attempts.lockPayment("P-001")).thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
     recovery = new RecoveryService(paymentReader, routes, attempts, execution);
     Clock fixedClock = Clock.fixed(Instant.parse("2026-09-09T00:00:00Z"), ZoneOffset.UTC);
     refundRecovery =
@@ -243,7 +244,7 @@ class RecoveryServiceTest {
   }
 
   @Test
-  void fastDoubleRefundReplaysViaLedgerWithoutPublish() {
+  void refundedLedgerRepublishesUntilTimelineConfirmsDelivery() {
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
         .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
     when(paymentReader.get("P-001")).thenReturn(payment);
@@ -254,7 +255,59 @@ class RecoveryServiceTest {
 
     assertThat(result.idempotentReplay()).isTrue();
     verify(refunds, never()).refund(any());
-    verify(events, never()).publish(any(), any(), any());
+    verify(events).publish(eq(EventTopics.PAYMENT_REFUNDED), any(), eq("c-uuid"));
+  }
+
+  @Test
+  void retryToInactiveRouteIsRejectedBeforeExecution() {
+    standard.update("5.00", "0.8", 240, "99.50", false);
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    when(routes.findById(R_STANDARD)).thenReturn(Optional.of(standard));
+
+    assertThatThrownBy(() -> recovery.retry("P-001", "c-uuid"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("route STANDARD_BANK is inactive");
+    verify(execution, never()).executeNewAttempt(any(), any(), anyInt(), any(), any());
+  }
+
+  @Test
+  void refundPublicationCanRecoverAfterMockLedgerSurvivesFailure() {
+    var ledger = new com.fluxpay.config.MockLedgerWriter();
+    var journal = new RefundJournalService(ledger);
+    var service =
+        new RecoveryService(
+            paymentReader,
+            routes,
+            attempts,
+            execution,
+            journal,
+            eventStore,
+            events,
+            Clock.systemUTC());
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+        .thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    org.mockito.Mockito.doThrow(
+            new com.fluxpay.exception.EventPublishException("offline", new RuntimeException()))
+        .doNothing()
+        .when(events)
+        .publish(any(), any(), any());
+
+    assertThatThrownBy(() -> service.refund("P-001", "first"))
+        .isInstanceOf(com.fluxpay.exception.EventPublishException.class);
+    assertThat(journal.isAlreadyRefunded(payment)).isTrue();
+    var replay = service.refund("P-001", "second");
+    var payloads = ArgumentCaptor.forClass(PaymentEventPayload.class);
+    verify(events, org.mockito.Mockito.times(2))
+        .publish(eq(EventTopics.PAYMENT_REFUNDED), payloads.capture(), any());
+    assertThat(payloads.getAllValues())
+        .extracting(PaymentEventPayload::eventId)
+        .containsOnly(replay.eventId());
+    assertThat(ledger.balancesSnapshot().get(payment.senderWalletId()))
+        .isEqualByComparingTo("10000.00");
+    assertThat(replay.idempotentReplay()).isTrue();
   }
 
   private static PayoutAttempt failedAttempt(int attemptNumber, UUID routeId) {
