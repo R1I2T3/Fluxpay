@@ -14,6 +14,8 @@ import uuid
 
 
 BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8080")
+SMOKE_USER_ID = "11111111-1111-1111-1111-111111111111"
+SMOKE_WALLET_ID = "22222222-2222-2222-2222-222222222222"
 
 
 def base64url(value):
@@ -58,9 +60,21 @@ def call(name, method, path, auth_token, body=None, headers=None):
 
 
 def main():
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    helper_env = dict(os.environ)
+    with open(os.path.join(project_root, ".env"), encoding="utf-8") as env_file:
+        for line in env_file:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                helper_env.setdefault(key, value)
+    jdbc_jar = os.path.join(os.environ["USERPROFILE"], ".m2", "repository", "com", "oracle", "database", "jdbc", "ojdbc11", "23.4.0.24.05", "ojdbc11-23.4.0.24.05.jar")
+    helper = os.path.join(project_root, "scripts", "_ensure_api_smoke_user.java")
+    subprocess.run(["javac", helper], check=True)
+    subprocess.run(["java", "-cp", os.pathsep.join([os.path.dirname(helper), jdbc_jar]), "_ensure_api_smoke_user"], check=True, env=helper_env)
     # The source checkout has no authentication controller; local profile accepts
     # this test-only identity header in JwtAuthFilter.
-    auth_token = "11111111-1111-1111-1111-111111111111"
+    auth_token = SMOKE_USER_ID
     recipient = call(
         "recipient.create",
         "POST",
@@ -78,7 +92,7 @@ def main():
         {"name": "API Smoke Recipient Updated", "account": recipient["account"], "bankName": "Test Bank", "country": "IN", "currency": "INR", "status": "ACTIVE", "expectedVersion": 0},
     )
     draft_body = {
-        "sourceWalletId": str(uuid.uuid4()),
+        "sourceWalletId": SMOKE_WALLET_ID,
         "recipientId": recipient_id,
         "sourceAmount": 100,
         "sourceCurrency": "USD",

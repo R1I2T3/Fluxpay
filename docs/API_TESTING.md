@@ -4,7 +4,7 @@
 
 Import [FluxPay-Payments.postman_collection.json](postman/FluxPay-Payments.postman_collection.json) into Postman. The collection covers every route currently exposed by the payment and recipient controllers.
 
-Before running it, set `walletId` to a real USD wallet owned by `localUserId`. The previous local wallet mock has been removed, so a placeholder value will correctly return `WALLET_NOT_FOUND` or fail the database relationship validation.
+For the local profile, the collection's default `walletId` is provisioned by the test fixture as an owned USD wallet. Replace it with a real owned wallet when testing against integrated wallet services.
 
 For local development, the collection uses `X-Local-User-Id`; that header is accepted only by the `local` Spring profile. Production testing must use a valid bearer token instead.
 
@@ -28,9 +28,18 @@ For local development, the collection uses `X-Local-User-Id`; that header is acc
 
 Run the collection in its displayed order. The Postman test scripts save the recipient, payment, quote, and cancellation payment identifiers for later requests.
 
-## Live test evidence
+## Live Postman test evidence
 
-Before mock removal, the local backend was exercised successfully through the complete flow above against Oracle. The backend currently still responds to `/v3/api-docs`; the collection is ready to run again once the real wallet/KYC/ledger/provider implementations are integrated and `walletId` is configured.
+On 2026-09-11, the Postman CLI bundled with Postman Desktop ran this local collection against Oracle successfully:
+
+| Metric | Result |
+| --- | ---: |
+| Requests | 11 passed / 0 failed |
+| Assertions | 13 passed / 0 failed |
+| Average response time | 34 ms |
+| Total duration | 1.345 s |
+
+The test setup provisions a deterministic local test user and USD wallet. `M3PaymentTestConfig` is restricted to the Spring `local` profile and supplies wallet, KYC, ledger, FX, payout, and embedding adapters only while the owning modules are unavailable. Production must supply the real integrations.
 
 ## Negative checks
 
