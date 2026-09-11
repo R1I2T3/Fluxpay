@@ -52,6 +52,30 @@ completed wallet API.
 - `WalletController` uses the signed `CurrentUser` principal, the required
   `Idempotency-Key`, existing API envelopes and M2-scoped error responses. It never
   accepts a user, destination wallet or clearing account from the caller.
+- Step 5: authenticated `GET /api/fx/rate` previews a rate and
+  `POST /api/wallets/convert` performs an idempotent customer conversion.
+- `FxQuoteService` supports all directed USD/EUR/INR pairs, caches each snapshot
+  for one hour, allows a failed refresh to reuse a snapshot for at most two hours,
+  and coalesces concurrent refreshes for the same pair.
+- FX mode is selected with `fluxpay.fx-mode`: `live` uses the configured
+  Frankfurter-compatible endpoint with three-second timeouts, while `mock` (or
+  `solo`) derives deterministic inverse and cross rates without network access.
+- A conversion obtains one FX snapshot and posts a balanced journal in both
+  currencies: customer source debit, source clearing credit, optional fee revenue
+  credit, target clearing debit and customer target credit. A fee line rounded to
+  zero is omitted.
+- Completed operations are replayed before any FX call. The stored response keeps
+  the exact rate, calculated amounts and snapshot metadata returned originally.
+
+### FX configuration
+
+- `fluxpay.fx-mode=live` selects live rates; use `mock` for local/offline work.
+- `fluxpay.fx-provider-url` is the live provider base URL.
+- `fluxpay.fx-system-user-id` identifies the owner of FX clearing and fee-revenue
+  wallets; it falls back to `fluxpay.demo-system-user-id` when omitted.
+- The configured system user needs `FX_CLEARING` wallets for source and target
+  currencies and a `FEE_REVENUE` wallet in the source currency when the fee is
+  nonzero.
 
 ## Migration V202
 
@@ -126,21 +150,20 @@ execute the actual V202 preflight block against classified/unclassified and inva
 fixtures, then roll back. They do not apply final V202 constraints in that schema.
 Neither suite cleans, truncates, resets or uses the application's development schema.
 
-The suite contains 94 cases: 28 calculation, 19 repository/Oracle, 2 schema,
-6 legacy-preflight, 5 journal unit, 10 persistent-writer Oracle, 7 complete-journal
-Oracle, 7 demo-funding service, 5 demo-funding Oracle and 5 authenticated controller
-cases. Expected constraint-rejection and concurrency tests may log Oracle errors
-even when assertions pass. Flyway 10.22.0 reports a compatibility warning for
-Oracle 23.26; these checks run against the real installed database.
+The suite contains 132 cases, including calculation, repository/schema,
+legacy-preflight, journal/writer, demo-funding, FX provider/cache, conversion
+service, atomic conversion posting and authenticated controller coverage. Expected
+constraint-rejection and concurrency tests may log Oracle errors even when
+assertions pass. Flyway 10.22.0 reports a compatibility warning for Oracle 23.26;
+these checks run against the real installed database.
 
 ## Next steps (not implemented yet)
 
-1. Live/mock FX snapshots and bounded cache, followed by conversion orchestration.
-2. The four remaining authenticated endpoints and their ownership, pagination,
-   serialization and error tests.
-3. Reconciliation/seed scripts and frontend wallet integration.
+1. The remaining authenticated wallet-list and ledger-history endpoints, including
+   ownership, pagination, serialization and error tests.
+2. Reconciliation/seed scripts and frontend wallet integration.
 
 `PersistentLedgerWriter.append(...)` remains the only runtime mutation path for
-posted balances. Demo receive is implemented; conversion orchestration and the
-remaining public APIs are future work. No shared contract, security, POM, router or
-other member's code is changed.
+posted balances. Demo receive and FX conversion are implemented; the remaining
+read APIs are future work. No shared contract, security, POM, router or other
+member's code is changed.

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.config.M2DemoFundingConfig;
+import com.fluxpay.config.M2FxConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
 import com.fluxpay.repository.WalletRepository;
@@ -48,12 +49,16 @@ import org.springframework.transaction.support.TransactionTemplate;
       "spring.jpa.hibernate.ddl-auto=validate",
       "spring.jpa.properties.hibernate.jdbc.time_zone=UTC",
       "fluxpay.demo-funding-enabled=true",
-      "fluxpay.demo-system-user-id=00000000-0000-0000-0000-00000000d004"
+      "fluxpay.demo-system-user-id=00000000-0000-0000-0000-00000000d004",
+      "fluxpay.fx-system-user-id=00000000-0000-0000-0000-00000000d004",
+      "fluxpay.fx-mode=mock",
+      "fluxpay.fx-provider-url=https://fx.invalid/latest"
     })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = WalletPostingServiceOracleTest.JpaConfiguration.class)
 @Import({
   M2DemoFundingConfig.class,
+  M2FxConfig.class,
   DemoFundingService.class,
   WalletPostingService.class,
   LedgerJournalService.class,
