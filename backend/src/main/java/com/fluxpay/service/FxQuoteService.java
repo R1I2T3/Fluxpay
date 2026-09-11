@@ -49,11 +49,13 @@ public class FxQuoteService implements FxRateProvider {
         return current.asFresh();
       }
       try {
-        FxSnapshot refreshed = validate(source.fetch(pair.from(), pair.to()), pair, now).asFresh();
+        FxSnapshot fetched = source.fetch(pair.from(), pair.to());
+        Instant validationTime = clock.instant();
+        FxSnapshot refreshed = validate(fetched, pair, validationTime).asFresh();
         snapshots.put(pair, refreshed);
         return refreshed;
       } catch (RuntimeException exception) {
-        if (isUsableStale(current, now)) {
+        if (isUsableStale(current, clock.instant())) {
           return current.asStale();
         }
         if (exception instanceof FxUnavailableException unavailable) {

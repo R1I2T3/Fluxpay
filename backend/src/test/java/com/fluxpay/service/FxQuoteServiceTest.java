@@ -77,6 +77,24 @@ class FxQuoteServiceTest {
   }
 
   @Test
+  void acceptsSnapshotTimestampedWhileTheProviderRequestIsRunning() {
+    MutableClock clock = new MutableClock(START);
+    FxSnapshotSource source =
+        (from, to) -> {
+          clock.advance(Duration.ofMillis(1));
+          return new FxSnapshot(
+              from, to, new BigDecimal("83.50"), clock.instant(), false, true);
+        };
+    FxQuoteService quotes = new FxQuoteService(source, clock);
+
+    FxSnapshot result = quotes.snapshot("USD", "INR");
+
+    assertEquals(new BigDecimal("83.50"), result.rate());
+    assertEquals(START.plusMillis(1), result.fetchedAt());
+    assertTrue(result.mock());
+  }
+
+  @Test
   void concurrentExpiredReadsPerformOneRefresh() throws Exception {
     MutableClock clock = new MutableClock(START);
     BlockingSource source = new BlockingSource(clock);
