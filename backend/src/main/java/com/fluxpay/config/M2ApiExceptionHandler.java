@@ -10,6 +10,7 @@ import com.fluxpay.service.FxSystemWalletNotFoundException;
 import com.fluxpay.service.FxUnavailableException;
 import com.fluxpay.service.InsufficientWalletFundsException;
 import com.fluxpay.service.LedgerIdempotencyConflictException;
+import com.fluxpay.service.WalletNotFoundException;
 import java.time.Instant;
 import java.util.Map;
 import org.slf4j.MDC;
@@ -28,7 +29,11 @@ public class M2ApiExceptionHandler {
     return response(HttpStatus.BAD_REQUEST, "VALIDATION", exception.getMessage());
   }
 
-  @ExceptionHandler({DemoFundingDisabledException.class, DemoClearingWalletNotFoundException.class})
+  @ExceptionHandler({
+    DemoFundingDisabledException.class,
+    DemoClearingWalletNotFoundException.class,
+    WalletNotFoundException.class
+  })
   public ResponseEntity<ApiError> notFound(RuntimeException exception) {
     return response(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage());
   }

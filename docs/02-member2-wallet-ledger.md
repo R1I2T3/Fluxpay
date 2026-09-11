@@ -1,8 +1,8 @@
 # Member 2: wallet and ledger backend progress
 
 This implementation follows the revised team specification of 2026-09-10 and its
-horizontal packages. It is a persistence and ledger-posting foundation, not a
-completed wallet API.
+horizontal packages. It provides the complete five-endpoint Member 2 wallet API,
+backed by Oracle wallet, ledger and idempotency persistence.
 
 ## Implemented
 
@@ -23,8 +23,8 @@ completed wallet API.
   repository exposes insertion and reads only. This is not a database-level ban
   on privileged SQL updates/deletes.
 - Operation rows enforce uniqueness by user/type/client key and store normalized
-  requests and response snapshots. Complete replay/race handling belongs to the
-  future service layer; the table alone does not implement idempotent requests.
+  requests and response snapshots. Funding and conversion services use them for
+  exact replay and concurrent-request handling.
 - Step 3: `PersistentLedgerWriter` implements the frozen `LedgerWriter` contract
   and requires an existing transaction. It validates each posting, locks its
   wallet, applies one debit or credit, and appends one immutable ledger entry.
@@ -66,6 +66,15 @@ completed wallet API.
   zero is omitted.
 - Completed operations are replayed before any FX call. The stored response keeps
   the exact rate, calculated amounts and snapshot metadata returned originally.
+- Step 6: authenticated `GET /api/wallets` returns only the signed user's customer
+  wallets, ordered by currency, with wallet ID, currency, held balance and
+  available balance represented as exact decimal strings.
+- Authenticated `GET /api/wallets/{walletId}/ledger` returns that customer wallet's
+  entries in stable `created_at DESC, id DESC` pages. Page numbers start at zero,
+  the default size is 20, and accepted sizes are 1 through 100.
+- Missing, foreign and system wallet IDs all return the same non-leaking 404.
+  Ledger responses omit internal idempotency keys and never expose another wallet's
+  entries or the system-side lines of a journal.
 
 ### FX configuration
 
@@ -89,8 +98,8 @@ completed wallet API.
 - `wallet_operations`, including request identity, state and response constraints.
 
 Customer wallets require `balance >= held_balance >= 0`. System wallets require
-zero held funds and may carry signed balances; the future posting services enforce
-their accounting use. Accounts must always be explicitly assigned a role.
+zero held funds and may carry signed balances; the posting services enforce their
+accounting use. Accounts must always be explicitly assigned a role.
 
 ### Legacy data prerequisite
 
@@ -150,20 +159,19 @@ execute the actual V202 preflight block against classified/unclassified and inva
 fixtures, then roll back. They do not apply final V202 constraints in that schema.
 Neither suite cleans, truncates, resets or uses the application's development schema.
 
-The suite contains 132 cases, including calculation, repository/schema,
+The suite contains 146 cases, including calculation, repository/schema,
 legacy-preflight, journal/writer, demo-funding, FX provider/cache, conversion
-service, atomic conversion posting and authenticated controller coverage. Expected
-constraint-rejection and concurrency tests may log Oracle errors even when
-assertions pass. Flyway 10.22.0 reports a compatibility warning for Oracle 23.26;
-these checks run against the real installed database.
+service, atomic conversion posting, wallet/ledger reads and authenticated controller
+coverage. Expected constraint-rejection and concurrency tests may log Oracle errors
+even when assertions pass. Flyway 10.22.0 reports a compatibility warning for
+Oracle 23.26; these checks run against the real installed database.
 
 ## Next steps (not implemented yet)
 
-1. The remaining authenticated wallet-list and ledger-history endpoints, including
-   ownership, pagination, serialization and error tests.
-2. Reconciliation/seed scripts and frontend wallet integration.
+1. Reconciliation and local system-wallet seed scripts.
+2. Frontend wallet integration.
 
 `PersistentLedgerWriter.append(...)` remains the only runtime mutation path for
-posted balances. Demo receive and FX conversion are implemented; the remaining
-read APIs are future work. No shared contract, security, POM, router or other
-member's code is changed.
+posted balances. Demo receive and FX conversion are implemented; the wallet-list
+and ledger-history APIs are read-only. No shared contract, security, POM, router or
+other member's code is changed.

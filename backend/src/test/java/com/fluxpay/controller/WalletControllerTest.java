@@ -26,6 +26,7 @@ import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.FxSystemWalletNotFoundException;
 import com.fluxpay.service.InsufficientWalletFundsException;
 import com.fluxpay.service.WalletConversionService;
+import com.fluxpay.service.WalletQueryService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,7 @@ class WalletControllerTest {
   @Autowired MockMvc mvc;
   @MockBean DemoFundingService funding;
   @MockBean WalletConversionService conversion;
+  @MockBean WalletQueryService queries;
   @MockBean JwtUtil jwt;
 
   @BeforeEach
