@@ -26,7 +26,8 @@ public class M2ConversionMath {
 
     BigDecimal amountAfterFee = sourceAmount.subtract(fee);
     if (amountAfterFee.signum() <= 0) {
-      throw new IllegalArgumentException("Amount remaining after the fee must be greater than zero");
+      throw new IllegalArgumentException(
+          "Amount remaining after the fee must be greater than zero");
     }
 
     // Rates may have more than four decimal places; do not round the rate first.
@@ -47,7 +48,8 @@ public class M2ConversionMath {
     }
     // Reject excess input decimal places, including trailing zeros, rather than round requests.
     if (sourceAmount.scale() > MONEY_SCALE) {
-      throw new IllegalArgumentException("Source amount must have no more than four decimal places");
+      throw new IllegalArgumentException(
+          "Source amount must have no more than four decimal places");
     }
     if (sourceAmount.compareTo(MAX_MONEY) > 0) {
       throw new IllegalArgumentException("Source amount exceeds the NUMBER(19,4) money limit");

@@ -51,7 +51,17 @@ public class WalletOperation {
       String clientKey,
       String normalizedRequest,
       String journalReference) {
-    this.id = UUID.randomUUID();
+    this(UUID.randomUUID(), userId, operationType, clientKey, normalizedRequest, journalReference);
+  }
+
+  public WalletOperation(
+      UUID id,
+      UUID userId,
+      String operationType,
+      String clientKey,
+      String normalizedRequest,
+      String journalReference) {
+    this.id = id;
     this.userId = userId;
     this.operationType = operationType;
     this.clientKey = clientKey;

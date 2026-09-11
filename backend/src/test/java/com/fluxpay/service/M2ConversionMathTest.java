@@ -74,8 +74,9 @@ class M2ConversionMathTest {
     // The exact product ends in .99995, which rounds beyond NUMBER(19,4).
     assertThrows(
         IllegalArgumentException.class,
-        () -> calculator.convertedAmount(
-            new BigDecimal("0.0001"), new BigDecimal("9999999999999999999.5")));
+        () ->
+            calculator.convertedAmount(
+                new BigDecimal("0.0001"), new BigDecimal("9999999999999999999.5")));
   }
 
   @Test

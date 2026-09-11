@@ -37,6 +37,21 @@ completed wallet API.
   failure without changing the shared writer interface.
 - A journal cannot mix replayed and new entries. Wallet changes and ledger entries
   use one outer transaction, so an intermediate failure rolls back every line.
+- Step 4: authenticated `POST /api/wallets/receive-demo` credits a customer wallet
+  from a configured `DEMO_CLEARING` wallet through a balanced two-line journal.
+- Demo funding is disabled by default. It reads
+  `fluxpay.demo-funding-enabled` and `fluxpay.demo-system-user-id` without changing
+  shared application configuration.
+- `DemoFundingService` normalizes requests and resolves operation replay outside
+  the posting transaction. `WalletPostingService` creates the operation/customer
+  wallet, posts both ledger lines, stores the response snapshot and commits all
+  changes atomically.
+- An exact completed replay returns the original response without another balance
+  change or ledger row. A changed request with the same operation key is rejected,
+  and losing concurrency attempts reload the committed winner only after rollback.
+- `WalletController` uses the signed `CurrentUser` principal, the required
+  `Idempotency-Key`, existing API envelopes and M2-scoped error responses. It never
+  accepts a user, destination wallet or clearing account from the caller.
 
 ## Migration V202
 
@@ -111,18 +126,21 @@ execute the actual V202 preflight block against classified/unclassified and inva
 fixtures, then roll back. They do not apply final V202 constraints in that schema.
 Neither suite cleans, truncates, resets or uses the application's development schema.
 
-The suite contains 28 calculation cases, 19 repository/Oracle cases, 2 schema
-checks, 6 legacy-preflight cases, 5 journal unit cases, 10 persistent-writer Oracle
-cases, and 7 complete-journal Oracle cases. Expected constraint-rejection tests may
-log Oracle errors even when assertions pass. Flyway 10.22.0 reports a compatibility
-warning for Oracle 23.26; these checks run against the real installed database.
+The suite contains 94 cases: 28 calculation, 19 repository/Oracle, 2 schema,
+6 legacy-preflight, 5 journal unit, 10 persistent-writer Oracle, 7 complete-journal
+Oracle, 7 demo-funding service, 5 demo-funding Oracle and 5 authenticated controller
+cases. Expected constraint-rejection and concurrency tests may log Oracle errors
+even when assertions pass. Flyway 10.22.0 reports a compatibility warning for
+Oracle 23.26; these checks run against the real installed database.
 
 ## Next steps (not implemented yet)
 
-1. Demo funding, signed-auth fixtures, request normalization and operation replay.
-2. Live/mock FX snapshots and bounded cache, followed by conversion orchestration.
-3. Five authenticated endpoints and their ownership/serialization/error tests.
+1. Live/mock FX snapshots and bounded cache, followed by conversion orchestration.
+2. The four remaining authenticated endpoints and their ownership, pagination,
+   serialization and error tests.
+3. Reconciliation/seed scripts and frontend wallet integration.
 
-`PersistentLedgerWriter.append(...)` is now the runtime mutation path for posted
-balances. The receive-demo/conversion orchestration and public APIs are still future
-work. No shared contract, security, POM, router or other member's code is changed.
+`PersistentLedgerWriter.append(...)` remains the only runtime mutation path for
+posted balances. Demo receive is implemented; conversion orchestration and the
+remaining public APIs are future work. No shared contract, security, POM, router or
+other member's code is changed.
