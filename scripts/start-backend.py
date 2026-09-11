@@ -2,6 +2,7 @@
 """Run Spring Boot with .env propagated; wait for docs endpoint."""
 
 import argparse, os, subprocess, sys, time, urllib.request
+from pathlib import Path
 
 from platform_commands import PROJECT_ROOT, maven_command, project_path
 
@@ -15,6 +16,15 @@ def load_env(path):
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
                     os.environ.setdefault(k, v)
+
+
+def configure_maven_home():
+    """Keep Maven Wrapper out of C:\\.m2 when HOME is unset or empty on Windows."""
+    if not os.environ.get("MAVEN_USER_HOME"):
+        user_profile = os.environ.get("USERPROFILE") or str(Path.home())
+        os.environ["MAVEN_USER_HOME"] = str(Path(user_profile) / ".m2")
+    if not os.environ.get("HOME"):
+        os.environ["HOME"] = os.environ.get("USERPROFILE") or str(Path.home())
 
 
 def terminate_process(process):
@@ -36,10 +46,17 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     load_env(a.env_file)
+    configure_maven_home()
     port = a.port if a.port is not None else int(os.environ.get("SERVER_PORT", "8080"))
     os.environ["SERVER_PORT"] = str(port)
     p = subprocess.Popen(
-        maven_command("-f", "backend/pom.xml", "spring-boot:run", f"-Dspring-boot.run.profiles={a.profile}"),
+        maven_command(
+            f"-Duser.home={os.environ['HOME']}",
+            "-f",
+            "backend/pom.xml",
+            "spring-boot:run",
+            f"-Dspring-boot.run.profiles={a.profile}",
+        ),
         cwd=PROJECT_ROOT,
     )
     try:

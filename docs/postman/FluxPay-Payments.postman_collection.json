@@ -1,0 +1,98 @@
+{
+  "info": {
+    "name": "FluxPay Payments API",
+    "description": "End-to-end API checks for recipients and payments. Set walletId to a real wallet owned by localUserId before running payment requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "localUserId", "value": "11111111-1111-1111-1111-111111111111" },
+    { "key": "walletId", "value": "REPLACE_WITH_REAL_OWNED_USD_WALLET_ID" },
+    { "key": "recipientId", "value": "" },
+    { "key": "recipientVersion", "value": "0" },
+    { "key": "paymentId", "value": "" },
+    { "key": "quoteId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Recipients",
+      "item": [
+        {
+          "name": "Create recipient",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Recipient\",\n  \"account\": \"postman-{{$randomUUID}}\",\n  \"bankName\": \"Test Bank\",\n  \"country\": \"IN\",\n  \"currency\": \"INR\",\n  \"status\": \"ACTIVE\"\n}" },
+            "url": "{{baseUrl}}/api/recipients"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.collectionVariables.set('recipientId', body.data.id);", "pm.collectionVariables.set('recipientVersion', body.data.version);"] } }]
+        },
+        {
+          "name": "List recipients",
+          "request": { "method": "GET", "header": [{ "key": "X-Local-User-Id", "value": "{{localUserId}}" }], "url": "{{baseUrl}}/api/recipients" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "pm.test('recipient list returned', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "Update recipient",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Recipient Updated\",\n  \"account\": \"postman-updated-{{$randomUUID}}\",\n  \"bankName\": \"Test Bank\",\n  \"country\": \"IN\",\n  \"currency\": \"INR\",\n  \"status\": \"ACTIVE\",\n  \"expectedVersion\": {{recipientVersion}}\n}" },
+            "url": "{{baseUrl}}/api/recipients/{{recipientId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('recipientVersion', pm.response.json().data.version);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create draft",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sourceWalletId\": \"{{walletId}}\",\n  \"recipientId\": \"{{recipientId}}\",\n  \"sourceAmount\": 100,\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"FAMILY_SUPPORT\",\n  \"preference\": \"CHEAPEST\"\n}" },
+            "url": "{{baseUrl}}/api/payments/draft"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('paymentId', pm.response.json().data.id);"] } }]
+        },
+        {
+          "name": "Create quotes",
+          "request": { "method": "POST", "header": [{ "key": "X-Local-User-Id", "value": "{{localUserId}}" }], "url": "{{baseUrl}}/api/payments/{{paymentId}}/quotes" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('quoteId', pm.response.json().data.recommendedQuoteId);"] } }]
+        },
+        {
+          "name": "Get quotes",
+          "request": { "method": "GET", "header": [{ "key": "X-Local-User-Id", "value": "{{localUserId}}" }], "url": "{{baseUrl}}/api/payments/{{paymentId}}/quotes" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Confirm payment",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }], "body": { "mode": "raw", "raw": "{ \"quoteId\": \"{{quoteId}}\" }" }, "url": "{{baseUrl}}/api/payments/{{paymentId}}/confirm" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Get payment detail",
+          "request": { "method": "GET", "header": [{ "key": "X-Local-User-Id", "value": "{{localUserId}}" }], "url": "{{baseUrl}}/api/payments/{{paymentId}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "List payments",
+          "request": { "method": "GET", "header": [{ "key": "X-Local-User-Id", "value": "{{localUserId}}" }], "url": "{{baseUrl}}/api/payments?page=0&size=20" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Create draft for cancellation",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }], "body": { "mode": "raw", "raw": "{\n  \"sourceWalletId\": \"{{walletId}}\",\n  \"recipientId\": \"{{recipientId}}\",\n  \"sourceAmount\": 50,\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"FAMILY_SUPPORT\",\n  \"preference\": \"CHEAPEST\"\n}" }, "url": "{{baseUrl}}/api/payments/draft" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('cancelPaymentId', pm.response.json().data.id);"] } }]
+        },
+        {
+          "name": "Cancel payment",
+          "request": { "method": "POST", "header": [{ "key": "X-Local-User-Id", "value": "{{localUserId}}" }], "url": "{{baseUrl}}/api/payments/{{cancelPaymentId}}/cancel" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "pm.test('cancelled', () => pm.expect(pm.response.json().data.status).to.eql('CANCELLED'));"] } }]
+        }
+      ]
+    }
+  ]
+}

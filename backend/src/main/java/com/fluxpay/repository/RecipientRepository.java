@@ -1,0 +1,3 @@
+package com.fluxpay.repository;
+import com.fluxpay.beans.Recipient; import jakarta.persistence.LockModeType; import java.util.*; import org.springframework.data.jpa.repository.*; import org.springframework.data.repository.query.Param;
+public interface RecipientRepository extends JpaRepository<Recipient,UUID> { List<Recipient> findByUserIdOrderByNameAsc(UUID userId); Optional<Recipient> findByIdAndUserId(UUID id,UUID userId); boolean existsByUserIdAndAccountAndCountry(UUID userId,String account,String country); @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select r from Recipient r where r.id=:id and r.userId=:userId") Optional<Recipient> lockOwned(@Param("id") UUID id,@Param("userId") UUID userId); }
