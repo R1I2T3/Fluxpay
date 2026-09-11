@@ -1,7 +1,8 @@
 # Member 2: wallet and ledger backend progress
 
 This implementation follows the revised team specification of 2026-09-10 and its
-horizontal packages. It is a persistence foundation, not a completed wallet API.
+horizontal packages. It is a persistence and ledger-posting foundation, not a
+completed wallet API.
 
 ## Implemented
 
@@ -24,6 +25,18 @@ horizontal packages. It is a persistence foundation, not a completed wallet API.
 - Operation rows enforce uniqueness by user/type/client key and store normalized
   requests and response snapshots. Complete replay/race handling belongs to the
   future service layer; the table alone does not implement idempotent requests.
+- Step 3: `PersistentLedgerWriter` implements the frozen `LedgerWriter` contract
+  and requires an existing transaction. It validates each posting, locks its
+  wallet, applies one debit or credit, and appends one immutable ledger entry.
+- Customer debits check available funds; system wallets may carry signed balances.
+  An exact entry replay has no effect, while reuse of a key with changed payload or
+  metadata is rejected.
+- `LedgerJournalService` validates complete journals per currency and posts wallets
+  in canonical UUID order. Every line receives the same journal reference and its
+  own narration through a `LedgerPostingContext`, which is cleared after success or
+  failure without changing the shared writer interface.
+- A journal cannot mix replayed and new entries. Wallet changes and ledger entries
+  use one outer transaction, so an intermediate failure rolls back every line.
 
 ## Migration V202
 
@@ -87,28 +100,29 @@ and passes settings only to the Maven child process, so later application starts
 in the same terminal cannot accidentally inherit the test schema selection.
 
 The main test schema runs the actual migration chain and validates JPA mappings,
-foreign keys, funds constraints, operation/entry uniqueness, pagination and row
-locking with a second Oracle session. Tests generally roll back their fixtures.
-The lock test deliberately leaves two zero-balance test wallets and a non-login
-fixture user per run so its lock proof uses committed rows, not insert blocking.
+foreign keys, funds constraints, operation/entry uniqueness, pagination, row
+locking, transactional posting, exact replay, rollback and concurrent debits.
+Tests generally roll back their fixtures. Locking/concurrency tests use committed,
+non-login fixture users and wallets in this dedicated schema so they test separate
+database sessions rather than uncommitted inserts.
 
 The legacy test schema stays at V201 with an explicit nullable role column. Tests
 execute the actual V202 preflight block against classified/unclassified and invalid
 fixtures, then roll back. They do not apply final V202 constraints in that schema.
 Neither suite cleans, truncates, resets or uses the application's development schema.
 
-Current verified checks: 28 calculation cases, 19 repository/Oracle cases, 2 schema
-checks and 6 legacy-preflight cases. Expected constraint-rejection tests may log
-Oracle errors even when assertions pass. Flyway 10.22.0 reports a compatibility
+The suite contains 28 calculation cases, 19 repository/Oracle cases, 2 schema
+checks, 6 legacy-preflight cases, 5 journal unit cases, 10 persistent-writer Oracle
+cases, and 7 complete-journal Oracle cases. Expected constraint-rejection tests may
+log Oracle errors even when assertions pass. Flyway 10.22.0 reports a compatibility
 warning for Oracle 23.26; these checks run against the real installed database.
 
 ## Next steps (not implemented yet)
 
-1. Persistent writer, journal context/validation, atomic posting and rollback/replay tests.
-2. Demo funding, signed-auth fixtures, request normalization and operation replay.
-3. Live/mock FX snapshots and bounded cache, followed by conversion orchestration.
-4. Five authenticated endpoints and their ownership/serialization/error tests.
+1. Demo funding, signed-auth fixtures, request normalization and operation replay.
+2. Live/mock FX snapshots and bounded cache, followed by conversion orchestration.
+3. Five authenticated endpoints and their ownership/serialization/error tests.
 
-Only the future `LedgerWriter.append(...)` implementation will mutate posted
-balances in runtime use. Repositories and tests do not imply a completed posting
-workflow. No shared contract, security, POM, router or other member's code is changed.
+`PersistentLedgerWriter.append(...)` is now the runtime mutation path for posted
+balances. The receive-demo/conversion orchestration and public APIs are still future
+work. No shared contract, security, POM, router or other member's code is changed.
