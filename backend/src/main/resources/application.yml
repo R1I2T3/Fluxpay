@@ -23,6 +23,8 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 fluxpay:
+  fx-mode: ${FLUXPAY_FX_MODE:live}
   fx-provider-url: ${FX_PROVIDER_URL}
-  embedding-mode: ${EMBEDDING_MODE:mock}
+  # M5 compliance-vector mode; default is the production embedding path (no mock default).
+  embedding-mode: ${EMBEDDING_MODE:live}
   jwt-secret: ${JWT_SECRET}
