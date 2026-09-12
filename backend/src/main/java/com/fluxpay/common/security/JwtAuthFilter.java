@@ -44,9 +44,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
       String localUserId = req.getHeader("X-Local-User-Id");
       if (localUserId != null) {
         try {
-          CurrentUser u = new CurrentUser(UUID.fromString(localUserId), "local-test@fluxpay", "CUSTOMER");
-          SecurityContextHolder.getContext().setAuthentication(
-              new UsernamePasswordAuthenticationToken(u, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+          CurrentUser u =
+              new CurrentUser(UUID.fromString(localUserId), "local-test@fluxpay", "CUSTOMER");
+          SecurityContextHolder.getContext()
+              .setAuthentication(
+                  new UsernamePasswordAuthenticationToken(
+                      u, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
         } catch (IllegalArgumentException ignored) {
           SecurityContextHolder.clearContext();
         }

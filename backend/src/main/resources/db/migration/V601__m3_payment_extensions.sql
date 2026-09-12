@@ -17,5 +17,6 @@ ALTER TABLE payments ADD (
   CONSTRAINT chk_m3_payment_posting_json CHECK (posting_snapshot IS JSON)
 );
 CREATE INDEX idx_m3_recipients_owner_status ON recipients(user_id, status);
+CREATE UNIQUE INDEX uq_m3_recipient_owner_account ON recipients(user_id, account_ref, country);
 CREATE INDEX idx_m3_payments_sender_created ON payments(sender_id, created_at DESC, id DESC);
 CREATE INDEX idx_m3_payments_status ON payments(status, created_at DESC);

@@ -52,7 +52,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
-            "body": { "mode": "raw", "raw": "{\n  \"sourceWalletId\": \"{{walletId}}\",\n  \"recipientId\": \"{{recipientId}}\",\n  \"sourceAmount\": 100,\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"FAMILY_SUPPORT\",\n  \"preference\": \"CHEAPEST\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"sourceWalletId\": \"{{walletId}}\",\n  \"recipientId\": \"{{recipientId}}\",\n  \"sourceAmount\": \"100.0000\",\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"FAMILY_SUPPORT\",\n  \"preference\": \"CHEAPEST\"\n}" },
             "url": "{{baseUrl}}/api/payments/draft"
           },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('paymentId', pm.response.json().data.id);"] } }]

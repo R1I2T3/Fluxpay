@@ -32,8 +32,10 @@ public class SecurityConfig {
             a ->
                 a.requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**")
                     .permitAll()
-                    .requestMatchers(request -> environment.acceptsProfiles(Profiles.of("local"))
-                        && request.getHeader("X-Local-User-Id") != null)
+                    .requestMatchers(
+                        request ->
+                            environment.acceptsProfiles(Profiles.of("local"))
+                                && request.getHeader("X-Local-User-Id") != null)
                     .permitAll()
                     .anyRequest()
                     .authenticated())

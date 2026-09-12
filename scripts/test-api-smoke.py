@@ -6,11 +6,11 @@ import hashlib
 import hmac
 import json
 import os
-import subprocess
 import time
 import urllib.error
 import urllib.request
 import uuid
+from pathlib import Path
 
 
 BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8080")
@@ -40,38 +40,55 @@ def token(user_id):
 def call(name, method, path, auth_token, body=None, headers=None):
     request_headers = {"X-Local-User-Id": auth_token}
     request_headers.update(headers or {})
-    data = json.dumps(body) if body is not None else None
+    data = json.dumps(body).encode() if body is not None else None
     if data is not None:
         request_headers["Content-Type"] = "application/json"
-    command = ["curl.exe", "-sS", "-X", method, "-w", "\n%{http_code}"]
-    for key, value in request_headers.items():
-        command.extend(["-H", f"{key}: {value}"])
-    if data is not None:
-        command.extend(["--data", data])
-    command.append(BASE_URL + path)
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
-    if result.returncode:
-        raise RuntimeError(f"FAIL {name}: curl exited {result.returncode}: {result.stderr}")
-    content, status = result.stdout.rsplit("\n", 1)
-    if not status.startswith("2"):
+    req = urllib.request.Request(BASE_URL + path, data=data, headers=request_headers, method=method)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            status = resp.status
+            content = resp.read().decode()
+    except urllib.error.HTTPError as e:
+        content = e.read().decode()
+        raise RuntimeError(f"FAIL {name}: {e.code} {content}")
+    if not str(status).startswith("2"):
         raise RuntimeError(f"FAIL {name}: {status} {content}")
     print(f"PASS {name}: {status}")
-    return json.loads(content)
+    return json.loads(content) if content else {}
 
 
 def main():
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    import subprocess
+
+    project_root = Path(__file__).resolve().parent.parent
     helper_env = dict(os.environ)
-    with open(os.path.join(project_root, ".env"), encoding="utf-8") as env_file:
-        for line in env_file:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = line.split("=", 1)
-                helper_env.setdefault(key, value)
-    jdbc_jar = os.path.join(os.environ["USERPROFILE"], ".m2", "repository", "com", "oracle", "database", "jdbc", "ojdbc11", "23.4.0.24.05", "ojdbc11-23.4.0.24.05.jar")
-    helper = os.path.join(project_root, "scripts", "_ensure_api_smoke_user.java")
-    subprocess.run(["javac", helper], check=True)
-    subprocess.run(["java", "-cp", os.pathsep.join([os.path.dirname(helper), jdbc_jar]), "_ensure_api_smoke_user"], check=True, env=helper_env)
+    env_file = project_root / ".env"
+    if env_file.exists():
+        with open(env_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    helper_env.setdefault(key, value)
+    jdbc_jar = (
+        Path.home()
+        / ".m2"
+        / "repository"
+        / "com"
+        / "oracle"
+        / "database"
+        / "jdbc"
+        / "ojdbc11"
+        / "23.4.0.24.05"
+        / "ojdbc11-23.4.0.24.05.jar"
+    )
+    helper = project_root / "scripts" / "_ensure_api_smoke_user.java"
+    subprocess.run(["javac", str(helper)], check=True)
+    subprocess.run(
+        ["java", "-cp", os.pathsep.join([str(helper.parent), str(jdbc_jar)]), "_ensure_api_smoke_user"],
+        check=True,
+        env=helper_env,
+    )
     # The source checkout has no authentication controller; local profile accepts
     # this test-only identity header in JwtAuthFilter.
     auth_token = SMOKE_USER_ID
@@ -80,7 +97,14 @@ def main():
         "POST",
         "/api/recipients",
         auth_token,
-        {"name": "API Smoke Recipient", "account": f"acct-{uuid.uuid4().hex[:12]}", "bankName": "Test Bank", "country": "IN", "currency": "INR", "status": "ACTIVE"},
+        {
+            "name": "API Smoke Recipient",
+            "account": f"acct-{uuid.uuid4().hex[:12]}",
+            "bankName": "Test Bank",
+            "country": "IN",
+            "currency": "INR",
+            "status": "ACTIVE",
+        },
     )["data"]
     recipient_id = recipient["id"]
     call("recipient.list", "GET", "/api/recipients", auth_token)
@@ -89,18 +113,28 @@ def main():
         "PUT",
         f"/api/recipients/{recipient_id}",
         auth_token,
-        {"name": "API Smoke Recipient Updated", "account": recipient["account"], "bankName": "Test Bank", "country": "IN", "currency": "INR", "status": "ACTIVE", "expectedVersion": 0},
+        {
+            "name": "API Smoke Recipient Updated",
+            "account": recipient["account"],
+            "bankName": "Test Bank",
+            "country": "IN",
+            "currency": "INR",
+            "status": "ACTIVE",
+            "expectedVersion": 0,
+        },
     )
     draft_body = {
         "sourceWalletId": SMOKE_WALLET_ID,
         "recipientId": recipient_id,
-        "sourceAmount": 100,
+        "sourceAmount": "100.0000",
         "sourceCurrency": "USD",
         "payoutCurrency": "INR",
         "purpose": "FAMILY_SUPPORT",
         "preference": "CHEAPEST",
     }
-    draft = call("payment.draft", "POST", "/api/payments/draft", auth_token, draft_body, {"Idempotency-Key": str(uuid.uuid4())})["data"]
+    draft = call(
+        "payment.draft", "POST", "/api/payments/draft", auth_token, draft_body, {"Idempotency-Key": str(uuid.uuid4())}
+    )["data"]
     payment_id = draft["id"]
     quotes = call("payment.quote", "POST", f"/api/payments/{payment_id}/quotes", auth_token)["data"]
     call("payment.quotes.get", "GET", f"/api/payments/{payment_id}/quotes", auth_token)
@@ -114,7 +148,14 @@ def main():
     )
     call("payment.detail", "GET", f"/api/payments/{payment_id}", auth_token)
     call("payment.list", "GET", "/api/payments?page=0&size=20", auth_token)
-    cancellable = call("payment.draft.cancel-case", "POST", "/api/payments/draft", auth_token, draft_body, {"Idempotency-Key": str(uuid.uuid4())})["data"]
+    cancellable = call(
+        "payment.draft.cancel-case",
+        "POST",
+        "/api/payments/draft",
+        auth_token,
+        draft_body,
+        {"Idempotency-Key": str(uuid.uuid4())},
+    )["data"]
     call("payment.cancel", "POST", f"/api/payments/{cancellable['id']}/cancel", auth_token)
     print("PASS all OpenAPI operations")
 
