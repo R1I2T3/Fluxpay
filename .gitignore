@@ -6,6 +6,8 @@ node_modules/
 .ojet/
 logs/
 __pycache__/
+.npm-cache/
+.maven-repo/
 
 # Private M5 environment/token files and rotated runtime logs
 .env.*

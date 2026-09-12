@@ -64,6 +64,17 @@ class HttpResponse:
 
 
 class ScriptCommandTests(unittest.TestCase):
+    def test_kafka_script_finds_standard_windows_installation(self):
+        script = load_script("test-all")
+        producer = os.path.join("kafka", "bin", "windows", "kafka-console-producer.bat")
+        with (
+            mock.patch.dict(os.environ, {"KAFKA_HOME": "kafka"}),
+            mock.patch.object(script.sys, "platform", "win32"),
+            mock.patch.object(script.shutil, "which", return_value=None),
+            mock.patch.object(script.os.path, "exists", side_effect=lambda path: path == producer),
+        ):
+            self.assertEqual(script.kafka_script("kafka-console-producer"), producer)
+
     def test_start_backend_stays_attached_after_readiness(self):
         script = load_script("start-backend")
         process = RunningProcess(wait_result=9)
@@ -127,6 +138,24 @@ class ScriptCommandTests(unittest.TestCase):
 
         self.assertEqual(selected_port, "8083")
         self.assertEqual(requested_urls, ["http://localhost:8083/v3/api-docs"])
+
+    def test_start_backend_sets_windows_maven_homes_from_userprofile(self):
+        script = load_script("start-backend")
+        with (
+            mock.patch.dict(
+                script.os.environ,
+                {"USERPROFILE": r"C:\Users\Ritesh Jha"},
+                clear=True,
+            ),
+            mock.patch.object(script.sys, "platform", "win32"),
+            mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()),
+            mock.patch.object(script.time, "sleep"),
+            mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
+        ):
+            self.assertEqual(script.main(), 0)
+            self.assertEqual(script.os.environ["MAVEN_USER_HOME"], r"C:\Users\Ritesh Jha\.m2")
+            self.assertEqual(script.os.environ["MAVEN_OPTS"], r'-Duser.home="C:\Users\Ritesh Jha"')
 
     def test_start_backend_uses_windows_maven_wrapper_from_project_root(self):
         script = load_script("start-backend")
