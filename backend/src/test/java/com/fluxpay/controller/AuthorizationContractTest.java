@@ -39,7 +39,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -60,7 +59,6 @@ import org.springframework.test.web.servlet.MockMvc;
   M4ApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class AuthorizationContractTest {
 
   private static final UUID OWNER_ID =
@@ -121,12 +119,15 @@ class AuthorizationContractTest {
 
   @Test
   void adminEndpointRejectsAnonymous() throws Exception {
+    // Anonymous requests hit the SecurityConfig authentication entry point (401 AUTH_REQUIRED)
+    // before any controller logic runs.
     mvc.perform(
             put("/api/admin/routes/" + R_STANDARD.toString())
                 .header("X-Correlation-ID", "cid-auth-2")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(UPDATE_BODY))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
     verify(catalog, never()).updateRoute(anyString(), any());
   }
 

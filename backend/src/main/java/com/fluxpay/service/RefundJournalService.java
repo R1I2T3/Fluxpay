@@ -2,7 +2,6 @@ package com.fluxpay.service;
 
 import com.fluxpay.common.contracts.LedgerWriter;
 import java.util.Objects;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
  * by a sender {@code CREDIT}, both for the source amount/currency under deterministic {@code
  * refund:<paymentId>:*} keys. No wallet repository is consulted and no existing entry is mutated.
  */
-@Profile("mock")
 @Service
 public class RefundJournalService {
 

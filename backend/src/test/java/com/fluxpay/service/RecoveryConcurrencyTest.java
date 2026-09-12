@@ -6,8 +6,8 @@ import static org.mockito.Mockito.*;
 import com.fluxpay.beans.PayoutAttempt;
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.contracts.LedgerWriter;
+import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.common.event.EventPublisher;
-import com.fluxpay.config.InMemoryPaymentReader;
 import com.fluxpay.dto.PayoutResult;
 import com.fluxpay.repository.PaymentEventStore;
 import com.fluxpay.repository.PayoutAttemptRepository;
@@ -71,7 +71,8 @@ class RecoveryConcurrencyTest {
     failed.markProcessing();
     failed.markFailed("DECLINED", "known failure");
     tx.executeWithoutResult(status -> attempts.saveAndFlush(failed));
-    var reader = new InMemoryPaymentReader();
+    var reader = mock(PaymentReader.class);
+    when(reader.get("P-001")).thenReturn(p001());
     journal = spy(new RefundJournalService(new ConcurrencyLedger()));
     standardProvider = provider("STANDARD_BANK");
     instantProvider = provider("INSTANT_PAYOUT");
@@ -177,6 +178,18 @@ class RecoveryConcurrencyTest {
 
   private static PayoutRoute route(String code) {
     return PayoutRoute.seed(UUID.randomUUID(), code, code, code, "STANDARD", "5", "1", 10, "99");
+  }
+
+  private static PaymentSnapshot p001() {
+    return new PaymentSnapshot(
+        "P-001",
+        UUID.nameUUIDFromBytes("fluxpay:P-001:user".getBytes()),
+        UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes()),
+        UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes()),
+        new BigDecimal("1000.00"),
+        "USD",
+        "KES",
+        PaymentStatus.ROUTED);
   }
 
   private static PayoutProvider provider(String code) {
