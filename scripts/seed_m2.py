@@ -65,10 +65,7 @@ def main():
         if not isinstance(wallets, list):
             raise ValueError("wallet list is invalid")
         for wallet in wallets:
-            print(
-                f"{wallet['currency']} available={wallet['availableBalance']} "
-                f"held={wallet['heldBalance']}"
-            )
+            print(f"{wallet['currency']} available={wallet['availableBalance']} held={wallet['heldBalance']}")
         return 0
     except (OSError, ValueError, KeyError) as exception:
         print(f"seed failed: {type(exception).__name__}")

@@ -82,8 +82,7 @@ class FxQuoteServiceTest {
     FxSnapshotSource source =
         (from, to) -> {
           clock.advance(Duration.ofMillis(1));
-          return new FxSnapshot(
-              from, to, new BigDecimal("83.50"), clock.instant(), false, true);
+          return new FxSnapshot(from, to, new BigDecimal("83.50"), clock.instant(), false, true);
         };
     FxQuoteService quotes = new FxQuoteService(source, clock);
 

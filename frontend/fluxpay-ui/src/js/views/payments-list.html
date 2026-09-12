@@ -1,4 +1,1 @@
-<div class="fp-screen">
-  <h2>PaymentsList</h2>
-  <p>Phase-0 stub. Owner implements.</p>
-</div>
+<section class="fp-screen"><div class="fp-page-heading"><div><h2>Payment history</h2><p>Your transfers, drafts, and their latest lifecycle state.</p></div><oj-button on-oj-action="[[load]]">Refresh</oj-button></div><p class="fp-error" data-bind="visible: error, text: error"></p><div class="fp-card"><table class="fp-table"><thead><tr><th>Payment</th><th>Amount</th><th>Destination</th><th>Status</th></tr></thead><tbody data-bind="foreach: items"><tr><td data-bind="text: id"></td><td data-bind="text: sourceCurrency + ' ' + sourceAmount"></td><td data-bind="text: payoutCurrency"></td><td><span class="fp-chip fp-chip-info" data-bind="text: status"></span></td></tr></tbody></table><p data-bind="visible: !busy() && items().length === 0">No payments yet.</p></div></section>

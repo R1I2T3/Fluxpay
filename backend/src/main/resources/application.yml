@@ -12,6 +12,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Oracle stores the existing audit columns as TIMESTAMP (without a time-zone).
+        # Avoid Hibernate's OffsetDateTime extraction, which fails against those columns.
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
   flyway:
     enabled: true
     locations: classpath:db/migration

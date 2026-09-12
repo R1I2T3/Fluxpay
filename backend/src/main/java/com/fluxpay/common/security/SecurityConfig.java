@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.*;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,11 +23,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 public class SecurityConfig {
-  private final JwtUtil jwtUtil;
+  private final JwtAuthFilter jwtAuthFilter;
+  private final Environment environment;
   private final ObjectMapper objectMapper;
 
-  public SecurityConfig(JwtUtil jwtUtil, ObjectMapper objectMapper) {
-    this.jwtUtil = jwtUtil;
+  public SecurityConfig(
+      JwtAuthFilter jwtAuthFilter, Environment environment, ObjectMapper objectMapper) {
+    this.jwtAuthFilter = jwtAuthFilter;
+    this.environment = environment;
     this.objectMapper = objectMapper;
   }
 
@@ -42,6 +47,11 @@ public class SecurityConfig {
             a ->
                 a.requestMatchers(
                         "/api/auth/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
+                    .permitAll()
+                    .requestMatchers(
+                        request ->
+                            environment.acceptsProfiles(Profiles.of("local"))
+                                && request.getHeader("X-Local-User-Id") != null)
                     .permitAll()
                     .anyRequest()
                     .authenticated())
@@ -63,7 +73,7 @@ public class SecurityConfig {
                                 HttpStatus.FORBIDDEN,
                                 "FORBIDDEN",
                                 "access is forbidden")))
-        .addFilterBefore(new JwtAuthFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
         .build();
   }
 

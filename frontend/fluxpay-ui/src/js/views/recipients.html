@@ -1,4 +1,6 @@
-<div class="fp-screen">
-  <h2>Recipients</h2>
-  <p>Phase-0 stub. Owner implements.</p>
-</div>
+<section class="fp-screen" data-bind="css: { 'fp-busy': busy }">
+  <div class="fp-page-heading"><div><h2>Recipients</h2><p>Manage the fictional beneficiaries you can pay.</p></div><oj-button chroming="callToAction" on-oj-action="[[openAdd]]">Add recipient</oj-button></div>
+  <p class="fp-error" data-bind="visible: error, text: error"></p>
+  <div class="fp-card"><table class="fp-table"><thead><tr><th>Name</th><th>Bank account</th><th>Destination</th><th>Status</th><th></th></tr></thead><tbody data-bind="foreach: recipients"><tr><td data-bind="text: name"></td><td><span data-bind="text: bankName"></span><br><small data-bind="text: account"></small></td><td data-bind="text: currency + ' · ' + country"></td><td><span class="fp-chip" data-bind="text: status, css: status === 'ACTIVE' ? 'fp-chip-success' : 'fp-chip-danger'"></span></td><td><oj-button chroming="borderless" on-oj-action="[[$parent.openEdit.bind($parent, $data)]]">Edit</oj-button></td></tr></tbody></table></div>
+  <div class="fp-card fp-form"><h3 data-bind="text: editing() ? 'Edit recipient' : 'Add recipient'"></h3><oj-form-layout max-columns="2"><oj-input-text label-hint="Recipient name" value="{{form.name}}"></oj-input-text><oj-input-text label-hint="Bank name" value="{{form.bankName}}"></oj-input-text><oj-input-text label-hint="Account / IBAN" value="{{form.account}}"></oj-input-text><oj-input-text label-hint="Country (ISO 2)" value="{{form.country}}"></oj-input-text><oj-select-single label-hint="Payout currency" value="{{form.currency}}"><oj-option value="INR">INR</oj-option><oj-option value="EUR">EUR</oj-option><oj-option value="USD">USD</oj-option></oj-select-single><oj-select-single label-hint="Status" value="{{form.status}}"><oj-option value="ACTIVE">Active</oj-option><oj-option value="BLOCKED">Blocked</oj-option></oj-select-single></oj-form-layout><oj-button chroming="callToAction" on-oj-action="[[save]]">Save recipient</oj-button></div>
+</section>

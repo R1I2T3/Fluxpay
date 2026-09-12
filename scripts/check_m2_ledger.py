@@ -67,19 +67,13 @@ def check(connection):
 
     if imbalances:
         for journal, currency, debits, credits in imbalances:
-            print(
-                f"UNBALANCED journal={journal} currency={currency} "
-                f"debits={money(debits)} credits={money(credits)}"
-            )
+            print(f"UNBALANCED journal={journal} currency={currency} debits={money(debits)} credits={money(credits)}")
     else:
         print("grouped journals balanced")
 
     if ungrouped:
         for currency, entry_type, count, amount in ungrouped:
-            print(
-                f"UNGROUPED currency={currency} type={entry_type} "
-                f"count={count} amount={money(amount)}"
-            )
+            print(f"UNGROUPED currency={currency} type={entry_type} count={count} amount={money(amount)}")
     else:
         print("ungrouped entries=0")
     return bool(imbalances)
