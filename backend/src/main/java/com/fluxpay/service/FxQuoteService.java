@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Service;
 
 @Service
+@org.springframework.context.annotation.Primary
 public class FxQuoteService implements FxRateProvider {
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
   private static final Duration FRESH_FOR = Duration.ofHours(1);

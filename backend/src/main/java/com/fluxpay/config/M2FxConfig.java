@@ -12,6 +12,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Selects the {@link FxSnapshotSource}. {@code live} (default) uses {@link FrankfurterFxProvider};
+ * {@code mock}/{@code solo} use the deterministic {@link com.fluxpay.config.M2MockFxRateProvider}
+ * for offline work and tests only.
+ */
 @Configuration
 public class M2FxConfig {
   private final String mode;
