@@ -38,12 +38,19 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = {AuthController.class, UserController.class, KycController.class, AdminKycController.class})
+@WebMvcTest(
+    controllers = {
+      AuthController.class,
+      UserController.class,
+      KycController.class,
+      AdminKycController.class
+    })
 @Import({SecurityConfig.class, M1SecurityConfig.class})
 class M1ControllerMvcTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
   private static final UUID ADMIN_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
-  private static final UUID APPLICATION_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+  private static final UUID APPLICATION_ID =
+      UUID.fromString("33333333-3333-3333-3333-333333333333");
 
   @Autowired private MockMvc mockMvc;
   @MockBean private AuthService authService;
@@ -53,8 +60,7 @@ class M1ControllerMvcTest {
 
   @BeforeEach
   void setUp() {
-    when(jwt.parse("user-token"))
-        .thenReturn(new CurrentUser(USER_ID, "user@fluxpay.test", "USER"));
+    when(jwt.parse("user-token")).thenReturn(new CurrentUser(USER_ID, "user@fluxpay.test", "USER"));
     when(jwt.parse("admin-token"))
         .thenReturn(new CurrentUser(ADMIN_ID, "admin@fluxpay.test", "ADMIN"));
   }
@@ -67,7 +73,8 @@ class M1ControllerMvcTest {
         .perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"user@fluxpay.test\",\"password\":\"Pass123!\",\"fullName\":\"Test User\"}"))
+                .content(
+                    "{\"email\":\"user@fluxpay.test\",\"password\":\"Pass123!\",\"fullName\":\"Test User\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
         .andExpect(jsonPath("$.data.user.role").value("USER"));
@@ -107,13 +114,15 @@ class M1ControllerMvcTest {
   @Test
   void duplicateCanonicalEmailReturnsConflict() throws Exception {
     when(authService.register(any()))
-        .thenThrow(new M1AuthException(M1AuthException.EMAIL_EXISTS, "email is already registered"));
+        .thenThrow(
+            new M1AuthException(M1AuthException.EMAIL_EXISTS, "email is already registered"));
 
     mockMvc
         .perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"USER@FLUXPAY.TEST\",\"password\":\"Pass123!\",\"fullName\":\"Test User\"}"))
+                .content(
+                    "{\"email\":\"USER@FLUXPAY.TEST\",\"password\":\"Pass123!\",\"fullName\":\"Test User\"}"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("EMAIL_EXISTS"));
   }
@@ -168,7 +177,7 @@ class M1ControllerMvcTest {
 
   @Test
   void adminCanListApplications() throws Exception {
-    when(kycService.listForAdmin(KycStatus.PENDING)).thenReturn(List.of(adminRow()));
+    when(kycService.listForAdmin(eq(KycStatus.PENDING), any())).thenReturn(List.of(adminRow()));
 
     mockMvc
         .perform(
@@ -261,7 +270,11 @@ class M1ControllerMvcTest {
   }
 
   private AuthResponse authResponse(UUID id, String role, KycStatus kycStatus) {
-    return new AuthResponse("signed-jwt", "Bearer", 3600, new UserResponse(id, "user@fluxpay.test", "Test User", role, kycStatus));
+    return new AuthResponse(
+        "signed-jwt",
+        "Bearer",
+        3600,
+        new UserResponse(id, "user@fluxpay.test", "Test User", role, kycStatus));
   }
 
   private UserResponse userResponse(KycStatus status) {
@@ -270,11 +283,23 @@ class M1ControllerMvcTest {
 
   private KycStatusResponse kycStatus(KycStatus status, long version) {
     Instant now = Instant.parse("2026-01-01T00:00:00Z");
-    return new KycStatusResponse(APPLICATION_ID, version, status, null, now, status == KycStatus.PENDING ? null : now);
+    return new KycStatusResponse(
+        APPLICATION_ID, version, status, null, now, status == KycStatus.PENDING ? null : now);
   }
 
   private KycAdminRow adminRow() {
-    return new KycAdminRow(APPLICATION_ID, 0L, "user@fluxpay.test", "Test User", com.fluxpay.beans.KycDocumentType.PAN, "ABCDE1234F", KycStatus.PENDING, Instant.parse("2026-01-01T00:00:00Z"), null, null, List.of(new KycFileMeta("pan.pdf", "application/pdf", 1024)));
+    return new KycAdminRow(
+        APPLICATION_ID,
+        0L,
+        "user@fluxpay.test",
+        "Test User",
+        com.fluxpay.beans.KycDocumentType.PAN,
+        "ABCDE1234F",
+        KycStatus.PENDING,
+        Instant.parse("2026-01-01T00:00:00Z"),
+        null,
+        null,
+        List.of(new KycFileMeta("pan.pdf", "application/pdf", 1024)));
   }
 
   private String validKycBody() {

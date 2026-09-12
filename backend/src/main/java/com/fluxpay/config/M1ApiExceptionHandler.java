@@ -9,13 +9,12 @@ import com.fluxpay.service.M1KycException;
 import java.time.Instant;
 import java.util.Map;
 import org.slf4j.MDC;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** M1-specific error mapping for authentication endpoints. */
+/** M1-specific error mapping for authentication and KYC endpoints. */
 @RestControllerAdvice(
     assignableTypes = {AuthController.class, KycController.class, AdminKycController.class})
 public class M1ApiExceptionHandler {
@@ -30,18 +29,13 @@ public class M1ApiExceptionHandler {
     return ResponseEntity.status(status).body(error(exception.getCode(), exception.getMessage()));
   }
 
-  @ExceptionHandler(DataIntegrityViolationException.class)
-  public ResponseEntity<ApiError> handleRegistrationRace(DataIntegrityViolationException exception) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(error(M1AuthException.EMAIL_EXISTS, "email is already registered"));
-  }
-
   @ExceptionHandler(M1KycException.class)
   public ResponseEntity<ApiError> handleKyc(M1KycException exception) {
     HttpStatus status =
         switch (exception.getCode()) {
           case M1KycException.KYC_NOT_FOUND -> HttpStatus.NOT_FOUND;
-          case M1KycException.REJECT_REASON_REQUIRED, M1KycException.VALIDATION -> HttpStatus.BAD_REQUEST;
+          case M1KycException.REJECT_REASON_REQUIRED, M1KycException.VALIDATION ->
+              HttpStatus.BAD_REQUEST;
           default -> HttpStatus.CONFLICT;
         };
     return ResponseEntity.status(status).body(error(exception.getCode(), exception.getMessage()));

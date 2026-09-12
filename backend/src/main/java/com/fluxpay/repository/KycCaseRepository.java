@@ -6,6 +6,8 @@ import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -21,6 +23,10 @@ public interface KycCaseRepository extends JpaRepository<KycCase, UUID> {
   List<KycCase> findAllByStatusOrderBySubmittedAtAscIdAsc(KycStatus status);
 
   List<KycCase> findAllByOrderBySubmittedAtAscIdAsc();
+
+  Page<KycCase> findAllByStatusOrderBySubmittedAtAscIdAsc(KycStatus status, Pageable pageable);
+
+  Page<KycCase> findAllByOrderBySubmittedAtAscIdAsc(Pageable pageable);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select k from KycCase k where k.id = :id")

@@ -54,8 +54,7 @@ class DatabaseKycGateTest {
     UUID userId = UUID.randomUUID();
     Instant now = Instant.now();
     KycCase kycCase =
-        new KycCase(
-            UUID.randomUUID(), userId, status, KycDocumentType.PAN, "ABCDE1234F", now, now);
+        new KycCase(UUID.randomUUID(), userId, status, KycDocumentType.PAN, "ABCDE1234F", now, now);
     when(kycCases.findByUserId(userId)).thenReturn(Optional.of(kycCase));
     return gate.isVerified(userId);
   }

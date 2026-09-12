@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,8 +36,16 @@ public class AdminKycController {
   @GetMapping("/applications")
   @PreAuthorize("hasRole('ADMIN')")
   public ApiResponse<List<KycAdminRow>> listApplications(
-      @RequestParam(defaultValue = "PENDING") String status) {
-    return envelope(kycService.listForAdmin(parseStatus(status)));
+      @RequestParam(defaultValue = "PENDING") String status,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "50") int size) {
+    if (page < 0) {
+      throw new M1KycException(M1KycException.VALIDATION, "page must be >= 0");
+    }
+    if (size < 1 || size > 100) {
+      throw new M1KycException(M1KycException.VALIDATION, "size must be between 1 and 100");
+    }
+    return envelope(kycService.listForAdmin(parseStatus(status), PageRequest.of(page, size)));
   }
 
   @PutMapping("/applications/{id}/approve")

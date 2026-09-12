@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,10 +56,15 @@ public class KycService {
 
   @Transactional(readOnly = true)
   public List<KycAdminRow> listForAdmin(KycStatus status) {
+    return listForAdmin(status, PageRequest.of(0, 50));
+  }
+
+  @Transactional(readOnly = true)
+  public List<KycAdminRow> listForAdmin(KycStatus status, Pageable pageable) {
     List<KycCase> cases =
         status == null
-            ? kycCases.findAllByOrderBySubmittedAtAscIdAsc()
-            : kycCases.findAllByStatusOrderBySubmittedAtAscIdAsc(status);
+            ? kycCases.findAllByOrderBySubmittedAtAscIdAsc(pageable).getContent()
+            : kycCases.findAllByStatusOrderBySubmittedAtAscIdAsc(status, pageable).getContent();
     return cases.stream().map(this::toAdminRow).toList();
   }
 
@@ -94,10 +101,12 @@ public class KycService {
 
   private KycCase resubmitOrReject(KycCase existing, KycSubmitRequest request, Instant now) {
     if (existing.getStatus() == KycStatus.PENDING) {
-      throw new M1KycException(M1KycException.KYC_ALREADY_PENDING, "KYC application is already pending");
+      throw new M1KycException(
+          M1KycException.KYC_ALREADY_PENDING, "KYC application is already pending");
     }
     if (existing.getStatus() == KycStatus.VERIFIED) {
-      throw new M1KycException(M1KycException.KYC_ALREADY_VERIFIED, "KYC application is already verified");
+      throw new M1KycException(
+          M1KycException.KYC_ALREADY_VERIFIED, "KYC application is already verified");
     }
     existing.resubmit(request.docType(), request.docNumber().trim(), now);
     return existing;
@@ -126,12 +135,15 @@ public class KycService {
     KycCase kycCase =
         kycCases
             .findByIdForUpdate(applicationId)
-            .orElseThrow(() -> new M1KycException(M1KycException.KYC_NOT_FOUND, "KYC application not found"));
+            .orElseThrow(
+                () ->
+                    new M1KycException(M1KycException.KYC_NOT_FOUND, "KYC application not found"));
     if (expectedVersion == null || kycCase.getVersion() != expectedVersion) {
       throw new M1KycException(M1KycException.KYC_CONFLICT, "KYC application has changed");
     }
     if (kycCase.getStatus() != KycStatus.PENDING) {
-      throw new M1KycException(M1KycException.KYC_ALREADY_DECIDED, "KYC application is already decided");
+      throw new M1KycException(
+          M1KycException.KYC_ALREADY_DECIDED, "KYC application is already decided");
     }
     return kycCase;
   }
@@ -155,16 +167,23 @@ public class KycService {
   }
 
   private KycAdminRow toAdminRow(KycCase kycCase) {
-    User user = findUser(kycCase.getUserId());
+    // Orphaned user must not fail the entire admin list; surface a placeholder instead.
+    // TODO(M2): replace per-row user/document queries with a fetch-join or batch load.
+    User user = users.findById(kycCase.getUserId()).orElse(null);
+    String email = user == null ? "unknown@fluxpay.invalid" : user.getEmail();
+    String fullName = user == null ? "Unknown user" : user.getFullName();
     List<KycFileMeta> documents =
         kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(kycCase.getId()).stream()
-            .map(document -> new KycFileMeta(document.getFileName(), document.getFileType(), document.getFileSize()))
+            .map(
+                document ->
+                    new KycFileMeta(
+                        document.getFileName(), document.getFileType(), document.getFileSize()))
             .toList();
     return new KycAdminRow(
         kycCase.getId(),
         kycCase.getVersion(),
-        user.getEmail(),
-        user.getFullName(),
+        email,
+        fullName,
         kycCase.getDocType(),
         kycCase.getDocNumber(),
         kycCase.getStatus(),

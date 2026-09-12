@@ -68,7 +68,8 @@ class UserServiceTest {
     when(users.findById(user.getId())).thenReturn(Optional.of(user));
     when(kycCases.findByUserId(user.getId())).thenReturn(Optional.empty());
 
-    var response = userService.updateProfile(user.getId(), new UpdateProfileRequest("  Updated Name  "));
+    var response =
+        userService.updateProfile(user.getId(), new UpdateProfileRequest("  Updated Name  "));
 
     assertThat(response.fullName()).isEqualTo("Updated Name");
     assertThat(user.getFullName()).isEqualTo("Updated Name");
@@ -91,13 +92,7 @@ class UserServiceTest {
   private User user() {
     Instant now = Instant.now();
     return new User(
-        UUID.randomUUID(),
-        "user@fluxpay.test",
-        "bcrypt-hash",
-        "USER",
-        "Original Name",
-        now,
-        now);
+        UUID.randomUUID(), "user@fluxpay.test", "bcrypt-hash", "USER", "Original Name", now, now);
   }
 
   private KycCase kycCase(UUID userId, KycStatus status) {

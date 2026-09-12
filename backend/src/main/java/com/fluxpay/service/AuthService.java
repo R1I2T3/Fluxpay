@@ -77,7 +77,8 @@ public class AuthService {
                 () ->
                     new M1AuthException(
                         M1AuthException.INVALID_CREDENTIALS, "invalid email or password"));
-    KycStatus kycStatus = kycCases.findByUserId(user.getId()).map(KycCase::getStatus).orElse(KycStatus.NONE);
+    KycStatus kycStatus =
+        kycCases.findByUserId(user.getId()).map(KycCase::getStatus).orElse(KycStatus.NONE);
     return authenticationResponse(user, kycStatus);
   }
 
@@ -87,7 +88,8 @@ public class AuthService {
         token,
         AuthResponse.TOKEN_TYPE,
         AuthResponse.EXPIRES_IN_SECONDS,
-        new UserResponse(user.getId(), user.getEmail(), user.getFullName(), user.getRole(), kycStatus));
+        new UserResponse(
+            user.getId(), user.getEmail(), user.getFullName(), user.getRole(), kycStatus));
   }
 
   private String canonicalizeEmail(String email) {

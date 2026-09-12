@@ -35,13 +35,13 @@ public class UserService {
   }
 
   private User findUser(UUID userId) {
-    return users
-        .findById(userId)
-        .orElseThrow(() -> new NoSuchElementException("user not found"));
+    return users.findById(userId).orElseThrow(() -> new NoSuchElementException("user not found"));
   }
 
   private UserResponse toResponse(User user) {
-    KycStatus kycStatus = kycCases.findByUserId(user.getId()).map(KycCase::getStatus).orElse(KycStatus.NONE);
-    return new UserResponse(user.getId(), user.getEmail(), user.getFullName(), user.getRole(), kycStatus);
+    KycStatus kycStatus =
+        kycCases.findByUserId(user.getId()).map(KycCase::getStatus).orElse(KycStatus.NONE);
+    return new UserResponse(
+        user.getId(), user.getEmail(), user.getFullName(), user.getRole(), kycStatus);
   }
 }

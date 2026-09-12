@@ -58,7 +58,8 @@ class KycServiceTest {
   void firstSubmissionCreatesPendingCaseAndStoresDocumentMetadata() {
     UUID userId = UUID.randomUUID();
     when(kycCases.findByUserIdForUpdate(userId)).thenReturn(Optional.empty());
-    when(kycCases.saveAndFlush(any(KycCase.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(kycCases.saveAndFlush(any(KycCase.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
     when(kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(any(UUID.class)))
         .thenReturn(List.of());
 
@@ -123,7 +124,8 @@ class KycServiceTest {
   @Test
   void rejectRequiresNonblankReason() {
     assertKycCode(
-        () -> kycService.reject(UUID.randomUUID(), UUID.randomUUID(), new KycReviewRequest(0L, "  ")),
+        () ->
+            kycService.reject(UUID.randomUUID(), UUID.randomUUID(), new KycReviewRequest(0L, "  ")),
         M1KycException.REJECT_REASON_REQUIRED);
 
     verify(kycCases, never()).findByIdForUpdate(any());

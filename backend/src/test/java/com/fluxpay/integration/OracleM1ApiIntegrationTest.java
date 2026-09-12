@@ -62,7 +62,10 @@ class OracleM1ApiIntegrationTest {
 
     String registerResponse =
         mockMvc
-            .perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(registerBody))
+            .perform(
+                post("/api/auth/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(registerBody))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.user.email").value(email))
             .andReturn()
@@ -91,14 +94,20 @@ class OracleM1ApiIntegrationTest {
             .andReturn()
             .getResponse()
             .getContentAsString();
-    applicationId = UUID.fromString(objectMapper.readTree(submitResponse).path("data").path("applicationId").asText());
+    applicationId =
+        UUID.fromString(
+            objectMapper.readTree(submitResponse).path("data").path("applicationId").asText());
 
     assertThat(users.findByCanonicalEmail(email)).isPresent();
     assertThat(kycCases.findByUserId(userId)).isPresent();
-    List<KycDocument> documents = kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(applicationId);
-    assertThat(documents).singleElement().satisfies(document -> {
-      assertThat(document.getFileName()).isEqualTo("pan.pdf");
-      assertThat(document.getFileSize()).isEqualTo(1024);
-    });
+    List<KycDocument> documents =
+        kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(applicationId);
+    assertThat(documents)
+        .singleElement()
+        .satisfies(
+            document -> {
+              assertThat(document.getFileName()).isEqualTo("pan.pdf");
+              assertThat(document.getFileSize()).isEqualTo(1024);
+            });
   }
 }
