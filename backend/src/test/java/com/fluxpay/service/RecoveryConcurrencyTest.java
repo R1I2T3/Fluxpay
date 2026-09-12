@@ -5,9 +5,9 @@ import static org.mockito.Mockito.*;
 
 import com.fluxpay.beans.PayoutAttempt;
 import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.common.contracts.LedgerWriter;
 import com.fluxpay.common.event.EventPublisher;
 import com.fluxpay.config.InMemoryPaymentReader;
-import com.fluxpay.config.MockLedgerWriter;
 import com.fluxpay.dto.PayoutResult;
 import com.fluxpay.repository.PaymentEventStore;
 import com.fluxpay.repository.PayoutAttemptRepository;
@@ -17,6 +17,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -71,7 +72,7 @@ class RecoveryConcurrencyTest {
     failed.markFailed("DECLINED", "known failure");
     tx.executeWithoutResult(status -> attempts.saveAndFlush(failed));
     var reader = new InMemoryPaymentReader();
-    journal = spy(new RefundJournalService(new MockLedgerWriter()));
+    journal = spy(new RefundJournalService(new ConcurrencyLedger()));
     standardProvider = provider("STANDARD_BANK");
     instantProvider = provider("INSTANT_PAYOUT");
     var events = mock(EventPublisher.class);
@@ -182,5 +183,36 @@ class RecoveryConcurrencyTest {
     var provider = mock(PayoutProvider.class);
     when(provider.code()).thenReturn(code);
     return provider;
+  }
+
+  /**
+   * Minimal in-memory {@link LedgerWriter} so {@link RefundJournalService#isAlreadyRefunded} sees
+   * real refund keys. A Mockito mock returns {@code false} from {@code contains}, so a concurrent
+   * payout retry would receive a {@code null} provider result instead of the expected
+   * already-refunded guard.
+   */
+  private static final class ConcurrencyLedger implements LedgerWriter {
+    private final java.util.Set<String> keys =
+        java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    @Override
+    public void append(
+        UUID walletId,
+        String entryType,
+        BigDecimal amount,
+        String currency,
+        String idempotencyKey) {
+      Objects.requireNonNull(walletId, "walletId must not be null");
+      Objects.requireNonNull(entryType, "entryType must not be null");
+      Objects.requireNonNull(amount, "amount must not be null");
+      Objects.requireNonNull(currency, "currency must not be null");
+      Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
+      keys.add(idempotencyKey);
+    }
+
+    @Override
+    public boolean contains(String idempotencyKey) {
+      return keys.contains(idempotencyKey);
+    }
   }
 }

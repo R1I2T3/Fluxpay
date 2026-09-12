@@ -5,8 +5,12 @@ import static org.mockito.Mockito.*;
 
 import com.fluxpay.common.contracts.LedgerWriter;
 import com.fluxpay.common.enums.PaymentStatus;
-import com.fluxpay.config.MockLedgerWriter;
 import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -40,10 +44,9 @@ class RefundJournalServiceTest {
 
   @Test
   void doubleRefundRestoresBalancesOnceAndPreservesOriginalEntry() {
-    MockLedgerWriter ledger = new MockLedgerWriter();
+    SeededLedger ledger = new SeededLedger();
     PaymentSnapshot payment = payment();
-    MockLedgerWriter.LedgerEntry originalBefore =
-        ledger.entriesSnapshot().get("payment:P-001:debit");
+    SeededLedger.LedgerEntry originalBefore = ledger.entriesSnapshot().get("payment:P-001:debit");
 
     RefundJournalService journal = new RefundJournalService(ledger);
     journal.refund(payment);
@@ -70,5 +73,86 @@ class RefundJournalServiceTest {
         "USD",
         "KES",
         PaymentStatus.ROUTED);
+  }
+
+  /**
+   * In-memory {@link LedgerWriter} seeded to the post-payment state for {@code P-001} (sender
+   * {@code 9000.00 USD}, clearing {@code 1000.00 USD}, plus the immutable original entries).
+   * Replaces the deleted {@code MockLedgerWriter}; each idempotency key applies once.
+   */
+  private static final class SeededLedger implements LedgerWriter {
+    record LedgerEntry(
+        UUID walletId,
+        String entryType,
+        BigDecimal amount,
+        String currency,
+        String idempotencyKey) {}
+
+    private final Map<UUID, BigDecimal> balances = new HashMap<>();
+    private final Map<String, LedgerEntry> entries = new LinkedHashMap<>();
+
+    SeededLedger() {
+      UUID sender = UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes());
+      UUID clearing = UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes());
+      balances.put(sender, new BigDecimal("9000.00"));
+      balances.put(clearing, new BigDecimal("1000.00"));
+      balances.put(
+          UUID.nameUUIDFromBytes("fluxpay:P-002:sender".getBytes()), new BigDecimal("9500.00"));
+      balances.put(
+          UUID.nameUUIDFromBytes("fluxpay:P-002:clearing".getBytes()), new BigDecimal("500.00"));
+      entries.put(
+          "payment:P-001:debit",
+          new LedgerEntry(
+              sender, "DEBIT", new BigDecimal("1000.00"), "USD", "payment:P-001:debit"));
+      entries.put(
+          "payment:P-002:debit",
+          new LedgerEntry(
+              UUID.nameUUIDFromBytes("fluxpay:P-002:sender".getBytes()),
+              "DEBIT",
+              new BigDecimal("500.00"),
+              "USD",
+              "payment:P-002:debit"));
+    }
+
+    @Override
+    public synchronized void append(
+        UUID walletId,
+        String entryType,
+        BigDecimal amount,
+        String currency,
+        String idempotencyKey) {
+      Objects.requireNonNull(walletId, "walletId must not be null");
+      Objects.requireNonNull(entryType, "entryType must not be null");
+      Objects.requireNonNull(amount, "amount must not be null");
+      Objects.requireNonNull(currency, "currency must not be null");
+      Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
+      if (entries.containsKey(idempotencyKey)) {
+        return;
+      }
+      if (!"DEBIT".equals(entryType) && !"CREDIT".equals(entryType)) {
+        throw new IllegalArgumentException("unsupported entry type: " + entryType);
+      }
+      if (!"USD".equals(currency)) {
+        throw new IllegalArgumentException("unsupported currency: " + currency);
+      }
+      BigDecimal current = balances.getOrDefault(walletId, BigDecimal.ZERO);
+      BigDecimal next = "DEBIT".equals(entryType) ? current.subtract(amount) : current.add(amount);
+      balances.put(walletId, next);
+      entries.put(
+          idempotencyKey, new LedgerEntry(walletId, entryType, amount, currency, idempotencyKey));
+    }
+
+    @Override
+    public synchronized boolean contains(String idempotencyKey) {
+      return entries.containsKey(idempotencyKey);
+    }
+
+    synchronized Map<UUID, BigDecimal> balancesSnapshot() {
+      return Collections.unmodifiableMap(new LinkedHashMap<>(balances));
+    }
+
+    synchronized Map<String, LedgerEntry> entriesSnapshot() {
+      return Collections.unmodifiableMap(new LinkedHashMap<>(entries));
+    }
   }
 }
