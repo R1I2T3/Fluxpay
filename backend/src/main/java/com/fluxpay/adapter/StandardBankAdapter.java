@@ -6,11 +6,9 @@ import com.fluxpay.service.PayoutProvider;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("mock")
 public class StandardBankAdapter implements PayoutProvider {
 
   private final Supplier<String> failureProbe;

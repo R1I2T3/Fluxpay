@@ -42,7 +42,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** HTTP contract for payout submission: owner gate, quote gate, and idempotent confirm. */
@@ -54,7 +53,6 @@ import org.springframework.test.web.servlet.MockMvc;
   M4ApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class PayoutControllerContractTest {
 
   private static final UUID OWNER_ID =

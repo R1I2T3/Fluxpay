@@ -1,12 +1,10 @@
 package com.fluxpay.service;
 
 import java.util.concurrent.TimeUnit;
-import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile("!local")
 public class M3KafkaTransport implements M3TransportPort {
   private final KafkaTemplate<String, String> kafka;
 

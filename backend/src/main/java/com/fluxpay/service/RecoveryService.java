@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
  * without touching ledgers. Refund delegates to {@link RefundJournalService} and publishes a
  * deterministic {@code payment.refunded} event.
  */
-@Profile("mock")
 @Service
 @Transactional
 public class RecoveryService {

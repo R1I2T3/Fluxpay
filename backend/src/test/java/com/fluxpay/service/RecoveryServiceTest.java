@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.fluxpay.beans.PayoutAttempt;
 import com.fluxpay.beans.PayoutAttemptStatus;
 import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.common.contracts.LedgerWriter;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.common.event.EventPublisher;
 import com.fluxpay.dto.EventTopics;
@@ -26,7 +27,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -273,8 +278,8 @@ class RecoveryServiceTest {
   }
 
   @Test
-  void refundPublicationCanRecoverAfterMockLedgerSurvivesFailure() {
-    var ledger = new com.fluxpay.config.MockLedgerWriter();
+  void refundPublicationCanRecoverAfterLedgerSurvivesFailure() {
+    var ledger = new RecordingLedger(payment.senderWalletId(), payment.payoutClearingWalletId());
     var journal = new RefundJournalService(ledger);
     var service =
         new RecoveryService(
@@ -334,5 +339,43 @@ class RecoveryServiceTest {
     attempt.markProcessing();
     attempt.markCompleted("SB-1");
     return attempt;
+  }
+
+  /**
+   * In-memory {@link LedgerWriter} seeded to the post-payment state for {@code P-001} (sender
+   * {@code 9000.00}, clearing {@code 1000.00}); each idempotency key applies once. Replaces the
+   * deleted {@code MockLedgerWriter} for the refund-replay test above.
+   */
+  private static final class RecordingLedger implements LedgerWriter {
+    private final Map<UUID, BigDecimal> balances = new HashMap<>();
+    private final Set<String> keys = new HashSet<>();
+
+    RecordingLedger(UUID senderWalletId, UUID clearingWalletId) {
+      balances.put(senderWalletId, new BigDecimal("9000.00"));
+      balances.put(clearingWalletId, new BigDecimal("1000.00"));
+    }
+
+    @Override
+    public synchronized void append(
+        UUID walletId,
+        String entryType,
+        BigDecimal amount,
+        String currency,
+        String idempotencyKey) {
+      if (!keys.add(idempotencyKey)) {
+        return;
+      }
+      balances.merge(
+          walletId, "DEBIT".equals(entryType) ? amount.negate() : amount, BigDecimal::add);
+    }
+
+    @Override
+    public synchronized boolean contains(String idempotencyKey) {
+      return keys.contains(idempotencyKey);
+    }
+
+    synchronized Map<UUID, BigDecimal> balancesSnapshot() {
+      return Map.copyOf(balances);
+    }
   }
 }

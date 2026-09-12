@@ -30,7 +30,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(RouteAdminController.class)
@@ -41,7 +40,6 @@ import org.springframework.test.web.servlet.MockMvc;
   M4ApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class RouteAdminControllerContractTest {
 
   private static final UUID ADMIN_ID =
@@ -141,8 +139,8 @@ class RouteAdminControllerContractTest {
 
   @Test
   void missingTokenIsRejectedByFrozenChain() throws Exception {
-    // The frozen SecurityConfig has no 401 entry point, so anonymous requests are denied with
-    // 403. Assert the actual frozen behavior instead of inventing a 401 contract.
+    // Anonymous requests hit the SecurityConfig authentication entry point (401 AUTH_REQUIRED)
+    // before any controller logic runs.
     mvc.perform(
             put("/api/admin/routes/" + standard.getId().toString())
                 .header("X-Correlation-ID", "cid-admin-4")
@@ -151,6 +149,7 @@ class RouteAdminControllerContractTest {
                     "{\"baseFee\":6.00,\"fxSpreadPercentage\":1.0,"
                         + "\"estimatedMinutes\":120,\"successRate\":99.00,"
                         + "\"active\":true,\"version\":0}"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
   }
 }

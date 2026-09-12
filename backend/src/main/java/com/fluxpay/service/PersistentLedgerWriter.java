@@ -12,12 +12,14 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Oracle-backed writer and the sole runtime mutation path for posted wallet balances. */
 @Service
+@Primary
 public class PersistentLedgerWriter implements LedgerWriter {
   private static final Set<String> ENTRY_TYPES = Set.of("DEBIT", "CREDIT");
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
