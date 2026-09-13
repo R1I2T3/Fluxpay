@@ -1,5 +1,6 @@
 package com.fluxpay.dto;
 
+import com.fluxpay.domain.RoutePreference;
 import java.math.BigDecimal;
 import java.util.List;
 

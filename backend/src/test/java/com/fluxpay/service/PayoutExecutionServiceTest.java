@@ -46,6 +46,7 @@ class PayoutExecutionServiceTest {
   @Mock private PayoutAttemptRepository attempts;
   @Mock private EventPublisher events;
   @Mock private PayoutProvider provider;
+  @Mock private SelectedQuoteService selectedQuotes;
 
   private PayoutExecutionService service;
   private PaymentSnapshot payment;
@@ -57,7 +58,17 @@ class PayoutExecutionServiceTest {
     Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     service =
         new PayoutExecutionService(
-            paymentReader, routes, attempts, events, List.of(provider), clock);
+            paymentReader, routes, attempts, events, List.of(provider), clock, selectedQuotes);
+    org.mockito.Mockito.lenient()
+        .when(selectedQuotes.require(any(), any()))
+        .thenReturn(
+            new com.fluxpay.domain.AcceptedQuote(
+                UUID.randomUUID(),
+                "STANDARD_BANK",
+                new BigDecimal("5.0000"),
+                new BigDecimal("995.0000"),
+                new BigDecimal("146.816000"),
+                new BigDecimal("146081.9200")));
     payment =
         new PaymentSnapshot(
             "P-001",
@@ -79,6 +90,20 @@ class PayoutExecutionServiceTest {
             "0.8",
             240,
             "99.50");
+  }
+
+  @Test
+  void routeEditCannotChangeAcceptedFeeAtSubmission() {
+    standard.update("20.00", "5", 5, "90", true);
+    when(paymentReader.get("P-001")).thenReturn(payment);
+    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(standard));
+    when(provider.submit(any())).thenReturn(PayoutResult.ok("SB-1", new BigDecimal("99.00")));
+    service.submit("P-001", "STANDARD_BANK", "c-uuid");
+    var submitted = org.mockito.ArgumentCaptor.forClass(com.fluxpay.dto.PayoutCmd.class);
+    verify(provider).submit(submitted.capture());
+    assertThat(submitted.getValue().customerFee()).isEqualByComparingTo("5.0000");
+    assertThat(submitted.getValue().offeredRate()).isEqualByComparingTo("146.816000");
+    assertThat(submitted.getValue().recipientAmount()).isEqualByComparingTo("146081.9200");
   }
 
   @Test
@@ -147,7 +172,13 @@ class PayoutExecutionServiceTest {
   void missingProviderThrowsBeforeAttemptSave() {
     PayoutExecutionService withoutProvider =
         new PayoutExecutionService(
-            paymentReader, routes, attempts, events, List.of(), Clock.fixed(NOW, ZoneOffset.UTC));
+            paymentReader,
+            routes,
+            attempts,
+            events,
+            List.of(),
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            selectedQuotes);
     when(paymentReader.get("P-001")).thenReturn(payment);
     when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(standard));
     when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))

@@ -3,9 +3,9 @@ package com.fluxpay.service;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentPurpose;
 import com.fluxpay.beans.PaymentQuote;
-import com.fluxpay.beans.QuoteRoute;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
+import com.fluxpay.domain.RoutePreference;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -24,7 +24,7 @@ class DbPaymentEligibilityGateFixture {
             "USD",
             "KES",
             PaymentPurpose.FAMILY_SUPPORT,
-            QuoteRoute.BALANCED,
+            RoutePreference.BALANCED,
             "{}",
             NOW);
     payment.quoted(generation, NOW);
@@ -41,7 +41,7 @@ class DbPaymentEligibilityGateFixture {
         "USD",
         "KES",
         PaymentPurpose.FAMILY_SUPPORT,
-        QuoteRoute.BALANCED,
+        RoutePreference.BALANCED,
         "{}",
         NOW);
   }
@@ -51,17 +51,17 @@ class DbPaymentEligibilityGateFixture {
         UUID.randomUUID(), userId, "A", "acct", "Bank", "KE", "KES", RecipientStatus.ACTIVE, NOW);
   }
 
-  static PaymentQuote quote(UUID paymentId, int generation, QuoteRoute route) {
+  static PaymentQuote quote(UUID paymentId, int generation, String route) {
     return new PaymentQuote(
         UUID.randomUUID(),
         paymentId,
         generation,
         route,
-        new BigDecimal("130.00"),
-        80,
-        new BigDecimal("129.00"),
+        new BigDecimal("80.000000"),
+        BigDecimal.ZERO,
+        new BigDecimal("80.000000"),
         new BigDecimal("5.00"),
-        new BigDecimal("1290.00"),
+        new BigDecimal("400.0000"),
         240,
         true,
         NOW,

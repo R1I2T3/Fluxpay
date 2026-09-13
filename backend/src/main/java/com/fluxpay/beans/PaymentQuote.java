@@ -15,22 +15,22 @@ public class PaymentQuote {
 
   private int generation;
 
-  @Enumerated(EnumType.STRING)
-  private QuoteRoute route;
+  @Column(name = "route", nullable = false, length = 50)
+  private String route;
 
-  @Column(name = "market_rate")
+  @Column(name = "market_rate", precision = 19, scale = 6)
   private BigDecimal marketRate;
 
-  @Column(name = "spread_bps")
-  private int spreadBps;
+  @Column(name = "spread_percent", precision = 9, scale = 6)
+  private BigDecimal spreadPercent;
 
-  @Column(name = "offered_rate")
+  @Column(name = "offered_rate", precision = 19, scale = 6)
   private BigDecimal offeredRate;
 
-  @Column(name = "fee_amount")
+  @Column(name = "fee_amount", precision = 19, scale = 4)
   private BigDecimal feeAmount;
 
-  @Column(name = "recipient_amount")
+  @Column(name = "recipient_amount", precision = 19, scale = 4)
   private BigDecimal recipientAmount;
 
   @Column(name = "estimated_minutes")
@@ -53,9 +53,9 @@ public class PaymentQuote {
       UUID id,
       UUID paymentId,
       int generation,
-      QuoteRoute route,
+      String route,
       BigDecimal marketRate,
-      int spread,
+      BigDecimal spread,
       BigDecimal offered,
       BigDecimal fee,
       BigDecimal recipient,
@@ -68,13 +68,13 @@ public class PaymentQuote {
     this.generation = generation;
     this.route = route;
     this.marketRate = marketRate;
-    spreadBps = spread;
+    spreadPercent = spread;
     offeredRate = offered;
     feeAmount = fee;
     recipientAmount = recipient;
     estimatedMinutes = eta;
     this.recommended = recommended;
-    policyVersion = "m3-demo-v1";
+    policyVersion = "source-fee-v1";
     createdAt = now;
     expiresAt = expires;
   }
@@ -91,7 +91,7 @@ public class PaymentQuote {
     return generation;
   }
 
-  public QuoteRoute route() {
+  public String route() {
     return route;
   }
 
@@ -99,8 +99,8 @@ public class PaymentQuote {
     return marketRate;
   }
 
-  public int spreadBps() {
-    return spreadBps;
+  public BigDecimal spreadPercent() {
+    return spreadPercent;
   }
 
   public BigDecimal offeredRate() {
@@ -125,22 +125,5 @@ public class PaymentQuote {
 
   public Instant expiresAt() {
     return expiresAt;
-  }
-
-  public PaymentQuote withRecommendation(boolean value) {
-    return new PaymentQuote(
-        id,
-        paymentId,
-        generation,
-        route,
-        marketRate,
-        spreadBps,
-        offeredRate,
-        feeAmount,
-        recipientAmount,
-        estimatedMinutes,
-        value,
-        createdAt,
-        expiresAt);
   }
 }

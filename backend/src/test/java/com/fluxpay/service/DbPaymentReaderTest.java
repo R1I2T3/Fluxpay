@@ -8,11 +8,11 @@ import static org.mockito.Mockito.when;
 
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentPurpose;
-import com.fluxpay.beans.QuoteRoute;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.WalletRepository;
@@ -53,7 +53,7 @@ class DbPaymentReaderTest {
             "USD",
             "KES",
             PaymentPurpose.FAMILY_SUPPORT,
-            QuoteRoute.BALANCED,
+            RoutePreference.BALANCED,
             "{}",
             Instant.now());
     when(payments.findById(any())).thenReturn(Optional.of(p));
@@ -108,7 +108,7 @@ class DbPaymentReaderTest {
             "USD",
             "KES",
             PaymentPurpose.FAMILY_SUPPORT,
-            QuoteRoute.BALANCED,
+            RoutePreference.BALANCED,
             "{}",
             Instant.now());
     Wallet clearing = new Wallet(user, "USD", WalletAccountRole.PAYOUT_CLEARING);

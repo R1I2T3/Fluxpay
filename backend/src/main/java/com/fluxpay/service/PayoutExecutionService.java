@@ -48,6 +48,7 @@ public class PayoutExecutionService {
   private final EventPublisher events;
   private final Map<String, PayoutProvider> providersByCode;
   private final Clock clock;
+  private final SelectedQuoteService selectedQuotes;
 
   public PayoutExecutionService(
       PaymentReader paymentReader,
@@ -55,13 +56,15 @@ public class PayoutExecutionService {
       PayoutAttemptRepository attempts,
       EventPublisher events,
       List<PayoutProvider> providers,
-      Clock clock) {
+      Clock clock,
+      SelectedQuoteService selectedQuotes) {
     this.paymentReader = Objects.requireNonNull(paymentReader, "paymentReader must not be null");
     this.routes = Objects.requireNonNull(routes, "routes must not be null");
     this.attempts = Objects.requireNonNull(attempts, "attempts must not be null");
     this.events = Objects.requireNonNull(events, "events must not be null");
     Objects.requireNonNull(providers, "providers must not be null");
     this.clock = Objects.requireNonNull(clock, "clock must not be null");
+    this.selectedQuotes = selectedQuotes;
     this.providersByCode =
         providers.stream()
             .collect(
@@ -101,6 +104,7 @@ public class PayoutExecutionService {
     if (!route.isActive()) {
       throw new IllegalStateException("route " + route.getRouteCode() + " is inactive");
     }
+    var accepted = selectedQuotes.require(payment, routeCodeOf(route));
     PayoutAttempt attempt =
         PayoutAttempt.initiated(
             UUID.randomUUID(), payment.paymentId(), attemptNumber, route.getId(), clock.instant());
@@ -134,8 +138,10 @@ public class PayoutExecutionService {
                 payment.sourceCurrency(),
                 payment.targetCurrency(),
                 routeCodeOf(route),
-                route.getBaseFee(),
-                attemptNumber));
+                accepted.feeAmount(),
+                attemptNumber,
+                accepted.offeredRate(),
+                accepted.recipientAmount()));
 
     if (result.success()) {
       attempt.markCompleted(result.providerRef());

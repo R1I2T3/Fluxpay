@@ -13,7 +13,15 @@ import org.junit.jupiter.api.Test;
 class PayoutProviderTest {
   private PayoutCmd command(String route, String amount, String fee) {
     return new PayoutCmd(
-        "P-001", new BigDecimal(amount), "USD", "KES", route, new BigDecimal(fee), 1);
+        "P-001",
+        new BigDecimal(amount),
+        "USD",
+        "KES",
+        route,
+        new BigDecimal(fee),
+        1,
+        new BigDecimal("80"),
+        new BigDecimal("7600"));
   }
 
   @Test
@@ -43,9 +51,9 @@ class PayoutProviderTest {
   }
 
   @Test
-  void instantAddsTwoFiftyToProviderFee() {
+  void instantDoesNotAddAFeeAfterCustomerAcceptedTheQuote() {
     PayoutResult result =
-        new InstantPayoutAdapter().submit(command("INSTANT_PAYOUT", "1000.00", "8.50"));
+        new InstantPayoutAdapter().submit(command("INSTANT_PAYOUT", "1000.00", "11.00"));
     assertThat(result.providerFee()).isEqualByComparingTo("11.00");
   }
 

@@ -79,6 +79,17 @@ class RecoveryConcurrencyTest {
     standardProvider = provider("STANDARD_BANK");
     instantProvider = provider("INSTANT_PAYOUT");
     var events = mock(EventPublisher.class);
+    var selectedQuotes = mock(SelectedQuoteService.class);
+    when(selectedQuotes.require(any(), any()))
+        .thenAnswer(
+            call ->
+                new com.fluxpay.domain.AcceptedQuote(
+                    UUID.randomUUID(),
+                    call.getArgument(1),
+                    new java.math.BigDecimal("5.0000"),
+                    new java.math.BigDecimal("995.0000"),
+                    new java.math.BigDecimal("80.000000"),
+                    new java.math.BigDecimal("79600.0000")));
     var execution =
         new PayoutExecutionService(
             reader,
@@ -86,7 +97,8 @@ class RecoveryConcurrencyTest {
             attempts,
             events,
             List.of(standardProvider, instantProvider),
-            Clock.systemUTC());
+            Clock.systemUTC(),
+            selectedQuotes);
     recovery =
         new RecoveryService(
             reader,

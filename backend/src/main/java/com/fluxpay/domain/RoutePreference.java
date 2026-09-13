@@ -1,4 +1,4 @@
-package com.fluxpay.dto;
+package com.fluxpay.domain;
 
 public enum RoutePreference {
   CHEAPEST,

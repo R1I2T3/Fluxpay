@@ -2,6 +2,7 @@ package com.fluxpay.web.advice;
 
 import com.fluxpay.common.api.ApiError;
 import com.fluxpay.common.web.ApiErrorFactory;
+import com.fluxpay.exception.BusinessException;
 import com.fluxpay.exception.EventPublishException;
 import com.fluxpay.exception.ForbiddenException;
 import com.fluxpay.exception.QuoteExpiredException;
@@ -27,6 +28,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
       com.fluxpay.controller.TimelineController.class
     })
 public class PayoutApiExceptionHandler {
+
+  @ExceptionHandler(BusinessException.class)
+  public ResponseEntity<ApiError> business(BusinessException e) {
+    return ResponseEntity.status(e.status())
+        .body(ApiErrorFactory.create(e.code(), e.getMessage(), Map.of()));
+  }
 
   @ExceptionHandler(ForbiddenException.class)
   public ResponseEntity<ApiError> forbidden(ForbiddenException e) {

@@ -1,11 +1,9 @@
 package com.fluxpay.service;
 
-import com.fluxpay.beans.PayoutRoute;
-import com.fluxpay.dto.RoutePreference;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,29 +17,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class RouteRecommender {
 
-  private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
   private static final BigDecimal WEIGHT_RECIPIENT = new BigDecimal("0.45");
   private static final BigDecimal WEIGHT_SPEED = new BigDecimal("0.30");
   private static final BigDecimal WEIGHT_SUCCESS = new BigDecimal("0.25");
 
-  public RouteRecommendation recommend(
-      BigDecimal amount,
-      RoutePreference preference,
-      BigDecimal marketRate,
-      List<PayoutRoute> routes) {
-    if (amount == null || amount.signum() <= 0) {
-      throw new IllegalArgumentException("amount must be positive");
-    }
+  public RouteRecommendation recommend(RoutePreference preference, List<RouteQuote> quotes) {
     Objects.requireNonNull(preference, "preference must not be null");
-    Objects.requireNonNull(marketRate, "marketRate must not be null");
-    Objects.requireNonNull(routes, "routes must not be null");
-
-    List<RouteQuote> quotes = new ArrayList<>();
-    for (PayoutRoute route : routes) {
-      if (route.isActive()) {
-        quotes.add(quote(amount, marketRate, route));
-      }
-    }
+    Objects.requireNonNull(quotes, "quotes must not be null");
     if (quotes.isEmpty()) {
       throw new IllegalStateException("no active payout routes");
     }
@@ -49,16 +31,6 @@ public class RouteRecommender {
     List<RouteQuote> ranked = new ArrayList<>(quotes);
     ranked.sort(comparator(preference, ranked));
     return new RouteRecommendation(ranked.get(0).route(), List.copyOf(ranked));
-  }
-
-  private RouteQuote quote(BigDecimal amount, BigDecimal marketRate, PayoutRoute route) {
-    BigDecimal offeredRate =
-        marketRate.multiply(
-            BigDecimal.ONE.subtract(
-                route.fxSpreadPercentage().divide(ONE_HUNDRED, MathContext.DECIMAL64)));
-    BigDecimal recipient = amount.multiply(offeredRate).subtract(route.baseFee());
-    return new RouteQuote(
-        route, marketRate, offeredRate, recipient.setScale(4, RoundingMode.HALF_EVEN));
   }
 
   private Comparator<RouteQuote> comparator(RoutePreference preference, List<RouteQuote> quotes) {
@@ -69,7 +41,7 @@ public class RouteRecommender {
               .thenComparing(q -> q.route().code());
       case FASTEST ->
           Comparator.comparingInt((RouteQuote q) -> q.route().estimatedMinutes())
-              .thenComparing(q -> q.route().baseFee())
+              .thenComparing(RouteQuote::feeAmount)
               .thenComparing(q -> q.route().code());
       case BALANCED -> balancedComparator(quotes);
     };

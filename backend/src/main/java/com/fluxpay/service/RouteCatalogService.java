@@ -3,8 +3,8 @@ package com.fluxpay.service;
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
-import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.repository.PayoutRouteRepository;
 import java.math.BigDecimal;
@@ -28,18 +28,21 @@ public class RouteCatalogService {
   private final RouteRecommender recommender;
   private final PayoutRouteRepository routes;
   private final RouteMetrics metrics;
+  private final RoutePricingService pricing;
 
   public RouteCatalogService(
       PaymentReader reader,
       FxRateProvider fx,
       RouteRecommender recommender,
       PayoutRouteRepository routes,
-      RouteMetrics metrics) {
+      RouteMetrics metrics,
+      RoutePricingService pricing) {
     this.reader = Objects.requireNonNull(reader, "reader must not be null");
     this.fx = Objects.requireNonNull(fx, "fx must not be null");
     this.recommender = Objects.requireNonNull(recommender, "recommender must not be null");
     this.routes = Objects.requireNonNull(routes, "routes must not be null");
     this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
+    this.pricing = pricing;
   }
 
   @Transactional(readOnly = true)
@@ -54,7 +57,7 @@ public class RouteCatalogService {
     RoutePreference effective = preference == null ? RoutePreference.BALANCED : preference;
     BigDecimal marketRate = fx.rate(payment.sourceCurrency(), payment.targetCurrency());
     List<PayoutRoute> active = routes.findByActiveTrueOrderByRouteCodeAsc();
-    return recommender.recommend(payment.amount(), effective, marketRate, active);
+    return recommender.recommend(effective, pricing.price(payment.amount(), marketRate, active));
   }
 
   @Transactional

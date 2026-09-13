@@ -11,8 +11,8 @@ import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
-import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.repository.PayoutRouteRepository;
 import java.math.BigDecimal;
@@ -42,7 +42,14 @@ class RouteCatalogServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new RouteCatalogService(reader, fx, new RouteRecommender(), routes, metrics);
+    service =
+        new RouteCatalogService(
+            reader,
+            fx,
+            new RouteRecommender(),
+            routes,
+            metrics,
+            new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()));
     payment =
         new PaymentSnapshot(
             "P-001",
@@ -75,6 +82,31 @@ class RouteCatalogServiceTest {
             "2.0",
             5,
             "98.00");
+  }
+
+  @Test
+  void sourceCurrencyFeeIsDeductedBeforeConversion() {
+    PaymentSnapshot hundred =
+        new PaymentSnapshot(
+            "P-001",
+            payment.senderUserId(),
+            payment.senderWalletId(),
+            payment.payoutClearingWalletId(),
+            new BigDecimal("100.0000"),
+            "USD",
+            "KES",
+            PaymentStatus.ROUTED);
+    standard.update("5.0000", "0", 240, "99.50", true);
+    when(reader.get("P-001")).thenReturn(hundred);
+    when(fx.rate("USD", "KES")).thenReturn(new BigDecimal("80.000000"));
+    when(routes.findByActiveTrueOrderByRouteCodeAsc()).thenReturn(List.of(standard));
+    assertThat(
+            service
+                .recommend("P-001", RoutePreference.CHEAPEST, "c")
+                .quotes()
+                .get(0)
+                .recipientAmount())
+        .isEqualByComparingTo("7600.0000");
   }
 
   @Test

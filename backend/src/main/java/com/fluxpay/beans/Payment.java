@@ -1,5 +1,6 @@
 package com.fluxpay.beans;
 
+import com.fluxpay.domain.RoutePreference;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -35,7 +36,7 @@ public class Payment {
   private PaymentPurpose purpose;
 
   @Enumerated(EnumType.STRING)
-  private QuoteRoute preference;
+  private RoutePreference preference;
 
   @Column(name = "recipient_version")
   private long recipientVersion;
@@ -91,7 +92,7 @@ public class Payment {
       String source,
       String payout,
       PaymentPurpose purpose,
-      QuoteRoute preference,
+      RoutePreference preference,
       String snapshot,
       Instant now) {
     this.id = id;
@@ -143,7 +144,7 @@ public class Payment {
     return purpose;
   }
 
-  public QuoteRoute preference() {
+  public RoutePreference preference() {
     return preference;
   }
 

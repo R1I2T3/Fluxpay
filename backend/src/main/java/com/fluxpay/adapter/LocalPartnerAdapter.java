@@ -23,8 +23,8 @@ public class LocalPartnerAdapter implements PayoutProvider {
     Objects.requireNonNull(cmd, "cmd must not be null");
     if (cmd.amount().compareTo(LIMIT) > 0) {
       return PayoutResult.failed(
-          "LIMIT_EXCEEDED", "Amount exceeds local partner limit", cmd.routeBaseFee());
+          "LIMIT_EXCEEDED", "Amount exceeds local partner limit", cmd.customerFee());
     }
-    return PayoutResult.ok("LP-" + UUID.randomUUID(), cmd.routeBaseFee());
+    return PayoutResult.ok("LP-" + UUID.randomUUID(), cmd.customerFee());
   }
 }

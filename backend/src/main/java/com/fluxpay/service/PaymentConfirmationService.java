@@ -22,6 +22,7 @@ import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
+import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.RecipientRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -49,6 +50,7 @@ public class PaymentConfirmationService {
   private final OutboxEventRepository outboxEvents;
   private final OutboxDeliveryRepository deliveries;
   private final ObjectMapper objectMapper;
+  private final PayoutRouteRepository routes;
 
   public PaymentConfirmationService(
       PaymentRepository payments,
@@ -61,7 +63,8 @@ public class PaymentConfirmationService {
       PaymentOperationRepository operations,
       OutboxEventRepository outboxEvents,
       OutboxDeliveryRepository deliveries,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      PayoutRouteRepository routes) {
     this.payments = payments;
     this.quotes = quotes;
     this.recipients = recipients;
@@ -73,6 +76,7 @@ public class PaymentConfirmationService {
     this.outboxEvents = outboxEvents;
     this.deliveries = deliveries;
     this.objectMapper = objectMapper;
+    this.routes = routes;
   }
 
   @Transactional(noRollbackFor = BusinessException.class)
@@ -111,6 +115,11 @@ public class PaymentConfirmationService {
       throw new BusinessException(
           HttpStatus.GONE, "QUOTE_EXPIRED", "The selected quote has expired.");
     }
+    routes
+        .findByCode(quote.route())
+        .filter(r -> r.isActive())
+        .orElseThrow(
+            () -> conflict("ROUTE_UNAVAILABLE", "The selected quote route is unavailable."));
     Recipient recipient =
         recipients
             .lockOwned(payment.recipientId(), userId)

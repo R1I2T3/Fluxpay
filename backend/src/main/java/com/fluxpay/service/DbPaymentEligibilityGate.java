@@ -1,14 +1,8 @@
 package com.fluxpay.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentOperation;
-import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.common.contracts.PaymentEligibilityGate;
-import com.fluxpay.exception.QuoteExpiredException;
-import com.fluxpay.exception.QuoteMismatchException;
 import com.fluxpay.repository.PaymentOperationRepository;
-import com.fluxpay.repository.PaymentQuoteRepository;
-import com.fluxpay.repository.PaymentRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
@@ -18,46 +12,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DbPaymentEligibilityGate implements PaymentEligibilityGate {
-  private final PaymentRepository payments;
-  private final PaymentQuoteRepository quotes;
   private final PaymentOperationRepository operations;
   private final Clock clock;
-  private final ObjectMapper objectMapper;
+  private final SelectedQuoteService selectedQuotes;
 
   public DbPaymentEligibilityGate(
-      PaymentRepository payments,
-      PaymentQuoteRepository quotes,
-      PaymentOperationRepository operations,
-      Clock clock,
-      ObjectMapper objectMapper) {
-    this.payments = Objects.requireNonNull(payments, "payments must not be null");
-    this.quotes = Objects.requireNonNull(quotes, "quotes must not be null");
+      PaymentOperationRepository operations, Clock clock, SelectedQuoteService selectedQuotes) {
     this.operations = Objects.requireNonNull(operations, "operations must not be null");
     this.clock = Objects.requireNonNull(clock, "clock must not be null");
-    this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+    this.selectedQuotes = Objects.requireNonNull(selectedQuotes, "selectedQuotes must not be null");
   }
 
   @Override
   @Transactional(readOnly = true)
   public void assertActiveQuote(PaymentSnapshot payment, String requestedRouteCode) {
-    UUID id = UUID.fromString(payment.paymentId());
-    var owned =
-        payments.findById(id).orElseThrow(() -> new QuoteExpiredException("quote is missing"));
-    if (owned.currentQuoteGeneration() == null) {
-      throw new QuoteExpiredException("quote for " + payment.paymentId() + " is missing");
-    }
-    var current =
-        quotes.findByPaymentIdAndGenerationOrderByRouteAsc(id, owned.currentQuoteGeneration());
-    PaymentQuote match =
-        current.stream()
-            .filter(q -> q.route().name().equals(requestedRouteCode))
-            .findFirst()
-            .orElseThrow(
-                () ->
-                    new QuoteMismatchException("quote route does not match " + requestedRouteCode));
-    if (!Instant.now(clock).isBefore(match.expiresAt())) {
-      throw new QuoteExpiredException("quote for " + payment.paymentId() + " is expired");
-    }
+    selectedQuotes.require(payment, requestedRouteCode);
   }
 
   @Override

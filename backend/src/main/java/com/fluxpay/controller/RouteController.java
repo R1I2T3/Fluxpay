@@ -4,8 +4,8 @@ import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
-import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.exception.ForbiddenException;
 import com.fluxpay.service.PaymentSnapshot;
@@ -93,7 +93,7 @@ public class RouteController {
                         quote.route().getName(),
                         quote.marketRate(),
                         quote.offeredRate(),
-                        quote.route().getBaseFee(),
+                        quote.feeAmount(),
                         quote.recipientAmount(),
                         quote.route().getEstimatedMinutes(),
                         quote.route().getId().toString().equals(recommendedId)))
