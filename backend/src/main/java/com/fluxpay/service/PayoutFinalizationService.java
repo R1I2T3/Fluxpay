@@ -35,6 +35,8 @@ public class PayoutFinalizationService {
       UUID operationId,
       PayoutResult result,
       String correlationId) {
+    if (result == null || result.outcome() == PayoutResult.Outcome.UNCERTAIN)
+      throw new IllegalStateException("Uncertain provider delivery requires reconciliation");
     var payment = payments.lockOwned(reserved.paymentId(), reserved.userId()).orElseThrow();
     var attempt = attempts.findById(reserved.attemptId()).orElseThrow();
     var details = new LinkedHashMap<String, Object>();

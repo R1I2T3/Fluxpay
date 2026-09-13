@@ -32,6 +32,7 @@ class PayoutProviderTest {
     PayoutResult result =
         new StandardBankAdapter(() -> null).submit(command("STANDARD_BANK", "1000.00", "5.00"));
     assertThat(result.success()).isTrue();
+    assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.COMPLETED);
     assertThat(result.providerRef()).startsWith("SB-");
   }
 
@@ -42,6 +43,7 @@ class PayoutProviderTest {
             .submit(command("STANDARD_BANK", "1000.00", "5.00"));
     assertThat(result.errorCode()).isEqualTo("PROVIDER_TIMEOUT");
     assertThat(result.errorMessage()).isEqualTo("Simulated bank timeout");
+    assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.UNCERTAIN);
   }
 
   @Test
@@ -116,6 +118,7 @@ class PayoutProviderTest {
     PayoutResult result =
         new InstantPayoutAdapter().submit(command("INSTANT_PAYOUT", "1000.00", "11.00"));
     assertThat(result.providerFee()).isEqualByComparingTo("11.00");
+    assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.COMPLETED);
   }
 
   @Test
@@ -123,5 +126,6 @@ class PayoutProviderTest {
     PayoutResult result =
         new LocalPartnerAdapter().submit(command("LOCAL_PARTNER", "50000.01", "2.00"));
     assertThat(result.errorCode()).isEqualTo("LIMIT_EXCEEDED");
+    assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.FAILED);
   }
 }

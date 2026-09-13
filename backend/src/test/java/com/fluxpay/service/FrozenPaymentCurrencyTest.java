@@ -184,7 +184,8 @@ class FrozenPaymentCurrencyTest {
               mock(PaymentOperationRepository.class),
               new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
               Clock.systemUTC(),
-              mock(org.springframework.transaction.PlatformTransactionManager.class)));
+              mock(org.springframework.transaction.PlatformTransactionManager.class)),
+          mock(PaymentRecoveryEligibility.class));
     }
 
     void editRecipientCurrency() {

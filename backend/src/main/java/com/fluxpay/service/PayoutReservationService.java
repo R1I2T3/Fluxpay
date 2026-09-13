@@ -88,15 +88,23 @@ public class PayoutReservationService {
         routes
             .findByCode(routeCode)
             .filter(PayoutRoute::isActive)
-            .orElseThrow(() -> new IllegalStateException("Payout route is unavailable"));
-    if (!providerAvailable.test(routeCode))
+            .orElseThrow(
+                () ->
+                    "SWITCH".equals(action)
+                        ? invalidSwitchCandidate()
+                        : new IllegalStateException("Payout route is unavailable"));
+    if (!providerAvailable.test(routeCode)) {
+      if ("SWITCH".equals(action)) throw invalidSwitchCandidate();
       throw new IllegalStateException("Payout provider is unavailable");
+    }
     if ("SWITCH".equals(action) && route.getId().equals(latest.orElseThrow().routeId()))
-      throw new IllegalArgumentException("Switch route must differ from failed route");
+      throw invalidSwitchCandidate();
     var quote =
-        "SWITCH".equals(action)
+        "SWITCH".equals(action) || ("RETRY".equals(action) && replacementQuote != null)
             ? quotes.replacement(payment, snapshot, routeCode, replacementQuote)
-            : quotes.require(snapshot, routeCode);
+            : "RETRY".equals(action)
+                ? quotes.acceptedRetry(payment, snapshot, routeCode)
+                : quotes.require(snapshot, routeCode);
     if (quote.feeAmount().compareTo(snapshot.posting().fee()) != 0
         || quote.netSourceAmount().compareTo(snapshot.posting().net()) != 0)
       throw new com.fluxpay.exception.BusinessException(
@@ -154,5 +162,12 @@ public class PayoutReservationService {
             quote.recipientAmount(),
             attempt.id(),
             "payout:" + attempt.id()));
+  }
+
+  private static com.fluxpay.exception.BusinessException invalidSwitchCandidate() {
+    return new com.fluxpay.exception.BusinessException(
+        org.springframework.http.HttpStatus.CONFLICT,
+        "REQUOTE_REQUIRED",
+        "Select a current replacement quote for a different available route.");
   }
 }

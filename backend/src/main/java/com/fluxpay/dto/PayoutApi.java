@@ -8,6 +8,8 @@ public final class PayoutApi {
 
   public record SubmitRequest(String routeCode) {}
 
+  public record RetryRequest(java.util.UUID quoteId) {}
+
   public record SwitchRequest(String routeCode, java.util.UUID quoteId) {}
 
   public record OutcomeResponse(

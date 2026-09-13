@@ -132,9 +132,41 @@ class PayoutControllerContractTest {
   }
 
   @Test
-  void emptyRouteIsBadRequest() throws Exception {
+  void emptySwitchRouteRequiresRequote() throws Exception {
     mvc.perform(request("switch-route", "{\"routeCode\":\"\"}").header("Idempotency-Key", "switch"))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("REQUOTE_REQUIRED"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
     verifyNoInteractions(execution);
+  }
+
+  @Test
+  void retryAcceptsExplicitReplacementQuoteIdentity() throws Exception {
+    var quote = UUID.randomUUID();
+    when(execution.perform(OWNER, "retry", "RETRY", PAYMENT, null, quote, "cid"))
+        .thenReturn(
+            new PayoutApi.OutcomeResponse(
+                2, "BANK", "COMPLETED", "ref2", null, List.of(), false, "event2"));
+    mvc.perform(
+            request("retry-payout", "{\"quoteId\":\"" + quote + "\"}")
+                .header("Idempotency-Key", "retry"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+  }
+
+  @Test
+  void switchRequoteErrorPreservesCorrelationAndCode() throws Exception {
+    when(execution.perform(any(), any(), eq("SWITCH"), any(), any(), any(), any()))
+        .thenThrow(
+            new com.fluxpay.exception.BusinessException(
+                org.springframework.http.HttpStatus.CONFLICT,
+                "REQUOTE_REQUIRED",
+                "Select another quote"));
+    mvc.perform(
+            request("switch-route", "{\"routeCode\":\"BANK2\"}")
+                .header("Idempotency-Key", "switch"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("REQUOTE_REQUIRED"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
   }
 }

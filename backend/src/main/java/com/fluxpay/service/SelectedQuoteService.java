@@ -77,6 +77,34 @@ public class SelectedQuoteService {
   }
 
   @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public AcceptedQuote acceptedRetry(
+      com.fluxpay.beans.Payment payment, PaymentSnapshot snapshot, String route) {
+    // Expiry gates new acceptance, not redelivery of already accepted, funded economics.
+    // Reservation has locked the payment and requires a definitive failed attempt on this route.
+    var quote =
+        payment.selectedQuoteId() == null
+            ? null
+            : quotes.findByIdAndPaymentId(payment.selectedQuoteId(), payment.id()).orElse(null);
+    if (quote == null
+        || !payment.senderId().equals(snapshot.senderUserId())
+        || !quote.route().equals(route)
+        || snapshot.posting() == null
+        || payment.sourceAmount().compareTo(snapshot.posting().gross()) != 0) {
+      throw new com.fluxpay.exception.BusinessException(
+          org.springframework.http.HttpStatus.CONFLICT,
+          "REQUOTE_REQUIRED",
+          "Retry requires the previously accepted quote for the same funded payment and route.");
+    }
+    return new AcceptedQuote(
+        quote.id(),
+        quote.route(),
+        quote.feeAmount(),
+        payment.sourceAmount().subtract(quote.feeAmount()).setScale(4, RoundingMode.HALF_EVEN),
+        quote.offeredRate(),
+        quote.recipientAmount());
+  }
+
+  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
   public AcceptedQuote replacement(
       com.fluxpay.beans.Payment payment, PaymentSnapshot snapshot, String route, UUID quoteId) {
     var quote =

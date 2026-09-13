@@ -8,8 +8,9 @@ public interface PayoutProvider {
 
   /**
    * Deliver under the persisted attempt's stable key. Repeating an identical command must replay
-   * the same result. A final failure means the provider definitively rejected delivery; timeout or
-   * ambiguous delivery must remain pending reconciliation and must never be retried as new money.
+   * the same result. Return FAILED only when the provider definitively rejected delivery, and
+   * UNCERTAIN for timeout or ambiguous delivery. Diagnostic codes are opaque and do not classify
+   * certainty. An uncertain result must never be retried as new money.
    */
   PayoutResult submit(PayoutCmd cmd);
 }

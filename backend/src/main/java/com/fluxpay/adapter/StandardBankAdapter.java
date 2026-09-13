@@ -45,14 +45,16 @@ public class StandardBankAdapter implements PayoutProvider {
     // Legacy: SIMULATE_FAILURE=STANDARD_BANK fails forever (demo only).
     // New: SIMULATE_FAILURE=STANDARD_BANK:2 fails next 2 attempts per payment, then succeeds.
     if ("STANDARD_BANK".equals(probe)) {
-      return PayoutResult.failed("PROVIDER_TIMEOUT", "Simulated bank timeout", cmd.customerFee());
+      return PayoutResult.uncertain(
+          "PROVIDER_TIMEOUT", "Simulated bank timeout", cmd.customerFee());
     }
     if (probe.startsWith("STANDARD_BANK:")) {
       int failTimes;
       try {
         failTimes = Integer.parseInt(probe.substring("STANDARD_BANK:".length()));
       } catch (NumberFormatException e) {
-        return PayoutResult.failed("PROVIDER_TIMEOUT", "Simulated bank timeout", cmd.customerFee());
+        return PayoutResult.uncertain(
+            "PROVIDER_TIMEOUT", "Simulated bank timeout", cmd.customerFee());
       }
       int seen =
           failureCounts
@@ -60,7 +62,8 @@ public class StandardBankAdapter implements PayoutProvider {
                   cmd.paymentId(), k -> new java.util.concurrent.atomic.AtomicInteger())
               .incrementAndGet();
       if (seen <= failTimes) {
-        return PayoutResult.failed("PROVIDER_TIMEOUT", "Simulated bank timeout", cmd.customerFee());
+        return PayoutResult.uncertain(
+            "PROVIDER_TIMEOUT", "Simulated bank timeout", cmd.customerFee());
       }
     }
     return PayoutResult.ok("SB-" + cmd.attemptId(), cmd.customerFee());

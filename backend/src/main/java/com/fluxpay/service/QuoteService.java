@@ -23,6 +23,7 @@ public class QuoteService {
   private final RoutePricingService pricing;
   private final RouteRecommender recommender;
   private final PaymentOperationService operations;
+  private final PaymentRecoveryEligibility recoveryEligibility;
 
   public QuoteService(
       PaymentRepository payments,
@@ -32,7 +33,8 @@ public class QuoteService {
       PayoutRouteRepository routes,
       RoutePricingService pricing,
       RouteRecommender recommender,
-      PaymentOperationService operations) {
+      PaymentOperationService operations,
+      PaymentRecoveryEligibility recoveryEligibility) {
     this.payments = payments;
     this.quotes = quotes;
     this.fx = fx;
@@ -41,6 +43,7 @@ public class QuoteService {
     this.pricing = pricing;
     this.recommender = recommender;
     this.operations = operations;
+    this.recoveryEligibility = recoveryEligibility;
   }
 
   public QuoteResponse createOrCurrent(UUID userId, UUID paymentId, String key) {
@@ -63,11 +66,13 @@ public class QuoteService {
     if (p.flowVersion() != 1)
       throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
-    if (p.status() != PaymentStatus.DRAFT && p.status() != PaymentStatus.QUOTED)
+    boolean recovering = p.status() == PaymentStatus.FAILED;
+    if (!recovering && p.status() != PaymentStatus.DRAFT && p.status() != PaymentStatus.QUOTED)
       throw conflict(
-          "INVALID_PAYMENT_STATE", "Quotes can only be requested for draft or quoted payments.");
+          "INVALID_PAYMENT_STATE", "Quotes require a draft, quoted or final failed payment.");
+    if (recovering) recoveryEligibility.require(p);
     Instant now = Instant.now(clock);
-    if (p.currentQuoteGeneration() != null) {
+    if (!recovering && p.currentQuoteGeneration() != null) {
       List<PaymentQuote> current =
           quotes.findByPaymentIdAndGenerationOrderByRouteAsc(p.id(), p.currentQuoteGeneration());
       if (!current.isEmpty() && current.stream().allMatch(q -> q.expiresAt().isAfter(now)))
@@ -85,10 +90,9 @@ public class QuoteService {
           HttpStatus.SERVICE_UNAVAILABLE, "FX_UNAVAILABLE", "FX rates are unavailable.");
     Instant expires = now.plus(Duration.ofMinutes(15));
     List<PaymentQuote> generated = new ArrayList<>();
-    var recommendation =
-        recommender.recommend(
-            p.preference(),
-            pricing.price(p.sourceAmount(), rate, routes.findByActiveTrueOrderByRouteCodeAsc()));
+    var active = routes.findByActiveTrueOrderByRouteCodeAsc();
+    var pricedRoutes = pricing.price(p.sourceAmount(), rate, active);
+    var recommendation = recommender.recommend(p.preference(), pricedRoutes);
     int generation = p.nextQuoteGeneration();
     for (var priced : recommendation.quotes()) {
       PayoutRoute route = priced.route();
@@ -109,7 +113,8 @@ public class QuoteService {
               expires));
     }
     generated = quotes.saveAll(generated);
-    p.quoted(generation, now);
+    if (recovering) p.recoveryQuoted(generation, now);
+    else p.quoted(generation, now);
     return response(p, generated, now);
   }
 

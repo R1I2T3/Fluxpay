@@ -59,7 +59,8 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
                 mock(PaymentOperationRepository.class),
                 new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
                 Clock.systemUTC(),
-                mock(org.springframework.transaction.PlatformTransactionManager.class)));
+                mock(org.springframework.transaction.PlatformTransactionManager.class)),
+            mock(PaymentRecoveryEligibility.class));
     var first = service.createOrCurrent(user, payment.id(), "quote-key");
     route.update("20", "5", 5, "90", true);
     var second = service.createOrCurrent(user, payment.id(), "quote-key");
@@ -136,7 +137,8 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
                     mock(PaymentOperationRepository.class),
                     new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
                     Clock.systemUTC(),
-                    mock(org.springframework.transaction.PlatformTransactionManager.class)))
+                    mock(org.springframework.transaction.PlatformTransactionManager.class)),
+                mock(PaymentRecoveryEligibility.class))
             .createOrCurrent(user, payment.id(), "quote-key");
     assertThat(result.quotes()).extracting(q -> q.route()).containsExactly("STANDARD_BANK");
     assertThat(result.quotes().get(0).recipientAmount()).isEqualTo("7600.0000");

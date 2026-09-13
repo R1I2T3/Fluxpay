@@ -45,20 +45,25 @@ public class PayoutController {
   @PostMapping("/api/payments/{paymentId}/retry-payout")
   public ApiResponse<PayoutApi.OutcomeResponse> retry(
       @PathVariable String paymentId,
+      @RequestBody(required = false) PayoutApi.RetryRequest body,
       @RequestHeader(value = "Idempotency-Key", required = false) String key,
       HttpServletRequest request) {
     PaymentOperationService.requireKey(key);
-    return payout(paymentId, key, "RETRY", null, null, request);
+    return payout(paymentId, key, "RETRY", null, body == null ? null : body.quoteId(), request);
   }
 
   @PostMapping("/api/payments/{paymentId}/switch-route")
   public ApiResponse<PayoutApi.OutcomeResponse> switchRoute(
       @PathVariable String paymentId,
-      @RequestBody PayoutApi.SwitchRequest body,
+      @RequestBody(required = false) PayoutApi.SwitchRequest body,
       @RequestHeader(value = "Idempotency-Key", required = false) String key,
       HttpServletRequest request) {
     PaymentOperationService.requireKey(key);
-    requireRoute(body == null ? null : body.routeCode());
+    if (body == null || body.routeCode() == null || body.routeCode().isBlank())
+      throw new com.fluxpay.exception.BusinessException(
+          org.springframework.http.HttpStatus.CONFLICT,
+          "REQUOTE_REQUIRED",
+          "Select a current replacement quote and route.");
     return payout(paymentId, key, "SWITCH", body.routeCode(), body.quoteId(), request);
   }
 

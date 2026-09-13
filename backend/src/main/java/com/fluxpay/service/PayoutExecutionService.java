@@ -74,11 +74,8 @@ public class PayoutExecutionService {
     } catch (RuntimeException uncertain) {
       throw pendingReconciliation();
     }
-    if (result == null
-        || (!result.success()
-            && (result.errorCode().contains("TIMEOUT")
-                || result.errorCode().contains("UNKNOWN")
-                || result.errorCode().contains("AMBIGUOUS")))) throw pendingReconciliation();
+    if (result == null || result.outcome() == PayoutResult.Outcome.UNCERTAIN)
+      throw pendingReconciliation();
     return finalization.finish(reserved, operation.id(), result, correlationId);
   }
 

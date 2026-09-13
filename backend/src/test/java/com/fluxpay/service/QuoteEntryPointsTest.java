@@ -131,7 +131,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
               f.routes,
               f.pricing,
               f.ranking,
-              operations);
+              operations,
+              mock(PaymentRecoveryEligibility.class));
       var first = initial.createOrCurrent(f.user, f.payment.id(), "same-key");
       var later =
           new QuoteService(
@@ -144,7 +145,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
               f.routes,
               f.pricing,
               f.ranking,
-              operations);
+              operations,
+              mock(PaymentRecoveryEligibility.class));
       assertThat(later.createOrCurrent(f.user, f.payment.id(), "same-key")).isEqualTo(first);
       assertThat(f.payment.currentQuoteGeneration()).isEqualTo(1);
       assertThat(db.payments.findAll()).hasSize(1);
@@ -263,7 +265,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
               mock(PaymentOperationRepository.class),
               new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
               Clock.systemUTC(),
-              mock(org.springframework.transaction.PlatformTransactionManager.class)));
+              mock(org.springframework.transaction.PlatformTransactionManager.class)),
+          mock(PaymentRecoveryEligibility.class));
     }
   }
 }

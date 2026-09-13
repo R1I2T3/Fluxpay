@@ -219,6 +219,13 @@ public class Payment {
     updatedAt = now;
   }
 
+  public void recoveryQuoted(int generation, Instant now) {
+    if (status != PaymentStatus.FAILED)
+      throw new IllegalStateException("Recovery quotes require a failed payment");
+    currentQuoteGeneration = generation;
+    updatedAt = now;
+  }
+
   public void cancel(Instant now) {
     status = PaymentStatus.CANCELLED;
     updatedAt = now;
