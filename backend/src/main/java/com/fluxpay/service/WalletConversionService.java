@@ -7,6 +7,9 @@ import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
+import com.fluxpay.exception.OperationRaceException;
+import com.fluxpay.exception.OperationRetryException;
 import com.fluxpay.repository.WalletOperationRepository;
 import java.math.BigDecimal;
 import java.util.Locale;
@@ -77,11 +80,11 @@ public class WalletConversionService {
           return replay(winner.orElseThrow(), normalizedRequest, key);
         }
         if (attempt == 1) {
-          throw new DemoFundingRetryException();
+          throw new OperationRetryException();
         }
       }
     }
-    throw new DemoFundingRetryException();
+    throw new OperationRetryException();
   }
 
   private Optional<WalletOperation> find(UUID userId, String key) {
@@ -94,7 +97,7 @@ public class WalletConversionService {
       throw new LedgerIdempotencyConflictException(clientKey);
     }
     if (!"COMPLETED".equals(operation.getStatus()) || operation.getResponseSnapshot() == null) {
-      throw new DemoFundingRetryException();
+      throw new OperationRetryException();
     }
     try {
       return objectMapper.readValue(operation.getResponseSnapshot(), WalletConvertResponse.class);

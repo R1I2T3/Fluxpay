@@ -1,14 +1,13 @@
 package com.fluxpay.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fluxpay.adapter.fx.FrankfurterFxProvider;
 import com.fluxpay.adapter.fx.MockFxRateProvider;
-import com.fluxpay.service.FrankfurterFxProvider;
-import com.fluxpay.service.FxSnapshotSource;
+import com.fluxpay.common.contracts.FxSnapshotSource;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Locale;
-import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,20 +21,12 @@ import org.springframework.context.annotation.Configuration;
 public class FxConfig {
   private final String mode;
   private final String providerUrl;
-  private final UUID systemUserId;
 
   public FxConfig(
       @Value("${fluxpay.fx-mode:live}") String mode,
-      @Value("${fluxpay.fx-provider-url}") String providerUrl,
-      @Value("${fluxpay.fx-system-user-id:${fluxpay.demo-system-user-id:}}") String systemUserId) {
+      @Value("${fluxpay.fx-provider-url}") String providerUrl) {
     this.mode = mode == null ? "live" : mode.trim().toLowerCase(Locale.ROOT);
     this.providerUrl = providerUrl;
-    this.systemUserId = parseSystemUserId(systemUserId);
-  }
-
-  @Bean
-  Clock fxClock() {
-    return Clock.systemUTC();
   }
 
   @Bean
@@ -51,20 +42,5 @@ public class FxConfig {
     }
     HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     return new FrankfurterFxProvider(client, objectMapper, providerUrl.trim(), fxClock);
-  }
-
-  public UUID getSystemUserId() {
-    return systemUserId;
-  }
-
-  private static UUID parseSystemUserId(String value) {
-    if (value == null || value.isBlank()) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value.trim());
-    } catch (IllegalArgumentException exception) {
-      throw new IllegalArgumentException("FX system user ID must be a UUID", exception);
-    }
   }
 }

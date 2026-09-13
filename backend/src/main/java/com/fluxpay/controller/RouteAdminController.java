@@ -2,9 +2,9 @@ package com.fluxpay.controller;
 
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.api.ApiResponse;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.exception.ForbiddenException;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.RouteMetrics;
 import jakarta.servlet.http.HttpServletRequest;

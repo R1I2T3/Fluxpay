@@ -10,6 +10,10 @@ import com.fluxpay.beans.WalletOperation;
 import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
+import com.fluxpay.exception.DemoFundingDisabledException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
+import com.fluxpay.exception.OperationRaceException;
+import com.fluxpay.exception.OperationRetryException;
 import com.fluxpay.repository.WalletOperationRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -113,7 +117,7 @@ class DemoFundingServiceTest {
         .thenThrow(new OperationRaceException());
 
     assertThrows(
-        DemoFundingRetryException.class,
+        OperationRetryException.class,
         () -> service(true).receiveDemo(USER_ID, new WalletReceiveRequest("USD", "500.0000"), KEY));
   }
 
@@ -143,10 +147,7 @@ class DemoFundingServiceTest {
 
   private DemoFundingService service(boolean enabled) {
     return new DemoFundingService(
-        new DemoFundingConfig(enabled, SYSTEM_USER_ID.toString()),
-        operations,
-        posting,
-        objectMapper);
+        new DemoFundingConfig(enabled), operations, posting, objectMapper);
   }
 
   private static WalletOperation completedOperation(String normalized, String snapshot) {

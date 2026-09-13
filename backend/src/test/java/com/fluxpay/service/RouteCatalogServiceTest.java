@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
+import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.dto.RoutePreference;

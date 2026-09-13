@@ -11,6 +11,7 @@ import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.dto.LedgerPageResponse;
 import com.fluxpay.dto.WalletSummaryResponse;
+import com.fluxpay.exception.WalletNotFoundException;
 import com.fluxpay.repository.LedgerEntryRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;

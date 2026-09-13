@@ -3,6 +3,7 @@ package com.fluxpay.service;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentLifecycleStatus;
 import com.fluxpay.beans.Recipient;
+import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;

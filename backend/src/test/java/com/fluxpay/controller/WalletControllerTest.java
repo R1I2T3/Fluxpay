@@ -19,11 +19,11 @@ import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
-import com.fluxpay.service.DemoFundingDisabledException;
-import com.fluxpay.service.DemoFundingRetryException;
+import com.fluxpay.exception.DemoFundingDisabledException;
+import com.fluxpay.exception.FxSystemWalletNotFoundException;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.OperationRetryException;
 import com.fluxpay.service.DemoFundingService;
-import com.fluxpay.service.FxSystemWalletNotFoundException;
-import com.fluxpay.service.InsufficientWalletFundsException;
 import com.fluxpay.service.WalletConversionService;
 import com.fluxpay.service.WalletQueryService;
 import com.fluxpay.web.advice.WalletFxApiExceptionHandler;
@@ -136,7 +136,7 @@ class WalletControllerTest {
   @Test
   void unresolvedRaceReturnsRetryConflict() throws Exception {
     when(funding.receiveDemo(eq(USER_ID), any(WalletReceiveRequest.class), eq("fund-race")))
-        .thenThrow(new DemoFundingRetryException());
+        .thenThrow(new OperationRetryException());
 
     mvc.perform(
             post("/api/wallets/receive-demo")
@@ -212,5 +212,21 @@ class WalletControllerTest {
                 .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"1.0000\"}"))
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.code").value("FX_UNAVAILABLE"));
+  }
+
+  @Test
+  void missingSystemIdentityReturnsUnavailableWithCorrelationId() throws Exception {
+    when(conversion.convert(eq(USER_ID), any(WalletConvertRequest.class), eq("fx-config")))
+        .thenThrow(new com.fluxpay.exception.SystemAccountUnavailableException());
+    mvc.perform(
+            post("/api/wallets/convert")
+                .header("Authorization", "Bearer " + TOKEN)
+                .header("Idempotency-Key", "fx-config")
+                .header("X-Correlation-ID", "system-config-error")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"1.0000\"}"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.code").value("SYSTEM_ACCOUNT_UNAVAILABLE"))
+        .andExpect(jsonPath("$.correlationId").value("system-config-error"));
   }
 }

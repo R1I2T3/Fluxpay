@@ -40,7 +40,12 @@ class KycServiceTest {
 
   @BeforeEach
   void setUp() {
-    kycService = new KycService(kycCases, kycDocuments, users);
+    kycService =
+        new KycService(
+            kycCases,
+            kycDocuments,
+            users,
+            java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC));
   }
 
   @Test
@@ -69,6 +74,7 @@ class KycServiceTest {
     ArgumentCaptor<KycCase> caseCaptor = ArgumentCaptor.forClass(KycCase.class);
     verify(kycCases).saveAndFlush(caseCaptor.capture());
     KycCase savedCase = caseCaptor.getValue();
+    assertThat(savedCase.getSubmittedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
     assertThat(savedCase.getUserId()).isEqualTo(userId);
     assertThat(savedCase.getStatus()).isEqualTo(KycStatus.PENDING);
     assertThat(savedCase.getDocNumber()).isEqualTo("ABCDE1234F");
@@ -78,6 +84,7 @@ class KycServiceTest {
     ArgumentCaptor<List<KycDocument>> documentsCaptor = ArgumentCaptor.forClass(List.class);
     verify(kycDocuments).saveAll(documentsCaptor.capture());
     KycDocument document = documentsCaptor.getValue().get(0);
+    assertThat(document.getUploadedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
     assertThat(document.getKycCase()).isSameAs(savedCase);
     assertThat(document.getFileName()).isEqualTo("pan-card.pdf");
     assertThat(document.getFileType()).isEqualTo("application/pdf");

@@ -201,34 +201,11 @@ public class PaymentService {
         payments
             .findByIdAndSenderId(id, userId)
             .orElseThrow(() -> notFound("PAYMENT_NOT_FOUND", "Payment not found."));
-    if (p.flowVersion() != 1) {
-      return new PaymentResponse(
-          p.id(),
-          p.sourceWalletId(),
-          p.recipientId(),
-          p.sourceAmount().toPlainString(),
-          p.sourceCurrency(),
-          p.payoutCurrency(),
-          p.status(),
-          p.selectedQuoteId(),
-          p.createdAt(),
-          true);
-    }
     return response(p);
   }
 
   private PaymentResponse response(Payment p) {
-    return new PaymentResponse(
-        p.id(),
-        p.sourceWalletId(),
-        p.recipientId(),
-        p.sourceAmount().toPlainString(),
-        p.sourceCurrency(),
-        p.payoutCurrency(),
-        p.status(),
-        p.selectedQuoteId(),
-        p.createdAt(),
-        p.flowVersion() != 1);
+    return PaymentResponseMapper.from(p);
   }
 
   private java.math.BigDecimal parseAmount(String raw) {

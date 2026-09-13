@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.QuoteRoute;
+import com.fluxpay.common.contracts.PaymentEligibilityGate;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;

@@ -1,8 +1,8 @@
 package com.fluxpay.adapter;
 
+import com.fluxpay.common.contracts.PayoutProvider;
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
-import com.fluxpay.service.PayoutProvider;
 import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;

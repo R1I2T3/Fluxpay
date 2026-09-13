@@ -1,8 +1,8 @@
 package com.fluxpay.web.advice;
 
 import com.fluxpay.common.api.ApiError;
+import com.fluxpay.common.web.ApiErrorFactory;
 import com.fluxpay.exception.BusinessException;
-import java.time.Instant;
 import java.util.Map;
 import org.slf4j.MDC;
 import org.springframework.http.*;
@@ -17,8 +17,6 @@ public class PaymentApiExceptionHandler {
   @ExceptionHandler(BusinessException.class)
   ResponseEntity<ApiError> business(BusinessException e) {
     return ResponseEntity.status(e.status())
-        .body(
-            new ApiError(
-                MDC.get("correlationId"), e.code(), e.getMessage(), Map.of(), Instant.now()));
+        .body(ApiErrorFactory.create(e.code(), e.getMessage(), Map.of(), MDC.get("correlationId")));
   }
 }

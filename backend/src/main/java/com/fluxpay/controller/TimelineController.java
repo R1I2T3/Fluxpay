@@ -1,11 +1,11 @@
 package com.fluxpay.controller;
 
 import com.fluxpay.common.api.ApiResponse;
+import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.dto.TimelineEventResponse;
 import com.fluxpay.exception.ForbiddenException;
-import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.TimelineService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;

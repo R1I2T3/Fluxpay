@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentEvent;
-import com.fluxpay.dto.EventEnvelopeCodec;
-import com.fluxpay.dto.EventTopics;
-import com.fluxpay.dto.PaymentEventEnvelope;
-import com.fluxpay.dto.PaymentEventPayload;
+import com.fluxpay.messaging.EventEnvelopeCodec;
+import com.fluxpay.messaging.EventTopics;
+import com.fluxpay.messaging.PaymentEventEnvelope;
+import com.fluxpay.messaging.PaymentEventPayload;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

@@ -30,18 +30,21 @@ public class AuthService {
   private final BCryptPasswordEncoder passwordEncoder;
   private final JwtUtil jwt;
   private final WalletProvisioner walletProvisioner;
+  private final java.time.Clock clock;
 
   public AuthService(
       UserRepository users,
       KycCaseRepository kycCases,
       BCryptPasswordEncoder passwordEncoder,
       JwtUtil jwt,
-      WalletProvisioner walletProvisioner) {
+      WalletProvisioner walletProvisioner,
+      java.time.Clock clock) {
     this.users = users;
     this.kycCases = kycCases;
     this.passwordEncoder = passwordEncoder;
     this.jwt = jwt;
     this.walletProvisioner = walletProvisioner;
+    this.clock = clock;
   }
 
   @Transactional
@@ -52,7 +55,7 @@ public class AuthService {
     }
     validatePasswordLength(request.password());
 
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     User user =
         new User(
             UUID.randomUUID(),

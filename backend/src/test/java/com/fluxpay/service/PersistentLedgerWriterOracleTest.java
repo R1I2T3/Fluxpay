@@ -6,6 +6,8 @@ import com.fluxpay.beans.LedgerEntry;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.LedgerWriter;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.repository.LedgerEntryRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
@@ -44,7 +46,11 @@ import org.springframework.transaction.annotation.Transactional;
     })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = PersistentLedgerWriterOracleTest.JpaConfiguration.class)
-@Import({PersistentLedgerWriter.class, LedgerPostingContext.class})
+@Import({
+  com.fluxpay.config.ClockConfig.class,
+  PersistentLedgerWriter.class,
+  LedgerPostingContext.class
+})
 class PersistentLedgerWriterOracleTest {
   @Configuration(proxyBeanMethods = false)
   @EntityScan("com.fluxpay.beans")

@@ -10,6 +10,8 @@ import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
+import com.fluxpay.exception.DemoClearingWalletNotFoundException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -49,16 +51,17 @@ import org.springframework.transaction.support.TransactionTemplate;
       "spring.jpa.hibernate.ddl-auto=validate",
       "spring.jpa.properties.hibernate.jdbc.time_zone=UTC",
       "fluxpay.demo-funding-enabled=true",
-      "fluxpay.demo-system-user-id=00000000-0000-0000-0000-00000000d004",
-      "fluxpay.fx-system-user-id=00000000-0000-0000-0000-00000000d004",
+      "fluxpay.system-user-id=00000000-0000-0000-0000-00000000d004",
       "fluxpay.fx-mode=mock",
       "fluxpay.fx-provider-url=https://fx.invalid/latest"
     })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = WalletPostingServiceOracleTest.JpaConfiguration.class)
 @Import({
+  com.fluxpay.config.ClockConfig.class,
   DemoFundingConfig.class,
   FxConfig.class,
+  com.fluxpay.config.SystemAccountConfig.class,
   DemoFundingService.class,
   WalletPostingService.class,
   LedgerJournalService.class,

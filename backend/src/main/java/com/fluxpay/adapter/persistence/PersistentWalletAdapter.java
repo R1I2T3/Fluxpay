@@ -24,11 +24,10 @@ public class PersistentWalletAdapter implements WalletPort {
   private final WalletRepository wallets;
   private final Supplier<UUID> systemUserSupplier;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public PersistentWalletAdapter(
-      WalletRepository wallets,
-      com.fluxpay.config.DemoFundingConfig demoConfig,
-      com.fluxpay.config.FxConfig fxConfig) {
-    this(wallets, () -> firstPresent(demoConfig.getSystemUserId(), fxConfig.getSystemUserId()));
+      WalletRepository wallets, com.fluxpay.config.SystemAccountConfig systemAccounts) {
+    this(wallets, systemAccounts::requireSystemUserId);
   }
 
   PersistentWalletAdapter(WalletRepository wallets, Supplier<UUID> systemUserSupplier) {
@@ -94,15 +93,5 @@ public class PersistentWalletAdapter implements WalletPort {
     return wallets
         .findByUserIdAndCurrencyAndAccountRole(systemUser, currency, role)
         .orElseGet(() -> wallets.saveAndFlush(new Wallet(systemUser, currency, role)));
-  }
-
-  private static UUID firstPresent(UUID first, UUID second) {
-    if (first != null) {
-      return first;
-    }
-    if (second != null) {
-      return second;
-    }
-    throw new IllegalStateException("no system user configured for M3 posting accounts");
   }
 }

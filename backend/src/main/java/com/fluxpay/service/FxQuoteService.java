@@ -1,7 +1,9 @@
 package com.fluxpay.service;
 
 import com.fluxpay.common.contracts.FxRateProvider;
+import com.fluxpay.common.contracts.FxSnapshotSource;
 import com.fluxpay.dto.FxSnapshot;
+import com.fluxpay.exception.FxUnavailableException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;

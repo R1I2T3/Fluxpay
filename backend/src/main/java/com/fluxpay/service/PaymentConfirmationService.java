@@ -126,18 +126,7 @@ public class PaymentConfirmationService {
     Instant now = Instant.now(clock);
     if (verdict == ScreeningVerdict.BLOCK) {
       payment.reject(now);
-      PaymentResponse blocked =
-          new PaymentResponse(
-              payment.id(),
-              payment.sourceWalletId(),
-              payment.recipientId(),
-              payment.sourceAmount().toPlainString(),
-              payment.sourceCurrency(),
-              payment.payoutCurrency(),
-              PaymentLifecycleStatus.REJECTED,
-              payment.selectedQuoteId(),
-              payment.createdAt(),
-              false);
+      PaymentResponse blocked = response(payment);
       storeOperation(userId, clientKey, normalized, 422, blocked, payment.id());
       throw new BusinessException(
           HttpStatus.UNPROCESSABLE_ENTITY,
@@ -375,17 +364,7 @@ public class PaymentConfirmationService {
   }
 
   private PaymentResponse response(Payment p) {
-    return new PaymentResponse(
-        p.id(),
-        p.sourceWalletId(),
-        p.recipientId(),
-        p.sourceAmount().toPlainString(),
-        p.sourceCurrency(),
-        p.payoutCurrency(),
-        p.status(),
-        p.selectedQuoteId(),
-        p.createdAt(),
-        false);
+    return PaymentResponseMapper.from(p);
   }
 
   private BusinessException notFound(String c, String m) {

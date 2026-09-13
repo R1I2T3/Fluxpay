@@ -14,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
@@ -23,9 +25,7 @@ import com.fluxpay.common.web.GlobalExceptionHandler;
 import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
-import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.RouteMetrics;
 import com.fluxpay.web.advice.PayoutApiExceptionHandler;

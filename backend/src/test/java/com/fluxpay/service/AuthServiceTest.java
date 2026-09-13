@@ -42,7 +42,14 @@ class AuthServiceTest {
 
   @BeforeEach
   void setUp() {
-    authService = new AuthService(users, kycCases, passwordEncoder, jwt, walletProvisioner);
+    authService =
+        new AuthService(
+            users,
+            kycCases,
+            passwordEncoder,
+            jwt,
+            walletProvisioner,
+            java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC));
   }
 
   @Test
@@ -59,6 +66,8 @@ class AuthServiceTest {
     ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
     verify(users).saveAndFlush(userCaptor.capture());
     User savedUser = userCaptor.getValue();
+    assertThat(savedUser.getCreatedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
+    assertThat(savedUser.getUpdatedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
     assertThat(savedUser.getEmail()).isEqualTo("new.user@fluxpay.test");
     assertThat(savedUser.getFullName()).isEqualTo("New User");
     assertThat(savedUser.getRole()).isEqualTo("USER");

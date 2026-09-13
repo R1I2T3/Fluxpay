@@ -4,10 +4,11 @@ import com.fluxpay.beans.LedgerEntry;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.LedgerWriter;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.repository.LedgerEntryRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -27,12 +28,17 @@ public class PersistentLedgerWriter implements LedgerWriter {
   private final WalletRepository wallets;
   private final LedgerEntryRepository entries;
   private final LedgerPostingContext context;
+  private final java.time.Clock clock;
 
   public PersistentLedgerWriter(
-      WalletRepository wallets, LedgerEntryRepository entries, LedgerPostingContext context) {
+      WalletRepository wallets,
+      LedgerEntryRepository entries,
+      LedgerPostingContext context,
+      java.time.Clock clock) {
     this.wallets = wallets;
     this.entries = entries;
     this.context = context;
+    this.clock = clock;
   }
 
   @Override
@@ -89,7 +95,7 @@ public class PersistentLedgerWriter implements LedgerWriter {
             idempotencyKey,
             metadata == null ? null : metadata.journalReference(),
             metadata == null ? null : metadata.narration(),
-            Instant.now()));
+            clock.instant()));
     wallets.saveAndFlush(wallet);
   }
 

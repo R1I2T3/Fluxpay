@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.beans.WalletOperation;
-import com.fluxpay.config.DemoFundingConfig;
-import com.fluxpay.config.FxConfig;
+import com.fluxpay.config.SystemAccountConfig;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletResponse;
+import com.fluxpay.exception.DemoClearingWalletNotFoundException;
+import com.fluxpay.exception.FxSystemWalletNotFoundException;
+import com.fluxpay.exception.OperationRaceException;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
@@ -24,22 +26,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class WalletPostingService {
   private static final String OPERATION_TYPE = "RECEIVE_DEMO";
 
-  private final DemoFundingConfig config;
-  private final FxConfig fxConfig;
+  private final SystemAccountConfig systemAccounts;
   private final WalletRepository wallets;
   private final WalletOperationRepository operations;
   private final LedgerJournalService journals;
   private final ObjectMapper objectMapper;
 
   public WalletPostingService(
-      DemoFundingConfig config,
-      FxConfig fxConfig,
+      SystemAccountConfig systemAccounts,
       WalletRepository wallets,
       WalletOperationRepository operations,
       LedgerJournalService journals,
       ObjectMapper objectMapper) {
-    this.config = config;
-    this.fxConfig = fxConfig;
+    this.systemAccounts = systemAccounts;
     this.wallets = wallets;
     this.operations = operations;
     this.journals = journals;
@@ -49,6 +48,7 @@ public class WalletPostingService {
   @Transactional
   public WalletResponse receiveDemo(
       UUID userId, String currency, BigDecimal amount, String normalizedRequest, String clientKey) {
+    UUID systemUserId = systemAccounts.requireSystemUserId();
     if (operations
         .findByUserIdAndOperationTypeAndClientKey(userId, OPERATION_TYPE, clientKey)
         .isPresent()) {
@@ -69,10 +69,6 @@ public class WalletPostingService {
                 () ->
                     wallets.saveAndFlush(new Wallet(userId, currency, WalletAccountRole.CUSTOMER)));
 
-    UUID systemUserId = config.getSystemUserId();
-    if (systemUserId == null) {
-      throw new DemoClearingWalletNotFoundException(currency);
-    }
     Wallet clearing =
         wallets
             .findByUserIdAndCurrencyAndAccountRole(
@@ -122,6 +118,7 @@ public class WalletPostingService {
       FxSnapshot snapshot,
       String normalizedRequest,
       String clientKey) {
+    UUID systemUserId = systemAccounts.requireSystemUserId();
     if (operations
         .findByUserIdAndOperationTypeAndClientKey(userId, "CONVERT", clientKey)
         .isPresent()) {
@@ -146,10 +143,6 @@ public class WalletPostingService {
             .orElseGet(
                 () -> wallets.saveAndFlush(new Wallet(userId, to, WalletAccountRole.CUSTOMER)));
 
-    UUID systemUserId = fxConfig.getSystemUserId();
-    if (systemUserId == null) {
-      throw new FxSystemWalletNotFoundException(from, WalletAccountRole.FX_CLEARING.name());
-    }
     Wallet sourceClearing = systemWallet(systemUserId, from, WalletAccountRole.FX_CLEARING);
     Wallet targetClearing = systemWallet(systemUserId, to, WalletAccountRole.FX_CLEARING);
     Optional<Wallet> feeRevenue =

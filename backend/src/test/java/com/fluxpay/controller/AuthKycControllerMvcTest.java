@@ -137,6 +137,21 @@ class AuthKycControllerMvcTest {
   }
 
   @Test
+  void missingProfileTranslatesAuthFailureWithCorrelationId() throws Exception {
+    when(userService.getProfile(USER_ID))
+        .thenThrow(new AuthException(AuthException.INVALID_CREDENTIALS, "user not found"));
+
+    mockMvc
+        .perform(
+            get("/api/users/me")
+                .header("Authorization", "Bearer user-token")
+                .header("X-Correlation-Id", "profile-error"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+        .andExpect(jsonPath("$.correlationId").value("profile-error"));
+  }
+
+  @Test
   void updateMyProfileUsesAuthenticatedUser() throws Exception {
     when(userService.updateProfile(eq(USER_ID), any())).thenReturn(userResponse(KycStatus.NONE));
 

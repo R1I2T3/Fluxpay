@@ -3,6 +3,7 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.PaymentQuote;
+import com.fluxpay.common.contracts.PaymentEligibilityGate;
 import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
 import com.fluxpay.repository.PaymentOperationRepository;

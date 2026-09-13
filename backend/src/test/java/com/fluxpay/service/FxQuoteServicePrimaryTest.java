@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.common.contracts.FxRateProvider;
+import com.fluxpay.config.ClockConfig;
 import com.fluxpay.config.FxConfig;
-import com.fluxpay.config.PaymentConfig;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -17,9 +17,9 @@ class FxQuoteServicePrimaryTest {
           .withPropertyValues(
               "fluxpay.fx-mode=mock",
               "fluxpay.fx-provider-url=https://fx.invalid/latest",
-              "fluxpay.fx-system-user-id=00000000-0000-0000-0000-00000000d004")
+              "fluxpay.system-user-id=00000000-0000-0000-0000-00000000d004")
           .withBean("objectMapper", ObjectMapper.class, ObjectMapper::new)
-          .withUserConfiguration(FxConfig.class, PaymentConfig.class)
+          .withUserConfiguration(FxConfig.class, ClockConfig.class)
           .withBean(FxQuoteService.class);
 
   @Test

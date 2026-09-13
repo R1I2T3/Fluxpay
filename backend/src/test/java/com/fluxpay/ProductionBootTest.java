@@ -2,28 +2,22 @@ package com.fluxpay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fluxpay.config.PaymentConfig;
+import com.fluxpay.config.ClockConfig;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
-/**
- * Task 9 verification: the merged production context boots with no Spring profile. {@code mock},
- * {@code local} and {@code solo} are no longer required anywhere.
- */
+/** Clock wiring smoke test; full infrastructure acceptance belongs to the integration suite. */
 class ProductionBootTest {
   private final ApplicationContextRunner runner =
-      new ApplicationContextRunner()
-          .withUserConfiguration(PaymentConfig.class)
-          .withBean("eventClock", Clock.class, () -> Clock.systemUTC())
-          .withBean("fxClock", Clock.class, () -> Clock.systemUTC());
+      new ApplicationContextRunner().withUserConfiguration(ClockConfig.class);
 
   @Test
-  void mergedContextHasExactlyOnePrimaryClock() {
+  void clockConfigurationProvidesOneClock() {
     runner.run(
         context -> {
           assertThat(context).hasNotFailed();
-          assertThat(context.getBean(Clock.class)).isNotNull();
+          assertThat(context).hasSingleBean(Clock.class);
         });
   }
 }

@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fluxpay.common.contracts.FxSnapshotSource;
 import com.fluxpay.dto.FxSnapshot;
+import com.fluxpay.exception.FxUnavailableException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;

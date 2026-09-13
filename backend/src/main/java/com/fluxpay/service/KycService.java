@@ -27,12 +27,17 @@ public class KycService {
   private final KycCaseRepository kycCases;
   private final KycDocumentRepository kycDocuments;
   private final UserRepository users;
+  private final java.time.Clock clock;
 
   public KycService(
-      KycCaseRepository kycCases, KycDocumentRepository kycDocuments, UserRepository users) {
+      KycCaseRepository kycCases,
+      KycDocumentRepository kycDocuments,
+      UserRepository users,
+      java.time.Clock clock) {
     this.kycCases = kycCases;
     this.kycDocuments = kycDocuments;
     this.users = users;
+    this.clock = clock;
   }
 
   @Transactional(readOnly = true)
@@ -42,7 +47,7 @@ public class KycService {
 
   @Transactional
   public KycStatusResponse submit(UUID userId, KycSubmitRequest request) {
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     KycCase kycCase =
         kycCases
             .findByUserIdForUpdate(userId)
@@ -67,7 +72,7 @@ public class KycService {
   public KycStatusResponse approve(UUID reviewerId, UUID applicationId, KycReviewRequest request) {
     KycCase kycCase = reviewableCase(applicationId, request.expectedVersion());
     User reviewer = findUser(reviewerId);
-    kycCase.approve(reviewer, Instant.now());
+    kycCase.approve(reviewer, clock.instant());
     return toStatusResponse(kycCases.saveAndFlush(kycCase));
   }
 
@@ -78,7 +83,7 @@ public class KycService {
     }
     KycCase kycCase = reviewableCase(applicationId, request.expectedVersion());
     User reviewer = findUser(reviewerId);
-    kycCase.reject(reviewer, Instant.now(), request.reason().trim());
+    kycCase.reject(reviewer, clock.instant(), request.reason().trim());
     return toStatusResponse(kycCases.saveAndFlush(kycCase));
   }
 

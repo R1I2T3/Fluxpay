@@ -1,12 +1,10 @@
 package com.fluxpay.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fluxpay.common.api.ApiError;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.MDC;
@@ -96,6 +94,6 @@ public class SecurityConfig {
     response.setHeader(CorrelationIdFilter.HEADER, correlationId);
     objectMapper.writeValue(
         response.getOutputStream(),
-        new ApiError(correlationId, code, message, Map.of(), Instant.now()));
+        com.fluxpay.common.web.ApiErrorFactory.create(code, message, Map.of(), correlationId));
   }
 }

@@ -12,6 +12,8 @@ import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
+import com.fluxpay.exception.FxSystemWalletNotFoundException;
+import com.fluxpay.exception.InsufficientWalletFundsException;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -66,8 +68,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = WalletConversionPostingOracleTest.JpaConfiguration.class)
 @Import({
+  com.fluxpay.config.ClockConfig.class,
   DemoFundingConfig.class,
   FxConfig.class,
+  com.fluxpay.config.SystemAccountConfig.class,
   WalletConversionService.class,
   WalletPostingService.class,
   LedgerJournalService.class,
@@ -96,8 +100,7 @@ class WalletConversionPostingOracleTest {
     properties.add("spring.datasource.username", () -> System.getenv("ORACLE_USERNAME"));
     properties.add("spring.datasource.password", () -> System.getenv("ORACLE_PASSWORD"));
     properties.add("spring.datasource.driver-class-name", () -> "oracle.jdbc.OracleDriver");
-    properties.add("fluxpay.demo-system-user-id", SYSTEM_USER_ID::toString);
-    properties.add("fluxpay.fx-system-user-id", SYSTEM_USER_ID::toString);
+    properties.add("fluxpay.system-user-id", SYSTEM_USER_ID::toString);
   }
 
   @Autowired WalletConversionService conversion;

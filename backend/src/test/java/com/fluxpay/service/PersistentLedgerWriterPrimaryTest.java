@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class PersistentLedgerWriterPrimaryTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
+          .withUserConfiguration(com.fluxpay.config.ClockConfig.class)
           .withBean(LedgerPostingContext.class)
           .withBean(WalletRepository.class, () -> org.mockito.Mockito.mock(WalletRepository.class))
           .withBean(

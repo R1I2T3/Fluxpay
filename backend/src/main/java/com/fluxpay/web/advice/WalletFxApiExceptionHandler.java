@@ -1,19 +1,18 @@
 package com.fluxpay.web.advice;
 
 import com.fluxpay.common.api.ApiError;
+import com.fluxpay.common.web.ApiErrorFactory;
 import com.fluxpay.controller.FxController;
 import com.fluxpay.controller.WalletController;
-import com.fluxpay.service.DemoClearingWalletNotFoundException;
-import com.fluxpay.service.DemoFundingDisabledException;
-import com.fluxpay.service.DemoFundingRetryException;
-import com.fluxpay.service.FxSystemWalletNotFoundException;
-import com.fluxpay.service.FxUnavailableException;
-import com.fluxpay.service.InsufficientWalletFundsException;
-import com.fluxpay.service.LedgerIdempotencyConflictException;
-import com.fluxpay.service.WalletNotFoundException;
-import java.time.Instant;
+import com.fluxpay.exception.DemoClearingWalletNotFoundException;
+import com.fluxpay.exception.DemoFundingDisabledException;
+import com.fluxpay.exception.FxSystemWalletNotFoundException;
+import com.fluxpay.exception.FxUnavailableException;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
+import com.fluxpay.exception.OperationRetryException;
+import com.fluxpay.exception.WalletNotFoundException;
 import java.util.Map;
-import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -24,6 +23,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = {WalletController.class, FxController.class})
 public class WalletFxApiExceptionHandler {
+  @ExceptionHandler(com.fluxpay.exception.SystemAccountUnavailableException.class)
+  public ResponseEntity<ApiError> systemAccountUnavailable(
+      com.fluxpay.exception.SystemAccountUnavailableException exception) {
+    return response(exception.status(), exception.code(), exception.getMessage());
+  }
+
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ApiError> validation(IllegalArgumentException exception) {
     return response(HttpStatus.BAD_REQUEST, "VALIDATION", exception.getMessage());
@@ -43,8 +48,8 @@ public class WalletFxApiExceptionHandler {
     return response(HttpStatus.CONFLICT, "CONFLICT", exception.getMessage());
   }
 
-  @ExceptionHandler(DemoFundingRetryException.class)
-  public ResponseEntity<ApiError> retry(DemoFundingRetryException exception) {
+  @ExceptionHandler(OperationRetryException.class)
+  public ResponseEntity<ApiError> retry(OperationRetryException exception) {
     return response(HttpStatus.CONFLICT, "RETRY", exception.getMessage());
   }
 
@@ -59,10 +64,7 @@ public class WalletFxApiExceptionHandler {
   }
 
   private static ResponseEntity<ApiError> response(HttpStatus status, String code, String message) {
-    String correlationId = MDC.get("correlationId");
-    ApiError error =
-        new ApiError(
-            correlationId == null ? "none" : correlationId, code, message, Map.of(), Instant.now());
+    ApiError error = ApiErrorFactory.create(code, message, Map.of());
     return ResponseEntity.status(status).body(error);
   }
 }
