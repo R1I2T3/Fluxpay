@@ -1,6 +1,6 @@
 package com.fluxpay.service;
 
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.PaymentPostingSnapshot;
 import java.math.BigDecimal;
 import java.util.Objects;

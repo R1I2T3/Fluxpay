@@ -75,4 +75,32 @@ public class SelectedQuoteService {
         selected.offeredRate(),
         selected.recipientAmount());
   }
+
+  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public AcceptedQuote replacement(
+      com.fluxpay.beans.Payment payment, PaymentSnapshot snapshot, String route, UUID quoteId) {
+    var quote =
+        quoteId == null ? null : quotes.findByIdAndPaymentId(quoteId, payment.id()).orElse(null);
+    if (quote == null
+        || !payment.senderId().equals(snapshot.senderUserId())
+        || !Objects.equals(payment.currentQuoteGeneration(), quote.generation())
+        || !quote.route().equals(route)
+        || !clock.instant().isBefore(quote.expiresAt())
+        || snapshot.posting() == null
+        || quote.feeAmount().compareTo(snapshot.posting().fee()) != 0
+        || payment.sourceAmount().compareTo(snapshot.posting().gross()) != 0
+        || payment.sourceAmount().subtract(quote.feeAmount()).compareTo(snapshot.posting().net())
+            != 0)
+      throw new com.fluxpay.exception.BusinessException(
+          org.springframework.http.HttpStatus.CONFLICT,
+          "REQUOTE_REQUIRED",
+          "Select a current replacement quote for this payment and route with the same source funding allocation.");
+    return new AcceptedQuote(
+        quote.id(),
+        quote.route(),
+        quote.feeAmount(),
+        snapshot.posting().net(),
+        quote.offeredRate(),
+        quote.recipientAmount());
+  }
 }

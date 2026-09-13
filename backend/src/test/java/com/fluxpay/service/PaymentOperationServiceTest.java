@@ -2,7 +2,7 @@ package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.*;
 
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.exception.BusinessException;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -464,6 +464,6 @@ class PaymentOperationServiceTest {
         new BigDecimal("100.0000"),
         "USD",
         "INR",
-        PaymentStatus.ROUTED);
+        PaymentStatus.PROCESSING);
   }
 }

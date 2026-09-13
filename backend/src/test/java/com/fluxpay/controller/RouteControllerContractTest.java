@@ -16,12 +16,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
-import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
@@ -85,7 +85,7 @@ class RouteControllerContractTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
     standard =
         PayoutRoute.seed(
             R_STANDARD,

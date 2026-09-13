@@ -15,12 +15,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fluxpay.common.contracts.PaymentEligibilityGate;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
-import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.service.PaymentSnapshot;
@@ -99,7 +99,7 @@ class AuthorizationContractTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
   }
 
   @Test
@@ -177,6 +177,6 @@ class AuthorizationContractTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     verify(gate, never()).assertActiveQuote(any(), anyString());
-    verify(execution, never()).submit(anyString(), anyString(), anyString());
+    verify(execution, never()).perform(any(), any(), any(), any(), any(), any(), any());
   }
 }

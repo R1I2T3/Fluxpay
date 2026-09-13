@@ -170,6 +170,15 @@ public class PaymentOperationService {
         });
   }
 
+  /** Joins payout finalization so response, money state and outbox share one commit. */
+  @org.springframework.transaction.annotation.Transactional(
+      propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public void completeInTransaction(UUID id, Object response, int httpStatus) {
+    var pending = operations.findById(id).orElseThrow();
+    pending.complete(httpStatus, json(response));
+    operations.saveAndFlush(pending);
+  }
+
   private <T> Reservation<T> replay(
       PaymentOperation op, UUID payment, String normalized, Class<T> responseType) {
     if ((payment != null && !Objects.equals(op.paymentId(), payment))

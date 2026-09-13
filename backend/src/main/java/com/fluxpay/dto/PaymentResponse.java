@@ -1,6 +1,6 @@
 package com.fluxpay.dto;
 
-import com.fluxpay.beans.PaymentLifecycleStatus;
+import com.fluxpay.domain.PaymentStatus;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -11,7 +11,7 @@ public record PaymentResponse(
     String sourceAmount,
     String sourceCurrency,
     String payoutCurrency,
-    PaymentLifecycleStatus status,
+    PaymentStatus status,
     UUID selectedQuoteId,
     Instant createdAt,
     boolean legacy) {}

@@ -122,6 +122,15 @@ class DbPaymentReaderTest {
     when(recipients.findByIdAndUserId(any(), any())).thenReturn(Optional.of(r));
     DbPaymentReader reader = new DbPaymentReader(payments, recipients, new ObjectMapper());
     assertEquals(wallet, reader.get(paymentId.toString()).senderWalletId());
+    assertEquals("DRAFT", reader.get(paymentId.toString()).status().name());
+    p.quoted(1, Instant.now());
+    assertEquals("QUOTED", reader.get(paymentId.toString()).status().name());
+    p.underReview(Instant.now());
+    assertEquals("UNDER_REVIEW", reader.get(paymentId.toString()).status().name());
+    p.reject(Instant.now());
+    assertEquals("REJECTED", reader.get(paymentId.toString()).status().name());
+    p.cancel(Instant.now());
+    assertEquals("CANCELLED", reader.get(paymentId.toString()).status().name());
     assertNull(reader.get(paymentId.toString()).payoutClearingWalletId());
     assertNull(reader.get(paymentId.toString()).posting());
   }

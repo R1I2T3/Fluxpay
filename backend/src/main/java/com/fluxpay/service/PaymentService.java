@@ -2,10 +2,10 @@ package com.fluxpay.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
-import com.fluxpay.beans.PaymentLifecycleStatus;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.WalletPort;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.DraftPaymentRequest;
 import com.fluxpay.dto.PaymentPageResponse;
 import com.fluxpay.dto.PaymentResponse;
@@ -154,10 +154,10 @@ public class PaymentService {
       throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     }
-    if (p.status() == PaymentLifecycleStatus.CANCELLED) {
+    if (p.status() == PaymentStatus.CANCELLED) {
       return response(p);
     }
-    if (p.status() != PaymentLifecycleStatus.DRAFT && p.status() != PaymentLifecycleStatus.QUOTED) {
+    if (p.status() != PaymentStatus.DRAFT && p.status() != PaymentStatus.QUOTED) {
       throw new BusinessException(
           HttpStatus.CONFLICT,
           "INVALID_PAYMENT_STATE",

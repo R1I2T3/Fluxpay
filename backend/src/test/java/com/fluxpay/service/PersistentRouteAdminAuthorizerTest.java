@@ -21,7 +21,7 @@ class PersistentRouteAdminAuthorizerTest {
             new java.math.BigDecimal("10.00"),
             "USD",
             "INR",
-            com.fluxpay.common.enums.PaymentStatus.ROUTED);
+            com.fluxpay.domain.PaymentStatus.PROCESSING);
     assertTrue(auth.isAdmin(new CurrentUser(UUID.randomUUID(), "a@x.com", "ADMIN")));
     assertFalse(auth.isAdmin(new CurrentUser(owner, "u@x.com", "USER")));
     assertTrue(auth.isOwner(new CurrentUser(owner, "u@x.com", "USER"), payment));

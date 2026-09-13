@@ -60,7 +60,7 @@ public class PaymentController {
     requiredKey(key);
     PaymentResponse resp = confirmations.confirm(user.userId(), id, request, key);
     HttpStatus status =
-        resp.status() == com.fluxpay.beans.PaymentLifecycleStatus.UNDER_REVIEW
+        resp.status() == com.fluxpay.domain.PaymentStatus.UNDER_REVIEW
             ? HttpStatus.ACCEPTED
             : HttpStatus.OK;
     return ResponseEntity.status(status).body(ok(resp));

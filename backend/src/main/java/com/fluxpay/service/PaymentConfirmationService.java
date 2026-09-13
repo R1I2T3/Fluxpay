@@ -5,13 +5,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fluxpay.beans.OutboxDelivery;
 import com.fluxpay.beans.OutboxEvent;
 import com.fluxpay.beans.Payment;
-import com.fluxpay.beans.PaymentLifecycleStatus;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.PostingPort;
 import com.fluxpay.common.enums.ScreeningVerdict;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.ConfirmPaymentRequest;
 import com.fluxpay.dto.PaymentResponse;
 import com.fluxpay.dto.PostingAccounts;
@@ -101,7 +101,7 @@ public class PaymentConfirmationService {
       throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     }
-    if (payment.status() != PaymentLifecycleStatus.QUOTED) {
+    if (payment.status() != PaymentStatus.QUOTED) {
       throw conflict("INVALID_PAYMENT_STATE", "Only quoted payments can be confirmed.");
     }
     PaymentQuote quote =
@@ -191,7 +191,7 @@ public class PaymentConfirmationService {
       node.put("eventType", "payment.initiated.v1");
       node.put("aggregateSequence", sequence);
       node.put("paymentId", payment.id().toString());
-      node.put("status", PaymentLifecycleStatus.PROCESSING.name());
+      node.put("status", PaymentStatus.PROCESSING.name());
       node.put("selectedQuoteId", quote.id().toString());
       node.put("senderId", payment.senderId().toString());
       node.put("walletId", payment.sourceWalletId().toString());
@@ -221,7 +221,7 @@ public class PaymentConfirmationService {
       node.put("eventType", "payment.review.requested.v1");
       node.put("aggregateSequence", sequence);
       node.put("paymentId", payment.id().toString());
-      node.put("status", PaymentLifecycleStatus.UNDER_REVIEW.name());
+      node.put("status", PaymentStatus.UNDER_REVIEW.name());
       node.put("reviewReference", reviewReference);
       node.put("senderId", payment.senderId().toString());
       node.put("walletId", payment.sourceWalletId().toString());

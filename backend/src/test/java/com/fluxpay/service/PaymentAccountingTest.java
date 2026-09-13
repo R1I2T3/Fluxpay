@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fluxpay.adapter.persistence.PersistentWalletAdapter;
 import com.fluxpay.beans.WalletAccountRole;
-import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.config.SystemAccountConfig;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.PaymentPostingSnapshot;
 import com.fluxpay.exception.SystemAccountUnavailableException;
 import java.math.BigDecimal;

@@ -5,8 +5,8 @@ import static org.mockito.Mockito.*;
 
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.PaymentReader;
-import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.domain.*;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.*;
 import java.math.BigDecimal;
@@ -239,7 +239,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
                   payment.sourceAmount(),
                   "USD",
                   "KES",
-                  PaymentStatus.ROUTED));
+                  PaymentStatus.PROCESSING));
       catalog =
           new RouteCatalogService(
               reader,

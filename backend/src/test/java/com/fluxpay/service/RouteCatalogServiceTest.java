@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.PaymentReader;
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.dto.RouteRecommendation;
@@ -59,7 +59,7 @@ class RouteCatalogServiceTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
     standard =
         PayoutRoute.seed(
             UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8)),
@@ -95,7 +95,7 @@ class RouteCatalogServiceTest {
             new BigDecimal("100.0000"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
     standard.update("5.0000", "0", 240, "99.50", true);
     when(reader.get("P-001")).thenReturn(hundred);
     when(fx.rate("USD", "KES")).thenReturn(new BigDecimal("80.000000"));

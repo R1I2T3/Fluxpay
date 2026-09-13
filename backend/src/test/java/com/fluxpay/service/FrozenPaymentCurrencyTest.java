@@ -10,7 +10,6 @@ import com.fluxpay.domain.QuotePricingPolicy;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
-import com.fluxpay.messaging.EventPublisher;
 import com.fluxpay.repository.*;
 import java.math.BigDecimal;
 import java.time.*;
@@ -40,17 +39,27 @@ class FrozenPaymentCurrencyTest {
           }
         };
     Clock clock = Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC);
-    var execution =
-        new PayoutExecutionService(
+    f.payment.recordPosting(
+        """
+        {"customerWalletId":"%s","clearingWalletId":"%s","feeWalletId":"%s","currency":"USD","gross":"100.0000","net":"95.0000","fee":"5.0000","originalJournalReference":"payment:%s"}
+        """
+            .formatted(
+                f.payment.sourceWalletId(), UUID.randomUUID(), UUID.randomUUID(), f.payment.id()),
+        NOW);
+    var reservations =
+        new PayoutReservationService(
+            f.payments,
             f.reader,
-            f.routes,
             mock(PayoutAttemptRepository.class),
-            mock(EventPublisher.class),
-            List.of(provider),
+            f.routes,
+            new SelectedQuoteService(f.payments, f.quotes, clock, f.routes),
             clock,
-            new SelectedQuoteService(f.payments, f.quotes, clock, f.routes));
-
-    execution.submit(f.payment.id().toString(), "STANDARD_BANK", "frozen-currency");
+            mock(com.fluxpay.common.contracts.LedgerWriter.class),
+            mock(PayoutOutboxService.class));
+    var reserved =
+        reservations.reserve(
+            f.user, f.payment.id(), "SUBMIT", "STANDARD_BANK", null, "frozen", code -> true);
+    provider.submit(reserved.command());
 
     assertThat(submitted).hasSize(1);
     PayoutCmd command = submitted.get(0);

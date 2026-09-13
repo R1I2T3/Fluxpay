@@ -11,8 +11,12 @@ public record PayoutCmd(
     BigDecimal customerFee,
     int attemptNumber,
     BigDecimal offeredRate,
-    BigDecimal recipientAmount) {
+    BigDecimal recipientAmount,
+    java.util.UUID attemptId,
+    String idempotencyKey) {
   public PayoutCmd {
+    if (attemptId == null || !("payout:" + attemptId).equals(idempotencyKey))
+      throw new IllegalArgumentException("Provider key must identify the persisted payout attempt");
     if (paymentId == null || paymentId.isBlank()) {
       throw new IllegalArgumentException("paymentId must not be blank");
     }

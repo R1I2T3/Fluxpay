@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 class PayoutProviderTest {
   private PayoutCmd command(String route, String amount, String fee) {
+    var attempt = java.util.UUID.randomUUID();
     return new PayoutCmd(
         "P-001",
         new BigDecimal(amount),
@@ -21,7 +22,9 @@ class PayoutProviderTest {
         new BigDecimal(fee),
         1,
         new BigDecimal("80"),
-        new BigDecimal("7600"));
+        new BigDecimal("7600"),
+        attempt,
+        "payout:" + attempt);
   }
 
   @Test
@@ -46,8 +49,66 @@ class PayoutProviderTest {
     StandardBankAdapter adapter = new StandardBankAdapter(() -> "STANDARD_BANK:2");
     PayoutCmd cmd = command("STANDARD_BANK", "1000.00", "5.00");
     assertThat(adapter.submit(cmd).success()).isFalse();
-    assertThat(adapter.submit(cmd).success()).isFalse();
-    assertThat(adapter.submit(cmd).success()).isTrue();
+    assertThat(adapter.submit(command("STANDARD_BANK", "1000.00", "5.00")).success()).isFalse();
+    assertThat(adapter.submit(command("STANDARD_BANK", "1000.00", "5.00")).success()).isTrue();
+  }
+
+  @Test
+  void repeatedProviderKeyReplaysTheSameOutcomeForEveryAdapter() {
+    for (var provider :
+        java.util.List.of(
+            new StandardBankAdapter(() -> null),
+            new InstantPayoutAdapter(),
+            new LocalPartnerAdapter())) {
+      var cmd = command(provider.code(), "100", "5");
+      var first = provider.submit(cmd);
+      assertThat(provider.submit(cmd)).isEqualTo(first);
+    }
+  }
+
+  @Test
+  void repeatedFailedAttemptDoesNotConsumeAnotherSimulatedAttempt() {
+    var provider = new StandardBankAdapter(() -> "STANDARD_BANK:1");
+    var cmd = command(provider.code(), "100", "5");
+    var first = provider.submit(cmd);
+    assertThat(first.success()).isFalse();
+    assertThat(provider.submit(cmd)).isEqualTo(first);
+    assertThat(provider.submit(command(provider.code(), "100", "5")).success()).isTrue();
+  }
+
+  @Test
+  void providerCommandRejectsMissingOrMismatchedAttemptIdentity() {
+    var attempt = java.util.UUID.randomUUID();
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                new PayoutCmd(
+                    "payment",
+                    BigDecimal.TEN,
+                    "USD",
+                    "INR",
+                    "BANK",
+                    BigDecimal.ONE,
+                    1,
+                    BigDecimal.ONE,
+                    BigDecimal.ONE,
+                    attempt,
+                    "arbitrary-key"))
+        .isInstanceOf(IllegalArgumentException.class);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                new PayoutCmd(
+                    "payment",
+                    BigDecimal.TEN,
+                    "USD",
+                    "INR",
+                    "BANK",
+                    BigDecimal.ONE,
+                    1,
+                    BigDecimal.ONE,
+                    BigDecimal.ONE,
+                    null,
+                    null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

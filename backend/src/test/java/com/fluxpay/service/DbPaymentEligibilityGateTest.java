@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
 import com.fluxpay.repository.PaymentOperationRepository;
@@ -54,7 +54,7 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
             new BigDecimal("10.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
   }
 
   @Test

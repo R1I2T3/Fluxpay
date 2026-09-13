@@ -5,7 +5,6 @@ import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
 import java.math.BigDecimal;
 import java.util.Objects;
-import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -25,6 +24,6 @@ public class LocalPartnerAdapter implements PayoutProvider {
       return PayoutResult.failed(
           "LIMIT_EXCEEDED", "Amount exceeds local partner limit", cmd.customerFee());
     }
-    return PayoutResult.ok("LP-" + UUID.randomUUID(), cmd.customerFee());
+    return PayoutResult.ok("LP-" + cmd.attemptId(), cmd.customerFee());
   }
 }

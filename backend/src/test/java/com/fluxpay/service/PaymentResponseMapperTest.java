@@ -2,7 +2,7 @@ package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fluxpay.beans.PaymentLifecycleStatus;
+import com.fluxpay.domain.PaymentStatus;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -20,7 +20,7 @@ class PaymentResponseMapperTest {
     assertThat(response.sourceAmount()).isEqualTo("10.00");
     assertThat(response.sourceCurrency()).isEqualTo("USD");
     assertThat(response.payoutCurrency()).isEqualTo("KES");
-    assertThat(response.status()).isEqualTo(PaymentLifecycleStatus.REJECTED);
+    assertThat(response.status()).isEqualTo(PaymentStatus.REJECTED);
     assertThat(response.selectedQuoteId()).isNull();
     assertThat(response.createdAt()).isEqualTo(DbPaymentEligibilityGateFixture.NOW);
     assertThat(response.legacy()).isFalse();

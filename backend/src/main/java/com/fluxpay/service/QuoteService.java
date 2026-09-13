@@ -2,6 +2,7 @@ package com.fluxpay.service;
 
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.FxRateProvider;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.QuoteResponse;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.*;
@@ -62,7 +63,7 @@ public class QuoteService {
     if (p.flowVersion() != 1)
       throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
-    if (p.status() != PaymentLifecycleStatus.DRAFT && p.status() != PaymentLifecycleStatus.QUOTED)
+    if (p.status() != PaymentStatus.DRAFT && p.status() != PaymentStatus.QUOTED)
       throw conflict(
           "INVALID_PAYMENT_STATE", "Quotes can only be requested for draft or quoted payments.");
     Instant now = Instant.now(clock);

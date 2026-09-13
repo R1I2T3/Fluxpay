@@ -12,12 +12,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
-import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.TimelineEventResponse;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.TimelineService;
@@ -73,7 +73,7 @@ class TimelineControllerContractTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
   }
 
   @Test

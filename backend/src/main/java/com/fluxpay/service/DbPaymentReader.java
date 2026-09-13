@@ -3,9 +3,7 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
-import com.fluxpay.beans.PaymentLifecycleStatus;
 import com.fluxpay.common.contracts.PaymentReader;
-import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.dto.PaymentPostingSnapshot;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
@@ -48,7 +46,7 @@ public class DbPaymentReader implements PaymentReader {
         payment.sourceAmount(),
         payment.sourceCurrency(),
         payment.payoutCurrency(),
-        lifecycle(payment),
+        payment.status(),
         posting);
   }
 
@@ -74,24 +72,5 @@ public class DbPaymentReader implements PaymentReader {
     } catch (IllegalArgumentException e) {
       throw new NoSuchElementException("payment " + paymentId + " not found");
     }
-  }
-
-  private static PaymentStatus lifecycle(Payment payment) {
-    if (payment.status() == PaymentLifecycleStatus.DRAFT
-        || payment.status() == PaymentLifecycleStatus.QUOTED
-        || payment.status() == PaymentLifecycleStatus.PROCESSING
-        || payment.status() == PaymentLifecycleStatus.UNDER_REVIEW) {
-      return PaymentStatus.ROUTED;
-    }
-    if (payment.status() == PaymentLifecycleStatus.COMPLETED) {
-      return PaymentStatus.COMPLETED;
-    }
-    if (payment.status() == PaymentLifecycleStatus.REFUNDED) {
-      return PaymentStatus.REFUNDED;
-    }
-    if (payment.status() == PaymentLifecycleStatus.FAILED) {
-      return PaymentStatus.FAILED;
-    }
-    return PaymentStatus.CREATED;
   }
 }
