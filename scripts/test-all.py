@@ -3,7 +3,15 @@
 
 import argparse, os, shutil, subprocess, sys
 
-from platform_commands import FRONTEND_DIR, PROJECT_ROOT, maven_command, ojet_command, python_command
+from platform_commands import (
+    FRONTEND_DIR,
+    PROJECT_ROOT,
+    configure_windows_maven_home,
+    load_env,
+    maven_command,
+    ojet_command,
+    python_command,
+)
 
 
 def kafka_script(name):
@@ -36,6 +44,8 @@ def main():
     ap.add_argument("--env-file", default=".env")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
+    load_env(a.env_file)
+    configure_windows_maven_home()
     if a.suite in ("all", "backend"):
         if run(maven_command("-f", "backend/pom.xml", "verify")):
             print("backend FAIL")

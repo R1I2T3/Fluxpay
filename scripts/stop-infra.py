@@ -3,7 +3,7 @@
 
 import argparse, subprocess, sys
 
-from platform_commands import PROJECT_ROOT
+from platform_commands import PROJECT_ROOT, load_env
 
 
 def main():
@@ -13,6 +13,7 @@ def main():
     ap.add_argument("--env-file", default=".env")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
+    load_env(a.env_file)
     if a.volumes:
         cmd = ["docker", "compose", "down", "--volumes"]
     elif a.down:

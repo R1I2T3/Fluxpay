@@ -3,18 +3,12 @@
 
 import argparse, os, subprocess, sys, time, urllib.request
 
-from platform_commands import PROJECT_ROOT, maven_command, project_path
-
-
-def load_env(path):
-    path = project_path(path)
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as env_file:
-            for line in env_file:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k, v)
+from platform_commands import (
+    PROJECT_ROOT,
+    configure_windows_maven_home,
+    load_env,
+    maven_command,
+)
 
 
 def terminate_process(process):
@@ -28,24 +22,10 @@ def terminate_process(process):
         process.wait()
 
 
-def configure_windows_maven_home():
-    if sys.platform != "win32":
-        return
-
-    userprofile = os.environ.get("USERPROFILE")
-    if not userprofile:
-        return
-
-    os.environ.setdefault("MAVEN_USER_HOME", os.path.join(userprofile, ".m2"))
-    if "-Duser.home=" not in os.environ.get("MAVEN_OPTS", ""):
-        user_home_option = f'-Duser.home="{userprofile}"'
-        os.environ["MAVEN_OPTS"] = f"{os.environ.get('MAVEN_OPTS', '')} {user_home_option}".strip()
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int)
-    ap.add_argument("--profile", default="local")
+    ap.add_argument("--profile")
     ap.add_argument("--env-file", default=".env")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
@@ -53,10 +33,10 @@ def main():
     configure_windows_maven_home()
     port = a.port if a.port is not None else int(os.environ.get("SERVER_PORT", "8080"))
     os.environ["SERVER_PORT"] = str(port)
-    p = subprocess.Popen(
-        maven_command("-f", "backend/pom.xml", "spring-boot:run", f"-Dspring-boot.run.profiles={a.profile}"),
-        cwd=PROJECT_ROOT,
-    )
+    command_args = ["-f", "backend/pom.xml", "spring-boot:run"]
+    if a.profile:
+        command_args.append(f"-Dspring-boot.run.profiles={a.profile}")
+    p = subprocess.Popen(maven_command(*command_args), cwd=PROJECT_ROOT)
     try:
         for _ in range(30):
             returncode = p.poll()

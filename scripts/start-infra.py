@@ -3,7 +3,7 @@
 
 import argparse, os, shutil, socket, subprocess, sys, time
 
-from platform_commands import PROJECT_ROOT, project_path
+from platform_commands import PROJECT_ROOT, load_env
 
 TOPICS = [
     "payment.initiated",
@@ -17,16 +17,6 @@ TOPICS = [
 ]
 
 DEFAULT_BOOTSTRAP = "localhost:9092"
-
-
-def load_env(path):
-    path = project_path(path)
-    if os.path.exists(path):
-        for line in open(path):
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k, v)
 
 
 def run(cmd, verbose=False):
