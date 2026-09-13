@@ -24,7 +24,7 @@ class FrozenPaymentCurrencyTest {
   @Test
   void recipientCurrencyEditAfterSelectionCannotChangeSubmittedCurrency() {
     Fixture f = new Fixture();
-    var quoted = f.quotesAt(NOW).createOrCurrent(f.user, f.payment.id());
+    var quoted = f.quotesAt(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key");
     f.payment.selectAndProcess(quoted.recommendedQuoteId(), NOW);
     f.editRecipientCurrency();
     List<PayoutCmd> submitted = new ArrayList<>();
@@ -66,11 +66,12 @@ class FrozenPaymentCurrencyTest {
   @Test
   void bothQuoteEntryPointsKeepPersistedPairWhenRecipientCurrencyChanges() {
     Fixture f = new Fixture();
-    f.quotesAt(NOW).createOrCurrent(f.user, f.payment.id());
+    f.quotesAt(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key");
     f.editRecipientCurrency();
 
     // Expiry forces fresh pricing through both entry points rather than reusing a cached quote.
-    var generated = f.quotesAt(NOW.plusSeconds(900)).createOrCurrent(f.user, f.payment.id());
+    var generated =
+        f.quotesAt(NOW.plusSeconds(900)).createOrCurrent(f.user, f.payment.id(), "quote-key");
     var recommendation =
         new RouteCatalogService(
                 f.reader, f.fx, f.ranking, f.routes, mock(RouteMetrics.class), f.pricing)
@@ -162,7 +163,18 @@ class FrozenPaymentCurrencyTest {
 
     QuoteService quotesAt(Instant instant) {
       return new QuoteService(
-          payments, quotes, fx, Clock.fixed(instant, ZoneOffset.UTC), routes, pricing, ranking);
+          payments,
+          quotes,
+          fx,
+          Clock.fixed(instant, ZoneOffset.UTC),
+          routes,
+          pricing,
+          ranking,
+          new PaymentOperationService(
+              mock(PaymentOperationRepository.class),
+              new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
+              Clock.systemUTC(),
+              mock(org.springframework.transaction.PlatformTransactionManager.class)));
     }
 
     void editRecipientCurrency() {

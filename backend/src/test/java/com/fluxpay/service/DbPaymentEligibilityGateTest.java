@@ -1,17 +1,9 @@
 package com.fluxpay.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fluxpay.beans.PaymentOperation;
-import com.fluxpay.common.contracts.PaymentEligibilityGate;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
@@ -26,7 +18,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
   private PaymentRepository payments;
@@ -51,8 +42,6 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
     when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(standard));
     gate =
         new DbPaymentEligibilityGate(
-            operations,
-            Clock.fixed(NOW, ZoneOffset.UTC),
             new SelectedQuoteService(payments, quotes, Clock.fixed(NOW, ZoneOffset.UTC), routes));
     paymentId = UUID.randomUUID();
     userId = UUID.randomUUID();
@@ -182,106 +171,5 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
         .thenReturn(List.of(selected));
     assertThrows(
         QuoteExpiredException.class, () -> gate.assertActiveQuote(snapshot, "STANDARD_BANK"));
-  }
-
-  @Test
-  void firstConfirmCreatesPendingReservation() {
-    when(operations.findByUserIdAndOperationTypeAndClientKey(userId, "PAYOUT_CONFIRM", "key"))
-        .thenReturn(Optional.empty());
-
-    PaymentEligibilityGate.ConfirmOutcome outcome = gate.confirmIdempotent(snapshot, "key");
-
-    assertFalse(outcome.alreadyConfirmed());
-    ArgumentCaptor<PaymentOperation> pending = ArgumentCaptor.forClass(PaymentOperation.class);
-    verify(operations).saveAndFlush(pending.capture());
-    assertEquals("", pending.getValue().responseData());
-    assertEquals(202, pending.getValue().outcomeStatus());
-  }
-
-  @Test
-  void completedReservationReplaysOriginalEvent() {
-    PaymentOperation done =
-        new PaymentOperation(
-            UUID.randomUUID(),
-            userId,
-            "PAYOUT_CONFIRM",
-            "key",
-            paymentId.toString(),
-            200,
-            "evt-1",
-            paymentId,
-            NOW);
-    when(operations.findByUserIdAndOperationTypeAndClientKey(userId, "PAYOUT_CONFIRM", "key"))
-        .thenReturn(Optional.of(done));
-
-    PaymentEligibilityGate.ConfirmOutcome outcome = gate.confirmIdempotent(snapshot, "key");
-
-    assertTrue(outcome.alreadyConfirmed());
-    assertEquals("evt-1", outcome.originalEventId());
-    verify(operations, never()).saveAndFlush(any());
-  }
-
-  @Test
-  void pendingReservationBlocksSecondConfirm() {
-    PaymentOperation pending =
-        new PaymentOperation(
-            UUID.randomUUID(),
-            userId,
-            "PAYOUT_CONFIRM",
-            "key",
-            paymentId.toString(),
-            202,
-            "",
-            paymentId,
-            NOW);
-    when(operations.findByUserIdAndOperationTypeAndClientKey(userId, "PAYOUT_CONFIRM", "key"))
-        .thenReturn(Optional.of(pending));
-
-    assertThrows(IllegalStateException.class, () -> gate.confirmIdempotent(snapshot, "key"));
-  }
-
-  @Test
-  void completeStoresPublishedEventId() {
-    PaymentOperation pending =
-        new PaymentOperation(
-            UUID.randomUUID(),
-            userId,
-            "PAYOUT_CONFIRM",
-            "key",
-            paymentId.toString(),
-            202,
-            "",
-            paymentId,
-            NOW);
-    when(operations.findByUserIdAndOperationTypeAndClientKey(userId, "PAYOUT_CONFIRM", "key"))
-        .thenReturn(Optional.of(pending));
-
-    gate.complete(snapshot, "key", "evt-9");
-
-    ArgumentCaptor<PaymentOperation> done = ArgumentCaptor.forClass(PaymentOperation.class);
-    verify(operations).saveAndFlush(done.capture());
-    assertEquals("evt-9", done.getValue().responseData());
-    assertEquals(pending.id(), done.getValue().id());
-  }
-
-  @Test
-  void releaseDeletesOnlyPendingReservation() {
-    PaymentOperation pending =
-        new PaymentOperation(
-            UUID.randomUUID(),
-            userId,
-            "PAYOUT_CONFIRM",
-            "key",
-            paymentId.toString(),
-            202,
-            "",
-            paymentId,
-            NOW);
-    when(operations.findByUserIdAndOperationTypeAndClientKey(userId, "PAYOUT_CONFIRM", "key"))
-        .thenReturn(Optional.of(pending));
-
-    gate.release(snapshot, "key");
-
-    verify(operations).delete(pending);
   }
 }

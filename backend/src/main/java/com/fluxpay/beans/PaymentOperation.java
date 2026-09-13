@@ -6,11 +6,11 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "m3_payment_operations",
+    name = "payment_operations",
     uniqueConstraints =
         @UniqueConstraint(
-            name = "uq_m3_operation_key",
-            columnNames = {"user_id", "operation_type", "client_key"}))
+            name = "uq_payment_operation_key",
+            columnNames = {"user_id", "client_key"}))
 public class PaymentOperation {
   @Id private UUID id;
 
@@ -20,18 +20,21 @@ public class PaymentOperation {
   @Column(name = "operation_type", nullable = false)
   private String operationType;
 
-  @Column(name = "client_key", nullable = false)
+  @Column(name = "client_key", nullable = false, length = 255)
   private String clientKey;
 
   @Lob
   @Column(name = "normalized_request", nullable = false)
   private String normalizedRequest;
 
-  @Column(name = "outcome_status", nullable = false)
-  private int outcomeStatus;
+  @Column(name = "outcome_status")
+  private Integer outcomeStatus;
+
+  @Column(name = "status", nullable = false, length = 20)
+  private String status;
 
   @Lob
-  @Column(name = "response_data", nullable = false)
+  @Column(name = "response_data")
   private String responseData;
 
   @Column(name = "payment_id")
@@ -48,7 +51,7 @@ public class PaymentOperation {
       String operationType,
       String clientKey,
       String normalizedRequest,
-      int outcomeStatus,
+      Integer outcomeStatus,
       String responseData,
       UUID paymentId,
       Instant createdAt) {
@@ -59,6 +62,7 @@ public class PaymentOperation {
     this.normalizedRequest = normalizedRequest;
     this.outcomeStatus = outcomeStatus;
     this.responseData = responseData;
+    this.status = responseData == null ? "IN_PROGRESS" : "COMPLETED";
     this.paymentId = paymentId;
     this.createdAt = createdAt;
   }
@@ -83,8 +87,25 @@ public class PaymentOperation {
     return normalizedRequest;
   }
 
-  public int outcomeStatus() {
+  public Integer outcomeStatus() {
     return outcomeStatus;
+  }
+
+  public String status() {
+    return status;
+  }
+
+  public void complete(int outcomeStatus, String responseData) {
+    complete(outcomeStatus, responseData, paymentId);
+  }
+
+  public void complete(int outcomeStatus, String responseData, UUID paymentId) {
+    if (!"IN_PROGRESS".equals(status))
+      throw new IllegalStateException("Operation already completed");
+    this.outcomeStatus = outcomeStatus;
+    this.responseData = responseData;
+    this.status = "COMPLETED";
+    this.paymentId = paymentId;
   }
 
   public String responseData() {

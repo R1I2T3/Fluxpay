@@ -64,6 +64,7 @@ import org.springframework.transaction.support.TransactionTemplate;
   com.fluxpay.config.SystemAccountConfig.class,
   SystemAccountService.class,
   DemoFundingService.class,
+  WalletOperationService.class,
   WalletPostingService.class,
   LedgerJournalService.class,
   PersistentLedgerWriter.class,

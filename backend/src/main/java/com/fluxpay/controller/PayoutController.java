@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PayoutController {
 
+  private final com.fluxpay.service.PaymentOperationService operations;
   private final PaymentReader reader;
   private final RouteAdminAuthorizer authorizer;
   private final PaymentEligibilityGate gate;
@@ -45,7 +46,9 @@ public class PayoutController {
       PayoutExecutionService execution,
       RecoveryService recovery,
       PayoutAttemptRepository attempts,
-      PayoutRouteRepository routes) {
+      PayoutRouteRepository routes,
+      com.fluxpay.service.PaymentOperationService operations) {
+    this.operations = operations;
     this.reader = Objects.requireNonNull(reader, "reader must not be null");
     this.authorizer = Objects.requireNonNull(authorizer, "authorizer must not be null");
     this.gate = Objects.requireNonNull(gate, "gate must not be null");
@@ -59,85 +62,101 @@ public class PayoutController {
   public ApiResponse<PayoutApi.OutcomeResponse> submit(
       @PathVariable String paymentId,
       @RequestBody PayoutApi.SubmitRequest body,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key,
       HttpServletRequest request) {
+    com.fluxpay.service.PaymentOperationService.requireKey(key);
+    if (body == null || body.routeCode() == null || body.routeCode().isBlank())
+      throw new IllegalArgumentException("routeCode must not be blank");
     String cid = ControllerSupport.correlationId(request);
     PaymentSnapshot payment = owned(paymentId);
-    if (body == null || body.routeCode() == null || body.routeCode().isBlank()) {
-      throw new IllegalArgumentException("routeCode must not be blank");
-    }
-    String key = keyOrRandom(idempotencyKey);
-    PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
-    if (confirm.alreadyConfirmed()) {
-      return new ApiResponse<>(
-          cid, build(paymentId, body.routeCode(), null, true, confirm.originalEventId()));
-    }
-    try {
-      gate.assertActiveQuote(payment, body.routeCode());
-      PayoutOutcome outcome = execution.submit(paymentId, body.routeCode(), cid);
-      gate.complete(payment, key, outcome.eventId());
-      return new ApiResponse<>(cid, build(paymentId, body.routeCode(), outcome, false, null));
-    } catch (RuntimeException e) {
-      gate.release(payment, key);
-      throw e;
-    }
+    return payout(
+        payment,
+        key,
+        "SUBMIT",
+        body.routeCode(),
+        cid,
+        () -> {
+          gate.assertActiveQuote(payment, body.routeCode());
+          return execution.submit(paymentId, body.routeCode(), cid);
+        });
   }
 
   @PostMapping("/api/payments/{paymentId}/retry-payout")
   public ApiResponse<PayoutApi.OutcomeResponse> retry(
       @PathVariable String paymentId,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key,
       HttpServletRequest request) {
+    com.fluxpay.service.PaymentOperationService.requireKey(key);
     String cid = ControllerSupport.correlationId(request);
-    PaymentSnapshot payment = owned(paymentId);
-    String key = keyOrRandom(idempotencyKey);
-    PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
-    if (confirm.alreadyConfirmed()) {
-      return new ApiResponse<>(cid, build(paymentId, null, null, true, confirm.originalEventId()));
-    }
-    try {
-      PayoutOutcome outcome = recovery.retry(paymentId, cid);
-      gate.complete(payment, key, outcome.eventId());
-      return new ApiResponse<>(cid, build(paymentId, null, outcome, false, null));
-    } catch (RuntimeException e) {
-      gate.release(payment, key);
-      throw e;
-    }
+    return payout(owned(paymentId), key, "RETRY", null, cid, () -> recovery.retry(paymentId, cid));
   }
 
   @PostMapping("/api/payments/{paymentId}/switch-route")
   public ApiResponse<PayoutApi.OutcomeResponse> switchRoute(
       @PathVariable String paymentId,
       @RequestBody PayoutApi.SwitchRequest body,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key,
       HttpServletRequest request) {
-    String cid = ControllerSupport.correlationId(request);
-    PaymentSnapshot payment = owned(paymentId);
-    if (body == null || body.routeCode() == null || body.routeCode().isBlank()) {
+    com.fluxpay.service.PaymentOperationService.requireKey(key);
+    if (body == null || body.routeCode() == null || body.routeCode().isBlank())
       throw new IllegalArgumentException("routeCode must not be blank");
-    }
-    String key = keyOrRandom(idempotencyKey);
-    PaymentEligibilityGate.ConfirmOutcome confirm = gate.confirmIdempotent(payment, key);
-    if (confirm.alreadyConfirmed()) {
-      return new ApiResponse<>(
-          cid, build(paymentId, body.routeCode(), null, true, confirm.originalEventId()));
-    }
-    try {
-      PayoutOutcome outcome = recovery.switchRoute(paymentId, body.routeCode(), cid);
-      gate.complete(payment, key, outcome.eventId());
-      return new ApiResponse<>(cid, build(paymentId, body.routeCode(), outcome, false, null));
-    } catch (RuntimeException e) {
-      gate.release(payment, key);
-      throw e;
-    }
+    String cid = ControllerSupport.correlationId(request);
+    return payout(
+        owned(paymentId),
+        key,
+        "SWITCH",
+        body.routeCode(),
+        cid,
+        () -> recovery.switchRoute(paymentId, body.routeCode(), cid));
   }
 
   @PostMapping("/api/payments/{paymentId}/refund")
   public ApiResponse<RecoveryResult> refund(
-      @PathVariable String paymentId, HttpServletRequest request) {
+      @PathVariable String paymentId,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key,
+      HttpServletRequest request) {
+    com.fluxpay.service.PaymentOperationService.requireKey(key);
     String cid = ControllerSupport.correlationId(request);
-    owned(paymentId);
-    return new ApiResponse<>(cid, recovery.refund(paymentId, cid));
+    PaymentSnapshot payment = owned(paymentId);
+    UUID id = UUID.fromString(paymentId);
+    var result =
+        operations.execute(
+            payment.senderUserId(),
+            key,
+            "REFUND",
+            id,
+            java.util.Map.of(),
+            RecoveryResult.class,
+            () ->
+                new com.fluxpay.service.PaymentOperationService.Result<>(
+                    200, recovery.refund(paymentId, cid), id));
+    return new ApiResponse<>(cid, result.response());
+  }
+
+  private ApiResponse<PayoutApi.OutcomeResponse> payout(
+      PaymentSnapshot payment,
+      String key,
+      String action,
+      String route,
+      String cid,
+      java.util.function.Supplier<PayoutOutcome> execute) {
+    var request = new java.util.LinkedHashMap<String, Object>();
+    request.put("routeCode", route);
+    var reservation =
+        operations.reserve(
+            payment.senderUserId(),
+            key,
+            action,
+            UUID.fromString(payment.paymentId()),
+            request,
+            PayoutApi.OutcomeResponse.class);
+    if (reservation.replayed()) return new ApiResponse<>(cid, reservation.response());
+    // Any failure after reservation remains IN_PROGRESS. An unknown provider result is not safe to
+    // retry.
+    PayoutOutcome outcome = execute.get();
+    var response = build(payment.paymentId(), route, outcome, false, null);
+    operations.complete(reservation.id(), response, 200);
+    return new ApiResponse<>(cid, response);
   }
 
   private PaymentSnapshot owned(String paymentId) {
@@ -146,13 +165,6 @@ public class PayoutController {
       throw new ForbiddenException("user is not the owner of payment " + paymentId);
     }
     return payment;
-  }
-
-  private static String keyOrRandom(String idempotencyKey) {
-    if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-      return idempotencyKey;
-    }
-    return UUID.randomUUID().toString();
   }
 
   private PayoutApi.OutcomeResponse build(

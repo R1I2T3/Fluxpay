@@ -184,20 +184,20 @@ class PaymentAccountingTest {
   }
 
   @Test
-  void failureSavingConfirmationMetadataRollsBackTheAlreadyPostedJournal() {
+  void failureSavingConfirmationMetadataRollsBackTheAlreadyPostedJournal() throws Exception {
     var mapper =
         org.mockito.Mockito.spy(
             new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules());
     var confirmation = confirmation(mapper);
-    var calls = new java.util.concurrent.atomic.AtomicInteger();
     org.mockito.Mockito.doAnswer(
             call -> {
-              if (calls.incrementAndGet() == 2)
+              if (call.getArgument(0) instanceof com.fasterxml.jackson.databind.JsonNode node
+                  && node.has("customerWalletId"))
                 throw new IllegalStateException("controlled snapshot failure");
               return call.callRealMethod();
             })
         .when(mapper)
-        .createObjectNode();
+        .writeValueAsString(org.mockito.ArgumentMatchers.any());
     assertThatThrownBy(
             () ->
                 confirmation.service.confirm(
@@ -357,7 +357,12 @@ class PaymentAccountingTest {
                 (user, amount, currency) -> com.fluxpay.common.enums.ScreeningVerdict.APPROVE,
                 posting,
                 Clock.systemUTC(),
-                org.mockito.Mockito.mock(com.fluxpay.repository.PaymentOperationRepository.class),
+                new PaymentOperationService(
+                    org.mockito.Mockito.mock(
+                        com.fluxpay.repository.PaymentOperationRepository.class),
+                    mapper,
+                    Clock.systemUTC(),
+                    db.transactions),
                 org.mockito.Mockito.mock(com.fluxpay.repository.OutboxEventRepository.class),
                 org.mockito.Mockito.mock(com.fluxpay.repository.OutboxDeliveryRepository.class),
                 mapper,

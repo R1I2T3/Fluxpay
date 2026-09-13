@@ -74,6 +74,7 @@ class AuthorizationContractTest {
   @Autowired private MockMvc mvc;
 
   @MockBean private PaymentReader reader;
+  @MockBean private com.fluxpay.service.PaymentOperationService operations;
   @MockBean private RouteCatalogService catalog;
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private TimelineService timeline;

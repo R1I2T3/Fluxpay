@@ -21,6 +21,7 @@ public class QuoteService {
   private final PayoutRouteRepository routes;
   private final RoutePricingService pricing;
   private final RouteRecommender recommender;
+  private final PaymentOperationService operations;
 
   public QuoteService(
       PaymentRepository payments,
@@ -29,7 +30,8 @@ public class QuoteService {
       Clock clock,
       PayoutRouteRepository routes,
       RoutePricingService pricing,
-      RouteRecommender recommender) {
+      RouteRecommender recommender,
+      PaymentOperationService operations) {
     this.payments = payments;
     this.quotes = quotes;
     this.fx = fx;
@@ -37,10 +39,25 @@ public class QuoteService {
     this.routes = routes;
     this.pricing = pricing;
     this.recommender = recommender;
+    this.operations = operations;
   }
 
-  @Transactional
-  public QuoteResponse createOrCurrent(UUID userId, UUID paymentId) {
+  public QuoteResponse createOrCurrent(UUID userId, UUID paymentId, String key) {
+    return operations
+        .execute(
+            userId,
+            key,
+            "QUOTE",
+            paymentId,
+            Map.of(),
+            QuoteResponse.class,
+            () ->
+                new PaymentOperationService.Result<>(
+                    201, generateOrCurrent(userId, paymentId), paymentId))
+        .response();
+  }
+
+  private QuoteResponse generateOrCurrent(UUID userId, UUID paymentId) {
     Payment p = payments.lockOwned(paymentId, userId).orElseThrow(() -> notFound());
     if (p.flowVersion() != 1)
       throw new BusinessException(

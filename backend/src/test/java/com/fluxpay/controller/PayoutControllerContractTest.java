@@ -66,6 +66,7 @@ class PayoutControllerContractTest {
 
   @Autowired private MockMvc mvc;
 
+  @MockBean private com.fluxpay.service.PaymentOperationService operations;
   @MockBean private PaymentReader reader;
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private PaymentEligibilityGate gate;
@@ -78,39 +79,66 @@ class PayoutControllerContractTest {
   private PaymentSnapshot payment;
   private PayoutAttempt completedAttempt;
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {"submit-payout", "retry-payout", "switch-route", "refund"})
+  void everyPayoutMutationRequiresCallerKey(String action) throws Exception {
+    when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
+    when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
+    mvc.perform(
+            post("/api/payments/22222222-2222-2222-2222-222222222222/" + action)
+                .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
+                .header("X-Correlation-ID", "required-payout-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"routeCode\":\"STANDARD_BANK\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_IDEMPOTENCY_KEY"))
+        .andExpect(jsonPath("$.correlationId").value("required-payout-key"));
+  }
+
   @BeforeEach
   void setUp() {
     MockSecurity.stubJwt(jwt);
     payment =
         new PaymentSnapshot(
-            "P-001",
+            "22222222-2222-2222-2222-222222222222",
             OWNER_ID,
-            UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes(StandardCharsets.UTF_8)),
-            UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes(StandardCharsets.UTF_8)),
+            UUID.nameUUIDFromBytes(
+                "fluxpay:22222222-2222-2222-2222-222222222222:sender"
+                    .getBytes(StandardCharsets.UTF_8)),
+            UUID.nameUUIDFromBytes(
+                "fluxpay:22222222-2222-2222-2222-222222222222:clearing"
+                    .getBytes(StandardCharsets.UTF_8)),
             new BigDecimal("1000.00"),
             "USD",
             "KES",
             PaymentStatus.ROUTED);
     completedAttempt =
         PayoutAttempt.initiated(
-            ATTEMPT_ID, "P-001", 1, ROUTE_ID, Instant.parse("2026-09-04T10:00:00Z"));
+            ATTEMPT_ID,
+            "22222222-2222-2222-2222-222222222222",
+            1,
+            ROUTE_ID,
+            Instant.parse("2026-09-04T10:00:00Z"));
     completedAttempt.markProcessing();
     completedAttempt.markCompleted("SB-1");
   }
 
   @Test
   void ownerSubmitWithValidQuoteReturnsAttempt() throws Exception {
-    when(reader.get("P-001")).thenReturn(payment);
+    when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    when(gate.confirmIdempotent(eq(payment), eq("key-1")))
-        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(false, "evt-1"));
-    when(execution.submit("P-001", "STANDARD_BANK", "cid-pay-1"))
+    when(operations.reserve(any(), eq("key-1"), eq("SUBMIT"), any(), any(), any()))
+        .thenReturn(
+            new com.fluxpay.service.PaymentOperationService.Reservation<>(ATTEMPT_ID, null, null));
+    when(execution.submit("22222222-2222-2222-2222-222222222222", "STANDARD_BANK", "cid-pay-1"))
         .thenReturn(PayoutOutcome.completed().withEventId("evt-published"));
-    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc(
+            "22222222-2222-2222-2222-222222222222"))
         .thenReturn(Optional.of(completedAttempt));
 
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
+            post("/api/payments/22222222-2222-2222-2222-222222222222/submit-payout")
                 .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-pay-1")
                 .header("Idempotency-Key", "key-1")
@@ -124,17 +152,16 @@ class PayoutControllerContractTest {
         .andExpect(jsonPath("$.data.attemptNumber").value(1))
         .andExpect(jsonPath("$.data.alreadyConfirmed").value(false))
         .andExpect(jsonPath("$.data.originalEventId").doesNotExist());
-    verify(execution).submit("P-001", "STANDARD_BANK", "cid-pay-1");
-    verify(gate).complete(payment, "key-1", "evt-published");
+    verify(execution).submit("22222222-2222-2222-2222-222222222222", "STANDARD_BANK", "cid-pay-1");
   }
 
   @Test
   void nonOwnerSubmitIsForbidden() throws Exception {
-    when(reader.get("P-001")).thenReturn(payment);
+    when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(false);
 
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
+            post("/api/payments/22222222-2222-2222-2222-222222222222/submit-payout")
                 .header("Authorization", MockSecurity.bearer(OTHER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-pay-2")
                 .header("Idempotency-Key", "key-2")
@@ -149,16 +176,19 @@ class PayoutControllerContractTest {
 
   @Test
   void expiredQuoteDoesNotCreateAttempt() throws Exception {
-    when(gate.confirmIdempotent(any(), eq("key-3")))
-        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(false, null));
-    when(reader.get("P-001")).thenReturn(payment);
+    when(operations.reserve(any(), eq("key-3"), eq("SUBMIT"), any(), any(), any()))
+        .thenReturn(
+            new com.fluxpay.service.PaymentOperationService.Reservation<>(ATTEMPT_ID, null, null));
+    when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    doThrow(new QuoteExpiredException("quote for P-001 is expired or missing"))
+    doThrow(
+            new QuoteExpiredException(
+                "quote for 22222222-2222-2222-2222-222222222222 is expired or missing"))
         .when(gate)
         .assertActiveQuote(eq(payment), eq("STANDARD_BANK"));
 
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
+            post("/api/payments/22222222-2222-2222-2222-222222222222/submit-payout")
                 .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-pay-3")
                 .header("Idempotency-Key", "key-3")
@@ -167,7 +197,6 @@ class PayoutControllerContractTest {
         .andExpect(status().isPreconditionFailed())
         .andExpect(jsonPath("$.code").value("QUOTE_EXPIRED"))
         .andExpect(jsonPath("$.correlationId").value("cid-pay-3"));
-    verify(gate).release(payment, "key-3");
     verify(execution, never()).submit(anyString(), anyString(), anyString());
   }
 
@@ -176,23 +205,36 @@ class PayoutControllerContractTest {
     doThrow(new QuoteExpiredException("expired since original execution"))
         .when(gate)
         .assertActiveQuote(any(), anyString());
-    when(reader.get("P-001")).thenReturn(payment);
+    when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    when(gate.confirmIdempotent(eq(payment), eq("key-dup")))
-        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(true, "orig-evt-9"));
-    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
+    when(operations.reserve(any(), eq("key-dup"), eq("SUBMIT"), any(), any(), any()))
+        .thenReturn(
+            new com.fluxpay.service.PaymentOperationService.Reservation<>(
+                ATTEMPT_ID,
+                new com.fluxpay.dto.PayoutApi.OutcomeResponse(
+                    1,
+                    "STANDARD_BANK",
+                    "COMPLETED",
+                    "SB-1",
+                    null,
+                    java.util.List.of(),
+                    false,
+                    null),
+                200));
+    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc(
+            "22222222-2222-2222-2222-222222222222"))
         .thenReturn(Optional.of(completedAttempt));
 
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
+            post("/api/payments/22222222-2222-2222-2222-222222222222/submit-payout")
                 .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-pay-4")
                 .header("Idempotency-Key", "key-dup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"routeCode\":\"STANDARD_BANK\"}"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.alreadyConfirmed").value(true))
-        .andExpect(jsonPath("$.data.originalEventId").value("orig-evt-9"))
+        .andExpect(jsonPath("$.data.alreadyConfirmed").value(false))
+        .andExpect(jsonPath("$.data.originalEventId").doesNotExist())
         .andExpect(jsonPath("$.data.attemptNumber").value(1));
     verify(gate, never()).assertActiveQuote(any(), anyString());
     verify(execution, never()).submit(anyString(), anyString(), anyString());
@@ -200,13 +242,14 @@ class PayoutControllerContractTest {
 
   @Test
   void switchRouteWithoutBodyIsBadRequest() throws Exception {
-    when(reader.get("P-001")).thenReturn(payment);
+    when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
 
     mvc.perform(
-            post("/api/payments/P-001/switch-route")
+            post("/api/payments/22222222-2222-2222-2222-222222222222/switch-route")
                 .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
                 .header("X-Correlation-ID", "cid-pay-5")
+                .header("Idempotency-Key", "invalid-body")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"routeCode\":\"\"}"))
         .andExpect(status().isBadRequest())

@@ -21,7 +21,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
   @CsvSource({"CHEAPEST,LOCAL_PARTNER", "FASTEST,INSTANT_PAYOUT", "BALANCED,STANDARD_BANK"})
   void bothEntryPointsUseTheSameHandRankedRoutes(RoutePreference preference, String winner) {
     var f = new Fixture(preference);
-    var created = f.service(NOW).createOrCurrent(f.user, f.payment.id());
+    var created = f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key");
     var catalog = f.catalog.recommend(f.payment.id().toString(), preference, "c");
     assertThat(catalog.recommended().code()).isEqualTo(winner);
     assertThat(
@@ -61,7 +61,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
   void noActiveRoutesFailsBothEntryPointsWithoutAdvancingGeneration() {
     var f = new Fixture(RoutePreference.BALANCED);
     f.active.clear();
-    assertThatThrownBy(() -> f.service(NOW).createOrCurrent(f.user, f.payment.id()))
+    assertThatThrownBy(() -> f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key"))
         .isInstanceOfSatisfying(
             BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ACTIVE_ROUTES"));
     assertThatThrownBy(() -> f.catalog.recommend(f.payment.id().toString(), null, "c"))
@@ -75,7 +75,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
   void nonpositiveNetFailsBothEntryPoints() {
     var f = new Fixture(RoutePreference.BALANCED);
     f.active.get(0).update("100", "0", 240, "99.5", true);
-    assertThatThrownBy(() -> f.service(NOW).createOrCurrent(f.user, f.payment.id()))
+    assertThatThrownBy(() -> f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key"))
         .isInstanceOfSatisfying(
             BusinessException.class, e -> assertThat(e.code()).isEqualTo("INVALID_AMOUNT"));
     assertThatThrownBy(() -> f.catalog.recommend(f.payment.id().toString(), null, "c"))
@@ -86,10 +86,11 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
   @Test
   void expiredGenerationUsesNewRouteEconomicsAndSkipsDisabledRoutes() {
     var f = new Fixture(RoutePreference.BALANCED);
-    var first = f.service(NOW).createOrCurrent(f.user, f.payment.id());
+    var first = f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key");
     f.active.get(0).update("20", "5", 5, "90", true);
     f.active.get(1).update("8.5", "0", 5, "98", false);
-    var second = f.service(NOW.plusSeconds(900)).createOrCurrent(f.user, f.payment.id());
+    var second =
+        f.service(NOW.plusSeconds(900)).createOrCurrent(f.user, f.payment.id(), "quote-key");
     assertThat(f.payment.currentQuoteGeneration()).isEqualTo(2);
     assertThat(second.quotes())
         .extracting(q -> q.route())
@@ -113,7 +114,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
   @Test
   void anotherOwnerCannotCreateQuotes() {
     var f = new Fixture(RoutePreference.CHEAPEST);
-    assertThatThrownBy(() -> f.service(NOW).createOrCurrent(UUID.randomUUID(), f.payment.id()))
+    assertThatThrownBy(
+            () -> f.service(NOW).createOrCurrent(UUID.randomUUID(), f.payment.id(), "quote-key"))
         .isInstanceOfSatisfying(
             BusinessException.class, e -> assertThat(e.code()).isEqualTo("PAYMENT_NOT_FOUND"));
   }
@@ -216,7 +218,12 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
           Clock.fixed(time, ZoneOffset.UTC),
           routes,
           pricing,
-          ranking);
+          ranking,
+          new PaymentOperationService(
+              mock(PaymentOperationRepository.class),
+              new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
+              Clock.systemUTC(),
+              mock(org.springframework.transaction.PlatformTransactionManager.class)));
     }
   }
 }

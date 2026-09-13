@@ -43,7 +43,14 @@ class WalletConversionServiceTest {
     operations = mock(WalletOperationRepository.class);
     posting = mock(WalletPostingService.class);
     quotes = mock(FxQuoteService.class);
-    service = new WalletConversionService(operations, posting, quotes, new ObjectMapper());
+    service =
+        new WalletConversionService(
+            new WalletOperationService(
+                operations,
+                new ObjectMapper(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)),
+            posting,
+            quotes);
   }
 
   @Test

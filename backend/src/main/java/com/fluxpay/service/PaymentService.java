@@ -3,7 +3,6 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentLifecycleStatus;
-import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.WalletPort;
@@ -12,15 +11,12 @@ import com.fluxpay.dto.PaymentPageResponse;
 import com.fluxpay.dto.PaymentResponse;
 import com.fluxpay.dto.WalletSnapshot;
 import com.fluxpay.exception.BusinessException;
-import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -34,7 +30,7 @@ public class PaymentService {
   private final WalletPort wallets;
   private final KycGate kyc;
   private final Clock clock;
-  private final PaymentOperationRepository operations;
+  private final PaymentOperationService operations;
   private final ObjectMapper objectMapper;
 
   public PaymentService(
@@ -43,7 +39,7 @@ public class PaymentService {
       WalletPort wallets,
       KycGate kyc,
       Clock clock,
-      PaymentOperationRepository operations,
+      PaymentOperationService operations,
       ObjectMapper objectMapper) {
     this.payments = payments;
     this.recipients = recipients;
@@ -54,21 +50,25 @@ public class PaymentService {
     this.objectMapper = objectMapper;
   }
 
-  @Transactional
   public PaymentResponse draft(UUID userId, DraftPaymentRequest request, String clientKey) {
-    String normalized = normalizedDraftRequest(userId, request);
-    Optional<PaymentOperation> existing =
-        operations.findByUserIdAndOperationTypeAndClientKey(userId, "DRAFT", clientKey);
-    if (existing.isPresent()) {
-      PaymentOperation op = existing.get();
-      if (!op.normalizedRequest().equals(normalized)) {
-        throw new BusinessException(
-            HttpStatus.CONFLICT,
-            "IDEMPOTENCY_CONFLICT",
-            "Idempotency key was already used with a different request.");
-      }
-      return replay(op);
-    }
+    PaymentOperationService.requireKey(clientKey);
+    Object normalized = normalizedDraftRequest(userId, request);
+    return operations
+        .execute(
+            userId,
+            clientKey,
+            "DRAFT",
+            null,
+            normalized,
+            PaymentResponse.class,
+            () -> {
+              PaymentResponse response = draftPayment(userId, request);
+              return new PaymentOperationService.Result<>(201, response, response.id());
+            })
+        .response();
+  }
+
+  private PaymentResponse draftPayment(UUID userId, DraftPaymentRequest request) {
     if (request.sourceCurrency().equals(request.payoutCurrency())) {
       throw invalid("INVALID_CORRIDOR", "Source and payout currencies must differ.");
     }
@@ -129,39 +129,23 @@ public class PaymentService {
             snapshot,
             Instant.now(clock));
     Payment saved = payments.save(p);
-    PaymentResponse resp = response(saved);
-    String responseJson = toJson(resp);
-    PaymentOperation op =
-        new PaymentOperation(
-            UUID.randomUUID(),
-            userId,
-            "DRAFT",
-            clientKey,
-            normalized,
-            201,
-            responseJson,
-            saved.id(),
-            Instant.now(clock));
-    try {
-      operations.saveAndFlush(op);
-    } catch (DataIntegrityViolationException race) {
-      PaymentOperation winner =
-          operations
-              .findByUserIdAndOperationTypeAndClientKey(userId, "DRAFT", clientKey)
-              .orElseThrow(() -> race);
-      if (!winner.normalizedRequest().equals(normalized)) {
-        throw new BusinessException(
-            HttpStatus.CONFLICT,
-            "IDEMPOTENCY_CONFLICT",
-            "Idempotency key was already used with a different request.");
-      }
-      return replay(winner);
-    }
-    return resp;
+    return response(saved);
   }
 
-  @Transactional
-  public PaymentResponse cancel(UUID userId, UUID id) {
+  public PaymentResponse cancel(UUID userId, UUID id, String key) {
+    return operations
+        .execute(
+            userId,
+            key,
+            "CANCEL",
+            id,
+            java.util.Map.of(),
+            PaymentResponse.class,
+            () -> new PaymentOperationService.Result<>(200, cancelPayment(userId, id), id))
+        .response();
+  }
+
+  private PaymentResponse cancelPayment(UUID userId, UUID id) {
     Payment p =
         payments
             .lockOwned(id, userId)
@@ -223,7 +207,7 @@ public class PaymentService {
     }
   }
 
-  private String normalizedDraftRequest(UUID userId, DraftPaymentRequest request) {
+  private Object normalizedDraftRequest(UUID userId, DraftPaymentRequest request) {
     String amount;
     try {
       amount =
@@ -242,35 +226,13 @@ public class PaymentService {
       node.put("sourceCurrency", request.sourceCurrency().toUpperCase());
       node.put("sourceWalletId", request.sourceWalletId().toString());
       node.put("userId", userId.toString());
-      return objectMapper.writeValueAsString(node);
+      return node;
     } catch (Exception e) {
       if (e instanceof BusinessException mbe) {
         throw mbe;
       }
       throw new BusinessException(
           HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Draft request could not be normalized.");
-    }
-  }
-
-  private PaymentResponse replay(PaymentOperation op) {
-    try {
-      return objectMapper.readValue(op.responseData(), PaymentResponse.class);
-    } catch (Exception e) {
-      throw new BusinessException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "IDEMPOTENCY_REPLAY_FAILED",
-          "Stored idempotency response could not be read.");
-    }
-  }
-
-  private String toJson(PaymentResponse resp) {
-    try {
-      return objectMapper.writeValueAsString(resp);
-    } catch (Exception e) {
-      throw new BusinessException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "IDEMPOTENCY_STORE_FAILED",
-          "Idempotency response could not be stored.");
     }
   }
 

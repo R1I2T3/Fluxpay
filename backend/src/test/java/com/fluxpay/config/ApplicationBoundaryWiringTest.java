@@ -31,6 +31,9 @@ class ApplicationBoundaryWiringTest {
                 "fluxpay.fx-provider-url=https://fx.invalid/latest",
                 "fluxpay.jwt-secret=boundary-test-secret-at-least-thirty-two-bytes")
             .withBean(
+                org.springframework.transaction.PlatformTransactionManager.class,
+                () -> mock(org.springframework.transaction.PlatformTransactionManager.class))
+            .withBean(
                 NamedParameterJdbcTemplate.class, () -> mock(NamedParameterJdbcTemplate.class));
     for (Class repository :
         new Class<?>[] {

@@ -147,7 +147,12 @@ class DemoFundingServiceTest {
 
   private DemoFundingService service(boolean enabled) {
     return new DemoFundingService(
-        new DemoFundingConfig(enabled), operations, posting, objectMapper);
+        new DemoFundingConfig(enabled),
+        new WalletOperationService(
+            operations,
+            objectMapper,
+            mock(org.springframework.transaction.PlatformTransactionManager.class)),
+        posting);
   }
 
   private static WalletOperation completedOperation(String normalized, String snapshot) {

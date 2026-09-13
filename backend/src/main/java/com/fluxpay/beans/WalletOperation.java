@@ -8,7 +8,12 @@ import org.hibernate.type.SqlTypes;
 
 /** Receive/convert request identity and committed response; orchestration owns the transaction. */
 @Entity
-@Table(name = "wallet_operations")
+@Table(
+    name = "wallet_operations",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uq_wallet_operation_key",
+            columnNames = {"user_id", "operation_type", "client_key"}))
 public class WalletOperation {
   @Id
   @JdbcTypeCode(SqlTypes.BINARY)

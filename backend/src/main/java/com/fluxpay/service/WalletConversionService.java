@@ -1,23 +1,13 @@
 package com.fluxpay.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fluxpay.beans.WalletOperation;
 import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
-import com.fluxpay.exception.LedgerIdempotencyConflictException;
-import com.fluxpay.exception.OperationRaceException;
-import com.fluxpay.exception.OperationRetryException;
-import com.fluxpay.repository.WalletOperationRepository;
 import java.math.BigDecimal;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,84 +16,50 @@ public class WalletConversionService {
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
   private static final ConversionMath CONVERSION_MATH = new ConversionMath();
 
-  private final WalletOperationRepository operations;
+  private final WalletOperationService operations;
   private final WalletPostingService posting;
   private final FxQuoteService quotes;
-  private final ObjectMapper objectMapper;
 
   public WalletConversionService(
-      WalletOperationRepository operations,
-      WalletPostingService posting,
-      FxQuoteService quotes,
-      ObjectMapper objectMapper) {
+      WalletOperationService operations, WalletPostingService posting, FxQuoteService quotes) {
     this.operations = operations;
     this.posting = posting;
     this.quotes = quotes;
-    this.objectMapper = objectMapper;
   }
 
   public WalletConvertResponse convert(
       UUID userId, WalletConvertRequest request, String clientKey) {
     UUID owner = requireUser(userId);
-    String key = requireKey(clientKey);
+    String key = WalletOperationService.requireKey(clientKey);
     NormalizedConversion normalized = normalize(request);
     String normalizedRequest = normalized.json();
 
-    Optional<WalletOperation> existing = find(owner, key);
-    if (existing.isPresent()) {
-      return replay(existing.orElseThrow(), normalizedRequest, key);
-    }
-
-    FxSnapshot snapshot = quotes.snapshot(normalized.from(), normalized.to());
-    BigDecimal fee = CONVERSION_MATH.fee(normalized.amount());
-    BigDecimal net = normalized.amount().subtract(fee).setScale(4);
-    BigDecimal credit = CONVERSION_MATH.convertedAmount(normalized.amount(), snapshot.rate());
-
-    for (int attempt = 0; attempt < 2; attempt++) {
-      try {
-        return posting.convert(
-            owner,
-            normalized.from(),
-            normalized.to(),
-            normalized.amount(),
-            fee,
-            net,
-            credit,
-            snapshot,
-            normalizedRequest,
-            key);
-      } catch (OperationRaceException
-          | DataIntegrityViolationException
-          | ObjectOptimisticLockingFailureException exception) {
-        Optional<WalletOperation> winner = find(owner, key);
-        if (winner.isPresent()) {
-          return replay(winner.orElseThrow(), normalizedRequest, key);
-        }
-        if (attempt == 1) {
-          throw new OperationRetryException();
-        }
-      }
-    }
-    throw new OperationRetryException();
-  }
-
-  private Optional<WalletOperation> find(UUID userId, String key) {
-    return operations.findByUserIdAndOperationTypeAndClientKey(userId, OPERATION_TYPE, key);
-  }
-
-  private WalletConvertResponse replay(
-      WalletOperation operation, String normalizedRequest, String clientKey) {
-    if (!normalizedRequest.equals(operation.getNormalizedRequest())) {
-      throw new LedgerIdempotencyConflictException(clientKey);
-    }
-    if (!"COMPLETED".equals(operation.getStatus()) || operation.getResponseSnapshot() == null) {
-      throw new OperationRetryException();
-    }
-    try {
-      return objectMapper.readValue(operation.getResponseSnapshot(), WalletConvertResponse.class);
-    } catch (JsonProcessingException exception) {
-      throw new IllegalStateException("Stored wallet-conversion response is invalid", exception);
-    }
+    var quote = new java.util.concurrent.atomic.AtomicReference<FxSnapshot>();
+    return operations.execute(
+        owner,
+        OPERATION_TYPE,
+        key,
+        normalizedRequest,
+        WalletConvertResponse.class,
+        () -> {
+          // One accepted FX snapshot is retained across a rolled-back posting retry.
+          if (quote.get() == null) quote.set(quotes.snapshot(normalized.from(), normalized.to()));
+          FxSnapshot snapshot = quote.get();
+          BigDecimal fee = CONVERSION_MATH.fee(normalized.amount());
+          BigDecimal net = normalized.amount().subtract(fee).setScale(4);
+          BigDecimal credit = CONVERSION_MATH.convertedAmount(normalized.amount(), snapshot.rate());
+          return posting.convert(
+              owner,
+              normalized.from(),
+              normalized.to(),
+              normalized.amount(),
+              fee,
+              net,
+              credit,
+              snapshot,
+              normalizedRequest,
+              key);
+        });
   }
 
   private static UUID requireUser(UUID userId) {
@@ -111,13 +67,6 @@ public class WalletConversionService {
       throw new IllegalArgumentException("Authenticated user is required");
     }
     return userId;
-  }
-
-  private static String requireKey(String clientKey) {
-    if (clientKey == null || clientKey.isBlank() || clientKey.length() > 255) {
-      throw new IllegalArgumentException("Idempotency-Key must contain 1 to 255 characters");
-    }
-    return clientKey;
   }
 
   private static NormalizedConversion normalize(WalletConvertRequest request) {

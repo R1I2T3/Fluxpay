@@ -6,7 +6,6 @@ import com.fluxpay.beans.OutboxDelivery;
 import com.fluxpay.beans.OutboxEvent;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentLifecycleStatus;
-import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.ComplianceAssessor;
@@ -20,7 +19,6 @@ import com.fluxpay.exception.BusinessException;
 import com.fluxpay.exception.PaymentBlockedException;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
-import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
@@ -28,15 +26,12 @@ import com.fluxpay.repository.RecipientRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentConfirmationService {
@@ -47,7 +42,7 @@ public class PaymentConfirmationService {
   private final ComplianceAssessor compliance;
   private final PostingPort posting;
   private final Clock clock;
-  private final PaymentOperationRepository operations;
+  private final PaymentOperationService operations;
   private final OutboxEventRepository outboxEvents;
   private final OutboxDeliveryRepository deliveries;
   private final ObjectMapper objectMapper;
@@ -61,7 +56,7 @@ public class PaymentConfirmationService {
       ComplianceAssessor compliance,
       PostingPort posting,
       Clock clock,
-      PaymentOperationRepository operations,
+      PaymentOperationService operations,
       OutboxEventRepository outboxEvents,
       OutboxDeliveryRepository deliveries,
       ObjectMapper objectMapper,
@@ -80,10 +75,24 @@ public class PaymentConfirmationService {
     this.routes = routes;
   }
 
-  @Transactional(noRollbackFor = PaymentBlockedException.class)
   public PaymentResponse confirm(
       UUID userId, UUID paymentId, ConfirmPaymentRequest request, String clientKey) {
-    String normalized = normalizedConfirmRequest(userId, paymentId, request);
+    PaymentOperationService.requireKey(clientKey);
+    var result =
+        operations.execute(
+            userId,
+            clientKey,
+            "CONFIRM",
+            paymentId,
+            normalizedConfirmRequest(userId, paymentId, request),
+            PaymentResponse.class,
+            () -> confirmPayment(userId, paymentId, request));
+    if (result.httpStatus() == 422) throw new PaymentBlockedException();
+    return result.response();
+  }
+
+  private PaymentOperationService.Result<PaymentResponse> confirmPayment(
+      UUID userId, UUID paymentId, ConfirmPaymentRequest request) {
     Payment payment =
         payments
             .lockOwned(paymentId, userId)
@@ -91,16 +100,6 @@ public class PaymentConfirmationService {
     if (payment.flowVersion() != 1) {
       throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
-    }
-    Optional<PaymentOperation> existing =
-        operations.findByUserIdAndOperationTypeAndClientKey(userId, "CONFIRM", clientKey);
-    if (existing.isPresent()) {
-      PaymentOperation op = existing.get();
-      if (!op.normalizedRequest().equals(normalized)) {
-        throw conflict(
-            "IDEMPOTENCY_CONFLICT", "Idempotency key was already used with a different request.");
-      }
-      return replay(op);
     }
     if (payment.status() != PaymentLifecycleStatus.QUOTED) {
       throw conflict("INVALID_PAYMENT_STATE", "Only quoted payments can be confirmed.");
@@ -137,8 +136,7 @@ public class PaymentConfirmationService {
     if (verdict == ScreeningVerdict.BLOCK) {
       payment.reject(now);
       PaymentResponse blocked = response(payment);
-      storeOperation(userId, clientKey, normalized, 422, blocked, payment.id());
-      throw new PaymentBlockedException();
+      return new PaymentOperationService.Result<>(422, blocked, payment.id());
     }
     if (verdict == ScreeningVerdict.REVIEW) {
       String reviewReference = UUID.randomUUID().toString();
@@ -151,8 +149,7 @@ public class PaymentConfirmationService {
           reviewPayload(payment, sequence, reviewReference, now),
           now);
       PaymentResponse resp = response(payment);
-      storeOperation(userId, clientKey, normalized, 202, resp, payment.id());
-      return resp;
+      return new PaymentOperationService.Result<>(202, resp, payment.id());
     }
     PostingAccounts accounts =
         posting.postApprovedPayment(
@@ -174,8 +171,7 @@ public class PaymentConfirmationService {
         initiatedPayload(payment, quote, sequence, now),
         now);
     PaymentResponse resp = response(payment);
-    storeOperation(userId, clientKey, normalized, 200, resp, payment.id());
-    return resp;
+    return new PaymentOperationService.Result<>(200, resp, payment.id());
   }
 
   private void persistOutbox(
@@ -291,50 +287,7 @@ public class PaymentConfirmationService {
     }
   }
 
-  private void storeOperation(
-      UUID userId,
-      String clientKey,
-      String normalized,
-      int outcomeStatus,
-      PaymentResponse resp,
-      UUID paymentId) {
-    String responseJson;
-    try {
-      responseJson = objectMapper.writeValueAsString(resp);
-    } catch (Exception e) {
-      throw new BusinessException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "IDEMPOTENCY_STORE_FAILED",
-          "Idempotency response could not be stored.");
-    }
-    PaymentOperation op =
-        new PaymentOperation(
-            UUID.randomUUID(),
-            userId,
-            "CONFIRM",
-            clientKey,
-            normalized,
-            outcomeStatus,
-            responseJson,
-            paymentId,
-            Instant.now(clock));
-    try {
-      operations.saveAndFlush(op);
-    } catch (DataIntegrityViolationException race) {
-      PaymentOperation winner =
-          operations
-              .findByUserIdAndOperationTypeAndClientKey(userId, "CONFIRM", clientKey)
-              .orElseThrow(() -> race);
-      if (!winner.normalizedRequest().equals(normalized)) {
-        throw conflict(
-            "IDEMPOTENCY_CONFLICT", "Idempotency key was already used with a different request.");
-      }
-      throw new BusinessException(
-          HttpStatus.CONFLICT, "RETRY", "A concurrent confirmation won; replay the winner.");
-    }
-  }
-
-  private String normalizedConfirmRequest(
+  private Object normalizedConfirmRequest(
       UUID userId, UUID paymentId, ConfirmPaymentRequest request) {
     try {
       var node = objectMapper.createObjectNode();
@@ -342,24 +295,10 @@ public class PaymentConfirmationService {
       node.put("paymentId", paymentId.toString());
       node.put("quoteId", request.quoteId().toString());
       node.put("userId", userId.toString());
-      return objectMapper.writeValueAsString(node);
+      return node;
     } catch (Exception e) {
       throw new BusinessException(
           HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Confirm request could not be normalized.");
-    }
-  }
-
-  private PaymentResponse replay(PaymentOperation op) {
-    if (op.outcomeStatus() == 422) {
-      throw new PaymentBlockedException();
-    }
-    try {
-      return objectMapper.readValue(op.responseData(), PaymentResponse.class);
-    } catch (Exception e) {
-      throw new BusinessException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "IDEMPOTENCY_REPLAY_FAILED",
-          "Stored idempotency response could not be read.");
     }
   }
 

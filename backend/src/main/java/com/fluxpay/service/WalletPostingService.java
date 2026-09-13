@@ -42,7 +42,7 @@ public class WalletPostingService {
     this.objectMapper = objectMapper;
   }
 
-  @Transactional
+  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
   public WalletResponse receiveDemo(
       UUID userId, String currency, BigDecimal amount, String normalizedRequest, String clientKey) {
     Wallet clearing = systemAccounts.require(currency, WalletAccountRole.DEMO_CLEARING);
@@ -97,7 +97,7 @@ public class WalletPostingService {
     return response;
   }
 
-  @Transactional
+  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
   public WalletConvertResponse convert(
       UUID userId,
       String from,

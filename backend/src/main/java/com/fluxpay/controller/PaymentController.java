@@ -3,7 +3,6 @@ package com.fluxpay.controller;
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.common.security.CurrentUser;
 import com.fluxpay.dto.*;
-import com.fluxpay.exception.BusinessException;
 import com.fluxpay.service.*;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -29,7 +28,7 @@ public class PaymentController {
   @PostMapping("/draft")
   public ResponseEntity<ApiResponse<PaymentResponse>> draft(
       @AuthenticationPrincipal CurrentUser user,
-      @RequestHeader("Idempotency-Key") String key,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key,
       @Valid @RequestBody DraftPaymentRequest request) {
     requiredKey(key);
     return ResponseEntity.status(HttpStatus.CREATED)
@@ -38,9 +37,12 @@ public class PaymentController {
 
   @PostMapping("/{id}/quotes")
   public ResponseEntity<ApiResponse<QuoteResponse>> quote(
-      @AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
+      @AuthenticationPrincipal CurrentUser user,
+      @PathVariable UUID id,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key) {
+    requiredKey(key);
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ok(quotes.createOrCurrent(user.userId(), id)));
+        .body(ok(quotes.createOrCurrent(user.userId(), id, key)));
   }
 
   @GetMapping("/{id}/quotes")
@@ -53,7 +55,7 @@ public class PaymentController {
   public ResponseEntity<ApiResponse<PaymentResponse>> confirm(
       @AuthenticationPrincipal CurrentUser user,
       @PathVariable UUID id,
-      @RequestHeader("Idempotency-Key") String key,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key,
       @Valid @RequestBody ConfirmPaymentRequest request) {
     requiredKey(key);
     PaymentResponse resp = confirmations.confirm(user.userId(), id, request, key);
@@ -66,8 +68,11 @@ public class PaymentController {
 
   @PostMapping("/{id}/cancel")
   public ApiResponse<PaymentResponse> cancel(
-      @AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
-    return ok(payments.cancel(user.userId(), id));
+      @AuthenticationPrincipal CurrentUser user,
+      @PathVariable UUID id,
+      @RequestHeader(value = "Idempotency-Key", required = false) String key) {
+    requiredKey(key);
+    return ok(payments.cancel(user.userId(), id, key));
   }
 
   @GetMapping
@@ -85,11 +90,7 @@ public class PaymentController {
   }
 
   private void requiredKey(String key) {
-    if (key == null || key.isBlank() || key.length() > 64)
-      throw new BusinessException(
-          HttpStatus.BAD_REQUEST,
-          "INVALID_IDEMPOTENCY_KEY",
-          "Idempotency-Key must be 1 to 64 characters.");
+    PaymentOperationService.requireKey(key);
   }
 
   private <T> ApiResponse<T> ok(T data) {

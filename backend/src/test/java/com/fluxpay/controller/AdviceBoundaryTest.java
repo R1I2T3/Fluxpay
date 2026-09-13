@@ -56,7 +56,11 @@ class AdviceBoundaryTest {
             mock(WalletPort.class),
             mock(KycGate.class),
             Clock.systemUTC(),
-            mock(PaymentOperationRepository.class),
+            new PaymentOperationService(
+                mock(PaymentOperationRepository.class),
+                new ObjectMapper(),
+                Clock.systemUTC(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)),
             new ObjectMapper());
     var mvc =
         mvc(

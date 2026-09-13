@@ -54,10 +54,15 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
             Clock.fixed(NOW, ZoneOffset.UTC),
             routes,
             new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()),
-            new RouteRecommender());
-    var first = service.createOrCurrent(user, payment.id());
+            new RouteRecommender(),
+            new PaymentOperationService(
+                mock(PaymentOperationRepository.class),
+                new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
+                Clock.systemUTC(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)));
+    var first = service.createOrCurrent(user, payment.id(), "quote-key");
     route.update("20", "5", 5, "90", true);
-    var second = service.createOrCurrent(user, payment.id());
+    var second = service.createOrCurrent(user, payment.id(), "quote-key");
     assertThat(second.quotes()).isEqualTo(first.quotes());
     assertThat(second.quotes().get(0).recipientAmount()).isEqualTo("7600.0000");
   }
@@ -126,8 +131,13 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 routes,
                 new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()),
-                new RouteRecommender())
-            .createOrCurrent(user, payment.id());
+                new RouteRecommender(),
+                new PaymentOperationService(
+                    mock(PaymentOperationRepository.class),
+                    new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
+                    Clock.systemUTC(),
+                    mock(org.springframework.transaction.PlatformTransactionManager.class)))
+            .createOrCurrent(user, payment.id(), "quote-key");
     assertThat(result.quotes()).extracting(q -> q.route()).containsExactly("STANDARD_BANK");
     assertThat(result.quotes().get(0).recipientAmount()).isEqualTo("7600.0000");
   }

@@ -78,7 +78,11 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
         compliance,
         posting,
         Clock.fixed(time, ZoneOffset.UTC),
-        mock(PaymentOperationRepository.class),
+        new PaymentOperationService(
+            mock(PaymentOperationRepository.class),
+            new ObjectMapper().findAndRegisterModules(),
+            Clock.systemUTC(),
+            mock(org.springframework.transaction.PlatformTransactionManager.class)),
         mock(OutboxEventRepository.class),
         mock(OutboxDeliveryRepository.class),
         new ObjectMapper().findAndRegisterModules(),
