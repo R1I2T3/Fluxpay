@@ -2,7 +2,6 @@ package com.fluxpay.service;
 
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentLifecycleStatus;
-import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.repository.PaymentRepository;
@@ -35,10 +34,9 @@ public class DbPaymentReader implements PaymentReader {
         payments
             .findById(id)
             .orElseThrow(() -> new NoSuchElementException("payment " + paymentId + " not found"));
-    Recipient recipient =
-        recipients
-            .findByIdAndUserId(payment.recipientId(), payment.senderId())
-            .orElseThrow(() -> new NoSuchElementException("recipient not found"));
+    recipients
+        .findByIdAndUserId(payment.recipientId(), payment.senderId())
+        .orElseThrow(() -> new NoSuchElementException("recipient not found"));
     return new PaymentSnapshot(
         payment.id().toString(),
         payment.senderId(),
@@ -49,7 +47,7 @@ public class DbPaymentReader implements PaymentReader {
             .orElse(payment.sourceWalletId()),
         payment.sourceAmount(),
         payment.sourceCurrency(),
-        recipient.currency(),
+        payment.payoutCurrency(),
         lifecycle(payment));
   }
 
