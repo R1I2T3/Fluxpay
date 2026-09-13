@@ -42,6 +42,12 @@ public class PersistentLedgerWriter implements LedgerWriter {
   }
 
   @Override
+  @Transactional(readOnly = true)
+  public boolean contains(String idempotencyKey) {
+    return entries.findByIdempotencyKey(idempotencyKey).isPresent();
+  }
+
+  @Override
   @Transactional(propagation = Propagation.MANDATORY)
   public void append(
       UUID walletId, String entryType, BigDecimal amount, String currency, String idempotencyKey) {

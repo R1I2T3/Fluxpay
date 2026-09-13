@@ -75,7 +75,11 @@ class RecoveryConcurrencyTest {
     tx.executeWithoutResult(status -> attempts.saveAndFlush(failed));
     var reader = mock(PaymentReader.class);
     when(reader.get("P-001")).thenReturn(p001());
-    journal = spy(new RefundJournalService(new ConcurrencyLedger()));
+    var ledger = new ConcurrencyLedger();
+    journal =
+        spy(
+            new RefundJournalService(
+                new LedgerJournalService(ledger, new LedgerPostingContext()), ledger));
     standardProvider = provider("STANDARD_BANK");
     instantProvider = provider("INSTANT_PAYOUT");
     var events = mock(EventPublisher.class);
@@ -203,7 +207,16 @@ class RecoveryConcurrencyTest {
         new BigDecimal("1000.00"),
         "USD",
         "KES",
-        PaymentStatus.ROUTED);
+        PaymentStatus.ROUTED,
+        new com.fluxpay.dto.PaymentPostingSnapshot(
+            UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes()),
+            UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes()),
+            UUID.nameUUIDFromBytes("fluxpay:P-001:fee".getBytes()),
+            "USD",
+            new BigDecimal("1000.00"),
+            new BigDecimal("1000.00"),
+            BigDecimal.ZERO,
+            "payment:P-001"));
   }
 
   private static PayoutProvider provider(String code) {

@@ -82,7 +82,16 @@ class RecoveryServiceTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.ROUTED,
+            new com.fluxpay.dto.PaymentPostingSnapshot(
+                UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes()),
+                UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes()),
+                UUID.nameUUIDFromBytes("fluxpay:P-001:fee".getBytes()),
+                "USD",
+                new BigDecimal("1000.00"),
+                new BigDecimal("1000.00"),
+                BigDecimal.ZERO,
+                "payment:P-001"));
     standard =
         PayoutRoute.seed(
             R_STANDARD,
@@ -283,7 +292,9 @@ class RecoveryServiceTest {
   @Test
   void refundPublicationCanRecoverAfterLedgerSurvivesFailure() {
     var ledger = new RecordingLedger(payment.senderWalletId(), payment.payoutClearingWalletId());
-    var journal = new RefundJournalService(ledger);
+    var journal =
+        new RefundJournalService(
+            new LedgerJournalService(ledger, new LedgerPostingContext()), ledger);
     var service =
         new RecoveryService(
             paymentReader,

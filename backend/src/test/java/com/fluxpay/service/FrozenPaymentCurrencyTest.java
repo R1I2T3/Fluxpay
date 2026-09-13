@@ -133,7 +133,9 @@ class FrozenPaymentCurrencyTest {
       when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
       var recipients = mock(RecipientRepository.class);
       when(recipients.findByIdAndUserId(recipient.id(), user)).thenReturn(Optional.of(recipient));
-      reader = new DbPaymentReader(payments, recipients, mock(WalletRepository.class));
+      reader =
+          new DbPaymentReader(
+              payments, recipients, new com.fasterxml.jackson.databind.ObjectMapper());
       var route =
           PayoutRoute.seed(
               UUID.randomUUID(),

@@ -17,6 +17,7 @@ import com.fluxpay.dto.ConfirmPaymentRequest;
 import com.fluxpay.dto.PaymentResponse;
 import com.fluxpay.dto.PostingAccounts;
 import com.fluxpay.exception.BusinessException;
+import com.fluxpay.exception.PaymentBlockedException;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentOperationRepository;
@@ -79,7 +80,7 @@ public class PaymentConfirmationService {
     this.routes = routes;
   }
 
-  @Transactional(noRollbackFor = BusinessException.class)
+  @Transactional(noRollbackFor = PaymentBlockedException.class)
   public PaymentResponse confirm(
       UUID userId, UUID paymentId, ConfirmPaymentRequest request, String clientKey) {
     String normalized = normalizedConfirmRequest(userId, paymentId, request);
@@ -137,10 +138,7 @@ public class PaymentConfirmationService {
       payment.reject(now);
       PaymentResponse blocked = response(payment);
       storeOperation(userId, clientKey, normalized, 422, blocked, payment.id());
-      throw new BusinessException(
-          HttpStatus.UNPROCESSABLE_ENTITY,
-          "PAYMENT_BLOCKED",
-          "This payment was blocked by compliance.");
+      throw new PaymentBlockedException();
     }
     if (verdict == ScreeningVerdict.REVIEW) {
       String reviewReference = UUID.randomUUID().toString();
@@ -255,11 +253,7 @@ public class PaymentConfirmationService {
       node.put("gross", payment.sourceAmount().toPlainString());
       node.put("fee", quote.feeAmount().toPlainString());
       node.put("net", payment.sourceAmount().subtract(quote.feeAmount()).toPlainString());
-      var keys = objectMapper.createArrayNode();
-      keys.add("m3:" + payment.id() + ":customer");
-      keys.add("m3:" + payment.id() + ":clearing");
-      keys.add("m3:" + payment.id() + ":fee");
-      node.set("keys", keys);
+      node.put("originalJournalReference", "payment:" + payment.id());
       return objectMapper.writeValueAsString(node);
     } catch (Exception e) {
       throw new BusinessException(
@@ -357,10 +351,7 @@ public class PaymentConfirmationService {
 
   private PaymentResponse replay(PaymentOperation op) {
     if (op.outcomeStatus() == 422) {
-      throw new BusinessException(
-          HttpStatus.UNPROCESSABLE_ENTITY,
-          "PAYMENT_BLOCKED",
-          "This payment was blocked by compliance.");
+      throw new PaymentBlockedException();
     }
     try {
       return objectMapper.readValue(op.responseData(), PaymentResponse.class);

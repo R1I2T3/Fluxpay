@@ -12,8 +12,8 @@ import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
-import com.fluxpay.exception.FxSystemWalletNotFoundException;
 import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.SystemAccountUnavailableException;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -72,6 +72,7 @@ import org.springframework.transaction.support.TransactionTemplate;
   DemoFundingConfig.class,
   FxConfig.class,
   com.fluxpay.config.SystemAccountConfig.class,
+  SystemAccountService.class,
   WalletConversionService.class,
   WalletPostingService.class,
   LedgerJournalService.class,
@@ -184,7 +185,7 @@ class WalletConversionPostingOracleTest {
     int ledgerBefore = allLedgerCount();
 
     assertThrows(
-        FxSystemWalletNotFoundException.class,
+        SystemAccountUnavailableException.class,
         () -> conversion.convert(userId, new WalletConvertRequest("USD", "INR", "10"), key));
 
     assertEquals(money("50.0000"), databaseBalance(source.getId()));

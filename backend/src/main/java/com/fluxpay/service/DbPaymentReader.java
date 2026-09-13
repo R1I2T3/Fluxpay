@@ -1,12 +1,14 @@
 package com.fluxpay.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentLifecycleStatus;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.dto.PaymentPostingSnapshot;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
-import com.fluxpay.repository.WalletRepository;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
@@ -17,13 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class DbPaymentReader implements PaymentReader {
   private final PaymentRepository payments;
   private final RecipientRepository recipients;
-  private final WalletRepository wallets;
+  private final ObjectMapper objectMapper;
 
   public DbPaymentReader(
-      PaymentRepository payments, RecipientRepository recipients, WalletRepository wallets) {
+      PaymentRepository payments, RecipientRepository recipients, ObjectMapper objectMapper) {
     this.payments = Objects.requireNonNull(payments, "payments must not be null");
     this.recipients = Objects.requireNonNull(recipients, "recipients must not be null");
-    this.wallets = Objects.requireNonNull(wallets, "wallets must not be null");
+    this.objectMapper = Objects.requireNonNull(objectMapper);
   }
 
   @Override
@@ -37,18 +39,33 @@ public class DbPaymentReader implements PaymentReader {
     recipients
         .findByIdAndUserId(payment.recipientId(), payment.senderId())
         .orElseThrow(() -> new NoSuchElementException("recipient not found"));
+    PaymentPostingSnapshot posting = readPosting(payment);
     return new PaymentSnapshot(
         payment.id().toString(),
         payment.senderId(),
         payment.sourceWalletId(),
-        wallets
-            .findById(payment.sourceWalletId())
-            .map(w -> w.getId())
-            .orElse(payment.sourceWalletId()),
+        posting == null ? null : posting.clearingWalletId(),
         payment.sourceAmount(),
         payment.sourceCurrency(),
         payment.payoutCurrency(),
-        lifecycle(payment));
+        lifecycle(payment),
+        posting);
+  }
+
+  private PaymentPostingSnapshot readPosting(Payment payment) {
+    if (payment.postingSnapshot() == null) {
+      if (payment.postedAt() != null)
+        throw new IllegalArgumentException("Posted payment has no original posting snapshot");
+      return null;
+    }
+    try {
+      var posting = objectMapper.readValue(payment.postingSnapshot(), PaymentPostingSnapshot.class);
+      if (posting == null)
+        throw new IllegalArgumentException("Original posting snapshot cannot be JSON null");
+      return posting;
+    } catch (JsonProcessingException exception) {
+      throw new IllegalArgumentException("Invalid original payment posting snapshot", exception);
+    }
   }
 
   private static UUID parse(String paymentId) {

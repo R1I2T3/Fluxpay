@@ -1,21 +1,20 @@
 package com.fluxpay.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentPurpose;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
-import com.fluxpay.beans.Wallet;
-import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
-import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.NoSuchElementException;
@@ -25,10 +24,9 @@ import org.junit.jupiter.api.Test;
 
 class DbPaymentReaderTest {
   @Test
-  void mapsStoredPaymentToRoutedSnapshot() {
+  void reconstructsDistinctOriginalPostingAccounts() {
     PaymentRepository payments = mock(PaymentRepository.class);
     RecipientRepository recipients = mock(RecipientRepository.class);
-    WalletRepository wallets = mock(WalletRepository.class);
     UUID paymentId = UUID.randomUUID();
     UUID user = UUID.randomUUID();
     UUID wallet = UUID.randomUUID();
@@ -57,13 +55,24 @@ class DbPaymentReaderTest {
             "{}",
             Instant.now());
     when(payments.findById(any())).thenReturn(Optional.of(p));
+    UUID clearingId = UUID.randomUUID();
+    UUID feeId = UUID.randomUUID();
+    p.recordPosting(
+        """
+        {"customerWalletId":"%s","clearingWalletId":"%s","feeWalletId":"%s",
+         "currency":"USD","gross":"1000.0000","net":"950.0000","fee":"50.0000",
+         "originalJournalReference":"payment:%s"}
+        """
+            .formatted(wallet, clearingId, feeId, paymentId),
+        Instant.now());
     when(recipients.findByIdAndUserId(any(), any())).thenReturn(Optional.of(r));
-    when(wallets.findById(any())).thenReturn(Optional.empty());
-    DbPaymentReader reader = new DbPaymentReader(payments, recipients, wallets);
+    DbPaymentReader reader = new DbPaymentReader(payments, recipients, new ObjectMapper());
     PaymentSnapshot snapshot = reader.get(paymentId.toString());
     assertEquals(paymentId.toString(), snapshot.paymentId());
     assertEquals(user, snapshot.senderUserId());
     assertEquals(wallet, snapshot.senderWalletId());
+    assertEquals(clearingId, snapshot.payoutClearingWalletId());
+    assertEquals(feeId, snapshot.posting().feeWalletId());
     assertEquals(0, snapshot.amount().compareTo(new BigDecimal("1000.00")));
     assertEquals("USD", snapshot.sourceCurrency());
     assertEquals("KES", snapshot.targetCurrency());
@@ -73,17 +82,15 @@ class DbPaymentReaderTest {
   void unknownPaymentThrowsNotFound() {
     PaymentRepository payments = mock(PaymentRepository.class);
     RecipientRepository recipients = mock(RecipientRepository.class);
-    WalletRepository wallets = mock(WalletRepository.class);
     when(payments.findById(any())).thenReturn(Optional.empty());
-    DbPaymentReader reader = new DbPaymentReader(payments, recipients, wallets);
+    DbPaymentReader reader = new DbPaymentReader(payments, recipients, new ObjectMapper());
     assertThrows(NoSuchElementException.class, () -> reader.get(UUID.randomUUID().toString()));
   }
 
   @Test
-  void walletClearedAfterDeleteStillBuildsSnapshot() {
+  void unpostedPaymentHasNoInventedClearingWallet() {
     PaymentRepository payments = mock(PaymentRepository.class);
     RecipientRepository recipients = mock(RecipientRepository.class);
-    WalletRepository wallets = mock(WalletRepository.class);
     UUID paymentId = UUID.randomUUID();
     UUID user = UUID.randomUUID();
     UUID wallet = UUID.randomUUID();
@@ -111,11 +118,11 @@ class DbPaymentReaderTest {
             RoutePreference.BALANCED,
             "{}",
             Instant.now());
-    Wallet clearing = new Wallet(user, "USD", WalletAccountRole.PAYOUT_CLEARING);
     when(payments.findById(any())).thenReturn(Optional.of(p));
     when(recipients.findByIdAndUserId(any(), any())).thenReturn(Optional.of(r));
-    when(wallets.findById(wallet)).thenReturn(Optional.of(clearing));
-    DbPaymentReader reader = new DbPaymentReader(payments, recipients, wallets);
+    DbPaymentReader reader = new DbPaymentReader(payments, recipients, new ObjectMapper());
     assertEquals(wallet, reader.get(paymentId.toString()).senderWalletId());
+    assertNull(reader.get(paymentId.toString()).payoutClearingWalletId());
+    assertNull(reader.get(paymentId.toString()).posting());
   }
 }

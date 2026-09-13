@@ -7,6 +7,7 @@ import com.fluxpay.dto.PostingAccounts;
 import com.fluxpay.dto.WalletSnapshot;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.WalletRepository;
+import com.fluxpay.service.SystemAccountService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -14,7 +15,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,18 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PersistentWalletAdapter implements WalletPort {
   private final WalletRepository wallets;
-  private final Supplier<UUID> systemUserSupplier;
+  private final SystemAccountService systemAccounts;
 
-  @org.springframework.beans.factory.annotation.Autowired
-  public PersistentWalletAdapter(
-      WalletRepository wallets, com.fluxpay.config.SystemAccountConfig systemAccounts) {
-    this(wallets, systemAccounts::requireSystemUserId);
-  }
-
-  PersistentWalletAdapter(WalletRepository wallets, Supplier<UUID> systemUserSupplier) {
+  public PersistentWalletAdapter(WalletRepository wallets, SystemAccountService systemAccounts) {
     this.wallets = Objects.requireNonNull(wallets, "wallets must not be null");
-    this.systemUserSupplier =
-        Objects.requireNonNull(systemUserSupplier, "systemUserSupplier must not be null");
+    this.systemAccounts = Objects.requireNonNull(systemAccounts);
   }
 
   @Override
@@ -68,30 +61,23 @@ public class PersistentWalletAdapter implements WalletPort {
   public PostingAccounts lockPostingAccounts(
       UUID userId, UUID walletId, String currency, BigDecimal gross) {
     Wallet customer =
-        wallets.findByIdForUpdate(walletId).filter(w -> w.getUserId().equals(userId)).orElse(null);
+        wallets.findById(walletId).filter(w -> w.getUserId().equals(userId)).orElse(null);
     if (customer == null
         || customer.getAccountRole() != WalletAccountRole.CUSTOMER
-        || !customer.getCurrency().equals(currency)
-        || customer.getAvailableBalance().compareTo(gross) < 0) {
+        || !customer.getCurrency().equals(currency)) {
       throw new BusinessException(
           HttpStatus.UNPROCESSABLE_ENTITY, "WALLET_UNAVAILABLE", "Wallet is not eligible.");
     }
-    UUID systemUser = systemUserSupplier.get();
-    Wallet clearing =
-        findOrCreateSystemWallet(systemUser, currency, WalletAccountRole.PAYOUT_CLEARING);
-    Wallet fee = findOrCreateSystemWallet(systemUser, currency, WalletAccountRole.FEE_REVENUE);
+    Wallet clearing = systemAccounts.require(currency, WalletAccountRole.PAYOUT_CLEARING);
+    Wallet fee = systemAccounts.require(currency, WalletAccountRole.FEE_REVENUE);
     List<Wallet> ordered = new ArrayList<>(List.of(customer, clearing, fee));
     ordered.sort(Comparator.comparing(w -> w.getId().toString()));
     for (Wallet w : ordered) {
-      wallets.findByIdForUpdate(w.getId());
+      wallets
+          .findByIdForUpdate(w.getId())
+          .orElseThrow(() -> new IllegalStateException("Posting wallet disappeared"));
     }
+    // The writer checks available funds only for a new debit, after replay detection.
     return new PostingAccounts(customer.getId(), clearing.getId(), fee.getId());
-  }
-
-  private Wallet findOrCreateSystemWallet(
-      UUID systemUser, String currency, WalletAccountRole role) {
-    return wallets
-        .findByUserIdAndCurrencyAndAccountRole(systemUser, currency, role)
-        .orElseGet(() -> wallets.saveAndFlush(new Wallet(systemUser, currency, role)));
   }
 }

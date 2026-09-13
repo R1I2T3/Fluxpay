@@ -10,8 +10,8 @@ import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
-import com.fluxpay.exception.DemoClearingWalletNotFoundException;
 import com.fluxpay.exception.LedgerIdempotencyConflictException;
+import com.fluxpay.exception.SystemAccountUnavailableException;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -62,6 +62,7 @@ import org.springframework.transaction.support.TransactionTemplate;
   DemoFundingConfig.class,
   FxConfig.class,
   com.fluxpay.config.SystemAccountConfig.class,
+  SystemAccountService.class,
   DemoFundingService.class,
   WalletPostingService.class,
   LedgerJournalService.class,
@@ -162,7 +163,7 @@ class WalletPostingServiceOracleTest {
     String key = "fund-rollback-" + UUID.randomUUID();
 
     assertThrows(
-        DemoClearingWalletNotFoundException.class,
+        SystemAccountUnavailableException.class,
         () -> funding.receiveDemo(customerId, new WalletReceiveRequest("INR", "7.0000"), key));
 
     assertEquals(0, customerWalletCount(customerId, "INR"));

@@ -56,7 +56,7 @@ class BackendBoundaryConfigurationTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
     WalletPostingService posting =
         new WalletPostingService(
-            new SystemAccountConfig(""),
+            new com.fluxpay.service.SystemAccountService(wallets, new SystemAccountConfig("")),
             wallets,
             mock(WalletOperationRepository.class),
             mock(LedgerJournalService.class),
