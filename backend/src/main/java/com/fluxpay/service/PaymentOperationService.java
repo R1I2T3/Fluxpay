@@ -122,7 +122,6 @@ public class PaymentOperationService {
             var existing = operations.findByUserIdAndClientKey(user, key);
             if (existing.isPresent())
               return replay(existing.get(), payment, normalized, responseType);
-            validate.run();
             var pending =
                 new PaymentOperation(
                     UUID.randomUUID(),
@@ -135,6 +134,9 @@ public class PaymentOperationService {
                     payment,
                     Instant.now(clock));
             operations.saveAndFlush(pending);
+            // Claim uniqueness before changing eligibility can mask a concurrent winner.
+            // Local validation still rolls this uncommitted reservation back on failure.
+            validate.run();
             return new Reservation<T>(pending.id(), null, null);
           });
     } catch (org.springframework.dao.DataIntegrityViolationException race) {

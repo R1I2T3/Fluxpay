@@ -234,6 +234,114 @@ class PaymentOperationServiceTest {
     }
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void winnerAfterInitialMissTakesPrecedenceOverChangedLocalValidation(boolean completed)
+      throws Exception {
+    try (var db = new OperationDatabase()) {
+      var missed = new java.util.concurrent.CountDownLatch(1);
+      var resume = new java.util.concurrent.CountDownLatch(1);
+      var eligible = new java.util.concurrent.atomic.AtomicBoolean(true);
+      var losing =
+          new java.util.concurrent.atomic.AtomicReference<jakarta.persistence.EntityManager>();
+      var reread =
+          new java.util.concurrent.atomic.AtomicReference<jakarta.persistence.EntityManager>();
+      var proxy = new org.springframework.aop.framework.ProxyFactory(db.payments);
+      proxy.addAdvice(
+          (org.aopalliance.intercept.MethodInterceptor)
+              call -> {
+                var current =
+                    org.springframework.orm.jpa.EntityManagerFactoryUtils
+                        .getTransactionalEntityManager(db.factory.getObject());
+                if (call.getMethod().getName().startsWith("findByUserId") && losing.get() != null)
+                  reread.set(current);
+                Object found;
+                try {
+                  found = call.proceed();
+                } catch (org.springframework.dao.DataIntegrityViolationException race) {
+                  losing.set(current);
+                  throw race;
+                }
+                if (call.getMethod().getName().startsWith("findByUserId")
+                    && ((java.util.Optional<?>) found).isEmpty()) {
+                  missed.countDown();
+                  assertThat(resume.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                }
+                return found;
+              });
+      var duplicateService =
+          new PaymentOperationService(
+              (com.fluxpay.repository.PaymentOperationRepository) proxy.getProxy(),
+              new com.fasterxml.jackson.databind.ObjectMapper(),
+              Clock.systemUTC(),
+              db.transactions);
+      var worker =
+          java.util.concurrent.Executors.newSingleThreadExecutor(
+              task -> {
+                var thread = new Thread(task, "operation-validation-race");
+                thread.setDaemon(true);
+                return thread;
+              });
+      try {
+        var duplicate =
+            worker.submit(
+                () -> {
+                  try {
+                    return duplicateService
+                        .reserve(
+                            USER,
+                            "validation-race",
+                            "SUBMIT",
+                            PAYMENT,
+                            java.util.Map.of("route", "BANK"),
+                            EventResponse.class,
+                            () -> {
+                              if (!eligible.get())
+                                throw new IllegalStateException("LOCAL_VALIDATION_FAILED");
+                            })
+                        .response()
+                        .eventId();
+                  } catch (BusinessException failure) {
+                    return failure.code();
+                  } catch (IllegalStateException failure) {
+                    return failure.getMessage();
+                  }
+                });
+        assertThat(missed.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        var winnerService = service(db);
+        var winner =
+            winnerService.reserve(
+                USER,
+                "validation-race",
+                "SUBMIT",
+                PAYMENT,
+                java.util.Map.of("route", "BANK"),
+                EventResponse.class);
+        if (completed) winnerService.complete(winner.id(), new EventResponse("winner-event"), 200);
+        eligible.set(false);
+        resume.countDown();
+        assertThat(duplicate.get(10, java.util.concurrent.TimeUnit.SECONDS))
+            .isEqualTo(completed ? "winner-event" : "OPERATION_IN_PROGRESS");
+        assertThat(losing.get()).isNotNull();
+        assertThat(losing.get().isOpen()).isFalse();
+        assertThat(reread.get()).isNotNull().isNotSameAs(losing.get());
+        assertThat(db.payments.findAll())
+            .singleElement()
+            .satisfies(
+                op -> {
+                  assertThat(op.id()).isEqualTo(winner.id());
+                  assertThat(op.status()).isEqualTo(completed ? "COMPLETED" : "IN_PROGRESS");
+                  assertThat(op.responseData())
+                      .isEqualTo(completed ? "{\"eventId\":\"winner-event\"}" : null);
+                });
+      } finally {
+        resume.countDown();
+        worker.shutdownNow();
+        assertThat(worker.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+      }
+    }
+  }
+
   @Test
   void maxKeyLengthIs255AndChangedAmountCannotReplay() {
     try (var db = new OperationDatabase()) {
