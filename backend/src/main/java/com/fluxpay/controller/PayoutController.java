@@ -77,8 +77,9 @@ public class PayoutController {
         cid,
         () -> {
           gate.assertActiveQuote(payment, body.routeCode());
-          return execution.submit(paymentId, body.routeCode(), cid);
-        });
+          execution.validateSubmit(paymentId, body.routeCode(), cid);
+        },
+        () -> execution.submit(paymentId, body.routeCode(), cid));
   }
 
   @PostMapping("/api/payments/{paymentId}/retry-payout")
@@ -88,7 +89,14 @@ public class PayoutController {
       HttpServletRequest request) {
     com.fluxpay.service.PaymentOperationService.requireKey(key);
     String cid = ControllerSupport.correlationId(request);
-    return payout(owned(paymentId), key, "RETRY", null, cid, () -> recovery.retry(paymentId, cid));
+    return payout(
+        owned(paymentId),
+        key,
+        "RETRY",
+        null,
+        cid,
+        () -> recovery.validateRetry(paymentId, cid),
+        () -> recovery.retry(paymentId, cid));
   }
 
   @PostMapping("/api/payments/{paymentId}/switch-route")
@@ -107,6 +115,7 @@ public class PayoutController {
         "SWITCH",
         body.routeCode(),
         cid,
+        () -> recovery.validateSwitch(paymentId, body.routeCode(), cid),
         () -> recovery.switchRoute(paymentId, body.routeCode(), cid));
   }
 
@@ -139,6 +148,7 @@ public class PayoutController {
       String action,
       String route,
       String cid,
+      Runnable validate,
       java.util.function.Supplier<PayoutOutcome> execute) {
     var request = new java.util.LinkedHashMap<String, Object>();
     request.put("routeCode", route);
@@ -149,7 +159,8 @@ public class PayoutController {
             action,
             UUID.fromString(payment.paymentId()),
             request,
-            PayoutApi.OutcomeResponse.class);
+            PayoutApi.OutcomeResponse.class,
+            validate);
     if (reservation.replayed()) return new ApiResponse<>(cid, reservation.response());
     // Any failure after reservation remains IN_PROGRESS. An unknown provider result is not safe to
     // retry.

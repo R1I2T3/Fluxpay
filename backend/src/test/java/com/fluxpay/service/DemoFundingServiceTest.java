@@ -26,7 +26,7 @@ class DemoFundingServiceTest {
   private static final UUID SYSTEM_USER_ID =
       UUID.fromString("22222222-2222-2222-2222-222222222222");
   private static final String KEY = "demo-funding-1";
-  private static final String NORMALIZED = "{\"currency\":\"USD\",\"amount\":\"500.0000\"}";
+  private static final String NORMALIZED = "{\"amount\":\"500.0000\",\"currency\":\"USD\"}";
   private static final String SNAPSHOT =
       "{\"walletId\":\"33333333-3333-3333-3333-333333333333\","
           + "\"currency\":\"USD\",\"balance\":\"500.0000\","

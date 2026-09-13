@@ -1,5 +1,6 @@
 package com.fluxpay.beans;
 
+import com.fluxpay.common.json.OperationJson;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -67,6 +68,7 @@ public class WalletOperation {
       String normalizedRequest,
       String journalReference) {
     this.id = id;
+    OperationJson.requireObject(normalizedRequest);
     this.userId = userId;
     this.operationType = operationType;
     this.clientKey = clientKey;
@@ -83,6 +85,7 @@ public class WalletOperation {
     if (!"IN_PROGRESS".equals(status)) {
       throw new IllegalStateException("A completed operation cannot be overwritten");
     }
+    OperationJson.requireObject(responseSnapshot);
     this.responseSnapshot = responseSnapshot;
     this.status = "COMPLETED";
   }

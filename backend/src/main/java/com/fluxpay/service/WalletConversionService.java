@@ -41,7 +41,7 @@ public class WalletConversionService {
         key,
         normalizedRequest,
         WalletConvertResponse.class,
-        () -> {
+        canonical -> {
           // One accepted FX snapshot is retained across a rolled-back posting retry.
           if (quote.get() == null) quote.set(quotes.snapshot(normalized.from(), normalized.to()));
           FxSnapshot snapshot = quote.get();
@@ -57,7 +57,7 @@ public class WalletConversionService {
               net,
               credit,
               snapshot,
-              normalizedRequest,
+              canonical,
               key);
         });
   }

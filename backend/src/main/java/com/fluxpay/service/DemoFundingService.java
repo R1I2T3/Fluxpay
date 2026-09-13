@@ -43,9 +43,8 @@ public class DemoFundingService {
         key,
         normalizedRequest,
         WalletResponse.class,
-        () ->
-            posting.receiveDemo(
-                owner, normalized.currency(), normalized.amount(), normalizedRequest, key));
+        canonical ->
+            posting.receiveDemo(owner, normalized.currency(), normalized.amount(), canonical, key));
   }
 
   private static UUID requireUser(UUID userId) {

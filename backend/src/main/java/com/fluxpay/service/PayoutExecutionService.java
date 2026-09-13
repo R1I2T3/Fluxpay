@@ -78,6 +78,26 @@ public class PayoutExecutionService {
   }
 
   public PayoutOutcome submit(String paymentId, String routeCode, String correlationId) {
+    var prepared = prepareSubmission(paymentId, routeCode, correlationId);
+    return executeNewAttempt(
+        prepared.payment(), prepared.route(), prepared.provider(), 1, "SUBMIT", correlationId);
+  }
+
+  public void validateSubmit(String paymentId, String routeCode, String correlationId) {
+    var prepared = prepareSubmission(paymentId, routeCode, correlationId);
+    selectedQuotes.require(prepared.payment(), routeCode);
+  }
+
+  void validateAttempt(PaymentSnapshot payment, PayoutRoute route, String correlationId) {
+    requireCorrelationId(correlationId);
+    loadActiveRoute(routeCodeOf(route));
+    loadProvider(routeCodeOf(route));
+    selectedQuotes.require(payment, routeCodeOf(route));
+  }
+
+  private record Submission(PaymentSnapshot payment, PayoutRoute route, PayoutProvider provider) {}
+
+  private Submission prepareSubmission(String paymentId, String routeCode, String correlationId) {
     requireCorrelationId(correlationId);
     PaymentSnapshot payment = paymentReader.get(paymentId);
     requirePayoutEligible(payment);
@@ -90,7 +110,7 @@ public class PayoutExecutionService {
             });
     PayoutRoute route = loadActiveRoute(routeCode);
     PayoutProvider provider = loadProvider(routeCode);
-    return executeNewAttempt(payment, route, provider, 1, "SUBMIT", correlationId);
+    return new Submission(payment, route, provider);
   }
 
   PayoutOutcome executeNewAttempt(

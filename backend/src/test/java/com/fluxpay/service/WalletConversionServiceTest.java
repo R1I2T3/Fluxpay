@@ -28,7 +28,7 @@ class WalletConversionServiceTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
   private static final String KEY = "convert-1";
   private static final String NORMALIZED =
-      "{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"100.0000\"}";
+      "{\"amount\":\"100.0000\",\"from\":\"USD\",\"to\":\"INR\"}";
   private static final Instant FETCHED_AT = Instant.parse("2026-09-11T01:02:03Z");
   private static final FxSnapshot FX =
       new FxSnapshot("USD", "INR", new BigDecimal("83.50"), FETCHED_AT, false, true);

@@ -71,7 +71,8 @@ class FrozenPaymentCurrencyTest {
 
     // Expiry forces fresh pricing through both entry points rather than reusing a cached quote.
     var generated =
-        f.quotesAt(NOW.plusSeconds(900)).createOrCurrent(f.user, f.payment.id(), "quote-key");
+        f.quotesAt(NOW.plusSeconds(900))
+            .createOrCurrent(f.user, f.payment.id(), "quote-next-generation");
     var recommendation =
         new RouteCatalogService(
                 f.reader, f.fx, f.ranking, f.routes, mock(RouteMetrics.class), f.pricing)

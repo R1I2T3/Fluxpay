@@ -1,5 +1,6 @@
 package com.fluxpay.beans;
 
+import com.fluxpay.common.json.OperationJson;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -55,6 +56,11 @@ public class PaymentOperation {
       String responseData,
       UUID paymentId,
       Instant createdAt) {
+    OperationJson.requireObject(normalizedRequest);
+    if ((outcomeStatus == null) != (responseData == null))
+      throw new IllegalArgumentException(
+          "Completion status and response must both be present or absent");
+    if (outcomeStatus != null) validateCompletion(outcomeStatus, responseData);
     this.id = id;
     this.userId = userId;
     this.operationType = operationType;
@@ -102,10 +108,17 @@ public class PaymentOperation {
   public void complete(int outcomeStatus, String responseData, UUID paymentId) {
     if (!"IN_PROGRESS".equals(status))
       throw new IllegalStateException("Operation already completed");
+    validateCompletion(outcomeStatus, responseData);
     this.outcomeStatus = outcomeStatus;
     this.responseData = responseData;
     this.status = "COMPLETED";
     this.paymentId = paymentId;
+  }
+
+  private static void validateCompletion(int outcomeStatus, String responseData) {
+    if (outcomeStatus < 200 || outcomeStatus > 599)
+      throw new IllegalArgumentException("Completed operations require a final HTTP status");
+    OperationJson.requireObject(responseData);
   }
 
   public String responseData() {

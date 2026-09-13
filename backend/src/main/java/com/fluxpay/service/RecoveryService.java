@@ -65,6 +65,19 @@ public class RecoveryService {
   }
 
   public PayoutOutcome retry(String paymentId, String correlationId) {
+    var target = retryTarget(paymentId);
+    return execution.executeNewAttempt(
+        target.payment(), target.route(), target.attemptNumber(), "RETRY", correlationId);
+  }
+
+  public void validateRetry(String paymentId, String correlationId) {
+    var target = retryTarget(paymentId);
+    execution.validateAttempt(target.payment(), target.route(), correlationId);
+  }
+
+  private record RecoveryTarget(PaymentSnapshot payment, PayoutRoute route, int attemptNumber) {}
+
+  private RecoveryTarget retryTarget(String paymentId) {
     PayoutAttempt latest = latestFailed(paymentId);
     PaymentSnapshot payment = paymentReader.get(paymentId);
     assertNotRefunded(payment);
@@ -76,11 +89,21 @@ public class RecoveryService {
     if (!route.isActive()) {
       throw new IllegalStateException("route " + route.getRouteCode() + " is inactive");
     }
-    return execution.executeNewAttempt(
-        payment, route, latest.attemptNumber() + 1, "RETRY", correlationId);
+    return new RecoveryTarget(payment, route, latest.attemptNumber() + 1);
   }
 
   public PayoutOutcome switchRoute(String paymentId, String newRouteCode, String correlationId) {
+    var target = switchTarget(paymentId, newRouteCode);
+    return execution.executeNewAttempt(
+        target.payment(), target.route(), target.attemptNumber(), "SWITCH", correlationId);
+  }
+
+  public void validateSwitch(String paymentId, String newRouteCode, String correlationId) {
+    var target = switchTarget(paymentId, newRouteCode);
+    execution.validateAttempt(target.payment(), target.route(), correlationId);
+  }
+
+  private RecoveryTarget switchTarget(String paymentId, String newRouteCode) {
     PayoutAttempt latest = latestFailed(paymentId);
     PaymentSnapshot earlyPayment = paymentReader.get(paymentId);
     assertNotRefunded(earlyPayment);
@@ -95,8 +118,7 @@ public class RecoveryService {
       throw new IllegalArgumentException("switch route must differ from failed route");
     }
     PaymentSnapshot payment = earlyPayment;
-    return execution.executeNewAttempt(
-        payment, route, latest.attemptNumber() + 1, "SWITCH", correlationId);
+    return new RecoveryTarget(payment, route, latest.attemptNumber() + 1);
   }
 
   public RecoveryResult refund(String paymentId, String correlationId) {

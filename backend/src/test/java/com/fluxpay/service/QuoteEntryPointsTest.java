@@ -90,7 +90,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
     f.active.get(0).update("20", "5", 5, "90", true);
     f.active.get(1).update("8.5", "0", 5, "98", false);
     var second =
-        f.service(NOW.plusSeconds(900)).createOrCurrent(f.user, f.payment.id(), "quote-key");
+        f.service(NOW.plusSeconds(900))
+            .createOrCurrent(f.user, f.payment.id(), "quote-next-generation");
     assertThat(f.payment.currentQuoteGeneration()).isEqualTo(2);
     assertThat(second.quotes())
         .extracting(q -> q.route())
@@ -109,6 +110,45 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
                 .orElseThrow()
                 .recipientAmount())
         .isEqualTo("7600.0000");
+  }
+
+  @Test
+  void sameKeyAfterExpiryReplaysStoredQuoteWithoutFetchingFx() {
+    try (var db = new OperationDatabase()) {
+      var f = new Fixture(RoutePreference.BALANCED);
+      var operations =
+          new PaymentOperationService(
+              db.payments,
+              new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
+              Clock.systemUTC(),
+              db.transactions);
+      var initial =
+          new QuoteService(
+              f.payments,
+              f.quotes,
+              (s, t) -> new BigDecimal("80"),
+              Clock.fixed(NOW, ZoneOffset.UTC),
+              f.routes,
+              f.pricing,
+              f.ranking,
+              operations);
+      var first = initial.createOrCurrent(f.user, f.payment.id(), "same-key");
+      var later =
+          new QuoteService(
+              f.payments,
+              f.quotes,
+              (s, t) -> {
+                throw new AssertionError("Stored quote replay must not fetch FX after expiry");
+              },
+              Clock.fixed(NOW.plusSeconds(901), ZoneOffset.UTC),
+              f.routes,
+              f.pricing,
+              f.ranking,
+              operations);
+      assertThat(later.createOrCurrent(f.user, f.payment.id(), "same-key")).isEqualTo(first);
+      assertThat(f.payment.currentQuoteGeneration()).isEqualTo(1);
+      assertThat(db.payments.findAll()).hasSize(1);
+    }
   }
 
   @Test

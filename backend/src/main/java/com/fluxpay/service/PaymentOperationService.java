@@ -3,6 +3,7 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentOperation;
+import com.fluxpay.common.json.OperationJson;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.PaymentOperationRepository;
 import java.time.Clock;
@@ -101,6 +102,18 @@ public class PaymentOperationService {
 
   public <T> Reservation<T> reserve(
       UUID user, String key, String action, UUID payment, Object request, Class<T> responseType) {
+    return reserve(user, key, action, payment, request, responseType, () -> {});
+  }
+
+  /** Validate local prerequisites after replay lookup, before committing a delivery reservation. */
+  public <T> Reservation<T> reserve(
+      UUID user,
+      String key,
+      String action,
+      UUID payment,
+      Object request,
+      Class<T> responseType,
+      Runnable validate) {
     requireKey(key);
     String normalized = normalized(action, payment, request);
     try {
@@ -109,6 +122,7 @@ public class PaymentOperationService {
             var existing = operations.findByUserIdAndClientKey(user, key);
             if (existing.isPresent())
               return replay(existing.get(), payment, normalized, responseType);
+            validate.run();
             var pending =
                 new PaymentOperation(
                     UUID.randomUUID(),

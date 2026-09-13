@@ -69,11 +69,85 @@ class PayoutOperationIntegrationTest {
   }
 
   @Test
+  void expiredQuoteDoesNotLeaveAReservation() {
+    try (var db = new OperationDatabase()) {
+      var controller = controller(db);
+      doThrow(new com.fluxpay.exception.QuoteExpiredException("expired"))
+          .when(gate)
+          .assertActiveQuote(any(), any());
+      assertThatThrownBy(
+              () ->
+                  controller.submit(
+                      paymentId, new PayoutApi.SubmitRequest("BANK"), "expired", request()))
+          .isInstanceOf(com.fluxpay.exception.QuoteExpiredException.class);
+      assertThat(db.payments.findAll()).isEmpty();
+    }
+  }
+
+  @Test
+  void unavailableProviderDoesNotLeaveAReservation() {
+    try (var db = new OperationDatabase()) {
+      var reader = mock(PaymentReader.class);
+      when(reader.get(paymentId))
+          .thenReturn(PaymentOperationServiceTest.snapshot(PaymentOperationServiceTest.PAYMENT));
+      var routes = mock(PayoutRouteRepository.class);
+      when(routes.findByCode("BANK"))
+          .thenReturn(
+              Optional.of(
+                  com.fluxpay.beans.PayoutRoute.seed(
+                      java.util.UUID.randomUUID(),
+                      "BANK",
+                      "Bank",
+                      "Bank",
+                      "STANDARD",
+                      "0",
+                      "0",
+                      1,
+                      "99")));
+      var realExecution =
+          new PayoutExecutionService(
+              reader,
+              routes,
+              attempts,
+              mock(com.fluxpay.messaging.EventPublisher.class),
+              java.util.List.of(),
+              java.time.Clock.systemUTC(),
+              mock(SelectedQuoteService.class));
+      var controller = controller(db, realExecution);
+      assertThatThrownBy(
+              () ->
+                  controller.submit(
+                      paymentId, new PayoutApi.SubmitRequest("BANK"), "unavailable", request()))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("unavailable");
+      assertThat(db.payments.findAll()).isEmpty();
+    }
+  }
+
+  @Test
   void uncertainProviderFailureKeepsDurableReservationAndBlocksDuplicate() {
     try (var db = new OperationDatabase()) {
       var controller = controller(db);
       when(execution.submit(anyString(), anyString(), any()))
-          .thenThrow(new IllegalStateException("Provider delivery is unknown"));
+          .thenAnswer(
+              invocation -> {
+                assertThat(
+                        org.springframework.transaction.support.TransactionSynchronizationManager
+                            .isActualTransactionActive())
+                    .isFalse();
+                var observer = java.util.concurrent.Executors.newSingleThreadExecutor();
+                try {
+                  assertThat(
+                          observer
+                              .submit(() -> db.payments.findAll())
+                              .get(5, java.util.concurrent.TimeUnit.SECONDS))
+                      .singleElement()
+                      .satisfies(op -> assertThat(op.status()).isEqualTo("IN_PROGRESS"));
+                } finally {
+                  observer.shutdownNow();
+                }
+                throw new IllegalStateException("Provider delivery is unknown");
+              });
       assertThatThrownBy(
               () ->
                   controller.submit(
@@ -82,6 +156,9 @@ class PayoutOperationIntegrationTest {
       doThrow(new AssertionError("Uncertain request must not be delivered again"))
           .when(execution)
           .submit(anyString(), anyString(), any());
+      doThrow(new AssertionError("Pending replay must bypass changing validation"))
+          .when(gate)
+          .assertActiveQuote(any(), any());
       assertThatThrownBy(
               () ->
                   controller.submit(
@@ -101,6 +178,10 @@ class PayoutOperationIntegrationTest {
   }
 
   PayoutController controller(OperationDatabase db) {
+    return controller(db, execution);
+  }
+
+  PayoutController controller(OperationDatabase db, PayoutExecutionService executor) {
     SecurityContextHolder.getContext()
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(
@@ -116,7 +197,7 @@ class PayoutOperationIntegrationTest {
         reader,
         authorizer,
         gate,
-        execution,
+        executor,
         mock(RecoveryService.class),
         attempts,
         mock(PayoutRouteRepository.class),

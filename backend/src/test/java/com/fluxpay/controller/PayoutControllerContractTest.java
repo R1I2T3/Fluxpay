@@ -128,7 +128,7 @@ class PayoutControllerContractTest {
   void ownerSubmitWithValidQuoteReturnsAttempt() throws Exception {
     when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    when(operations.reserve(any(), eq("key-1"), eq("SUBMIT"), any(), any(), any()))
+    when(operations.reserve(any(), eq("key-1"), eq("SUBMIT"), any(), any(), any(), any()))
         .thenReturn(
             new com.fluxpay.service.PaymentOperationService.Reservation<>(ATTEMPT_ID, null, null));
     when(execution.submit("22222222-2222-2222-2222-222222222222", "STANDARD_BANK", "cid-pay-1"))
@@ -176,9 +176,13 @@ class PayoutControllerContractTest {
 
   @Test
   void expiredQuoteDoesNotCreateAttempt() throws Exception {
-    when(operations.reserve(any(), eq("key-3"), eq("SUBMIT"), any(), any(), any()))
-        .thenReturn(
-            new com.fluxpay.service.PaymentOperationService.Reservation<>(ATTEMPT_ID, null, null));
+    when(operations.reserve(any(), eq("key-3"), eq("SUBMIT"), any(), any(), any(), any()))
+        .thenAnswer(
+            call -> {
+              call.getArgument(6, Runnable.class).run();
+              return new com.fluxpay.service.PaymentOperationService.Reservation<>(
+                  ATTEMPT_ID, null, null);
+            });
     when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
     doThrow(
@@ -207,7 +211,7 @@ class PayoutControllerContractTest {
         .assertActiveQuote(any(), anyString());
     when(reader.get("22222222-2222-2222-2222-222222222222")).thenReturn(payment);
     when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    when(operations.reserve(any(), eq("key-dup"), eq("SUBMIT"), any(), any(), any()))
+    when(operations.reserve(any(), eq("key-dup"), eq("SUBMIT"), any(), any(), any(), any()))
         .thenReturn(
             new com.fluxpay.service.PaymentOperationService.Reservation<>(
                 ATTEMPT_ID,
