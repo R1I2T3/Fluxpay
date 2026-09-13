@@ -14,6 +14,12 @@ import org.springframework.web.bind.annotation.*;
       com.fluxpay.controller.PaymentController.class
     })
 public class PaymentApiExceptionHandler {
+  @ExceptionHandler(IllegalArgumentException.class)
+  ResponseEntity<ApiError> badRequest(IllegalArgumentException exception) {
+    return ResponseEntity.badRequest()
+        .body(ApiErrorFactory.create("BAD_REQUEST", exception.getMessage(), Map.of()));
+  }
+
   @ExceptionHandler(BusinessException.class)
   ResponseEntity<ApiError> business(BusinessException e) {
     return ResponseEntity.status(e.status())

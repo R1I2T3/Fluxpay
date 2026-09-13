@@ -3,11 +3,19 @@ package com.fluxpay.common.web;
 import com.fluxpay.common.api.ApiError;
 import java.util.*;
 import org.springframework.http.*;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ResponseEntity<ApiError> optimisticLock(
+      ObjectOptimisticLockingFailureException exception) {
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(ApiErrorFactory.create("CONFLICT", exception.getMessage(), Map.of()));
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiError> validation(MethodArgumentNotValidException e) {
     Map<String, String> fields = new HashMap<>();

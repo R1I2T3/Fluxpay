@@ -9,7 +9,6 @@ import com.fluxpay.exception.QuoteMismatchException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -45,12 +44,6 @@ public class PayoutApiExceptionHandler {
   public ResponseEntity<ApiError> quoteMismatch(QuoteMismatchException e) {
     return ResponseEntity.status(HttpStatus.CONFLICT)
         .body(ApiErrorFactory.create("QUOTE_MISMATCH", e.getMessage(), Map.of()));
-  }
-
-  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-  public ResponseEntity<ApiError> optimisticLock(ObjectOptimisticLockingFailureException e) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(ApiErrorFactory.create("CONFLICT", e.getMessage(), Map.of()));
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
