@@ -20,7 +20,6 @@ import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
-import com.fluxpay.config.M4ApiExceptionHandler;
 import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
@@ -29,6 +28,7 @@ import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.RouteMetrics;
+import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -48,7 +48,7 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M4ApiExceptionHandler.class,
+  PayoutApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
 class RouteControllerContractTest {

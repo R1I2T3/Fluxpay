@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.beans.WalletOperation;
-import com.fluxpay.config.M2DemoFundingConfig;
-import com.fluxpay.config.M2FxConfig;
+import com.fluxpay.config.DemoFundingConfig;
+import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletResponse;
@@ -24,16 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class WalletPostingService {
   private static final String OPERATION_TYPE = "RECEIVE_DEMO";
 
-  private final M2DemoFundingConfig config;
-  private final M2FxConfig fxConfig;
+  private final DemoFundingConfig config;
+  private final FxConfig fxConfig;
   private final WalletRepository wallets;
   private final WalletOperationRepository operations;
   private final LedgerJournalService journals;
   private final ObjectMapper objectMapper;
 
   public WalletPostingService(
-      M2DemoFundingConfig config,
-      M2FxConfig fxConfig,
+      DemoFundingConfig config,
+      FxConfig fxConfig,
       WalletRepository wallets,
       WalletOperationRepository operations,
       LedgerJournalService journals,

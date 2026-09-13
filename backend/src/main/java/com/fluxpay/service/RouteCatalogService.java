@@ -77,10 +77,6 @@ public class RouteCatalogService {
     return routes.save(route);
   }
 
-  public RouteMetrics.RouteMetric metricFor(String routeId) {
-    return metrics.byRoute(parseRouteId(routeId));
-  }
-
   public RouteMetrics.RouteMetric metricFor(UUID routeId) {
     return metrics.byRoute(routeId);
   }

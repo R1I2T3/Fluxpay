@@ -2,7 +2,7 @@ package com.fluxpay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fluxpay.config.M3PaymentConfig;
+import com.fluxpay.config.PaymentConfig;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -14,9 +14,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class ProductionBootTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
-          .withUserConfiguration(M3PaymentConfig.class)
+          .withUserConfiguration(PaymentConfig.class)
           .withBean("eventClock", Clock.class, () -> Clock.systemUTC())
-          .withBean("m2FxClock", Clock.class, () -> Clock.systemUTC());
+          .withBean("fxClock", Clock.class, () -> Clock.systemUTC());
 
   @Test
   void mergedContextHasExactlyOnePrimaryClock() {

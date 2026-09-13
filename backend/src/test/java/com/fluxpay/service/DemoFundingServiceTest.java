@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.WalletOperation;
-import com.fluxpay.config.M2DemoFundingConfig;
+import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
 import com.fluxpay.repository.WalletOperationRepository;
@@ -143,7 +143,7 @@ class DemoFundingServiceTest {
 
   private DemoFundingService service(boolean enabled) {
     return new DemoFundingService(
-        new M2DemoFundingConfig(enabled, SYSTEM_USER_ID.toString()),
+        new DemoFundingConfig(enabled, SYSTEM_USER_ID.toString()),
         operations,
         posting,
         objectMapper);

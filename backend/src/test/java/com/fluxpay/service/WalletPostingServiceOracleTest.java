@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
-import com.fluxpay.config.M2DemoFundingConfig;
-import com.fluxpay.config.M2FxConfig;
+import com.fluxpay.config.DemoFundingConfig;
+import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
 import com.fluxpay.repository.WalletRepository;
@@ -57,8 +57,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = WalletPostingServiceOracleTest.JpaConfiguration.class)
 @Import({
-  M2DemoFundingConfig.class,
-  M2FxConfig.class,
+  DemoFundingConfig.class,
+  FxConfig.class,
   DemoFundingService.class,
   WalletPostingService.class,
   LedgerJournalService.class,

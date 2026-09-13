@@ -9,6 +9,7 @@ import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycReviewRequest;
 import com.fluxpay.dto.KycStatusResponse;
 import com.fluxpay.dto.KycSubmitRequest;
+import com.fluxpay.exception.KycException;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.KycDocumentRepository;
 import com.fluxpay.repository.UserRepository;
@@ -17,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,11 +55,6 @@ public class KycService {
   }
 
   @Transactional(readOnly = true)
-  public List<KycAdminRow> listForAdmin(KycStatus status) {
-    return listForAdmin(status, PageRequest.of(0, 50));
-  }
-
-  @Transactional(readOnly = true)
   public List<KycAdminRow> listForAdmin(KycStatus status, Pageable pageable) {
     List<KycCase> cases =
         status == null
@@ -79,8 +74,7 @@ public class KycService {
   @Transactional
   public KycStatusResponse reject(UUID reviewerId, UUID applicationId, KycReviewRequest request) {
     if (request.reason() == null || request.reason().isBlank()) {
-      throw new M1KycException(
-          M1KycException.REJECT_REASON_REQUIRED, "a rejection reason is required");
+      throw new KycException(KycException.REJECT_REASON_REQUIRED, "a rejection reason is required");
     }
     KycCase kycCase = reviewableCase(applicationId, request.expectedVersion());
     User reviewer = findUser(reviewerId);
@@ -101,12 +95,12 @@ public class KycService {
 
   private KycCase resubmitOrReject(KycCase existing, KycSubmitRequest request, Instant now) {
     if (existing.getStatus() == KycStatus.PENDING) {
-      throw new M1KycException(
-          M1KycException.KYC_ALREADY_PENDING, "KYC application is already pending");
+      throw new KycException(
+          KycException.KYC_ALREADY_PENDING, "KYC application is already pending");
     }
     if (existing.getStatus() == KycStatus.VERIFIED) {
-      throw new M1KycException(
-          M1KycException.KYC_ALREADY_VERIFIED, "KYC application is already verified");
+      throw new KycException(
+          KycException.KYC_ALREADY_VERIFIED, "KYC application is already verified");
     }
     existing.resubmit(request.docType(), request.docNumber().trim(), now);
     return existing;
@@ -136,14 +130,13 @@ public class KycService {
         kycCases
             .findByIdForUpdate(applicationId)
             .orElseThrow(
-                () ->
-                    new M1KycException(M1KycException.KYC_NOT_FOUND, "KYC application not found"));
+                () -> new KycException(KycException.KYC_NOT_FOUND, "KYC application not found"));
     if (expectedVersion == null || kycCase.getVersion() != expectedVersion) {
-      throw new M1KycException(M1KycException.KYC_CONFLICT, "KYC application has changed");
+      throw new KycException(KycException.KYC_CONFLICT, "KYC application has changed");
     }
     if (kycCase.getStatus() != KycStatus.PENDING) {
-      throw new M1KycException(
-          M1KycException.KYC_ALREADY_DECIDED, "KYC application is already decided");
+      throw new KycException(
+          KycException.KYC_ALREADY_DECIDED, "KYC application is already decided");
     }
     return kycCase;
   }

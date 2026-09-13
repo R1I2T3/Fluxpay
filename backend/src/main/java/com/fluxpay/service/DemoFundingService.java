@@ -3,7 +3,7 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.WalletOperation;
-import com.fluxpay.config.M2DemoFundingConfig;
+import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
 import com.fluxpay.repository.WalletOperationRepository;
@@ -22,13 +22,13 @@ public class DemoFundingService {
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
   private static final BigDecimal MAX_MONEY = new BigDecimal("999999999999999.9999");
 
-  private final M2DemoFundingConfig config;
+  private final DemoFundingConfig config;
   private final WalletOperationRepository operations;
   private final WalletPostingService posting;
   private final ObjectMapper objectMapper;
 
   public DemoFundingService(
-      M2DemoFundingConfig config,
+      DemoFundingConfig config,
       WalletOperationRepository operations,
       WalletPostingService posting,
       ObjectMapper objectMapper) {

@@ -2,8 +2,8 @@ package com.fluxpay.controller;
 
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.common.security.CurrentUser;
-import com.fluxpay.config.M3BusinessException;
 import com.fluxpay.dto.*;
+import com.fluxpay.exception.BusinessException;
 import com.fluxpay.service.*;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -86,7 +86,7 @@ public class PaymentController {
 
   private void requiredKey(String key) {
     if (key == null || key.isBlank() || key.length() > 64)
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.BAD_REQUEST,
           "INVALID_IDEMPOTENCY_KEY",
           "Idempotency-Key must be 1 to 64 characters.");

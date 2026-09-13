@@ -65,8 +65,10 @@ class RecoveryServiceTest {
   @BeforeEach
   void setUp() {
     when(attempts.lockPayment("P-001")).thenReturn(Optional.of(failedAttempt(1, R_STANDARD)));
-    recovery = new RecoveryService(paymentReader, routes, attempts, execution);
     Clock fixedClock = Clock.fixed(Instant.parse("2026-09-09T00:00:00Z"), ZoneOffset.UTC);
+    recovery =
+        new RecoveryService(
+            paymentReader, routes, attempts, execution, refunds, eventStore, events, fixedClock);
     refundRecovery =
         new RecoveryService(
             paymentReader, routes, attempts, execution, refunds, eventStore, events, fixedClock);

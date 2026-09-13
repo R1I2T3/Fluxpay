@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.common.contracts.FxRateProvider;
-import com.fluxpay.config.M2FxConfig;
-import com.fluxpay.config.M3PaymentConfig;
+import com.fluxpay.config.FxConfig;
+import com.fluxpay.config.PaymentConfig;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
-/** Sole {@link FxRateProvider} is {@link FxQuoteService}, feeding the live {@code M2FxConfig}. */
+/** Sole {@link FxRateProvider} is {@link FxQuoteService}, feeding the live {@code FxConfig}. */
 class FxQuoteServicePrimaryTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
@@ -19,7 +19,7 @@ class FxQuoteServicePrimaryTest {
               "fluxpay.fx-provider-url=https://fx.invalid/latest",
               "fluxpay.fx-system-user-id=00000000-0000-0000-0000-00000000d004")
           .withBean("objectMapper", ObjectMapper.class, ObjectMapper::new)
-          .withUserConfiguration(M2FxConfig.class, M3PaymentConfig.class)
+          .withUserConfiguration(FxConfig.class, PaymentConfig.class)
           .withBean(FxQuoteService.class);
 
   @Test

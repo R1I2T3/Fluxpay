@@ -15,6 +15,7 @@ import com.fluxpay.common.enums.KycStatus;
 import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycReviewRequest;
 import com.fluxpay.dto.KycSubmitRequest;
+import com.fluxpay.exception.KycException;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.KycDocumentRepository;
 import com.fluxpay.repository.UserRepository;
@@ -90,7 +91,7 @@ class KycServiceTest {
     when(kycCases.findByUserIdForUpdate(userId))
         .thenReturn(Optional.of(kycCase(userId, KycStatus.PENDING)));
 
-    assertKycCode(() -> kycService.submit(userId, request()), M1KycException.KYC_ALREADY_PENDING);
+    assertKycCode(() -> kycService.submit(userId, request()), KycException.KYC_ALREADY_PENDING);
   }
 
   @Test
@@ -99,7 +100,7 @@ class KycServiceTest {
     when(kycCases.findByUserIdForUpdate(userId))
         .thenReturn(Optional.of(kycCase(userId, KycStatus.VERIFIED)));
 
-    assertKycCode(() -> kycService.submit(userId, request()), M1KycException.KYC_ALREADY_VERIFIED);
+    assertKycCode(() -> kycService.submit(userId, request()), KycException.KYC_ALREADY_VERIFIED);
   }
 
   @Test
@@ -126,7 +127,7 @@ class KycServiceTest {
     assertKycCode(
         () ->
             kycService.reject(UUID.randomUUID(), UUID.randomUUID(), new KycReviewRequest(0L, "  ")),
-        M1KycException.REJECT_REASON_REQUIRED);
+        KycException.REJECT_REASON_REQUIRED);
 
     verify(kycCases, never()).findByIdForUpdate(any());
   }
@@ -139,7 +140,7 @@ class KycServiceTest {
 
     assertKycCode(
         () -> kycService.approve(UUID.randomUUID(), applicationId, new KycReviewRequest(1L, null)),
-        M1KycException.KYC_CONFLICT);
+        KycException.KYC_CONFLICT);
   }
 
   @Test
@@ -183,8 +184,8 @@ class KycServiceTest {
 
   private void assertKycCode(Runnable action, String expectedCode) {
     assertThatThrownBy(action::run)
-        .isInstanceOf(M1KycException.class)
-        .extracting(exception -> ((M1KycException) exception).getCode())
+        .isInstanceOf(KycException.class)
+        .extracting(exception -> ((KycException) exception).getCode())
         .isEqualTo(expectedCode);
   }
 }

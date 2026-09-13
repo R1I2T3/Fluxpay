@@ -2,23 +2,24 @@ package com.fluxpay.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fluxpay.beans.M3OutboxDelivery;
-import com.fluxpay.beans.M3PaymentOperation;
+import com.fluxpay.beans.OutboxDelivery;
 import com.fluxpay.beans.OutboxEvent;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentLifecycleStatus;
+import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.KycGate;
+import com.fluxpay.common.contracts.PostingPort;
 import com.fluxpay.common.enums.ScreeningVerdict;
-import com.fluxpay.config.M3BusinessException;
 import com.fluxpay.dto.ConfirmPaymentRequest;
-import com.fluxpay.dto.M3PostingAccounts;
 import com.fluxpay.dto.PaymentResponse;
-import com.fluxpay.repository.M3OutboxDeliveryRepository;
-import com.fluxpay.repository.M3PaymentOperationRepository;
+import com.fluxpay.dto.PostingAccounts;
+import com.fluxpay.exception.BusinessException;
+import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
+import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
@@ -42,11 +43,11 @@ public class PaymentConfirmationService {
   private final RecipientRepository recipients;
   private final KycGate kyc;
   private final ComplianceAssessor compliance;
-  private final M3PostingPort posting;
+  private final PostingPort posting;
   private final Clock clock;
-  private final M3PaymentOperationRepository operations;
+  private final PaymentOperationRepository operations;
   private final OutboxEventRepository outboxEvents;
-  private final M3OutboxDeliveryRepository deliveries;
+  private final OutboxDeliveryRepository deliveries;
   private final ObjectMapper objectMapper;
 
   public PaymentConfirmationService(
@@ -55,11 +56,11 @@ public class PaymentConfirmationService {
       RecipientRepository recipients,
       KycGate kyc,
       ComplianceAssessor compliance,
-      M3PostingPort posting,
+      PostingPort posting,
       Clock clock,
-      M3PaymentOperationRepository operations,
+      PaymentOperationRepository operations,
       OutboxEventRepository outboxEvents,
-      M3OutboxDeliveryRepository deliveries,
+      OutboxDeliveryRepository deliveries,
       ObjectMapper objectMapper) {
     this.payments = payments;
     this.quotes = quotes;
@@ -74,7 +75,7 @@ public class PaymentConfirmationService {
     this.objectMapper = objectMapper;
   }
 
-  @Transactional(noRollbackFor = M3BusinessException.class)
+  @Transactional(noRollbackFor = BusinessException.class)
   public PaymentResponse confirm(
       UUID userId, UUID paymentId, ConfirmPaymentRequest request, String clientKey) {
     String normalized = normalizedConfirmRequest(userId, paymentId, request);
@@ -83,13 +84,13 @@ public class PaymentConfirmationService {
             .lockOwned(paymentId, userId)
             .orElseThrow(() -> notFound("PAYMENT_NOT_FOUND", "Payment not found."));
     if (payment.flowVersion() != 1) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     }
-    Optional<M3PaymentOperation> existing =
+    Optional<PaymentOperation> existing =
         operations.findByUserIdAndOperationTypeAndClientKey(userId, "CONFIRM", clientKey);
     if (existing.isPresent()) {
-      M3PaymentOperation op = existing.get();
+      PaymentOperation op = existing.get();
       if (!op.normalizedRequest().equals(normalized)) {
         throw conflict(
             "IDEMPOTENCY_CONFLICT", "Idempotency key was already used with a different request.");
@@ -107,7 +108,7 @@ public class PaymentConfirmationService {
       throw conflict("QUOTE_SUPERSEDED", "Select a quote from the current quote generation.");
     }
     if (!Instant.now(clock).isBefore(quote.expiresAt())) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.GONE, "QUOTE_EXPIRED", "The selected quote has expired.");
     }
     Recipient recipient =
@@ -118,7 +119,7 @@ public class PaymentConfirmationService {
       throw conflict("RECIPIENT_CHANGED", "Recipient details changed; create a new draft.");
     }
     if (!kyc.isVerified(userId)) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.FORBIDDEN, "KYC_NOT_VERIFIED", "KYC verification is required.");
     }
     ScreeningVerdict verdict = assessWithTimeout(userId, payment);
@@ -138,7 +139,7 @@ public class PaymentConfirmationService {
               payment.createdAt(),
               false);
       storeOperation(userId, clientKey, normalized, 422, blocked, payment.id());
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.UNPROCESSABLE_ENTITY,
           "PAYMENT_BLOCKED",
           "This payment was blocked by compliance.");
@@ -157,7 +158,7 @@ public class PaymentConfirmationService {
       storeOperation(userId, clientKey, normalized, 202, resp, payment.id());
       return resp;
     }
-    M3PostingAccounts accounts =
+    PostingAccounts accounts =
         posting.postApprovedPayment(
             payment.id(),
             userId,
@@ -181,18 +182,12 @@ public class PaymentConfirmationService {
     return resp;
   }
 
-  /** Backwards-compatible overload. */
-  @Transactional(noRollbackFor = M3BusinessException.class)
-  public PaymentResponse confirm(UUID userId, UUID paymentId, ConfirmPaymentRequest request) {
-    return confirm(userId, paymentId, request, "legacy-" + UUID.randomUUID());
-  }
-
   private void persistOutbox(
       Payment payment, int sequence, String topic, String payload, Instant now) {
     UUID eventId = UUID.randomUUID();
     OutboxEvent event = new OutboxEvent(eventId, topic, payload, now);
     outboxEvents.save(event);
-    M3OutboxDelivery delivery = new M3OutboxDelivery(eventId, payment.id(), sequence, now);
+    OutboxDelivery delivery = new OutboxDelivery(eventId, payment.id(), sequence, now);
     deliveries.save(delivery);
   }
 
@@ -219,7 +214,7 @@ public class PaymentConfirmationService {
       node.put("schemaVersion", "payment.initiated.v1");
       return objectMapper.writeValueAsString(node);
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "OUTBOX_STORE_FAILED",
           "Initiated event could not be stored.");
@@ -245,14 +240,14 @@ public class PaymentConfirmationService {
       node.put("schemaVersion", "payment.review.requested.v1");
       return objectMapper.writeValueAsString(node);
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "OUTBOX_STORE_FAILED",
           "Review event could not be stored.");
     }
   }
 
-  private String postingSnapshot(Payment payment, M3PostingAccounts accounts, PaymentQuote quote) {
+  private String postingSnapshot(Payment payment, PostingAccounts accounts, PaymentQuote quote) {
     try {
       ObjectNode node = objectMapper.createObjectNode();
       node.put("customerWalletId", accounts.customerWalletId().toString());
@@ -269,7 +264,7 @@ public class PaymentConfirmationService {
       node.set("keys", keys);
       return objectMapper.writeValueAsString(node);
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "POSTING_SNAPSHOT_FAILED",
           "Posting snapshot could not be recorded.");
@@ -282,22 +277,22 @@ public class PaymentConfirmationService {
               () -> compliance.assess(userId, payment.sourceAmount(), payment.sourceCurrency()))
           .get(3, TimeUnit.SECONDS);
     } catch (TimeoutException e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE,
           "COMPLIANCE_UNAVAILABLE",
           "Compliance assessment timed out.");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE,
           "COMPLIANCE_UNAVAILABLE",
           "Compliance assessment was interrupted.");
     } catch (java.util.concurrent.ExecutionException e) {
       Throwable cause = e.getCause();
-      if (cause instanceof M3BusinessException mbe) {
+      if (cause instanceof BusinessException mbe) {
         throw mbe;
       }
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE,
           "COMPLIANCE_UNAVAILABLE",
           "Compliance assessment failed.");
@@ -315,13 +310,13 @@ public class PaymentConfirmationService {
     try {
       responseJson = objectMapper.writeValueAsString(resp);
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "IDEMPOTENCY_STORE_FAILED",
           "Idempotency response could not be stored.");
     }
-    M3PaymentOperation op =
-        new M3PaymentOperation(
+    PaymentOperation op =
+        new PaymentOperation(
             UUID.randomUUID(),
             userId,
             "CONFIRM",
@@ -334,7 +329,7 @@ public class PaymentConfirmationService {
     try {
       operations.saveAndFlush(op);
     } catch (DataIntegrityViolationException race) {
-      M3PaymentOperation winner =
+      PaymentOperation winner =
           operations
               .findByUserIdAndOperationTypeAndClientKey(userId, "CONFIRM", clientKey)
               .orElseThrow(() -> race);
@@ -342,7 +337,7 @@ public class PaymentConfirmationService {
         throw conflict(
             "IDEMPOTENCY_CONFLICT", "Idempotency key was already used with a different request.");
       }
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.CONFLICT, "RETRY", "A concurrent confirmation won; replay the winner.");
     }
   }
@@ -357,14 +352,14 @@ public class PaymentConfirmationService {
       node.put("userId", userId.toString());
       return objectMapper.writeValueAsString(node);
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Confirm request could not be normalized.");
     }
   }
 
-  private PaymentResponse replay(M3PaymentOperation op) {
+  private PaymentResponse replay(PaymentOperation op) {
     if (op.outcomeStatus() == 422) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.UNPROCESSABLE_ENTITY,
           "PAYMENT_BLOCKED",
           "This payment was blocked by compliance.");
@@ -372,7 +367,7 @@ public class PaymentConfirmationService {
     try {
       return objectMapper.readValue(op.responseData(), PaymentResponse.class);
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "IDEMPOTENCY_REPLAY_FAILED",
           "Stored idempotency response could not be read.");
@@ -393,11 +388,11 @@ public class PaymentConfirmationService {
         false);
   }
 
-  private M3BusinessException notFound(String c, String m) {
-    return new M3BusinessException(HttpStatus.NOT_FOUND, c, m);
+  private BusinessException notFound(String c, String m) {
+    return new BusinessException(HttpStatus.NOT_FOUND, c, m);
   }
 
-  private M3BusinessException conflict(String c, String m) {
-    return new M3BusinessException(HttpStatus.CONFLICT, c, m);
+  private BusinessException conflict(String c, String m) {
+    return new BusinessException(HttpStatus.CONFLICT, c, m);
   }
 }

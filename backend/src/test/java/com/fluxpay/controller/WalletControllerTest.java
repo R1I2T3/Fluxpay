@@ -15,7 +15,6 @@ import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
-import com.fluxpay.config.M2ApiExceptionHandler;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletReceiveRequest;
@@ -27,6 +26,7 @@ import com.fluxpay.service.FxSystemWalletNotFoundException;
 import com.fluxpay.service.InsufficientWalletFundsException;
 import com.fluxpay.service.WalletConversionService;
 import com.fluxpay.service.WalletQueryService;
+import com.fluxpay.web.advice.WalletFxApiExceptionHandler;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M2ApiExceptionHandler.class
+  WalletFxApiExceptionHandler.class
 })
 class WalletControllerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");

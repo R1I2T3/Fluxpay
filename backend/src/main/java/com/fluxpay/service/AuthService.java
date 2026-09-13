@@ -9,6 +9,7 @@ import com.fluxpay.dto.AuthResponse;
 import com.fluxpay.dto.LoginRequest;
 import com.fluxpay.dto.RegisterRequest;
 import com.fluxpay.dto.UserResponse;
+import com.fluxpay.exception.AuthException;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.UserRepository;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +48,7 @@ public class AuthService {
   public AuthResponse register(RegisterRequest request) {
     String email = canonicalizeEmail(request.email());
     if (users.existsByCanonicalEmail(email)) {
-      throw new M1AuthException(M1AuthException.EMAIL_EXISTS, "email is already registered");
+      throw new AuthException(AuthException.EMAIL_EXISTS, "email is already registered");
     }
     validatePasswordLength(request.password());
 
@@ -75,8 +76,8 @@ public class AuthService {
             .filter(candidate -> passwordMatches(request.password(), candidate.getPasswordHash()))
             .orElseThrow(
                 () ->
-                    new M1AuthException(
-                        M1AuthException.INVALID_CREDENTIALS, "invalid email or password"));
+                    new AuthException(
+                        AuthException.INVALID_CREDENTIALS, "invalid email or password"));
     KycStatus kycStatus =
         kycCases.findByUserId(user.getId()).map(KycCase::getStatus).orElse(KycStatus.NONE);
     return authenticationResponse(user, kycStatus);
@@ -98,7 +99,7 @@ public class AuthService {
 
   private void validatePasswordLength(String password) {
     if (password.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_PASSWORD_BYTES) {
-      throw new M1AuthException("VALIDATION", "password must not exceed 72 UTF-8 bytes");
+      throw new AuthException("VALIDATION", "password must not exceed 72 UTF-8 bytes");
     }
   }
 

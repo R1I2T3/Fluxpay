@@ -2,8 +2,8 @@ package com.fluxpay.service;
 
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.FxRateProvider;
-import com.fluxpay.config.M3BusinessException;
 import com.fluxpay.dto.QuoteResponse;
+import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.*;
 import java.math.*;
 import java.time.*;
@@ -32,7 +32,7 @@ public class QuoteService {
   public QuoteResponse createOrCurrent(UUID userId, UUID paymentId) {
     Payment p = payments.lockOwned(paymentId, userId).orElseThrow(() -> notFound());
     if (p.flowVersion() != 1)
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     if (p.status() != PaymentLifecycleStatus.DRAFT && p.status() != PaymentLifecycleStatus.QUOTED)
       throw conflict(
@@ -48,11 +48,11 @@ public class QuoteService {
     try {
       rate = fx.rate(p.sourceCurrency(), p.payoutCurrency());
     } catch (Exception e) {
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE, "FX_UNAVAILABLE", "FX rates are unavailable.");
     }
     if (rate == null || rate.signum() <= 0)
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE, "FX_UNAVAILABLE", "FX rates are unavailable.");
     int generation = p.nextQuoteGeneration();
     Instant expires = now.plus(Duration.ofMinutes(15));
@@ -64,7 +64,7 @@ public class QuoteService {
               ? new BigDecimal("1.9900")
               : route == QuoteRoute.BALANCED ? new BigDecimal("0.9900") : new BigDecimal("2.9900");
       if (p.sourceAmount().compareTo(fee) <= 0)
-        throw new M3BusinessException(
+        throw new BusinessException(
             HttpStatus.UNPROCESSABLE_ENTITY,
             "INVALID_AMOUNT",
             "Amount must exceed every route fee.");
@@ -76,7 +76,7 @@ public class QuoteService {
       BigDecimal recipient =
           p.sourceAmount().subtract(fee).multiply(offered).setScale(4, RoundingMode.HALF_UP);
       if (recipient.signum() <= 0)
-        throw new M3BusinessException(
+        throw new BusinessException(
             HttpStatus.UNPROCESSABLE_ENTITY,
             "INVALID_AMOUNT",
             "Quote recipient amount must be positive.");
@@ -107,10 +107,10 @@ public class QuoteService {
   public QuoteResponse get(UUID userId, UUID paymentId) {
     Payment p = payments.findByIdAndSenderId(paymentId, userId).orElseThrow(() -> notFound());
     if (p.flowVersion() != 1)
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     if (p.currentQuoteGeneration() == null)
-      throw new M3BusinessException(
+      throw new BusinessException(
           HttpStatus.NOT_FOUND, "QUOTES_NOT_FOUND", "No quotes exist for this payment.");
     return response(
         p,
@@ -162,11 +162,11 @@ public class QuoteService {
             .toList());
   }
 
-  private M3BusinessException notFound() {
-    return new M3BusinessException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Payment not found.");
+  private BusinessException notFound() {
+    return new BusinessException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Payment not found.");
   }
 
-  private M3BusinessException conflict(String c, String m) {
-    return new M3BusinessException(HttpStatus.CONFLICT, c, m);
+  private BusinessException conflict(String c, String m) {
+    return new BusinessException(HttpStatus.CONFLICT, c, m);
   }
 }

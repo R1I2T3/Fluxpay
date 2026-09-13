@@ -12,10 +12,10 @@ import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
-import com.fluxpay.config.M2ApiExceptionHandler;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.service.FxQuoteService;
 import com.fluxpay.service.FxUnavailableException;
+import com.fluxpay.web.advice.WalletFxApiExceptionHandler;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -32,7 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M2ApiExceptionHandler.class
+  WalletFxApiExceptionHandler.class
 })
 class FxControllerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");

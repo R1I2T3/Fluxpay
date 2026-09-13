@@ -11,12 +11,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fluxpay.beans.M3PaymentOperation;
+import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.QuoteRoute;
 import com.fluxpay.common.enums.PaymentStatus;
 import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
-import com.fluxpay.repository.M3PaymentOperationRepository;
+import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import java.math.BigDecimal;
@@ -32,7 +32,7 @@ import org.mockito.ArgumentCaptor;
 class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
   private PaymentRepository payments;
   private PaymentQuoteRepository quotes;
-  private M3PaymentOperationRepository operations;
+  private PaymentOperationRepository operations;
   private DbPaymentEligibilityGate gate;
   private UUID paymentId;
   private UUID userId;
@@ -42,7 +42,7 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
   void setUp() {
     payments = mock(PaymentRepository.class);
     quotes = mock(PaymentQuoteRepository.class);
-    operations = mock(M3PaymentOperationRepository.class);
+    operations = mock(PaymentOperationRepository.class);
     gate =
         new DbPaymentEligibilityGate(
             payments, quotes, operations, Clock.fixed(NOW, ZoneOffset.UTC), new ObjectMapper());
@@ -96,7 +96,7 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
     PaymentEligibilityGate.ConfirmOutcome outcome = gate.confirmIdempotent(snapshot, "key");
 
     assertFalse(outcome.alreadyConfirmed());
-    ArgumentCaptor<M3PaymentOperation> pending = ArgumentCaptor.forClass(M3PaymentOperation.class);
+    ArgumentCaptor<PaymentOperation> pending = ArgumentCaptor.forClass(PaymentOperation.class);
     verify(operations).saveAndFlush(pending.capture());
     assertEquals("", pending.getValue().responseData());
     assertEquals(202, pending.getValue().outcomeStatus());
@@ -104,8 +104,8 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
 
   @Test
   void completedReservationReplaysOriginalEvent() {
-    M3PaymentOperation done =
-        new M3PaymentOperation(
+    PaymentOperation done =
+        new PaymentOperation(
             UUID.randomUUID(),
             userId,
             "PAYOUT_CONFIRM",
@@ -127,8 +127,8 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
 
   @Test
   void pendingReservationBlocksSecondConfirm() {
-    M3PaymentOperation pending =
-        new M3PaymentOperation(
+    PaymentOperation pending =
+        new PaymentOperation(
             UUID.randomUUID(),
             userId,
             "PAYOUT_CONFIRM",
@@ -146,8 +146,8 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
 
   @Test
   void completeStoresPublishedEventId() {
-    M3PaymentOperation pending =
-        new M3PaymentOperation(
+    PaymentOperation pending =
+        new PaymentOperation(
             UUID.randomUUID(),
             userId,
             "PAYOUT_CONFIRM",
@@ -162,7 +162,7 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
 
     gate.complete(snapshot, "key", "evt-9");
 
-    ArgumentCaptor<M3PaymentOperation> done = ArgumentCaptor.forClass(M3PaymentOperation.class);
+    ArgumentCaptor<PaymentOperation> done = ArgumentCaptor.forClass(PaymentOperation.class);
     verify(operations).saveAndFlush(done.capture());
     assertEquals("evt-9", done.getValue().responseData());
     assertEquals(pending.id(), done.getValue().id());
@@ -170,8 +170,8 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
 
   @Test
   void releaseDeletesOnlyPendingReservation() {
-    M3PaymentOperation pending =
-        new M3PaymentOperation(
+    PaymentOperation pending =
+        new PaymentOperation(
             UUID.randomUUID(),
             userId,
             "PAYOUT_CONFIRM",

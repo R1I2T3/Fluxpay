@@ -43,14 +43,6 @@ public class RecoveryService {
   private final EventPublisher events;
   private final Clock clock;
 
-  public RecoveryService(
-      PaymentReader paymentReader,
-      PayoutRouteRepository routes,
-      PayoutAttemptRepository attempts,
-      PayoutExecutionService execution) {
-    this(paymentReader, routes, attempts, execution, null, null, null, null);
-  }
-
   @Autowired
   public RecoveryService(
       PaymentReader paymentReader,
@@ -65,10 +57,10 @@ public class RecoveryService {
     this.routes = Objects.requireNonNull(routes, "routes must not be null");
     this.attempts = Objects.requireNonNull(attempts, "attempts must not be null");
     this.execution = Objects.requireNonNull(execution, "execution must not be null");
-    this.refunds = refunds;
-    this.eventStore = eventStore;
-    this.events = events;
-    this.clock = clock;
+    this.refunds = Objects.requireNonNull(refunds, "refunds must not be null");
+    this.eventStore = Objects.requireNonNull(eventStore, "eventStore must not be null");
+    this.events = Objects.requireNonNull(events, "events must not be null");
+    this.clock = Objects.requireNonNull(clock, "clock must not be null");
   }
 
   public PayoutOutcome retry(String paymentId, String correlationId) {
@@ -107,10 +99,6 @@ public class RecoveryService {
   }
 
   public RecoveryResult refund(String paymentId, String correlationId) {
-    Objects.requireNonNull(refunds, "refunds must not be null");
-    Objects.requireNonNull(eventStore, "eventStore must not be null");
-    Objects.requireNonNull(events, "events must not be null");
-    Objects.requireNonNull(clock, "clock must not be null");
     PayoutAttempt latest = latestFailed(paymentId);
     Instant now = clock.instant();
     // A persisted timeline event proves publication succeeded. Ledger entries alone do not:
@@ -153,10 +141,10 @@ public class RecoveryService {
 
   private void assertNotRefunded(PaymentSnapshot payment) {
     String paymentId = payment.paymentId();
-    if (eventStore != null && eventStore.contains(paymentId, EventTopics.PAYMENT_REFUNDED)) {
+    if (eventStore.contains(paymentId, EventTopics.PAYMENT_REFUNDED)) {
       throw new IllegalStateException("payment " + paymentId + " already refunded");
     }
-    if (refunds != null && refunds.isAlreadyRefunded(payment)) {
+    if (refunds.isAlreadyRefunded(payment)) {
       throw new IllegalStateException("payment " + paymentId + " already refunded");
     }
   }

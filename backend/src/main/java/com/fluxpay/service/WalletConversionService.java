@@ -3,6 +3,7 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.WalletOperation;
+import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
@@ -20,7 +21,7 @@ import org.springframework.stereotype.Service;
 public class WalletConversionService {
   private static final String OPERATION_TYPE = "CONVERT";
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
-  private static final M2ConversionMath CONVERSION_MATH = new M2ConversionMath();
+  private static final ConversionMath CONVERSION_MATH = new ConversionMath();
 
   private final WalletOperationRepository operations;
   private final WalletPostingService posting;

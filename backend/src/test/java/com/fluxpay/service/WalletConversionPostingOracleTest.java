@@ -7,8 +7,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
-import com.fluxpay.config.M2DemoFundingConfig;
-import com.fluxpay.config.M2FxConfig;
+import com.fluxpay.config.DemoFundingConfig;
+import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
@@ -66,8 +66,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = WalletConversionPostingOracleTest.JpaConfiguration.class)
 @Import({
-  M2DemoFundingConfig.class,
-  M2FxConfig.class,
+  DemoFundingConfig.class,
+  FxConfig.class,
   WalletConversionService.class,
   WalletPostingService.class,
   LedgerJournalService.class,

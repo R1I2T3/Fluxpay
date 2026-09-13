@@ -6,8 +6,8 @@ import com.fluxpay.common.security.CurrentUser;
 import com.fluxpay.dto.KycAdminRow;
 import com.fluxpay.dto.KycReviewRequest;
 import com.fluxpay.dto.KycStatusResponse;
+import com.fluxpay.exception.KycException;
 import com.fluxpay.service.KycService;
-import com.fluxpay.service.M1KycException;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Locale;
@@ -40,10 +40,10 @@ public class AdminKycController {
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "50") int size) {
     if (page < 0) {
-      throw new M1KycException(M1KycException.VALIDATION, "page must be >= 0");
+      throw new KycException(KycException.VALIDATION, "page must be >= 0");
     }
     if (size < 1 || size > 100) {
-      throw new M1KycException(M1KycException.VALIDATION, "size must be between 1 and 100");
+      throw new KycException(KycException.VALIDATION, "size must be between 1 and 100");
     }
     return envelope(kycService.listForAdmin(parseStatus(status), PageRequest.of(page, size)));
   }
@@ -74,7 +74,7 @@ public class AdminKycController {
     try {
       return KycStatus.valueOf(normalized);
     } catch (IllegalArgumentException exception) {
-      throw new M1KycException(M1KycException.VALIDATION, "unsupported KYC status filter");
+      throw new KycException(KycException.VALIDATION, "unsupported KYC status filter");
     }
   }
 

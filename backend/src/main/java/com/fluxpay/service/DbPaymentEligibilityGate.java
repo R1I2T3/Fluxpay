@@ -1,11 +1,11 @@
 package com.fluxpay.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fluxpay.beans.M3PaymentOperation;
+import com.fluxpay.beans.PaymentOperation;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
-import com.fluxpay.repository.M3PaymentOperationRepository;
+import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import java.time.Clock;
@@ -19,14 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class DbPaymentEligibilityGate implements PaymentEligibilityGate {
   private final PaymentRepository payments;
   private final PaymentQuoteRepository quotes;
-  private final M3PaymentOperationRepository operations;
+  private final PaymentOperationRepository operations;
   private final Clock clock;
   private final ObjectMapper objectMapper;
 
   public DbPaymentEligibilityGate(
       PaymentRepository payments,
       PaymentQuoteRepository quotes,
-      M3PaymentOperationRepository operations,
+      PaymentOperationRepository operations,
       Clock clock,
       ObjectMapper objectMapper) {
     this.payments = Objects.requireNonNull(payments, "payments must not be null");
@@ -72,8 +72,8 @@ public class DbPaymentEligibilityGate implements PaymentEligibilityGate {
       }
       return new ConfirmOutcome(true, stored);
     }
-    M3PaymentOperation pending =
-        new M3PaymentOperation(
+    PaymentOperation pending =
+        new PaymentOperation(
             UUID.randomUUID(),
             payment.senderUserId(),
             "PAYOUT_CONFIRM",
@@ -99,8 +99,8 @@ public class DbPaymentEligibilityGate implements PaymentEligibilityGate {
     if (existing.responseData() != null && !existing.responseData().isBlank()) {
       throw new IllegalStateException("no pending payment reservation");
     }
-    M3PaymentOperation done =
-        new M3PaymentOperation(
+    PaymentOperation done =
+        new PaymentOperation(
             existing.id(),
             existing.userId(),
             existing.operationType(),

@@ -1,0 +1,49 @@
+package com.fluxpay.web.advice;
+
+import com.fluxpay.common.api.ApiError;
+import com.fluxpay.controller.AdminKycController;
+import com.fluxpay.controller.AuthController;
+import com.fluxpay.controller.KycController;
+import com.fluxpay.exception.AuthException;
+import com.fluxpay.exception.KycException;
+import java.time.Instant;
+import java.util.Map;
+import org.slf4j.MDC;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+/** Error mapping for authentication and KYC endpoints. */
+@RestControllerAdvice(
+    assignableTypes = {AuthController.class, KycController.class, AdminKycController.class})
+public class AuthKycApiExceptionHandler {
+  @ExceptionHandler(AuthException.class)
+  public ResponseEntity<ApiError> handleAuth(AuthException exception) {
+    HttpStatus status =
+        switch (exception.getCode()) {
+          case AuthException.INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
+          case AuthException.EMAIL_EXISTS -> HttpStatus.CONFLICT;
+          default -> HttpStatus.BAD_REQUEST;
+        };
+    return ResponseEntity.status(status).body(error(exception.getCode(), exception.getMessage()));
+  }
+
+  @ExceptionHandler(KycException.class)
+  public ResponseEntity<ApiError> handleKyc(KycException exception) {
+    HttpStatus status =
+        switch (exception.getCode()) {
+          case KycException.KYC_NOT_FOUND -> HttpStatus.NOT_FOUND;
+          case KycException.REJECT_REASON_REQUIRED, KycException.VALIDATION ->
+              HttpStatus.BAD_REQUEST;
+          default -> HttpStatus.CONFLICT;
+        };
+    return ResponseEntity.status(status).body(error(exception.getCode(), exception.getMessage()));
+  }
+
+  private ApiError error(String code, String message) {
+    String correlationId = MDC.get("correlationId");
+    return new ApiError(
+        correlationId == null ? "none" : correlationId, code, message, Map.of(), Instant.now());
+  }
+}
