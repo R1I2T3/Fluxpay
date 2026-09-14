@@ -26,7 +26,7 @@ spring:
 fluxpay:
   # Documented Frankfurter v1 /latest endpoint (see https://frankfurter.dev/v1/).
   # fluxpay.fx-mode/FLUXPAY_FX_MODE was retired: any value fails startup explicitly.
-  fx-provider-url: ${FX_PROVIDER_URL}
+  fx-provider-url: ${FX_PROVIDER_URL:}
   # M5 compliance-vector mode; default is the production embedding path (no mock default).
   embedding-mode: ${EMBEDDING_MODE:live}
   jwt-secret: ${JWT_SECRET}

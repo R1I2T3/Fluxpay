@@ -67,15 +67,28 @@ abstract class LocalAuthBypassRegressionTest {
   }
 
   @Test
-  void impersonationOfAnotherKnownUserWithoutJwtIsRejected() throws Exception {
+  void localUserIdHeaderIsIgnoredWhenValidJwtIsPresent() throws Exception {
+    CurrentUser owner = TestAuthHelper.withUser(OWNER_ID, "owner@example.com", "CUSTOMER");
+    when(jwt.parse(TOKEN)).thenReturn(owner);
+    when(quotes.snapshot("USD", "INR"))
+        .thenReturn(
+            new FxSnapshot(
+                "USD",
+                "INR",
+                new BigDecimal("83.50"),
+                Instant.parse("2026-09-11T01:02:03Z"),
+                false));
+
     mvc.perform(
             get("/api/fx/rate")
+                .header("Authorization", "Bearer " + TOKEN)
                 .header("X-Local-User-Id", OTHER_ID.toString())
                 .queryParam("from", "USD")
                 .queryParam("to", "INR"))
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
-    org.mockito.Mockito.verifyNoInteractions(quotes);
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.rate").value("83.50"));
+    org.mockito.Mockito.verify(jwt).parse(TOKEN);
+    org.mockito.Mockito.verify(quotes).snapshot("USD", "INR");
   }
 
   @Test
