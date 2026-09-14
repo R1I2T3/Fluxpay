@@ -57,8 +57,7 @@ class FxControllerTest {
                 "INR",
                 new BigDecimal("83.50"),
                 Instant.parse("2026-09-11T01:02:03Z"),
-                true,
-                false));
+                true));
 
     mvc.perform(
             get("/api/fx/rate")
@@ -73,8 +72,7 @@ class FxControllerTest {
         .andExpect(jsonPath("$.data.to").value("INR"))
         .andExpect(jsonPath("$.data.rate").value("83.50"))
         .andExpect(jsonPath("$.data.fetchedAt").value("2026-09-11T01:02:03Z"))
-        .andExpect(jsonPath("$.data.stale").value(true))
-        .andExpect(jsonPath("$.data.mock").value(false));
+        .andExpect(jsonPath("$.data.stale").value(true));
   }
 
   @Test

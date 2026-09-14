@@ -52,7 +52,6 @@ import org.springframework.transaction.support.TransactionTemplate;
       "spring.jpa.properties.hibernate.jdbc.time_zone=UTC",
       "fluxpay.demo-funding-enabled=true",
       "fluxpay.system-user-id=00000000-0000-0000-0000-00000000d004",
-      "fluxpay.fx-mode=mock",
       "fluxpay.fx-provider-url=https://fx.invalid/latest"
     })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

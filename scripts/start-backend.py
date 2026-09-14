@@ -31,6 +31,13 @@ def main():
     a = ap.parse_args()
     load_env(a.env_file)
     configure_windows_maven_home()
+    retired_fx_mode = os.environ.get("FLUXPAY_FX_MODE")
+    if retired_fx_mode is not None and retired_fx_mode.strip() != "":
+        print(
+            "FLUXPAY_FX_MODE is retired (was %r): remove it from %s and set FX_PROVIDER_URL "
+            "(for example https://api.frankfurter.dev/v1/latest) for live rates." % (retired_fx_mode, a.env_file)
+        )
+        return 2
     port = a.port if a.port is not None else int(os.environ.get("SERVER_PORT", "8080"))
     os.environ["SERVER_PORT"] = str(port)
     command_args = ["-f", "backend/pom.xml", "spring-boot:run"]

@@ -84,7 +84,7 @@ class FxQuoteServiceTest {
     FxSnapshotSource source =
         (from, to) -> {
           clock.advance(Duration.ofMillis(1));
-          return new FxSnapshot(from, to, new BigDecimal("83.50"), clock.instant(), false, true);
+          return new FxSnapshot(from, to, new BigDecimal("83.50"), clock.instant(), false);
         };
     FxQuoteService quotes = new FxQuoteService(source, clock);
 
@@ -92,7 +92,6 @@ class FxQuoteServiceTest {
 
     assertEquals(new BigDecimal("83.50"), result.rate());
     assertEquals(START.plusMillis(1), result.fetchedAt());
-    assertTrue(result.mock());
   }
 
   @Test
@@ -116,7 +115,7 @@ class FxQuoteServiceTest {
   }
 
   private static FxSnapshot snapshot(String rate, Instant fetchedAt) {
-    return new FxSnapshot("USD", "INR", new BigDecimal(rate), fetchedAt, false, false);
+    return new FxSnapshot("USD", "INR", new BigDecimal(rate), fetchedAt, false);
   }
 
   private static final class QueueSource implements FxSnapshotSource {
@@ -137,8 +136,7 @@ class FxQuoteServiceTest {
         throw exception;
       }
       FxSnapshot snapshot = (FxSnapshot) result;
-      return new FxSnapshot(
-          from, to, snapshot.rate(), snapshot.fetchedAt(), false, snapshot.mock());
+      return new FxSnapshot(from, to, snapshot.rate(), snapshot.fetchedAt(), false);
     }
   }
 
@@ -162,7 +160,7 @@ class FxQuoteServiceTest {
         Thread.currentThread().interrupt();
         throw new FxUnavailableException(exception);
       }
-      return new FxSnapshot(from, to, new BigDecimal("0.92"), clock.instant(), false, false);
+      return new FxSnapshot(from, to, new BigDecimal("0.92"), clock.instant(), false);
     }
   }
 

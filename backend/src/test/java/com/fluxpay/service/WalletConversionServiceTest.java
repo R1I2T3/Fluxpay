@@ -31,7 +31,7 @@ class WalletConversionServiceTest {
       "{\"amount\":\"100.0000\",\"from\":\"USD\",\"to\":\"INR\"}";
   private static final Instant FETCHED_AT = Instant.parse("2026-09-11T01:02:03Z");
   private static final FxSnapshot FX =
-      new FxSnapshot("USD", "INR", new BigDecimal("83.50"), FETCHED_AT, false, true);
+      new FxSnapshot("USD", "INR", new BigDecimal("83.50"), FETCHED_AT, false);
 
   private WalletOperationRepository operations;
   private WalletPostingService posting;
@@ -182,7 +182,6 @@ class WalletConversionServiceTest {
         "83.50",
         FETCHED_AT.toString(),
         false,
-        true,
         "M2-FX-44444444-4444-4444-4444-444444444444");
   }
 }

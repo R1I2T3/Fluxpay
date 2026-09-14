@@ -195,7 +195,6 @@ public class WalletPostingService {
             snapshot.rate().toPlainString(),
             snapshot.fetchedAt().toString(),
             snapshot.stale(),
-            snapshot.mock(),
             journalReference);
     operation.complete(snapshot(response));
     operations.saveAndFlush(operation);

@@ -163,7 +163,6 @@ class WalletControllerTest {
             "83.50",
             "2026-09-11T01:02:03Z",
             false,
-            true,
             "M2-FX-44444444-4444-4444-4444-444444444444");
     when(conversion.convert(
             eq(USER_ID), eq(new WalletConvertRequest("USD", "INR", "100.0000")), eq("fx-1")))
@@ -180,8 +179,7 @@ class WalletControllerTest {
         .andExpect(jsonPath("$.correlationId").value("cid-convert-1"))
         .andExpect(jsonPath("$.data.fee").value("0.5000"))
         .andExpect(jsonPath("$.data.creditedAmount").value("8308.2500"))
-        .andExpect(jsonPath("$.data.rate").value("83.50"))
-        .andExpect(jsonPath("$.data.mock").value(true));
+        .andExpect(jsonPath("$.data.rate").value("83.50"));
   }
 
   @Test

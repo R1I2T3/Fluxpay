@@ -29,12 +29,18 @@ public class FrankfurterFxProvider implements FxSnapshotSource {
     this.clock = clock;
   }
 
+  /**
+   * Queries the Frankfurter v1 {@code /latest} endpoint as documented at
+   * https://frankfurter.dev/v1/ ({@code ?base=USD&symbols=INR}). The configured provider URL must
+   * be the {@code .../latest} endpoint; the pair is appended as documented query parameters.
+   */
   @Override
   public FxSnapshot fetch(String from, String to) {
     try {
       String separator = providerUrl.contains("?") ? "&" : "?";
       HttpRequest request =
-          HttpRequest.newBuilder(URI.create(providerUrl + separator + "from=" + from + "&to=" + to))
+          HttpRequest.newBuilder(
+                  URI.create(providerUrl + separator + "base=" + from + "&symbols=" + to))
               .timeout(REQUEST_TIMEOUT)
               .GET()
               .build();
@@ -54,7 +60,7 @@ public class FrankfurterFxProvider implements FxSnapshotSource {
       if (rate.signum() <= 0) {
         throw new FxUnavailableException("FX provider returned a nonpositive rate");
       }
-      return new FxSnapshot(from, to, rate, clock.instant(), false, false);
+      return new FxSnapshot(from, to, rate, clock.instant(), false);
     } catch (FxUnavailableException exception) {
       throw exception;
     } catch (Exception exception) {

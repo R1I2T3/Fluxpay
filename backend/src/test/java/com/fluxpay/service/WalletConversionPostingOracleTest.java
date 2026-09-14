@@ -62,7 +62,6 @@ import org.springframework.transaction.support.TransactionTemplate;
       "spring.jpa.hibernate.ddl-auto=validate",
       "spring.jpa.properties.hibernate.jdbc.time_zone=UTC",
       "fluxpay.demo-funding-enabled=true",
-      "fluxpay.fx-mode=mock",
       "fluxpay.fx-provider-url=https://fx.invalid/latest"
     })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -374,7 +373,7 @@ class WalletConversionPostingOracleTest {
   }
 
   private static FxSnapshot snapshot(String from, String to, String rate) {
-    return new FxSnapshot(from, to, new BigDecimal(rate), FETCHED_AT, false, true);
+    return new FxSnapshot(from, to, new BigDecimal(rate), FETCHED_AT, false);
   }
 
   private static Stream<Arguments> directedPairs() {

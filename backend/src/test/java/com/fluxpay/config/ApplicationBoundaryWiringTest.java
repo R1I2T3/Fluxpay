@@ -26,7 +26,6 @@ class ApplicationBoundaryWiringTest {
             .withPropertyValues(
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
                 "spring.kafka.listener.auto-startup=false",
-                "fluxpay.fx-mode=live",
                 "fluxpay.fx-provider-url=https://fx.invalid/latest",
                 "fluxpay.jwt-secret=boundary-test-secret-at-least-thirty-two-bytes")
             .withBean(

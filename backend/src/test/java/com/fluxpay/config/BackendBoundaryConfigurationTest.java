@@ -45,7 +45,7 @@ class BackendBoundaryConfigurationTest {
     new ApplicationContextRunner()
         .withUserConfiguration(ClockConfig.class, FxConfig.class)
         .withBean(ObjectMapper.class, ObjectMapper::new)
-        .withPropertyValues("fluxpay.fx-mode=mock", "fluxpay.fx-provider-url=https://example.test")
+        .withPropertyValues("fluxpay.fx-provider-url=https://fx.invalid/latest")
         .run(context -> assertThat(context.getBeansOfType(Clock.class)).hasSize(1));
   }
 
