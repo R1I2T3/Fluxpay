@@ -119,10 +119,6 @@ public class PaymentConfirmationService {
         payments
             .lockOwned(paymentId, userId)
             .orElseThrow(() -> notFound("PAYMENT_NOT_FOUND", "Payment not found."));
-    if (payment.flowVersion() != 1) {
-      throw new BusinessException(
-          HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
-    }
     if (payment.status() != PaymentStatus.QUOTED) {
       throw conflict("INVALID_PAYMENT_STATE", "Only quoted payments can be confirmed.");
     }

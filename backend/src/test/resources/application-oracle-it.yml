@@ -15,6 +15,6 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 fluxpay:
   fx-provider-url: http://localhost:9999
-  # M5 compliance-vector mode; default is the production embedding path (no mock default).
+  # Compliance-vector mode; default is the production embedding path (no mock default).
   embedding-mode: live
   jwt-secret: oracle-integration-test-secret-must-be-at-least-32-bytes

@@ -63,9 +63,6 @@ public class QuoteService {
 
   private QuoteResponse generateOrCurrent(UUID userId, UUID paymentId) {
     Payment p = payments.lockOwned(paymentId, userId).orElseThrow(() -> notFound());
-    if (p.flowVersion() != 1)
-      throw new BusinessException(
-          HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     boolean recovering = p.status() == PaymentStatus.FAILED;
     if (!recovering && p.status() != PaymentStatus.DRAFT && p.status() != PaymentStatus.QUOTED)
       throw conflict(
@@ -121,9 +118,6 @@ public class QuoteService {
   @Transactional(readOnly = true)
   public QuoteResponse get(UUID userId, UUID paymentId) {
     Payment p = payments.findByIdAndSenderId(paymentId, userId).orElseThrow(() -> notFound());
-    if (p.flowVersion() != 1)
-      throw new BusinessException(
-          HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
     if (p.currentQuoteGeneration() == null)
       throw new BusinessException(
           HttpStatus.NOT_FOUND, "QUOTES_NOT_FOUND", "No quotes exist for this payment.");

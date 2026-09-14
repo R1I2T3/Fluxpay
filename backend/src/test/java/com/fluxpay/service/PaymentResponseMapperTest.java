@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fluxpay.domain.PaymentStatus;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 class PaymentResponseMapperTest {
   @Test
@@ -23,14 +22,5 @@ class PaymentResponseMapperTest {
     assertThat(response.status()).isEqualTo(PaymentStatus.REJECTED);
     assertThat(response.selectedQuoteId()).isNull();
     assertThat(response.createdAt()).isEqualTo(DbPaymentEligibilityGateFixture.NOW);
-    assertThat(response.legacy()).isFalse();
-  }
-
-  @Test
-  void retainsLegacyMetadataFromStoredPayments() {
-    var payment =
-        DbPaymentEligibilityGateFixture.unquotedPayment(UUID.randomUUID(), UUID.randomUUID());
-    ReflectionTestUtils.setField(payment, "flowVersion", 0);
-    assertThat(PaymentResponseMapper.from(payment).legacy()).isTrue();
   }
 }

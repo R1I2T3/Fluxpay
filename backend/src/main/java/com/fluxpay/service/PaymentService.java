@@ -150,10 +150,6 @@ public class PaymentService {
         payments
             .lockOwned(id, userId)
             .orElseThrow(() -> notFound("PAYMENT_NOT_FOUND", "Payment not found."));
-    if (p.flowVersion() != 1) {
-      throw new BusinessException(
-          HttpStatus.CONFLICT, "LEGACY_PAYMENT", "Legacy payments cannot be modified.");
-    }
     if (p.status() == PaymentStatus.CANCELLED) {
       return response(p);
     }
@@ -170,8 +166,8 @@ public class PaymentService {
   @Transactional(readOnly = true)
   public PaymentPageResponse list(UUID userId, int page, int size) {
     Page<Payment> result =
-        payments.findBySenderIdAndFlowVersionOrderByCreatedAtDescIdDesc(
-            userId, 1, PageRequest.of(page, Math.min(Math.max(size, 1), 100)));
+        payments.findBySenderIdOrderByCreatedAtDescIdDesc(
+            userId, PageRequest.of(page, Math.min(Math.max(size, 1), 100)));
     return new PaymentPageResponse(
         result.getContent().stream().map(this::response).toList(),
         page,

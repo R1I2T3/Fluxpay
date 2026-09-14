@@ -20,7 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("integration")
 @EnabledIfEnvironmentVariable(named = "KAFKA_BOOTSTRAP_SERVERS", matches = ".+")
-@EnabledIfEnvironmentVariable(named = "ORACLE_JDBC_URL", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "ORACLE_TEST_JDBC_URL", matches = ".+")
 class PaymentEventPersistenceIT {
 
   @Autowired KafkaTemplate<String, String> kafka;

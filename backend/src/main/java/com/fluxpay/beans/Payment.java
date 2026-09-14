@@ -24,9 +24,6 @@ public class Payment {
   @Column(name = "currency", nullable = false)
   private String sourceCurrency;
 
-  @Column(name = "m3_flow_version")
-  private int flowVersion;
-
   @Column(name = "sender_id")
   private UUID senderId;
 
@@ -107,7 +104,6 @@ public class Payment {
     this.preference = preference;
     recipientVersion = r.version();
     recipientSnapshot = snapshot;
-    flowVersion = 1;
     status = PaymentStatus.DRAFT;
     createdAt = now;
     updatedAt = now;
@@ -167,10 +163,6 @@ public class Payment {
 
   public Integer currentQuoteGeneration() {
     return currentQuoteGeneration;
-  }
-
-  public int flowVersion() {
-    return flowVersion;
   }
 
   public Instant createdAt() {

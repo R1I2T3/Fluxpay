@@ -31,7 +31,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@EnabledIfEnvironmentVariable(named = "M2_ORACLE_TESTS", matches = "true")
+@EnabledIfEnvironmentVariable(named = "ORACLE_TESTS_ACTIVE", matches = "true")
 @DataJpaTest(
     showSql = false,
     properties = {
@@ -49,10 +49,10 @@ class WalletLedgerRepositoryOracleTest {
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry properties) throws Exception {
-    WalletLedgerSchemaOracleTest.migrateIsolatedSchema();
-    properties.add("spring.datasource.url", () -> System.getenv("ORACLE_JDBC_URL"));
-    properties.add("spring.datasource.username", () -> System.getenv("ORACLE_USERNAME"));
-    properties.add("spring.datasource.password", () -> System.getenv("ORACLE_PASSWORD"));
+    FreshBaselineOracleTest.migrateIsolatedSchema();
+    properties.add("spring.datasource.url", () -> System.getenv("ORACLE_TEST_JDBC_URL"));
+    properties.add("spring.datasource.username", () -> System.getenv("ORACLE_TEST_USERNAME"));
+    properties.add("spring.datasource.password", () -> System.getenv("ORACLE_TEST_PASSWORD"));
     properties.add("spring.datasource.driver-class-name", () -> "oracle.jdbc.OracleDriver");
   }
 
@@ -66,9 +66,9 @@ class WalletLedgerRepositoryOracleTest {
     UUID id = UUID.randomUUID();
     jdbc.update(
         "INSERT INTO users(id,email,password_hash,full_name) "
-            + "VALUES (HEXTORAW(?),?,'!M2_TEST_NO_LOGIN!','M2 fixture')",
+            + "VALUES (HEXTORAW(?),?,'!ORACLE_TEST_NO_LOGIN!','Oracle fixture')",
         id.toString().replace("-", ""),
-        id + "@m2.invalid");
+        id + "@oracle-test.invalid");
     return id;
   }
 
@@ -163,14 +163,14 @@ class WalletLedgerRepositoryOracleTest {
     UUID first = UUID.randomUUID();
     UUID second = UUID.randomUUID();
     // A committed fixture ensures blocking is caused by our lock query, not an uncommitted INSERT.
-    try (Connection setup = WalletLedgerSchemaOracleTest.connect()) {
+    try (Connection setup = FreshBaselineOracleTest.connect()) {
       setup.setAutoCommit(false);
       try (var user =
           setup.prepareStatement(
               "INSERT INTO users(id,email,password_hash,full_name) "
-                  + "VALUES (HEXTORAW(?),?,'!M2_TEST_NO_LOGIN!','M2 lock fixture')")) {
+                  + "VALUES (HEXTORAW(?),?,'!ORACLE_TEST_NO_LOGIN!','Oracle lock fixture')")) {
         user.setString(1, owner.toString().replace("-", ""));
-        user.setString(2, owner + "@m2.invalid");
+        user.setString(2, owner + "@oracle-test.invalid");
         user.executeUpdate();
       }
       for (UUID id : List.of(first, second)) {
@@ -193,7 +193,7 @@ class WalletLedgerRepositoryOracleTest {
     assertEquals(
         expected,
         wallets.findAllByIdForUpdate(List.of(second, first)).stream().map(Wallet::getId).toList());
-    try (Connection competing = WalletLedgerSchemaOracleTest.connect()) {
+    try (Connection competing = FreshBaselineOracleTest.connect()) {
       competing.setAutoCommit(false);
       try (var statement =
           competing.prepareStatement(

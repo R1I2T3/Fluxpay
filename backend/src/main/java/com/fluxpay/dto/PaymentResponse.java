@@ -13,5 +13,4 @@ public record PaymentResponse(
     String payoutCurrency,
     PaymentStatus status,
     UUID selectedQuoteId,
-    Instant createdAt,
-    boolean legacy) {}
+    Instant createdAt) {}

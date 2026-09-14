@@ -6,10 +6,10 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "m3_outbox_delivery",
+    name = "outbox_delivery",
     uniqueConstraints =
         @UniqueConstraint(
-            name = "uq_m3_delivery_sequence",
+            name = "uq_outbox_delivery_sequence",
             columnNames = {"payment_id", "aggregate_sequence"}))
 public class OutboxDelivery {
   @Id

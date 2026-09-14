@@ -10,8 +10,7 @@ import org.springframework.data.repository.query.Param;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
   Optional<Payment> findByIdAndSenderId(UUID id, UUID senderId);
 
-  Page<Payment> findBySenderIdAndFlowVersionOrderByCreatedAtDescIdDesc(
-      UUID senderId, int flowVersion, Pageable page);
+  Page<Payment> findBySenderIdOrderByCreatedAtDescIdDesc(UUID senderId, Pageable page);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select p from Payment p where p.id=:id and p.senderId=:senderId")

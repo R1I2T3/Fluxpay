@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
     webEnvironment = SpringBootTest.WebEnvironment.MOCK,
     properties = "fluxpay.development.kyc-metadata-enabled=true")
 @AutoConfigureMockMvc
-@ActiveProfiles({"oracle-it", "m1-solo"})
+@ActiveProfiles("oracle-it")
 class OracleAuthKycApiIntegrationTest {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;

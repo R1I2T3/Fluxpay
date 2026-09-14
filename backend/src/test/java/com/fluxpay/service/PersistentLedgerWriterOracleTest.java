@@ -36,7 +36,7 @@ import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-@EnabledIfEnvironmentVariable(named = "M2_ORACLE_TESTS", matches = "true")
+@EnabledIfEnvironmentVariable(named = "ORACLE_TESTS_ACTIVE", matches = "true")
 @DataJpaTest(
     showSql = false,
     properties = {
@@ -60,27 +60,30 @@ class PersistentLedgerWriterOracleTest {
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry properties) throws Exception {
     migrateIsolatedSchema();
-    properties.add("spring.datasource.url", () -> System.getenv("ORACLE_JDBC_URL"));
-    properties.add("spring.datasource.username", () -> System.getenv("ORACLE_USERNAME"));
-    properties.add("spring.datasource.password", () -> System.getenv("ORACLE_PASSWORD"));
+    properties.add("spring.datasource.url", () -> System.getenv("ORACLE_TEST_JDBC_URL"));
+    properties.add("spring.datasource.username", () -> System.getenv("ORACLE_TEST_USERNAME"));
+    properties.add("spring.datasource.password", () -> System.getenv("ORACLE_TEST_PASSWORD"));
     properties.add("spring.datasource.driver-class-name", () -> "oracle.jdbc.OracleDriver");
   }
 
   private static void migrateIsolatedSchema() throws Exception {
-    String username = System.getenv("ORACLE_USERNAME");
-    if (!"FLUXPAY_M2_TEST".equalsIgnoreCase(username)) {
-      throw new IllegalStateException("Oracle tests require the dedicated FLUXPAY_M2_TEST schema");
+    String username = System.getenv("ORACLE_TEST_USERNAME");
+    if (!"FLUXPAY_TEST".equalsIgnoreCase(username)) {
+      throw new IllegalStateException("Oracle tests require the dedicated FLUXPAY_TEST schema");
     }
     try (Connection connection =
             DriverManager.getConnection(
-                System.getenv("ORACLE_JDBC_URL"), username, System.getenv("ORACLE_PASSWORD"));
+                System.getenv("ORACLE_TEST_JDBC_URL"),
+                username,
+                System.getenv("ORACLE_TEST_PASSWORD"));
         Statement statement = connection.createStatement();
         ResultSet result = statement.executeQuery("SELECT USER FROM dual")) {
       result.next();
-      assertEquals("FLUXPAY_M2_TEST", result.getString(1));
+      assertEquals("FLUXPAY_TEST", result.getString(1));
     }
     Flyway.configure()
-        .dataSource(System.getenv("ORACLE_JDBC_URL"), username, System.getenv("ORACLE_PASSWORD"))
+        .dataSource(
+            System.getenv("ORACLE_TEST_JDBC_URL"), username, System.getenv("ORACLE_TEST_PASSWORD"))
         .locations("classpath:db/migration")
         .cleanDisabled(true)
         .baselineOnMigrate(false)
@@ -247,9 +250,9 @@ class PersistentLedgerWriterOracleTest {
     UUID id = UUID.randomUUID();
     jdbc.update(
         "INSERT INTO users(id,email,password_hash,full_name) "
-            + "VALUES (HEXTORAW(?),?,'!M2_TEST_NO_LOGIN!','M2 writer fixture')",
+            + "VALUES (HEXTORAW(?),?,'!ORACLE_TEST_NO_LOGIN!','wallet-ledger writer fixture')",
         id.toString().replace("-", ""),
-        id + "@m2.invalid");
+        id + "@oracle-test.invalid");
     return id;
   }
 
