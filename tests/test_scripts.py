@@ -185,6 +185,7 @@ class ScriptCommandTests(unittest.TestCase):
     def test_start_backend_uses_windows_maven_wrapper_from_project_root(self):
         script = load_script("start-backend")
         with (
+            mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
@@ -216,6 +217,7 @@ class ScriptCommandTests(unittest.TestCase):
     def test_start_frontend_uses_project_local_windows_ojet_wrapper(self):
         script = load_script("start-frontend")
         with (
+            mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-frontend.py"]),
             mock.patch.object(script.os.path, "isdir", return_value=True),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
@@ -225,7 +227,9 @@ class ScriptCommandTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertEqual(Path(command[0]).name.lower(), "cmd.exe")
         self.assertEqual(command[1:3], ["/d", "/c"])
-        self.assertEqual(Path(command[3]), PROJECT_ROOT / "frontend" / "fluxpay-ui" / "node_modules" / ".bin" / "ojet.cmd")
+        self.assertEqual(
+            Path(command[3]), PROJECT_ROOT / "frontend" / "fluxpay-ui" / "node_modules" / ".bin" / "ojet.cmd"
+        )
         self.assertEqual(run.call_args.kwargs["cwd"], PROJECT_ROOT / "frontend" / "fluxpay-ui")
 
     def test_test_all_uses_current_python_for_seed_script(self):
@@ -243,6 +247,7 @@ class ScriptCommandTests(unittest.TestCase):
     def test_test_all_uses_windows_maven_wrapper(self):
         script = load_script("test-all")
         with (
+            mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.dict(
                 script.os.environ,
                 {"COMSPEC": os.environ.get("COMSPEC", "cmd.exe")},
@@ -275,8 +280,7 @@ class ScriptCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / "backend.env"
             env_file.write_text(
-                "KAFKA_BOOTSTRAP_SERVERS=kafka.test:9092\n"
-                "ORACLE_JDBC_URL=jdbc:oracle:thin:@//db.test:1521/FREEPDB1\n",
+                "KAFKA_BOOTSTRAP_SERVERS=kafka.test:9092\nORACLE_JDBC_URL=jdbc:oracle:thin:@//db.test:1521/FREEPDB1\n",
                 encoding="utf-8",
             )
             with (

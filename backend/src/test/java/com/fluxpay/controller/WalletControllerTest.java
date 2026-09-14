@@ -99,7 +99,7 @@ class WalletControllerTest {
                 .header("Idempotency-Key", "fund-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"currency\":\"USD\",\"amount\":\"1.0000\"}"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

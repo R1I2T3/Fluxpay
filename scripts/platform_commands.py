@@ -2,7 +2,7 @@
 
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -34,12 +34,10 @@ def configure_windows_maven_home():
     userprofile = os.environ.get("USERPROFILE")
     if not userprofile:
         return
-    os.environ.setdefault("MAVEN_USER_HOME", os.path.join(userprofile, ".m2"))
+    os.environ.setdefault("MAVEN_USER_HOME", str(PureWindowsPath(userprofile) / ".m2"))
     if "-Duser.home=" not in os.environ.get("MAVEN_OPTS", ""):
         user_home_option = f'-Duser.home="{userprofile}"'
-        os.environ["MAVEN_OPTS"] = (
-            f"{os.environ.get('MAVEN_OPTS', '')} {user_home_option}".strip()
-        )
+        os.environ["MAVEN_OPTS"] = f"{os.environ.get('MAVEN_OPTS', '')} {user_home_option}".strip()
 
 
 def _windows_batch_command(path, *args):
@@ -60,9 +58,7 @@ def maven_command(*args):
 
 
 def ojet_command(*args):
-    executable = FRONTEND_DIR / "node_modules" / ".bin" / (
-        "ojet.cmd" if sys.platform == "win32" else "ojet"
-    )
+    executable = FRONTEND_DIR / "node_modules" / ".bin" / ("ojet.cmd" if sys.platform == "win32" else "ojet")
     if sys.platform == "win32":
         return _windows_batch_command(executable, *args)
     return [str(executable), *map(str, args)]

@@ -78,7 +78,7 @@ class WalletReadControllerTest {
 
   @Test
   void walletListRequiresAuthentication() throws Exception {
-    mvc.perform(get("/api/wallets")).andExpect(status().isForbidden());
+    mvc.perform(get("/api/wallets")).andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -153,6 +153,7 @@ class WalletReadControllerTest {
 
   @Test
   void ledgerRequiresAuthentication() throws Exception {
-    mvc.perform(get("/api/wallets/{walletId}/ledger", WALLET_ID)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/wallets/{walletId}/ledger", WALLET_ID))
+        .andExpect(status().isUnauthorized());
   }
 }

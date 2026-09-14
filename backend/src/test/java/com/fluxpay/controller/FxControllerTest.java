@@ -80,7 +80,7 @@ class FxControllerTest {
   @Test
   void unauthenticatedPreviewIsRejected() throws Exception {
     mvc.perform(get("/api/fx/rate").queryParam("from", "USD").queryParam("to", "INR"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized());
   }
 
   @Test
