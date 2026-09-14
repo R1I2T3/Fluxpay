@@ -1,67 +1,78 @@
 package com.fluxpay.messaging;
 
-import com.fluxpay.beans.OutboxDelivery;
-import com.fluxpay.beans.OutboxEvent;
 import com.fluxpay.common.contracts.TransportPort;
-import com.fluxpay.repository.OutboxDeliveryRepository;
-import com.fluxpay.repository.OutboxEventRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Durable relay: claims a bounded ordered batch in a short transaction, publishes outside any
+ * transaction, then marks success/retry in follow-up transactions. Expired SENDING leases are
+ * reclaimed; per-payment sequence order is preserved by the claim service.
+ */
 @Service
 public class OutboxRelay {
-  private final OutboxDeliveryRepository deliveries;
-  private final OutboxEventRepository events;
+  private final com.fluxpay.repository.OutboxDeliveryRepository deliveries;
+  private final com.fluxpay.repository.OutboxEventRepository events;
   private final TransportPort transport;
   private final Clock clock;
+  private final OutboxClaimService claims;
+  private final Duration lease;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public OutboxRelay(
-      OutboxDeliveryRepository deliveries,
-      OutboxEventRepository events,
+      com.fluxpay.repository.OutboxDeliveryRepository deliveries,
+      com.fluxpay.repository.OutboxEventRepository events,
       TransportPort transport,
-      Clock clock) {
-    this.deliveries = deliveries;
-    this.events = events;
-    this.transport = transport;
-    this.clock = clock;
+      Clock clock,
+      OutboxClaimService claims,
+      @org.springframework.beans.factory.annotation.Value("${fluxpay.outbox.lease-seconds:60}")
+          long leaseSeconds) {
+    this.deliveries = Objects.requireNonNull(deliveries, "deliveries must not be null");
+    this.events = Objects.requireNonNull(events, "events must not be null");
+    this.transport = Objects.requireNonNull(transport, "transport must not be null");
+    this.clock = Objects.requireNonNull(clock, "clock must not be null");
+    this.claims = Objects.requireNonNull(claims, "claims must not be null");
+    this.lease = Duration.ofSeconds(leaseSeconds);
   }
 
-  @Transactional
+  public OutboxRelay(
+      com.fluxpay.repository.OutboxDeliveryRepository deliveries,
+      com.fluxpay.repository.OutboxEventRepository events,
+      TransportPort transport,
+      Clock clock) {
+    this(
+        deliveries,
+        events,
+        transport,
+        clock,
+        new OutboxClaimService(deliveries, events, clock),
+        60);
+  }
+
   public int relayOnce(int batchSize) {
     Instant now = Instant.now(clock);
-    List<OutboxDelivery> eligible = deliveries.claimEligible(now);
+    List<OutboxClaimService.Claimed> batch = claims.claimBatch(now, batchSize, lease);
     int sent = 0;
-    for (OutboxDelivery delivery : eligible.stream().limit(batchSize).toList()) {
-      String claim = UUID.randomUUID().toString();
-      Instant leaseExpiry = now.plus(Duration.ofSeconds(60));
-      delivery.claim(claim, leaseExpiry);
-      deliveries.saveAndFlush(delivery);
-      OutboxEvent event =
-          events
-              .findById(delivery.eventId())
-              .orElseThrow(
-                  () -> new IllegalStateException("Missing outbox event " + delivery.eventId()));
+    for (OutboxClaimService.Claimed claimed : batch) {
       try {
-        transport.send(event.topic(), event.payload(), delivery.paymentId().toString());
+        transport.send(claimed.topic(), claimed.payload(), claimed.paymentId());
       } catch (Exception e) {
-        long delaySeconds = Math.min(60, 1L << Math.min(delivery.attemptCount(), 5));
-        delivery.scheduleRetry(
-            Instant.now(clock).plus(Duration.ofSeconds(delaySeconds)), e.getMessage());
-        deliveries.save(delivery);
+        Instant retryAt = claims.retryDelay(claimed.attemptCount(), Instant.now(clock));
+        claims.scheduleRetry(claimed.eventId(), claimed.claim(), retryAt, message(e));
         continue;
       }
-      if (!claim.equals(delivery.claimToken())) {
-        continue;
-      }
-      delivery.markSent(Instant.now(clock));
-      deliveries.save(delivery);
+      claims.markSent(claimed.eventId(), claimed.claim(), Instant.now(clock));
       sent++;
     }
     return sent;
+  }
+
+  private static String message(Exception e) {
+    String m = e.getMessage();
+    return m == null ? e.toString() : m;
   }
 }

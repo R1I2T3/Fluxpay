@@ -12,6 +12,7 @@ public final class EventTopics {
   public static final String PAYOUT_FAILED = "payout.failed";
   public static final String PAYOUT_COMPLETED = "payout.completed";
   public static final String PAYMENT_REFUNDED = "payment.refunded";
+  public static final String PAYMENT_REVIEW_REQUESTED = "payment.review.requested";
 
   public static final Set<String> ALL =
       Set.of(
@@ -21,5 +22,6 @@ public final class EventTopics {
           PAYOUT_SUBMITTED,
           PAYOUT_FAILED,
           PAYOUT_COMPLETED,
-          PAYMENT_REFUNDED);
+          PAYMENT_REFUNDED,
+          PAYMENT_REVIEW_REQUESTED);
 }

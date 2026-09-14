@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Up Oracle (Docker on Linux) and bare-metal KRaft Kafka, probe readiness, create 7 topics."""
+"""Up Oracle (Docker on Linux) and bare-metal KRaft Kafka, probe readiness, create 8 topics."""
 
 import argparse, os, shutil, socket, subprocess, sys, time
 
@@ -9,6 +9,7 @@ TOPICS = [
     "payment.initiated",
     "payment.route.selected",
     "payment.screening.completed",
+    "payment.review.requested",
     "payout.submitted",
     "payout.failed",
     "payout.completed",

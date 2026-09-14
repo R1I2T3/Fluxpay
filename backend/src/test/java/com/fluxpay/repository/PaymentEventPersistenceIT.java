@@ -63,6 +63,55 @@ class PaymentEventPersistenceIT {
     assertThat(repository.countByPaymentId(paymentId)).isEqualTo(2);
   }
 
+  @Test
+  void canonicalConfirmationEnvelopeSurvivesBrokerToTimeline() throws Exception {
+    String paymentId = "IT-" + java.util.UUID.randomUUID();
+    String eventId = java.util.UUID.randomUUID().toString();
+    Instant now = Instant.parse("2026-09-13T10:00:00Z");
+    var envelope =
+        PaymentEventEnvelope.create(
+            EventTopics.PAYMENT_INITIATED,
+            eventId,
+            paymentId,
+            "c-it-confirmation-" + eventId,
+            now,
+            1,
+            1,
+            Map.of("status", "PROCESSING", "summary", "confirmed"));
+    String json = codec.write(envelope);
+
+    kafka.send(EventTopics.PAYMENT_INITIATED, paymentId, json).join();
+
+    PaymentEvent stored = waitForRow(eventId);
+    assertThat(stored.eventType()).isEqualTo("payment.initiated");
+    assertThat(stored.kafkaTopic()).isEqualTo("payment.initiated");
+    assertThat(stored.correlationId()).isNotBlank();
+    var payload = new ObjectMapper().findAndRegisterModules().readTree(stored.payload());
+    assertThat(payload.get("schemaVersion").asInt()).isEqualTo(1);
+    assertThat(payload.get("aggregateSequence").asInt()).isEqualTo(1);
+  }
+
+  @Test
+  void reviewRequestTopicIsConsumedToTimeline() throws Exception {
+    String paymentId = "IT-" + java.util.UUID.randomUUID();
+    String eventId = java.util.UUID.randomUUID().toString();
+    var envelope =
+        PaymentEventEnvelope.create(
+            EventTopics.PAYMENT_REVIEW_REQUESTED,
+            eventId,
+            paymentId,
+            "c-it-review-" + eventId,
+            Instant.now(),
+            1,
+            1,
+            Map.of("status", "UNDER_REVIEW", "reviewReference", "R-1"));
+    kafka.send(EventTopics.PAYMENT_REVIEW_REQUESTED, paymentId, codec.write(envelope)).join();
+
+    PaymentEvent stored = waitForRow(eventId);
+    assertThat(stored.eventType()).isEqualTo("payment.review.requested");
+    assertThat(stored.kafkaTopic()).isEqualTo("payment.review.requested");
+  }
+
   private PaymentEvent waitForRow(String eventId) throws InterruptedException {
     for (int i = 0; i < 60; i++) {
       var row = repository.findById(java.util.UUID.fromString(eventId));

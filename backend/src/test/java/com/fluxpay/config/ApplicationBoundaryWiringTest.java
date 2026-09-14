@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.fluxpay.common.contracts.*;
-import com.fluxpay.messaging.EventPublisher;
 import com.fluxpay.repository.*;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
@@ -72,11 +71,18 @@ class ApplicationBoundaryWiringTest {
                 ComplianceAssessor.class,
                 PaymentReader.class,
                 PaymentEligibilityGate.class,
-                RouteAdminAuthorizer.class,
-                EventPublisher.class
+                RouteAdminAuthorizer.class
               }) {
             assertThat(context.getBeansOfType(contract)).as(contract.getSimpleName()).hasSize(1);
           }
+          // Durable outbox path owns delivery; no logging fallback publisher remains.
+          assertThat(context.getBeansOfType(TransportPort.class)).hasSize(1);
+          assertThat(context.getBeanNamesForType(com.fluxpay.messaging.OutboxService.class))
+              .hasSize(1);
+          assertThat(context.getBeanNamesForType(com.fluxpay.messaging.OutboxRelay.class))
+              .hasSize(1);
+          assertThat(context.getBeanNamesForType(com.fluxpay.messaging.OutboxDispatchJob.class))
+              .hasSize(1);
         });
   }
 

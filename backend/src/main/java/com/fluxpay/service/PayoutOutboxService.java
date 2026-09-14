@@ -11,9 +11,7 @@ import org.springframework.transaction.annotation.*;
 /** Durable payout intent. Task 8 owns the common outbox API and delivery lifecycle. */
 @Service
 public class PayoutOutboxService {
-  private final OutboxEventRepository events;
-  private final OutboxDeliveryRepository deliveries;
-  private final ObjectMapper mapper;
+  private final com.fluxpay.messaging.OutboxService outbox;
   private final Clock clock;
 
   public PayoutOutboxService(
@@ -21,15 +19,24 @@ public class PayoutOutboxService {
       OutboxDeliveryRepository deliveries,
       ObjectMapper mapper,
       Clock clock) {
-    this.events = events;
-    this.deliveries = deliveries;
-    this.mapper = mapper;
-    this.clock = clock;
+    this(
+        new com.fluxpay.messaging.OutboxService(
+            events, deliveries, new com.fluxpay.messaging.EventEnvelopeCodec(mapper), clock),
+        clock);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public PayoutOutboxService(com.fluxpay.messaging.OutboxService outbox, Clock clock) {
+    this.outbox = java.util.Objects.requireNonNull(outbox, "outbox must not be null");
+    this.clock = java.util.Objects.requireNonNull(clock, "clock must not be null");
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
   public String enqueue(
       Payment payment, String topic, String correlationId, Map<String, Object> details) {
+    if (correlationId == null || correlationId.isBlank()) {
+      throw new IllegalArgumentException("correlationId must not be blank");
+    }
     UUID id =
         topic.equals(com.fluxpay.messaging.EventTopics.PAYMENT_REFUNDED)
             ? UUID.fromString(
@@ -38,29 +45,16 @@ public class PayoutOutboxService {
                     .eventId())
             : UUID.randomUUID();
     int sequence = payment.nextEventSequence();
-    var payload = new LinkedHashMap<String, Object>(details);
-    payload.put("schemaVersion", 1);
-    payload.put("aggregateSequence", sequence);
     var envelope =
-        Map.of(
-            "eventType",
+        com.fluxpay.messaging.PaymentEventEnvelope.create(
             topic,
-            "eventId",
             id.toString(),
-            "paymentId",
             payment.id().toString(),
-            "correlationId",
             correlationId,
-            "occurredAt",
-            clock.instant().toString(),
-            "payload",
-            payload);
-    try {
-      events.save(new OutboxEvent(id, topic, mapper.writeValueAsString(envelope), clock.instant()));
-      deliveries.save(new OutboxDelivery(id, payment.id(), sequence, clock.instant()));
-    } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
-      throw new IllegalStateException("Could not store payout event", ex);
-    }
-    return id.toString();
+            clock.instant(),
+            1,
+            sequence,
+            details == null ? Map.of() : details);
+    return outbox.enqueue(envelope, sequence);
   }
 }

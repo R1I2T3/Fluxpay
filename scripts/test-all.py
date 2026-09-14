@@ -81,6 +81,7 @@ def main():
             "payment.initiated",
             "payment.route.selected",
             "payment.screening.completed",
+            "payment.review.requested",
             "payout.submitted",
             "payout.failed",
             "payout.completed",
@@ -107,7 +108,7 @@ def main():
             if r1.returncode != 0:
                 print("produce FAIL", t)
                 return 3
-        print("smoke kafka OK 7/7")
+        print("smoke kafka OK 8/8")
     print("ALL GREEN")
     return 0
 

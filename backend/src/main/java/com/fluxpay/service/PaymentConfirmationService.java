@@ -1,9 +1,6 @@
 package com.fluxpay.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fluxpay.beans.OutboxDelivery;
-import com.fluxpay.beans.OutboxEvent;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
@@ -43,8 +40,7 @@ public class PaymentConfirmationService {
   private final PostingPort posting;
   private final Clock clock;
   private final PaymentOperationService operations;
-  private final OutboxEventRepository outboxEvents;
-  private final OutboxDeliveryRepository deliveries;
+  private final PayoutOutboxService outbox;
   private final ObjectMapper objectMapper;
   private final PayoutRouteRepository routes;
 
@@ -61,6 +57,33 @@ public class PaymentConfirmationService {
       OutboxDeliveryRepository deliveries,
       ObjectMapper objectMapper,
       PayoutRouteRepository routes) {
+    this(
+        payments,
+        quotes,
+        recipients,
+        kyc,
+        compliance,
+        posting,
+        clock,
+        operations,
+        new PayoutOutboxService(outboxEvents, deliveries, objectMapper, clock),
+        objectMapper,
+        routes);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public PaymentConfirmationService(
+      PaymentRepository payments,
+      PaymentQuoteRepository quotes,
+      RecipientRepository recipients,
+      KycGate kyc,
+      ComplianceAssessor compliance,
+      PostingPort posting,
+      Clock clock,
+      PaymentOperationService operations,
+      PayoutOutboxService outbox,
+      ObjectMapper objectMapper,
+      PayoutRouteRepository routes) {
     this.payments = payments;
     this.quotes = quotes;
     this.recipients = recipients;
@@ -69,8 +92,7 @@ public class PaymentConfirmationService {
     this.posting = posting;
     this.clock = clock;
     this.operations = operations;
-    this.outboxEvents = outboxEvents;
-    this.deliveries = deliveries;
+    this.outbox = outbox;
     this.objectMapper = objectMapper;
     this.routes = routes;
   }
@@ -141,13 +163,11 @@ public class PaymentConfirmationService {
     if (verdict == ScreeningVerdict.REVIEW) {
       String reviewReference = UUID.randomUUID().toString();
       payment.underReview(reviewReference, now);
-      int sequence = payment.nextEventSequence();
-      persistOutbox(
+      outbox.enqueue(
           payment,
-          sequence,
-          "payment.review.requested",
-          reviewPayload(payment, sequence, reviewReference, now),
-          now);
+          com.fluxpay.messaging.EventTopics.PAYMENT_REVIEW_REQUESTED,
+          correlationId(),
+          reviewDetails(payment, reviewReference));
       PaymentResponse resp = response(payment);
       return new PaymentOperationService.Result<>(202, resp, payment.id());
     }
@@ -163,85 +183,54 @@ public class PaymentConfirmationService {
     String postingSnapshot = postingSnapshot(payment, accounts, quote);
     payment.recordPosting(postingSnapshot, now);
     payment.selectAndProcess(quote.id(), now);
-    int sequence = payment.nextEventSequence();
-    persistOutbox(
+    outbox.enqueue(
         payment,
-        sequence,
-        "payment.initiated",
-        initiatedPayload(payment, quote, sequence, now),
-        now);
+        com.fluxpay.messaging.EventTopics.PAYMENT_INITIATED,
+        correlationId(),
+        initiatedDetails(payment, quote));
     PaymentResponse resp = response(payment);
     return new PaymentOperationService.Result<>(200, resp, payment.id());
   }
 
-  private void persistOutbox(
-      Payment payment, int sequence, String topic, String payload, Instant now) {
-    UUID eventId = UUID.randomUUID();
-    OutboxEvent event = new OutboxEvent(eventId, topic, payload, now);
-    outboxEvents.save(event);
-    OutboxDelivery delivery = new OutboxDelivery(eventId, payment.id(), sequence, now);
-    deliveries.save(delivery);
+  private String correlationId() {
+    String cid = org.slf4j.MDC.get("correlationId");
+    if (cid != null && !cid.isBlank()) {
+      return cid;
+    }
+    return UUID.randomUUID().toString();
   }
 
-  private String initiatedPayload(Payment payment, PaymentQuote quote, int sequence, Instant now) {
-    try {
-      ObjectNode node = objectMapper.createObjectNode();
-      UUID eventId = UUID.randomUUID();
-      node.put("eventId", eventId.toString());
-      node.put("eventType", "payment.initiated.v1");
-      node.put("aggregateSequence", sequence);
-      node.put("paymentId", payment.id().toString());
-      node.put("status", PaymentStatus.PROCESSING.name());
-      node.put("selectedQuoteId", quote.id().toString());
-      node.put("senderId", payment.senderId().toString());
-      node.put("walletId", payment.sourceWalletId().toString());
-      node.put("sourceAmount", payment.sourceAmount().toPlainString());
-      node.put("feeAmount", quote.feeAmount().toPlainString());
-      node.put("netAmount", payment.sourceAmount().subtract(quote.feeAmount()).toPlainString());
-      node.put("sourceCurrency", payment.sourceCurrency());
-      node.put("payoutCurrency", payment.payoutCurrency());
-      node.put("offeredRate", quote.offeredRate().toPlainString());
-      node.put("recipientAmount", quote.recipientAmount().toPlainString());
-      node.put("occurredAt", now.toString());
-      node.put("schemaVersion", "payment.initiated.v1");
-      return objectMapper.writeValueAsString(node);
-    } catch (Exception e) {
-      throw new BusinessException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "OUTBOX_STORE_FAILED",
-          "Initiated event could not be stored.");
-    }
+  private java.util.Map<String, Object> initiatedDetails(Payment payment, PaymentQuote quote) {
+    java.util.Map<String, Object> details = new java.util.LinkedHashMap<>();
+    details.put("status", PaymentStatus.PROCESSING.name());
+    details.put("selectedQuoteId", quote.id().toString());
+    details.put("senderId", payment.senderId().toString());
+    details.put("walletId", payment.sourceWalletId().toString());
+    details.put("sourceAmount", payment.sourceAmount().toPlainString());
+    details.put("feeAmount", quote.feeAmount().toPlainString());
+    details.put("netAmount", payment.sourceAmount().subtract(quote.feeAmount()).toPlainString());
+    details.put("sourceCurrency", payment.sourceCurrency());
+    details.put("payoutCurrency", payment.payoutCurrency());
+    details.put("offeredRate", quote.offeredRate().toPlainString());
+    details.put("recipientAmount", quote.recipientAmount().toPlainString());
+    return details;
   }
 
-  private String reviewPayload(Payment payment, int sequence, String reviewReference, Instant now) {
-    try {
-      ObjectNode node = objectMapper.createObjectNode();
-      UUID eventId = UUID.randomUUID();
-      node.put("eventId", eventId.toString());
-      node.put("eventType", "payment.review.requested.v1");
-      node.put("aggregateSequence", sequence);
-      node.put("paymentId", payment.id().toString());
-      node.put("status", PaymentStatus.UNDER_REVIEW.name());
-      node.put("reviewReference", reviewReference);
-      node.put("senderId", payment.senderId().toString());
-      node.put("walletId", payment.sourceWalletId().toString());
-      node.put("sourceAmount", payment.sourceAmount().toPlainString());
-      node.put("sourceCurrency", payment.sourceCurrency());
-      node.put("payoutCurrency", payment.payoutCurrency());
-      node.put("occurredAt", now.toString());
-      node.put("schemaVersion", "payment.review.requested.v1");
-      return objectMapper.writeValueAsString(node);
-    } catch (Exception e) {
-      throw new BusinessException(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          "OUTBOX_STORE_FAILED",
-          "Review event could not be stored.");
-    }
+  private java.util.Map<String, Object> reviewDetails(Payment payment, String reviewReference) {
+    java.util.Map<String, Object> details = new java.util.LinkedHashMap<>();
+    details.put("status", PaymentStatus.UNDER_REVIEW.name());
+    details.put("reviewReference", reviewReference);
+    details.put("senderId", payment.senderId().toString());
+    details.put("walletId", payment.sourceWalletId().toString());
+    details.put("sourceAmount", payment.sourceAmount().toPlainString());
+    details.put("sourceCurrency", payment.sourceCurrency());
+    details.put("payoutCurrency", payment.payoutCurrency());
+    return details;
   }
 
   private String postingSnapshot(Payment payment, PostingAccounts accounts, PaymentQuote quote) {
     try {
-      ObjectNode node = objectMapper.createObjectNode();
+      var node = objectMapper.createObjectNode();
       node.put("customerWalletId", accounts.customerWalletId().toString());
       node.put("clearingWalletId", accounts.clearingWalletId().toString());
       node.put("feeWalletId", accounts.feeWalletId().toString());

@@ -21,12 +21,25 @@ public class PaymentEventConsumer {
 
   private final PaymentEventIngestionService ingestionService;
   private final KafkaTemplate<String, String> kafkaTemplate;
+  private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public PaymentEventConsumer(
-      PaymentEventIngestionService ingestionService, KafkaTemplate<String, String> kafkaTemplate) {
+      PaymentEventIngestionService ingestionService,
+      KafkaTemplate<String, String> kafkaTemplate,
+      com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
     this.ingestionService =
         Objects.requireNonNull(ingestionService, "ingestionService must not be null");
     this.kafkaTemplate = kafkaTemplate;
+    this.objectMapper =
+        objectMapper != null
+            ? objectMapper
+            : new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+  }
+
+  public PaymentEventConsumer(
+      PaymentEventIngestionService ingestionService, KafkaTemplate<String, String> kafkaTemplate) {
+    this(ingestionService, kafkaTemplate, null);
   }
 
   // Single-threaded to preserve per-partition order; provider I/O never runs here (timeline only).
@@ -39,7 +52,8 @@ public class PaymentEventConsumer {
         EventTopics.PAYOUT_SUBMITTED,
         EventTopics.PAYOUT_FAILED,
         EventTopics.PAYOUT_COMPLETED,
-        EventTopics.PAYMENT_REFUNDED
+        EventTopics.PAYMENT_REFUNDED,
+        EventTopics.PAYMENT_REVIEW_REQUESTED
       },
       groupId = "${fluxpay.kafka.timeline-group:fluxpay-timeline}",
       concurrency = "1")
@@ -72,18 +86,19 @@ public class PaymentEventConsumer {
                 (topic + ":" + partition + ":" + offset + ":" + json)
                     .getBytes(StandardCharsets.UTF_8))
             .toString();
-    String dltJson =
-        "{\"quarantineId\":\""
-            + quarantineId
-            + "\",\"sourceTopic\":\""
-            + topic
-            + "\",\"partition\":"
-            + partition
-            + ",\"offset\":"
-            + offset
-            + ",\"error\":\""
-            + e.getMessage().replace("\"", "'")
-            + "\"}";
+    java.util.Map<String, Object> record = new java.util.LinkedHashMap<>();
+    record.put("quarantineId", quarantineId);
+    record.put("sourceTopic", topic);
+    record.put("partition", partition);
+    record.put("offset", offset);
+    record.put("error", e.getMessage());
+    record.put("originalPayload", json);
+    String dltJson;
+    try {
+      dltJson = objectMapper.writeValueAsString(record);
+    } catch (Exception serializationFailure) {
+      throw new IllegalStateException("quarantine serialization failed", serializationFailure);
+    }
     try {
       kafkaTemplate.send(RECOVERY_DLT, quarantineId, dltJson).join();
     } catch (Exception sendFailure) {

@@ -36,6 +36,32 @@ public record PaymentEventEnvelope(
     return envelope;
   }
 
+  /**
+   * Canonical factory for durable outbox events. The caller generates {@code eventId} once and
+   * reuses it for the outbox row; the payload carries {@code schemaVersion} and {@code
+   * aggregateSequence} alongside business details.
+   */
+  public static PaymentEventEnvelope create(
+      String eventType,
+      String eventId,
+      String paymentId,
+      String correlationId,
+      Instant occurredAt,
+      int schemaVersion,
+      int aggregateSequence,
+      Map<String, ?> details) {
+    Map<String, Object> payload = new LinkedHashMap<>();
+    if (details != null) {
+      details.forEach(payload::put);
+    }
+    payload.put("schemaVersion", schemaVersion);
+    payload.put("aggregateSequence", aggregateSequence);
+    PaymentEventEnvelope envelope =
+        new PaymentEventEnvelope(eventType, eventId, paymentId, correlationId, occurredAt, payload);
+    validate(envelope);
+    return envelope;
+  }
+
   public static void validate(PaymentEventEnvelope envelope) {
     Objects.requireNonNull(envelope, "envelope must not be null");
     if (envelope.eventType() == null || !EventTopics.ALL.contains(envelope.eventType())) {
