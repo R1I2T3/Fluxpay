@@ -71,6 +71,12 @@ public class PayoutExecutionService {
     // Validate capability before claiming a completed external action: the reservation already
     // rejected unknown providers with 503, but a provider that disappeared after reservation must
     // still fail honestly instead of throwing NullPointerException.
+    // Expected state on this path: the operation row stays pending and the reserved attempt stays
+    // PROCESSING because finalization never ran — no money moved and no terminal outbox event was
+    // enqueued. A same-key retry therefore surfaces OPERATION_IN_PROGRESS (retryable, never a
+    // second attempt), and recovery proceeds with a new key once a provider is configured. This is
+    // deliberately not pendingReconciliation (409): no provider was contacted, so delivery is not
+    // uncertain — it never started.
     var provider = providers.get(reserved.routeCode());
     if (provider == null) {
       throw new BusinessException(

@@ -86,15 +86,23 @@ public class PayoutReservationService {
         routeCode = routes.findById(latest.get().routeId()).orElseThrow().getRouteCode();
       number = latest.get().attemptNumber() + 1;
     } else throw new IllegalArgumentException("Unsupported payout action");
+    // Honest-failure boundary: a missing/inactive route is a server-side catalog problem (503
+    // with PAYOUT_ROUTE_UNAVAILABLE), distinct from a missing provider integration (503 with
+    // PAYOUT_PROVIDER_UNAVAILABLE below). SWITCH keeps REQUOTE_REQUIRED so route recovery still
+    // flows through an explicit replacement quote.
+    final String resolvedRoute = routeCode;
     var route =
         routes
-            .findByCode(routeCode)
+            .findByCode(resolvedRoute)
             .filter(PayoutRoute::isActive)
             .orElseThrow(
                 () ->
                     "SWITCH".equals(action)
                         ? invalidSwitchCandidate()
-                        : new IllegalStateException("Payout route is unavailable"));
+                        : new BusinessException(
+                            HttpStatus.SERVICE_UNAVAILABLE,
+                            "PAYOUT_ROUTE_UNAVAILABLE",
+                            "No active payout route " + resolvedRoute + " is configured."));
     if (!providerAvailable.test(routeCode)) {
       if ("SWITCH".equals(action)) throw invalidSwitchCandidate();
       throw new BusinessException(

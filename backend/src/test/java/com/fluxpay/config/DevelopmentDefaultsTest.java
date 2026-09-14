@@ -176,7 +176,7 @@ class DevelopmentDefaultsTest {
   }
 
   @Test
-  void missingProviderFailsHonestlyBeforeReservingExecution() {
+  void defaultContextExposesReservationWiringWithoutProviders() {
     runner()
         .run(
             context -> {
@@ -184,8 +184,8 @@ class DevelopmentDefaultsTest {
               com.fluxpay.service.PayoutReservationService reservations =
                   context.getBean(com.fluxpay.service.PayoutReservationService.class);
               assertThat(reservations).isNotNull();
-              // Capability check is a pure predicate here: an unknown route code must report
-              // 503 PAYOUT_PROVIDER_UNAVAILABLE, never claim a completed external action.
+              // Wiring only: the reservation service is present while no provider is discovered.
+              // The honest 503-before-reserve behavior is proven in PayoutProviderUnavailableTest.
               com.fluxpay.repository.PayoutRouteRepository routes =
                   context.getBean(com.fluxpay.repository.PayoutRouteRepository.class);
               assertThat(routes).isNotNull();
