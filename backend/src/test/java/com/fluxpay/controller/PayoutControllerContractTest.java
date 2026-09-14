@@ -169,4 +169,20 @@ class PayoutControllerContractTest {
         .andExpect(jsonPath("$.code").value("REQUOTE_REQUIRED"))
         .andExpect(jsonPath("$.correlationId").value("cid"));
   }
+
+  @Test
+  void missingProviderSurfacesServiceUnavailable() throws Exception {
+    when(execution.perform(any(), any(), eq("SUBMIT"), any(), any(), any(), any()))
+        .thenThrow(
+            new com.fluxpay.exception.BusinessException(
+                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "PAYOUT_PROVIDER_UNAVAILABLE",
+                "No payout provider is configured."));
+    mvc.perform(
+            request("submit-payout", "{\"routeCode\":\"BANK\"}")
+                .header("Idempotency-Key", "submit"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.code").value("PAYOUT_PROVIDER_UNAVAILABLE"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
+  }
 }

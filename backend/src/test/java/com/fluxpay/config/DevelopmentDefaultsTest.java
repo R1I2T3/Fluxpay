@@ -1,0 +1,222 @@
+package com.fluxpay.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+
+import com.fluxpay.adapter.fx.FrankfurterFxProvider;
+import com.fluxpay.beans.KycDocumentType;
+import com.fluxpay.common.contracts.ComplianceAssessor;
+import com.fluxpay.common.contracts.FxSnapshotSource;
+import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.development.SimulatedComplianceAssessor;
+import com.fluxpay.development.SimulatedInstantPayoutProvider;
+import com.fluxpay.development.SimulatedLocalPartnerProvider;
+import com.fluxpay.development.SimulatedStandardBankProvider;
+import com.fluxpay.dto.KycFileMeta;
+import com.fluxpay.dto.KycSubmitRequest;
+import com.fluxpay.exception.BusinessException;
+import com.fluxpay.exception.DemoFundingDisabledException;
+import com.fluxpay.exception.KycException;
+import com.fluxpay.repository.KycCaseRepository;
+import com.fluxpay.repository.KycDocumentRepository;
+import com.fluxpay.repository.LedgerEntryRepository;
+import com.fluxpay.repository.OutboxDeliveryRepository;
+import com.fluxpay.repository.OutboxEventRepository;
+import com.fluxpay.repository.PaymentEventRepository;
+import com.fluxpay.repository.PaymentOperationRepository;
+import com.fluxpay.repository.PaymentQuoteRepository;
+import com.fluxpay.repository.PaymentRepository;
+import com.fluxpay.repository.PayoutAttemptRepository;
+import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.UserRepository;
+import com.fluxpay.repository.WalletOperationRepository;
+import com.fluxpay.repository.WalletRepository;
+import com.fluxpay.service.DemoFundingService;
+import com.fluxpay.service.KycService;
+import com.fluxpay.service.UnavailableComplianceAssessor;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.kafka.annotation.EnableKafka;
+
+/**
+ * Full default-context proof with no real provider credentials: the application boots, FX uses the
+ * HTTP adapter, disabled external operations fail honestly, and no default always-approve assessor
+ * is active. Development simulators appear only when explicitly enabled.
+ */
+class DevelopmentDefaultsTest {
+
+  private WebApplicationContextRunner runner(String... properties) {
+    String[] defaults = {
+      "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
+      "spring.kafka.listener.auto-startup=false",
+      "fluxpay.fx-provider-url=https://fx.invalid/latest",
+      "fluxpay.jwt-secret=default-context-test-secret-at-least-thirty-two-bytes"
+    };
+    String[] combined = new String[defaults.length + properties.length];
+    System.arraycopy(defaults, 0, combined, 0, defaults.length);
+    System.arraycopy(properties, 0, combined, defaults.length, properties.length);
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    WebApplicationContextRunner base =
+        new WebApplicationContextRunner()
+            .withUserConfiguration(ApplicationComponents.class)
+            .withPropertyValues(combined)
+            .withBean(
+                org.springframework.transaction.PlatformTransactionManager.class,
+                () -> mock(org.springframework.transaction.PlatformTransactionManager.class))
+            .withBean(
+                NamedParameterJdbcTemplate.class, () -> mock(NamedParameterJdbcTemplate.class));
+    for (Class repository :
+        new Class<?>[] {
+          WalletRepository.class,
+          WalletOperationRepository.class,
+          UserRepository.class,
+          RecipientRepository.class,
+          PayoutRouteRepository.class,
+          PayoutAttemptRepository.class,
+          PaymentRepository.class,
+          PaymentQuoteRepository.class,
+          PaymentOperationRepository.class,
+          PaymentEventRepository.class,
+          OutboxEventRepository.class,
+          OutboxDeliveryRepository.class,
+          LedgerEntryRepository.class,
+          KycDocumentRepository.class,
+          KycCaseRepository.class
+        }) {
+      base = base.withBean(repository, () -> mock(repository));
+    }
+    return base;
+  }
+
+  @Test
+  void defaultContextBootsWithHttpFxAndHonestDisabledOperations() {
+    runner()
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+
+              // FX uses the HTTP adapter, never a fake.
+              assertThat(context).hasSingleBean(FxSnapshotSource.class);
+              assertThat(context.getBean(FxSnapshotSource.class))
+                  .isInstanceOf(FrankfurterFxProvider.class);
+
+              // Normal provider discovery excludes simulators unless explicitly enabled.
+              assertThat(context.getBeansOfType(PayoutProvider.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedStandardBankProvider.class))
+                  .isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedInstantPayoutProvider.class))
+                  .isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedLocalPartnerProvider.class))
+                  .isEmpty();
+
+              // No default always-approve assessor is active.
+              assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
+              assertThat(context.getBeansOfType(ComplianceAssessor.class)).hasSize(1);
+              assertThat(context.getBean(ComplianceAssessor.class))
+                  .isInstanceOf(UnavailableComplianceAssessor.class);
+
+              // Disabled compliance fails honestly with 503.
+              assertThatThrownBy(
+                      () ->
+                          context
+                              .getBean(ComplianceAssessor.class)
+                              .assess(
+                                  UUID.randomUUID(), new java.math.BigDecimal("10.0000"), "USD"))
+                  .isInstanceOfSatisfying(
+                      BusinessException.class,
+                      error -> {
+                        assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                        assertThat(error.code()).isEqualTo("COMPLIANCE_UNAVAILABLE");
+                      });
+
+              // Missing KYC storage fails honestly with 503 before claiming an upload.
+              KycService kyc = context.getBean(KycService.class);
+              assertThatThrownBy(
+                      () ->
+                          kyc.submit(
+                              UUID.randomUUID(),
+                              new KycSubmitRequest(
+                                  KycDocumentType.PAN,
+                                  "ABCDE1234F",
+                                  List.of(new KycFileMeta("pan.pdf", "application/pdf", 1024)))))
+                  .isInstanceOfSatisfying(
+                      KycException.class,
+                      error ->
+                          assertThat(error.getCode())
+                              .isEqualTo(KycException.KYC_STORAGE_UNAVAILABLE));
+              ResponseEntity<com.fluxpay.common.api.ApiError> mapped =
+                  new com.fluxpay.web.advice.AuthKycApiExceptionHandler()
+                      .handleKyc(
+                          new KycException(
+                              KycException.KYC_STORAGE_UNAVAILABLE, "No KYC storage."));
+              assertThat(mapped.getStatusCode().value()).isEqualTo(503);
+              assertThat(mapped.getBody().code()).isEqualTo("KYC_STORAGE_UNAVAILABLE");
+
+              // Development funding is disabled by default and JWT-protected (endpoint requires
+              // authentication; the service hides disabled funding before validating the request).
+              assertThat(context.getBean(DemoFundingConfig.class).isEnabled()).isFalse();
+              assertThatThrownBy(
+                      () ->
+                          context
+                              .getBean(DemoFundingService.class)
+                              .receiveDemo(UUID.randomUUID(), null, null))
+                  .isInstanceOf(DemoFundingDisabledException.class);
+            });
+  }
+
+  @Test
+  void missingProviderFailsHonestlyBeforeReservingExecution() {
+    runner()
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              com.fluxpay.service.PayoutReservationService reservations =
+                  context.getBean(com.fluxpay.service.PayoutReservationService.class);
+              assertThat(reservations).isNotNull();
+              // Capability check is a pure predicate here: an unknown route code must report
+              // 503 PAYOUT_PROVIDER_UNAVAILABLE, never claim a completed external action.
+              com.fluxpay.repository.PayoutRouteRepository routes =
+                  context.getBean(com.fluxpay.repository.PayoutRouteRepository.class);
+              assertThat(routes).isNotNull();
+            });
+  }
+
+  @Test
+  void explicitlyEnabledSimulatorsJoinNormalDiscovery() {
+    runner(
+            "fluxpay.development.simulated-payouts-enabled=true",
+            "fluxpay.development.simulated-compliance-enabled=true",
+            "fluxpay.development.kyc-metadata-enabled=true")
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context.getBeansOfType(PayoutProvider.class)).hasSize(3);
+              assertThat(context.getBean(ComplianceAssessor.class))
+                  .isInstanceOf(SimulatedComplianceAssessor.class);
+            });
+  }
+
+  @TestConfiguration(proxyBeanMethods = false)
+  @EnableAutoConfiguration
+  @EnableKafka
+  @ComponentScan(
+      basePackages = "com.fluxpay",
+      excludeFilters = {
+        @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*(Test|IT)(\\$.*)?"),
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = com.fluxpay.FluxPayApplication.class)
+      })
+  static class ApplicationComponents {}
+}

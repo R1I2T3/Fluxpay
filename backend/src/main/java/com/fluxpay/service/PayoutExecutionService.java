@@ -68,9 +68,19 @@ public class PayoutExecutionService {
                         providers::containsKey)));
     if (operation.replayed()) return operation.response();
     var reserved = held.get();
+    // Validate capability before claiming a completed external action: the reservation already
+    // rejected unknown providers with 503, but a provider that disappeared after reservation must
+    // still fail honestly instead of throwing NullPointerException.
+    var provider = providers.get(reserved.routeCode());
+    if (provider == null) {
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "PAYOUT_PROVIDER_UNAVAILABLE",
+          "No payout provider is configured for route " + reserved.routeCode() + ".");
+    }
     PayoutResult result;
     try {
-      result = providers.get(reserved.routeCode()).submit(reserved.command());
+      result = provider.submit(reserved.command());
     } catch (RuntimeException uncertain) {
       throw pendingReconciliation();
     }

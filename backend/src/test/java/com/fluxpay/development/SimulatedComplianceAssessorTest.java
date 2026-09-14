@@ -1,4 +1,4 @@
-package com.fluxpay.service;
+package com.fluxpay.development;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,8 +7,9 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-class DefaultComplianceAssessorTest {
-  private final DefaultComplianceAssessor assessor = new DefaultComplianceAssessor();
+/** Development-only always-approve assessor; never active in the default context. */
+class SimulatedComplianceAssessorTest {
+  private final SimulatedComplianceAssessor assessor = new SimulatedComplianceAssessor();
 
   @Test
   void approvesAnyConfirmedPayout() {

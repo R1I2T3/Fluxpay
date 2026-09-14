@@ -9,6 +9,7 @@ public class KycException extends RuntimeException {
   public static final String KYC_CONFLICT = "KYC_CONFLICT";
   public static final String REJECT_REASON_REQUIRED = "REJECT_REASON_REQUIRED";
   public static final String VALIDATION = "VALIDATION";
+  public static final String KYC_STORAGE_UNAVAILABLE = "KYC_STORAGE_UNAVAILABLE";
 
   private final String code;
 

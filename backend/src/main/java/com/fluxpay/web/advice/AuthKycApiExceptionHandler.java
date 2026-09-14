@@ -38,6 +38,7 @@ public class AuthKycApiExceptionHandler {
     HttpStatus status =
         switch (exception.getCode()) {
           case KycException.KYC_NOT_FOUND -> HttpStatus.NOT_FOUND;
+          case KycException.KYC_STORAGE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
           case KycException.REJECT_REASON_REQUIRED, KycException.VALIDATION ->
               HttpStatus.BAD_REQUEST;
           default -> HttpStatus.CONFLICT;

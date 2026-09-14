@@ -40,12 +40,26 @@ class KycServiceTest {
 
   @BeforeEach
   void setUp() {
-    kycService =
-        new KycService(
-            kycCases,
-            kycDocuments,
-            users,
-            java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC));
+    kycService = service(true);
+  }
+
+  private KycService service(boolean metadataEnabled) {
+    return new KycService(
+        kycCases,
+        kycDocuments,
+        users,
+        java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC),
+        metadataEnabled);
+  }
+
+  @Test
+  void disabledStorageFailsHonestlyWithoutClaimingAnUpload() {
+    KycService disabled = service(false);
+    UUID userId = UUID.randomUUID();
+
+    assertKycCode(() -> disabled.submit(userId, request()), KycException.KYC_STORAGE_UNAVAILABLE);
+    verify(kycCases, never()).saveAndFlush(any(KycCase.class));
+    verify(kycDocuments, never()).saveAll(any());
   }
 
   @Test
@@ -89,7 +103,9 @@ class KycServiceTest {
     assertThat(document.getFileName()).isEqualTo("pan-card.pdf");
     assertThat(document.getFileType()).isEqualTo("application/pdf");
     assertThat(document.getFileSize()).isEqualTo(1024);
-    assertThat(document.getStorageUrl()).startsWith("mock://kyc/" + savedCase.getId() + "/");
+    assertThat(document.getStorageUrl()).isEqualTo(KycDocument.NOT_STORED_METADATA_ONLY);
+    assertThat(document.getStorageUrl()).doesNotContain("mock://");
+    assertThat(document.getStorageUrl()).doesNotStartWith("http");
   }
 
   @Test

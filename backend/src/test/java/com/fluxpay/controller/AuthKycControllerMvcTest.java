@@ -190,6 +190,23 @@ class AuthKycControllerMvcTest {
   }
 
   @Test
+  void missingKycStorageReturnsServiceUnavailable() throws Exception {
+    when(kycService.submit(eq(USER_ID), any()))
+        .thenThrow(
+            new KycException(
+                KycException.KYC_STORAGE_UNAVAILABLE, "No KYC document storage is configured."));
+
+    mockMvc
+        .perform(
+            post("/api/kyc/applications")
+                .header("Authorization", "Bearer user-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validKycBody()))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.code").value("KYC_STORAGE_UNAVAILABLE"));
+  }
+
+  @Test
   void adminCanListApplications() throws Exception {
     when(kycService.listForAdmin(eq(KycStatus.PENDING), any())).thenReturn(List.of(adminRow()));
 

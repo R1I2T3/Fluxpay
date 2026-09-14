@@ -28,16 +28,21 @@ public class KycService {
   private final KycDocumentRepository kycDocuments;
   private final UserRepository users;
   private final java.time.Clock clock;
+  private final boolean metadataEnabled;
 
   public KycService(
       KycCaseRepository kycCases,
       KycDocumentRepository kycDocuments,
       UserRepository users,
-      java.time.Clock clock) {
+      java.time.Clock clock,
+      @org.springframework.beans.factory.annotation.Value(
+              "${fluxpay.development.kyc-metadata-enabled:false}")
+          boolean metadataEnabled) {
     this.kycCases = kycCases;
     this.kycDocuments = kycDocuments;
     this.users = users;
     this.clock = clock;
+    this.metadataEnabled = metadataEnabled;
   }
 
   @Transactional(readOnly = true)
@@ -47,6 +52,14 @@ public class KycService {
 
   @Transactional
   public KycStatusResponse submit(UUID userId, KycSubmitRequest request) {
+    // Validate storage capability before claiming a completed external action: document metadata
+    // requires an explicitly enabled development metadata store. Without it, fail honestly instead
+    // of manufacturing a URL that pretends a file was stored.
+    if (!metadataEnabled) {
+      throw new KycException(
+          KycException.KYC_STORAGE_UNAVAILABLE,
+          "No KYC document storage is configured; files were not stored.");
+    }
     Instant now = clock.instant();
     KycCase kycCase =
         kycCases
@@ -124,7 +137,8 @@ public class KycService {
               file.fileName().trim(),
               file.fileType(),
               file.fileSize(),
-              "mock://kyc/" + kycCase.getId() + "/" + documentId,
+              // Metadata-only development record: explicitly states files were not stored.
+              KycDocument.NOT_STORED_METADATA_ONLY,
               uploadedAt));
     }
     kycDocuments.saveAll(documents);

@@ -1,14 +1,28 @@
-package com.fluxpay.adapter;
+package com.fluxpay.development;
 
 import com.fluxpay.common.contracts.PayoutProvider;
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+/**
+ * Development-only simulated Standard Bank payout provider.
+ *
+ * <p>Explicitly enabled demo behavior: active only when {@code
+ * fluxpay.development.simulated-payouts-enabled=true} (default {@code false}). Normal provider
+ * discovery excludes this bean unless explicitly enabled. Failure simulation via {@code
+ * SIMULATE_FAILURE} is limited to this development implementation; production code paths and tests
+ * use explicit fixtures instead of environment probes.
+ */
 @Component
-public class StandardBankAdapter implements PayoutProvider {
+@ConditionalOnProperty(
+    name = "fluxpay.development.simulated-payouts-enabled",
+    havingValue = "true",
+    matchIfMissing = false)
+public class SimulatedStandardBankProvider implements PayoutProvider {
 
   private final java.util.concurrent.ConcurrentHashMap<String, PayoutResult> outcomes =
       new java.util.concurrent.ConcurrentHashMap<>();
@@ -18,11 +32,11 @@ public class StandardBankAdapter implements PayoutProvider {
           String, java.util.concurrent.atomic.AtomicInteger>
       failureCounts = new java.util.concurrent.ConcurrentHashMap<>();
 
-  public StandardBankAdapter(Supplier<String> failureProbe) {
+  public SimulatedStandardBankProvider(Supplier<String> failureProbe) {
     this.failureProbe = Objects.requireNonNull(failureProbe, "failureProbe must not be null");
   }
 
-  public StandardBankAdapter() {
+  public SimulatedStandardBankProvider() {
     this(() -> System.getenv("SIMULATE_FAILURE"));
   }
 

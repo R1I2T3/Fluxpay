@@ -137,4 +137,46 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
             BusinessException.class, e -> assertThat(e.code()).isEqualTo("QUOTE_SUPERSEDED"));
     verifyNoInteractions(posting);
   }
+
+  @Test
+  void unavailableComplianceFailsHonestlyWithoutPosting() {
+    payment.quoted(1, NOW);
+    when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
+    when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
+    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    var recipients = mock(RecipientRepository.class);
+    when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
+    var kyc = mock(KycGate.class);
+    when(kyc.isVerified(user)).thenReturn(true);
+    var compliance = new UnavailableComplianceAssessor();
+    var unavailable =
+        new PaymentConfirmationService(
+            payments,
+            quotes,
+            recipients,
+            kyc,
+            compliance,
+            posting,
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            new PaymentOperationService(
+                mock(PaymentOperationRepository.class),
+                new ObjectMapper().findAndRegisterModules(),
+                Clock.systemUTC(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)),
+            mock(OutboxEventRepository.class),
+            mock(OutboxDeliveryRepository.class),
+            new ObjectMapper().findAndRegisterModules(),
+            routes);
+    assertThatThrownBy(
+            () ->
+                unavailable.confirm(
+                    user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("COMPLIANCE_UNAVAILABLE");
+              assertThat(e.status().value()).isEqualTo(503);
+            });
+    verifyNoInteractions(posting);
+  }
 }

@@ -4,10 +4,12 @@ import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.domain.*;
 import com.fluxpay.dto.PayoutCmd;
+import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.*;
 import java.time.Clock;
 import java.util.UUID;
 import java.util.function.Predicate;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 
@@ -95,7 +97,10 @@ public class PayoutReservationService {
                         : new IllegalStateException("Payout route is unavailable"));
     if (!providerAvailable.test(routeCode)) {
       if ("SWITCH".equals(action)) throw invalidSwitchCandidate();
-      throw new IllegalStateException("Payout provider is unavailable");
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "PAYOUT_PROVIDER_UNAVAILABLE",
+          "No payout provider is configured for route " + routeCode + ".");
     }
     if ("SWITCH".equals(action) && route.getId().equals(latest.orElseThrow().routeId()))
       throw invalidSwitchCandidate();

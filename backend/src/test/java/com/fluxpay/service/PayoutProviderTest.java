@@ -2,14 +2,18 @@ package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fluxpay.adapter.InstantPayoutAdapter;
-import com.fluxpay.adapter.LocalPartnerAdapter;
-import com.fluxpay.adapter.StandardBankAdapter;
+import com.fluxpay.development.SimulatedInstantPayoutProvider;
+import com.fluxpay.development.SimulatedLocalPartnerProvider;
+import com.fluxpay.development.SimulatedStandardBankProvider;
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Development simulator checks. Failure simulation lives only in the development implementations;
+ * production payout paths and recovery tests use explicit fixtures instead of environment probes.
+ */
 class PayoutProviderTest {
   private PayoutCmd command(String route, String amount, String fee) {
     var attempt = java.util.UUID.randomUUID();
@@ -30,7 +34,8 @@ class PayoutProviderTest {
   @Test
   void standardBankSucceedsWhenFailureIsNotRequested() {
     PayoutResult result =
-        new StandardBankAdapter(() -> null).submit(command("STANDARD_BANK", "1000.00", "5.00"));
+        new SimulatedStandardBankProvider(() -> null)
+            .submit(command("STANDARD_BANK", "1000.00", "5.00"));
     assertThat(result.success()).isTrue();
     assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.COMPLETED);
     assertThat(result.providerRef()).startsWith("SB-");
@@ -39,7 +44,7 @@ class PayoutProviderTest {
   @Test
   void standardBankFailureIsDeterministic() {
     PayoutResult result =
-        new StandardBankAdapter(() -> "STANDARD_BANK")
+        new SimulatedStandardBankProvider(() -> "STANDARD_BANK")
             .submit(command("STANDARD_BANK", "1000.00", "5.00"));
     assertThat(result.errorCode()).isEqualTo("PROVIDER_TIMEOUT");
     assertThat(result.errorMessage()).isEqualTo("Simulated bank timeout");
@@ -48,7 +53,8 @@ class PayoutProviderTest {
 
   @Test
   void standardBankFailCountThenSucceeds() {
-    StandardBankAdapter adapter = new StandardBankAdapter(() -> "STANDARD_BANK:2");
+    SimulatedStandardBankProvider adapter =
+        new SimulatedStandardBankProvider(() -> "STANDARD_BANK:2");
     PayoutCmd cmd = command("STANDARD_BANK", "1000.00", "5.00");
     assertThat(adapter.submit(cmd).success()).isFalse();
     assertThat(adapter.submit(command("STANDARD_BANK", "1000.00", "5.00")).success()).isFalse();
@@ -59,9 +65,9 @@ class PayoutProviderTest {
   void repeatedProviderKeyReplaysTheSameOutcomeForEveryAdapter() {
     for (var provider :
         java.util.List.of(
-            new StandardBankAdapter(() -> null),
-            new InstantPayoutAdapter(),
-            new LocalPartnerAdapter())) {
+            new SimulatedStandardBankProvider(() -> null),
+            new SimulatedInstantPayoutProvider(),
+            new SimulatedLocalPartnerProvider())) {
       var cmd = command(provider.code(), "100", "5");
       var first = provider.submit(cmd);
       assertThat(provider.submit(cmd)).isEqualTo(first);
@@ -70,7 +76,7 @@ class PayoutProviderTest {
 
   @Test
   void repeatedFailedAttemptDoesNotConsumeAnotherSimulatedAttempt() {
-    var provider = new StandardBankAdapter(() -> "STANDARD_BANK:1");
+    var provider = new SimulatedStandardBankProvider(() -> "STANDARD_BANK:1");
     var cmd = command(provider.code(), "100", "5");
     var first = provider.submit(cmd);
     assertThat(first.success()).isFalse();
@@ -116,7 +122,7 @@ class PayoutProviderTest {
   @Test
   void instantDoesNotAddAFeeAfterCustomerAcceptedTheQuote() {
     PayoutResult result =
-        new InstantPayoutAdapter().submit(command("INSTANT_PAYOUT", "1000.00", "11.00"));
+        new SimulatedInstantPayoutProvider().submit(command("INSTANT_PAYOUT", "1000.00", "11.00"));
     assertThat(result.providerFee()).isEqualByComparingTo("11.00");
     assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.COMPLETED);
   }
@@ -124,7 +130,7 @@ class PayoutProviderTest {
   @Test
   void localPartnerRejectsAmountsOverFiftyThousand() {
     PayoutResult result =
-        new LocalPartnerAdapter().submit(command("LOCAL_PARTNER", "50000.01", "2.00"));
+        new SimulatedLocalPartnerProvider().submit(command("LOCAL_PARTNER", "50000.01", "2.00"));
     assertThat(result.errorCode()).isEqualTo("LIMIT_EXCEEDED");
     assertThat(result.outcome()).isEqualTo(PayoutResult.Outcome.FAILED);
   }

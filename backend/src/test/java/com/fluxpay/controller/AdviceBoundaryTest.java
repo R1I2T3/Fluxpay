@@ -86,7 +86,8 @@ class AdviceBoundaryTest {
             cases,
             mock(KycDocumentRepository.class),
             mock(UserRepository.class),
-            Clock.systemUTC());
+            Clock.systemUTC(),
+            true);
 
     mvc(new KycController(service))
         .perform(
