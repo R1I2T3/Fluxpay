@@ -54,6 +54,16 @@ class GenModelTests(unittest.TestCase):
             rc2 = gen.main(["--check", "--root", str(PROJECT_ROOT)])
             self.assertIn(rc2, (0, 1))
 
+    def test_html_has_drill_and_panel(self):
+        gen = load_gen()
+        nodes = gen.build_model(PROJECT_ROOT)
+        html = gen.render_html(nodes)
+        self.assertIn('id="tree"', html)
+        self.assertIn('id="detail"', html)
+        self.assertIn('id="crumbs"', html)
+        self.assertIn("function render", html)
+        self.assertIn("PaymentService", html)
+
 
 if __name__ == "__main__":
     unittest.main()

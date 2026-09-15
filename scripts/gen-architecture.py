@@ -146,9 +146,46 @@ HTML_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8"><title>FluxP
 <script src="__INLINE__"></script></body></html>"""
 
 
+VIEWER_JS = """
+let cur='l0-system';
+function byId(id){return MODEL.find(n=>n.id===id);}
+function render(id){
+ cur=id; const node=byId(id);
+ const crumbs=[]; let c=node; while(c){crumbs.unshift(c); c=c.parent?byId(c.parent):null;}
+ document.getElementById('crumbs').innerHTML=crumbs.map(n=>`<button class=crumb data-id="${n.id}">${n.label}</button>`).join(' / ');
+ document.getElementById('title').textContent=node.label+' (L'+node.level+')';
+ const list=(node.children||[]).map(cid=>byId(cid)).filter(Boolean);
+ document.getElementById('tree').innerHTML=list.map(n=>`<li><button class=node data-id="${n.id}">${n.label} ${n.kind==='class'?'[class]':''}</button></li>`).join('')||'<li><i>leaf — see detail</i></li>';
+ showDetail(node);
+ document.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>{const t=byId(b.dataset.id); if(t.children&&t.children.length){render(t.id);} else {showDetail(t);}});
+}
+function showDetail(n){
+ const d=n.detail||{}; let h=`<h3>${n.label}</h3><p>kind=${n.kind} level=${n.level}</p>`;
+ if(n.kind==='class'){h+=`<pre>file: ${d.file||''}\\nstereotype: ${d.stereotype||''}\\nmethods: ${(d.methods||[]).join(', ')||'no public methods parsed'}\\nendpoints: ${(d.endpoints||[]).join('; ')||'-'}</pre>`;}
+ else {h+=`<p>${d.summary||''} — ${(n.children||[]).length} children. Click child to drill down.</p>`;}
+ document.getElementById('detail').innerHTML=h;
+}
+document.addEventListener('DOMContentLoaded',()=>render('l0-system'));
+"""
+
+
 def render_html(nodes: list[dict]) -> str:
+    import datetime
+
     payload = json.dumps(nodes)
-    return HTML_TEMPLATE.replace("/*__MODEL__*/[]", payload)
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT, text=True).strip()
+    except Exception:
+        sha = "nogit"
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    html = HTML_TEMPLATE.replace("/*__MODEL__*/[]", payload)
+    html = html.replace('src="__INLINE__"', "").replace("__INLINE__", "")
+    html = html.replace(
+        "</body>",
+        f"<script>{VIEWER_JS}</script><script>document.getElementById('foot').textContent='generatedAt {stamp} sha {sha}';</script></body>",
+    )
+    # fix double script tag from template: ensure single injection
+    return html
 
 
 def main(argv: list[str] | None = None) -> int:
