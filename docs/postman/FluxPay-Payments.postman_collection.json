@@ -22,7 +22,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Recipient\",\n  \"account\": \"postman-{{$randomUUID}}\",\n  \"bankName\": \"Test Bank\",\n  \"country\": \"IN\",\n  \"currency\": \"INR\",\n  \"status\": \"ACTIVE\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ananya Sharma\",\n  \"account\": \"TEST-HDFC-{{$randomUUID}}\",\n  \"bankName\": \"HDFC Bank\",\n  \"country\": \"IN\",\n  \"currency\": \"INR\",\n  \"status\": \"ACTIVE\"\n}" },
             "url": "{{baseUrl}}/api/recipients"
           },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.collectionVariables.set('recipientId', body.data.id);", "pm.collectionVariables.set('recipientVersion', body.data.version);"] } }]
@@ -37,7 +37,7 @@
           "request": {
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Local-User-Id", "value": "{{localUserId}}" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Recipient Updated\",\n  \"account\": \"postman-updated-{{$randomUUID}}\",\n  \"bankName\": \"Test Bank\",\n  \"country\": \"IN\",\n  \"currency\": \"INR\",\n  \"status\": \"ACTIVE\",\n  \"expectedVersion\": {{recipientVersion}}\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ananya Sharma\",\n  \"account\": \"TEST-ICICI-{{$randomUUID}}\",\n  \"bankName\": \"ICICI Bank\",\n  \"country\": \"IN\",\n  \"currency\": \"INR\",\n  \"status\": \"ACTIVE\",\n  \"expectedVersion\": {{recipientVersion}}\n}" },
             "url": "{{baseUrl}}/api/recipients/{{recipientId}}"
           },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('recipientVersion', pm.response.json().data.version);"] } }]
