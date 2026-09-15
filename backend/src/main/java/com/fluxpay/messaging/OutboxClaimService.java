@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,16 +42,17 @@ public class OutboxClaimService {
 
   @Transactional
   public List<Claimed> claimBatch(Instant now, int batchSize, Duration lease) {
-    List<OutboxDelivery> eligible = deliveries.claimEligible(now);
+    Objects.requireNonNull(now, "now must not be null");
+    Objects.requireNonNull(lease, "lease must not be null");
+    if (batchSize < 1) {
+      throw new IllegalArgumentException("batchSize must be positive");
+    }
+    if (lease.isZero() || lease.isNegative()) {
+      throw new IllegalArgumentException("lease must be positive");
+    }
+    List<OutboxDelivery> eligible = deliveries.claimEligible(now, PageRequest.of(0, batchSize));
     List<Claimed> claimed = new ArrayList<>();
     for (OutboxDelivery delivery : eligible) {
-      if (claimed.size() >= batchSize) {
-        break;
-      }
-      // Per-payment ordering: never let a later sequence overtake an earlier unsent event.
-      if (deliveries.existsUnsentEarlier(delivery.paymentId(), delivery.aggregateSequence())) {
-        continue;
-      }
       // Re-check state inside the write lock: skip SENDING with a live lease that became
       // visible after the query (concurrent dispatcher already holds it).
       if ("SENDING".equals(delivery.state())
@@ -83,28 +85,19 @@ public class OutboxClaimService {
 
   @Transactional
   public void markSent(UUID eventId, String claimToken, Instant now) {
-    var delivery = deliveries.findById(eventId).orElse(null);
-    if (delivery == null || !"SENDING".equals(delivery.state())) {
+    if (claimToken == null) {
       return;
     }
-    if (claimToken == null || !claimToken.equals(delivery.claimToken())) {
-      return;
-    }
-    delivery.markSent(now);
-    deliveries.save(delivery);
+    deliveries.markSentIfClaimed(eventId, claimToken, now);
   }
 
   @Transactional
   public void scheduleRetry(UUID eventId, String claimToken, Instant nextAttempt, String error) {
-    var delivery = deliveries.findById(eventId).orElse(null);
-    if (delivery == null || !"SENDING".equals(delivery.state())) {
+    if (claimToken == null) {
       return;
     }
-    if (claimToken == null || !claimToken.equals(delivery.claimToken())) {
-      return;
-    }
-    delivery.scheduleRetry(nextAttempt, error);
-    deliveries.save(delivery);
+    String lastError = error == null ? null : error.substring(0, Math.min(error.length(), 1000));
+    deliveries.scheduleRetryIfClaimed(eventId, claimToken, nextAttempt, lastError);
   }
 
   public Instant retryDelay(int attemptCount, Instant now) {

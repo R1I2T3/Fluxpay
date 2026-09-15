@@ -37,10 +37,12 @@ public class OutboxService {
   @Transactional(propagation = Propagation.MANDATORY)
   public String enqueue(PaymentEventEnvelope envelope, int sequence) {
     PaymentEventEnvelope.validate(envelope);
-    Object sequenceValue = envelope.payload().get("aggregateSequence");
-    if (sequenceValue instanceof Number n && n.intValue() != sequence) {
+    if (envelope.aggregateSequence() != sequence) {
       throw new IllegalArgumentException(
-          "aggregateSequence " + n.intValue() + " must equal persisted sequence " + sequence);
+          "aggregateSequence "
+              + envelope.aggregateSequence()
+              + " must equal persisted sequence "
+              + sequence);
     }
     UUID eventId;
     UUID paymentId;

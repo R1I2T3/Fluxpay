@@ -31,7 +31,7 @@ class DemoFundingServiceTest {
       "{\"walletId\":\"33333333-3333-3333-3333-333333333333\","
           + "\"currency\":\"USD\",\"balance\":\"500.0000\","
           + "\"heldBalance\":\"0.0000\",\"availableBalance\":\"500.0000\","
-          + "\"journalReference\":\"M2-DEMO-44444444-4444-4444-4444-444444444444\"}";
+          + "\"journalReference\":\"wallet:demo:44444444-4444-4444-4444-444444444444\"}";
 
   private WalletOperationRepository operations;
   private WalletPostingService posting;
@@ -66,7 +66,7 @@ class DemoFundingServiceTest {
     assertEquals("USD", result.currency());
     assertEquals("500.0000", result.balance());
     assertEquals("500.0000", result.availableBalance());
-    assertEquals("M2-DEMO-44444444-4444-4444-4444-444444444444", result.journalReference());
+    assertEquals("wallet:demo:44444444-4444-4444-4444-444444444444", result.journalReference());
   }
 
   @Test
@@ -157,7 +157,7 @@ class DemoFundingServiceTest {
 
   private static WalletOperation completedOperation(String normalized, String snapshot) {
     WalletOperation operation =
-        new WalletOperation(USER_ID, "RECEIVE_DEMO", KEY, normalized, "M2-DEMO-test");
+        new WalletOperation(USER_ID, "RECEIVE_DEMO", KEY, normalized, "wallet:demo:test");
     operation.complete(snapshot);
     return operation;
   }
@@ -169,6 +169,6 @@ class DemoFundingServiceTest {
         balance,
         "0.0000",
         balance,
-        "M2-DEMO-44444444-4444-4444-4444-444444444444");
+        "wallet:demo:44444444-4444-4444-4444-444444444444");
   }
 }

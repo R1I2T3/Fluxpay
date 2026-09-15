@@ -22,5 +22,7 @@ class OutboxDispatchJobTest {
     var scheduled = method.getAnnotation(Scheduled.class);
     assertThat(scheduled).isNotNull();
     assertThat(scheduled.fixedDelayString()).contains("fluxpay.outbox");
+    assertThat(scheduled.initialDelayString())
+        .isEqualTo("${fluxpay.outbox.dispatch-initial-delay-ms:0}");
   }
 }

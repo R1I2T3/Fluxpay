@@ -19,7 +19,16 @@ class EventEnvelopeCodecTest {
             "P-001",
             NOW,
             Map.of("routeCode", "STANDARD_BANK", "attempt", 1, "summary", "Payout failed"));
-    var envelope = PaymentEventEnvelope.from(EventTopics.PAYOUT_FAILED, "c-uuid", payload);
+    var envelope =
+        PaymentEventEnvelope.create(
+            EventTopics.PAYOUT_FAILED,
+            payload.eventId(),
+            payload.paymentId(),
+            "c-uuid",
+            payload.occurredAt(),
+            1,
+            1,
+            payload.details());
 
     String json = codec.write(envelope);
     PaymentEventEnvelope decoded = codec.read(json);

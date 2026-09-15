@@ -1,6 +1,7 @@
 package com.fluxpay.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.OutboxDelivery;
@@ -146,5 +147,25 @@ class OutboxServiceTest {
     assertThat(delivery.paymentId()).isEqualTo(paymentId);
     assertThat(delivery.aggregateSequence()).isEqualTo(3);
     assertThat(delivery.state()).isEqualTo("PENDING");
+  }
+
+  @Test
+  void enqueueRejectsASequenceThatDiffersFromTheCanonicalPayload() {
+    var envelope =
+        PaymentEventEnvelope.create(
+            EventTopics.PAYMENT_INITIATED,
+            UUID.randomUUID().toString(),
+            paymentId.toString(),
+            "corr-mismatch",
+            NOW,
+            1,
+            3,
+            Map.of());
+
+    assertThatThrownBy(() -> tx.executeWithoutResult(ignored -> outbox.enqueue(envelope, 4)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("aggregateSequence 3 must equal persisted sequence 4");
+    assertThat(events.count()).isZero();
+    assertThat(deliveries.count()).isZero();
   }
 }

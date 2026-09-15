@@ -1,5 +1,6 @@
 package com.fluxpay.messaging;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -19,21 +20,6 @@ public record PaymentEventEnvelope(
       payload = Map.of();
     }
     payload = Collections.unmodifiableMap(new LinkedHashMap<>(payload));
-  }
-
-  public static PaymentEventEnvelope from(
-      String topic, String correlationId, PaymentEventPayload payload) {
-    Objects.requireNonNull(payload, "payload must not be null");
-    PaymentEventEnvelope envelope =
-        new PaymentEventEnvelope(
-            topic,
-            payload.eventId(),
-            payload.paymentId(),
-            correlationId,
-            payload.occurredAt(),
-            payload.details());
-    validate(envelope);
-    return envelope;
   }
 
   /**
@@ -81,6 +67,33 @@ public record PaymentEventEnvelope(
     }
     if (envelope.payload() == null) {
       throw new IllegalArgumentException("payload must not be null");
+    }
+    Integer schemaVersion = integerValue(envelope.payload().get("schemaVersion"));
+    if (schemaVersion == null || schemaVersion != 1) {
+      throw new IllegalArgumentException("payload.schemaVersion must equal 1");
+    }
+    Integer aggregateSequence = integerValue(envelope.payload().get("aggregateSequence"));
+    if (aggregateSequence == null || aggregateSequence < 1) {
+      throw new IllegalArgumentException("payload.aggregateSequence must be a positive integer");
+    }
+  }
+
+  public int aggregateSequence() {
+    Integer value = integerValue(payload.get("aggregateSequence"));
+    if (value == null || value < 1) {
+      throw new IllegalArgumentException("payload.aggregateSequence must be a positive integer");
+    }
+    return value;
+  }
+
+  private static Integer integerValue(Object value) {
+    if (!(value instanceof Number number)) {
+      return null;
+    }
+    try {
+      return new BigDecimal(number.toString()).intValueExact();
+    } catch (ArithmeticException | NumberFormatException ignored) {
+      return null;
     }
   }
 }

@@ -69,7 +69,7 @@ class WalletQueryServiceTest {
             new BigDecimal("10.5000"),
             "USD",
             "private-line-key",
-            "M2-FX-journal",
+            "wallet:fx:journal",
             "FX conversion gross debit",
             created);
     PageRequest request = PageRequest.of(1, 2);
@@ -87,7 +87,7 @@ class WalletQueryServiceTest {
     assertEquals(entry.getId().toString(), result.entries().get(0).entryId());
     assertEquals("DEBIT", result.entries().get(0).entryType());
     assertEquals("10.5000", result.entries().get(0).amount());
-    assertEquals("M2-FX-journal", result.entries().get(0).journalReference());
+    assertEquals("wallet:fx:journal", result.entries().get(0).journalReference());
     assertEquals("FX conversion gross debit", result.entries().get(0).narration());
     assertEquals("2026-09-11T04:05:06Z", result.entries().get(0).createdAt());
     verify(entries).findByWalletIdOrderByCreatedAtDescIdDesc(wallet.getId(), request);

@@ -89,7 +89,7 @@ class WalletReadControllerTest {
             "DEBIT",
             "10.5000",
             "USD",
-            "M2-FX-journal",
+            "wallet:fx:journal",
             "FX conversion gross debit",
             "2026-09-11T04:05:06Z");
     when(queries.ledger(USER_ID, WALLET_ID, 1, 2))

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -77,6 +78,7 @@ class OutboxRelayTest {
   RecordingTransport transport = new RecordingTransport();
   OutboxRelay relay;
   OutboxService outbox;
+  OutboxClaimService claims;
 
   @BeforeEach
   void setup() {
@@ -97,8 +99,8 @@ class OutboxRelayTest {
     events = repositories.getRepository(OutboxEventRepository.class);
     deliveries = repositories.getRepository(OutboxDeliveryRepository.class);
     outbox = proxy(new OutboxService(events, deliveries, codec, clock));
-    var claimService = proxy(new OutboxClaimService(deliveries, events, clock));
-    relay = new OutboxRelay(deliveries, events, transport, clock, claimService, 60);
+    claims = proxy(new OutboxClaimService(deliveries, events, clock));
+    relay = new OutboxRelay(deliveries, events, transport, clock, claims, 60);
   }
 
   @SuppressWarnings("unchecked")
@@ -151,6 +153,17 @@ class OutboxRelayTest {
   }
 
   @Test
+  void eligibleClaimQueryAppliesTheBatchLimitInTheDatabase() {
+    enqueue(UUID.randomUUID(), 1, EventTopics.PAYMENT_INITIATED);
+    enqueue(UUID.randomUUID(), 1, EventTopics.PAYMENT_INITIATED);
+    enqueue(UUID.randomUUID(), 1, EventTopics.PAYMENT_INITIATED);
+
+    var eligible = tx.execute(s -> deliveries.claimEligible(NOW, PageRequest.of(0, 2)));
+
+    assertThat(eligible).hasSize(2);
+  }
+
+  @Test
   void brokerFailureSchedulesRetryAndRecovers() {
     UUID payment = UUID.randomUUID();
     enqueue(payment, 1, EventTopics.PAYMENT_INITIATED);
@@ -188,6 +201,38 @@ class OutboxRelayTest {
     now.set(NOW.plus(Duration.ofSeconds(120)));
     assertThat(relay.relayOnce(10)).isEqualTo(1);
     assertThat(transport.sentTopics).hasSize(1);
+  }
+
+  @Test
+  void staleClaimTokenCannotFinalizeOrRetryAReclaimedDelivery() {
+    UUID eventId = UUID.fromString(enqueue(UUID.randomUUID(), 1, EventTopics.PAYMENT_INITIATED));
+    var first = claims.claimBatch(NOW, 1, Duration.ofSeconds(1)).get(0);
+    var second = claims.claimBatch(NOW.plusSeconds(2), 1, Duration.ofSeconds(60)).get(0);
+
+    int staleCompletion =
+        tx.execute(
+            ignored -> deliveries.markSentIfClaimed(eventId, first.claim(), NOW.plusSeconds(3)));
+    int staleRetry =
+        tx.execute(
+            ignored ->
+                deliveries.scheduleRetryIfClaimed(
+                    eventId, first.claim(), NOW.plusSeconds(4), "stale failure"));
+
+    assertThat(staleCompletion).isZero();
+    assertThat(staleRetry).isZero();
+    assertThat(deliveries.findById(eventId))
+        .get()
+        .satisfies(
+            delivery -> {
+              assertThat(delivery.state()).isEqualTo("SENDING");
+              assertThat(delivery.claimToken()).isEqualTo(second.claim());
+            });
+
+    claims.markSent(eventId, second.claim(), NOW.plusSeconds(5));
+    assertThat(deliveries.findById(eventId))
+        .get()
+        .extracting(OutboxDelivery::state)
+        .isEqualTo("SENT");
   }
 
   @Test

@@ -7,7 +7,7 @@ import org.slf4j.MDC;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-/** Shared request plumbing for M4 controllers: user resolution and correlation IDs. */
+/** Shared request plumbing for payout controllers: user resolution and correlation IDs. */
 final class ControllerSupport {
   private ControllerSupport() {}
 

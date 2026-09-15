@@ -20,7 +20,9 @@ public class OutboxDispatchJob {
     this.batchSize = batchSize;
   }
 
-  @Scheduled(fixedDelayString = "${fluxpay.outbox.dispatch-delay-ms:1000}")
+  @Scheduled(
+      fixedDelayString = "${fluxpay.outbox.dispatch-delay-ms:1000}",
+      initialDelayString = "${fluxpay.outbox.dispatch-initial-delay-ms:0}")
   public void dispatch() {
     try {
       relay.relayOnce(batchSize);

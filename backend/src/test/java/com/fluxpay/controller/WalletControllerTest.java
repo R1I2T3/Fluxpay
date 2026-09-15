@@ -69,7 +69,7 @@ class WalletControllerTest {
             "500.0000",
             "0.0000",
             "500.0000",
-            "M2-DEMO-44444444-4444-4444-4444-444444444444");
+            "wallet:demo:44444444-4444-4444-4444-444444444444");
     when(funding.receiveDemo(
             eq(USER_ID), eq(new WalletReceiveRequest("USD", "500.0000")), eq("fund-1")))
         .thenReturn(response);
@@ -163,7 +163,7 @@ class WalletControllerTest {
             "83.50",
             "2026-09-11T01:02:03Z",
             false,
-            "M2-FX-44444444-4444-4444-4444-444444444444");
+            "wallet:fx:44444444-4444-4444-4444-444444444444");
     when(conversion.convert(
             eq(USER_ID), eq(new WalletConvertRequest("USD", "INR", "100.0000")), eq("fx-1")))
         .thenReturn(response);

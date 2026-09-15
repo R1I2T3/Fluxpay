@@ -32,7 +32,10 @@ class JwtUtilTest {
   @Test
   void rejectsTamperedToken() {
     String token = jwt.generate(UUID.randomUUID(), "user@fluxpay.test", "USER");
-    String tampered = token.substring(0, token.length() - 1) + "x";
+    int signatureStart = token.lastIndexOf('.') + 1;
+    char replacement = token.charAt(signatureStart) == 'A' ? 'B' : 'A';
+    String tampered =
+        token.substring(0, signatureStart) + replacement + token.substring(signatureStart + 1);
 
     assertThatThrownBy(() -> jwt.parse(tampered)).isInstanceOf(RuntimeException.class);
   }

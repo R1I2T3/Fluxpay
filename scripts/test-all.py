@@ -50,12 +50,26 @@ def main():
         if run(maven_command("-f", "backend/pom.xml", "verify")):
             print("backend FAIL")
             return 3
-        if os.environ.get("KAFKA_BOOTSTRAP_SERVERS") and os.environ.get("ORACLE_JDBC_URL"):
+        integration_requested = os.environ.get("ORACLE_TESTS_ACTIVE", "").lower() == "true"
+        if integration_requested:
+            required = (
+                "KAFKA_BOOTSTRAP_SERVERS",
+                "ORACLE_TEST_JDBC_URL",
+                "ORACLE_TEST_USERNAME",
+                "ORACLE_TEST_PASSWORD",
+            )
+            missing = [name for name in required if not os.environ.get(name)]
+            if missing:
+                print("persistence IT FAIL missing " + ", ".join(missing))
+                return 3
+            if os.environ["ORACLE_TEST_USERNAME"].upper() != "FLUXPAY_TEST":
+                print("persistence IT FAIL requires ORACLE_TEST_USERNAME=FLUXPAY_TEST")
+                return 3
             if run(maven_command("-f", "backend/pom.xml", "-Dtest=PaymentEventPersistenceIT", "test")):
                 print("persistence IT FAIL")
                 return 3
         else:
-            print("persistence IT skipped (KAFKA_BOOTSTRAP_SERVERS/ORACLE_JDBC_URL unset)")
+            print("persistence IT skipped (ORACLE_TESTS_ACTIVE is not true)")
     if a.suite in ("all", "frontend"):
         if run(ojet_command("build"), cwd=FRONTEND_DIR):
             print("frontend FAIL")

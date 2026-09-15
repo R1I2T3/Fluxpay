@@ -91,18 +91,4 @@ public class OutboxDelivery {
     this.claimToken = token;
     this.leaseExpiresAt = leaseExpiry;
   }
-
-  public void markSent(Instant now) {
-    this.state = "SENT";
-    this.sentAt = now;
-  }
-
-  public void scheduleRetry(Instant nextAttempt, String error) {
-    this.state = "PENDING";
-    this.attemptCount = this.attemptCount + 1;
-    this.nextAttemptAt = nextAttempt;
-    this.claimToken = null;
-    this.leaseExpiresAt = null;
-    this.lastError = error == null ? null : error.substring(0, Math.min(error.length(), 1000));
-  }
 }

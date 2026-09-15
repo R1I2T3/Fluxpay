@@ -88,7 +88,7 @@ public class PayoutAttempt {
     this.status = PayoutAttemptStatus.PROCESSING;
   }
 
-  public void markCompleted(String providerReference) {
+  public void markCompleted(String providerReference, Instant completedAt) {
     if (status != PayoutAttemptStatus.PROCESSING) {
       throw new IllegalStateException(transitionMessage("mark COMPLETED"));
     }
@@ -96,11 +96,11 @@ public class PayoutAttempt {
         Objects.requireNonNull(providerReference, "providerReference must not be null");
     this.errorCode = null;
     this.errorMessage = null;
-    this.completedAt = Instant.now();
+    this.completedAt = Objects.requireNonNull(completedAt, "completedAt must not be null");
     this.status = PayoutAttemptStatus.COMPLETED;
   }
 
-  public void markFailed(String errorCode, String errorMessage) {
+  public void markFailed(String errorCode, String errorMessage, Instant completedAt) {
     if (status != PayoutAttemptStatus.PROCESSING) {
       throw new IllegalStateException(transitionMessage("mark FAILED"));
     }
@@ -113,7 +113,7 @@ public class PayoutAttempt {
     this.errorCode = errorCode;
     this.errorMessage = errorMessage;
     this.providerReference = null;
-    this.completedAt = Instant.now();
+    this.completedAt = Objects.requireNonNull(completedAt, "completedAt must not be null");
     this.status = PayoutAttemptStatus.FAILED;
   }
 

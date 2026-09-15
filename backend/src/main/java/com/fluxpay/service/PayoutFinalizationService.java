@@ -46,12 +46,13 @@ public class PayoutFinalizationService {
     details.put("providerFee", result.providerFee());
     details.put("error", result.errorCode());
     details.put("errorMessage", result.errorMessage());
+    var completedAt = clock.instant();
     if (result.success()) {
-      attempt.markCompleted(result.providerRef());
-      payment.completePayout(clock.instant());
+      attempt.markCompleted(result.providerRef(), completedAt);
+      payment.completePayout(completedAt);
     } else {
-      attempt.markFailed(result.errorCode(), result.errorMessage());
-      payment.failPayout(clock.instant());
+      attempt.markFailed(result.errorCode(), result.errorMessage(), completedAt);
+      payment.failPayout(completedAt);
     }
     var eventId =
         outbox.enqueue(

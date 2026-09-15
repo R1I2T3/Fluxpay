@@ -53,7 +53,7 @@ public class WalletPostingService {
     }
 
     UUID operationId = UUID.randomUUID();
-    String journalReference = "M2-DEMO-" + operationId;
+    String journalReference = "wallet:demo:" + operationId;
     WalletOperation operation =
         new WalletOperation(
             operationId, userId, OPERATION_TYPE, clientKey, normalizedRequest, journalReference);
@@ -122,7 +122,7 @@ public class WalletPostingService {
     }
 
     UUID operationId = UUID.randomUUID();
-    String journalReference = "M2-FX-" + operationId;
+    String journalReference = "wallet:fx:" + operationId;
     WalletOperation operation =
         new WalletOperation(
             operationId, userId, "CONVERT", clientKey, normalizedRequest, journalReference);

@@ -272,7 +272,9 @@ class ScriptCommandTests(unittest.TestCase):
                 (
                     command,
                     script.os.environ.get("KAFKA_BOOTSTRAP_SERVERS"),
-                    script.os.environ.get("ORACLE_JDBC_URL"),
+                    script.os.environ.get("ORACLE_TESTS_ACTIVE"),
+                    script.os.environ.get("ORACLE_TEST_JDBC_URL"),
+                    script.os.environ.get("ORACLE_TEST_USERNAME"),
                 )
             )
             return CompletedProcess()
@@ -280,7 +282,11 @@ class ScriptCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / "backend.env"
             env_file.write_text(
-                "KAFKA_BOOTSTRAP_SERVERS=kafka.test:9092\nORACLE_JDBC_URL=jdbc:oracle:thin:@//db.test:1521/FREEPDB1\n",
+                "KAFKA_BOOTSTRAP_SERVERS=kafka.test:9092\n"
+                "ORACLE_TESTS_ACTIVE=true\n"
+                "ORACLE_TEST_JDBC_URL=jdbc:oracle:thin:@//db.test:1521/FREEPDB1\n"
+                "ORACLE_TEST_USERNAME=FLUXPAY_TEST\n"
+                "ORACLE_TEST_PASSWORD=test-secret\n",
                 encoding="utf-8",
             )
             with (
@@ -301,9 +307,53 @@ class ScriptCommandTests(unittest.TestCase):
         self.assertEqual(len(observed_settings), 2)
         self.assertEqual(
             observed_settings[0][1:],
-            ("kafka.test:9092", "jdbc:oracle:thin:@//db.test:1521/FREEPDB1"),
+            (
+                "kafka.test:9092",
+                "true",
+                "jdbc:oracle:thin:@//db.test:1521/FREEPDB1",
+                "FLUXPAY_TEST",
+            ),
         )
         self.assertIn("-Dtest=PaymentEventPersistenceIT", observed_settings[1][0])
+
+    def test_test_all_fails_when_requested_integration_credentials_are_incomplete(self):
+        script = load_script("test-all")
+        with (
+            mock.patch.dict(
+                script.os.environ,
+                {
+                    "ORACLE_TESTS_ACTIVE": "true",
+                    "KAFKA_BOOTSTRAP_SERVERS": "kafka.test:9092",
+                },
+                clear=True,
+            ),
+            mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
+        ):
+            self.assertEqual(script.main(), 3)
+
+        self.assertEqual(run.call_count, 1)
+
+    def test_test_all_rejects_application_schema_for_requested_integration(self):
+        script = load_script("test-all")
+        with (
+            mock.patch.dict(
+                script.os.environ,
+                {
+                    "ORACLE_TESTS_ACTIVE": "true",
+                    "KAFKA_BOOTSTRAP_SERVERS": "kafka.test:9092",
+                    "ORACLE_TEST_JDBC_URL": "jdbc:oracle:thin:@//db.test:1521/FREEPDB1",
+                    "ORACLE_TEST_USERNAME": "FLUXPAY",
+                    "ORACLE_TEST_PASSWORD": "test-secret",
+                },
+                clear=True,
+            ),
+            mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
+        ):
+            self.assertEqual(script.main(), 3)
+
+        self.assertEqual(run.call_count, 1)
 
     def test_test_all_sets_windows_maven_homes_before_backend_subprocess(self):
         script = load_script("test-all")

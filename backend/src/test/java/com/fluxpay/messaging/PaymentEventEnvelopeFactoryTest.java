@@ -1,6 +1,7 @@
 package com.fluxpay.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -44,5 +45,72 @@ class PaymentEventEnvelopeFactoryTest {
     assertThat(decoded.eventId()).isEqualTo(eventId);
     assertThat(decoded.payload()).containsEntry("schemaVersion", 1);
     assertThat(decoded.payload()).containsEntry("aggregateSequence", 7);
+  }
+
+  @Test
+  void rejectsEnvelopeWithoutSchemaVersion() {
+    var envelope =
+        new PaymentEventEnvelope(
+            EventTopics.PAYMENT_INITIATED,
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString(),
+            "corr-missing-schema",
+            Instant.parse("2026-09-13T10:00:00Z"),
+            Map.of("aggregateSequence", 1));
+
+    assertThatThrownBy(() -> PaymentEventEnvelope.validate(envelope))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("payload.schemaVersion must equal 1");
+  }
+
+  @Test
+  void rejectsEnvelopeWithUnsupportedSchemaVersion() {
+    var envelope =
+        new PaymentEventEnvelope(
+            EventTopics.PAYMENT_INITIATED,
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString(),
+            "corr-wrong-schema",
+            Instant.parse("2026-09-13T10:00:00Z"),
+            Map.of("schemaVersion", 2, "aggregateSequence", 1));
+
+    assertThatThrownBy(() -> PaymentEventEnvelope.validate(envelope))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("payload.schemaVersion must equal 1");
+  }
+
+  @Test
+  void rejectsEnvelopeWithNonintegralAggregateSequence() {
+    var envelope =
+        new PaymentEventEnvelope(
+            EventTopics.PAYMENT_INITIATED,
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString(),
+            "corr-fractional-sequence",
+            Instant.parse("2026-09-13T10:00:00Z"),
+            Map.of("schemaVersion", 1, "aggregateSequence", 1.5));
+
+    assertThatThrownBy(() -> PaymentEventEnvelope.validate(envelope))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("payload.aggregateSequence must be a positive integer");
+  }
+
+  @Test
+  void rejectsOtherNoncanonicalAggregateSequences() {
+    for (Object sequence : new Object[] {0, -1, Long.MAX_VALUE, "1"}) {
+      var envelope =
+          new PaymentEventEnvelope(
+              EventTopics.PAYMENT_INITIATED,
+              UUID.randomUUID().toString(),
+              UUID.randomUUID().toString(),
+              "corr-invalid-sequence",
+              Instant.parse("2026-09-13T10:00:00Z"),
+              Map.of("schemaVersion", 1, "aggregateSequence", sequence));
+
+      assertThatThrownBy(() -> PaymentEventEnvelope.validate(envelope))
+          .as("aggregateSequence=%s", sequence)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("payload.aggregateSequence must be a positive integer");
+    }
   }
 }

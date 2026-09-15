@@ -98,7 +98,7 @@ class WalletConversionServiceTest {
   @Test
   void changedPayloadCannotReuseACompletedKey() {
     WalletOperation completed =
-        new WalletOperation(USER_ID, "CONVERT", KEY, NORMALIZED, "M2-FX-completed");
+        new WalletOperation(USER_ID, "CONVERT", KEY, NORMALIZED, "wallet:fx:completed");
     completed.complete("{}");
     when(operations.findByUserIdAndOperationTypeAndClientKey(USER_ID, "CONVERT", KEY))
         .thenReturn(Optional.of(completed));
@@ -182,6 +182,6 @@ class WalletConversionServiceTest {
         "83.50",
         FETCHED_AT.toString(),
         false,
-        "M2-FX-44444444-4444-4444-4444-444444444444");
+        "wallet:fx:44444444-4444-4444-4444-444444444444");
   }
 }

@@ -180,7 +180,7 @@ public class KycService {
 
   private KycAdminRow toAdminRow(KycCase kycCase) {
     // Orphaned user must not fail the entire admin list; surface a placeholder instead.
-    // TODO(M2): replace per-row user/document queries with a fetch-join or batch load.
+    // TODO: replace per-row user/document queries with a fetch-join or batch load.
     User user = users.findById(kycCase.getUserId()).orElse(null);
     String email = user == null ? "unknown@fluxpay.invalid" : user.getEmail();
     String fullName = user == null ? "Unknown user" : user.getFullName();
