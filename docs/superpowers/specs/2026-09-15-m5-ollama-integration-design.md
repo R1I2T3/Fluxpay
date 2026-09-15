@@ -15,7 +15,7 @@ The implementation will:
   infrastructure code;
 - persist policy documents, chunks, vector-space generations, screening cases, and review-delivery
   state through additive Flyway migrations;
-- use Oracle vector search and a concrete Ollama `nomic-embed-text` embedding adapter at runtime;
+- use Oracle vector search and a concrete Ollama `qwen3-embedding:4b` embedding adapter at runtime;
 - expose policy management, compliance assessment, and grounded Copilot endpoints;
 - connect payment confirmation and compliance review through an explicit M3-to-M5 bridge that
   delegates to the current concrete payment, KYC, ledger, and transaction boundaries;
@@ -53,8 +53,8 @@ wallet adapter, or security chain.
 Ollama is the production/default M5 provider:
 
 - endpoint: `http://localhost:11434/api/embed` unless configured otherwise;
-- model: `nomic-embed-text`;
-- vector dimensions: exactly 768;
+- model: `qwen3-embedding:4b`;
+- vector dimensions: exactly 1536;
 - document and query embeddings use the provider's appropriate search prefixes;
 - provider failures, malformed payloads, timeouts, and dimension mismatches return typed boundary
   errors and never persist invalid vectors.
