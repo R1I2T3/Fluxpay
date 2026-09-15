@@ -72,6 +72,12 @@ public class Payment {
   @Column(name = "approval_expires_at")
   private Instant approvalExpiresAt;
 
+  @Column(name = "review_assessment_id") private UUID reviewAssessmentId;
+  @Column(name = "review_case_id") private UUID reviewCaseId;
+  @Column(name = "review_payment_fingerprint") private String reviewPaymentFingerprint;
+  @Column(name = "approval_decision_id") private UUID approvalDecisionId;
+  @Column(name = "approval_consumed_at") private Instant approvalConsumedAt;
+
   @Version private long version;
 
   @Column(name = "created_at")
@@ -201,6 +207,39 @@ public class Payment {
 
   public Instant approvalExpiresAt() {
     return approvalExpiresAt;
+  }
+
+  public UUID reviewAssessmentId() { return reviewAssessmentId; }
+  public UUID reviewCaseId() { return reviewCaseId; }
+  public String reviewPaymentFingerprint() { return reviewPaymentFingerprint; }
+  public UUID approvalDecisionId() { return approvalDecisionId; }
+  public Instant approvalConsumedAt() { return approvalConsumedAt; }
+
+  public void bindReview(UUID assessment, UUID caseId, String fingerprint, String reference, Instant now) {
+    underReview(reference, now);
+    reviewAssessmentId = assessment; reviewCaseId = caseId; reviewPaymentFingerprint = fingerprint;
+    approvalDecisionId = null; approvalExpiresAt = null; approvalConsumedAt = null;
+  }
+
+  public void acceptReview(UUID decisionId, Instant acceptedAt) {
+    if (status != PaymentLifecycleStatus.UNDER_REVIEW || reviewReference == null)
+      throw new IllegalStateException("No active review");
+    status = PaymentLifecycleStatus.DRAFT;
+    currentQuoteGeneration = null;
+    approvalDecisionId = java.util.Objects.requireNonNull(decisionId);
+    approvalExpiresAt = acceptedAt.plusSeconds(900);
+    approvalConsumedAt = null;
+    updatedAt = acceptedAt;
+  }
+
+  public boolean hasApproval(String fingerprint, Instant now) {
+    return approvalDecisionId != null && approvalConsumedAt == null && approvalExpiresAt != null
+        && now.isBefore(approvalExpiresAt) && java.util.Objects.equals(reviewPaymentFingerprint, fingerprint);
+  }
+
+  public void consumeApproval(Instant now) {
+    if (!hasApproval(reviewPaymentFingerprint, now)) throw new IllegalStateException("Approval is unavailable");
+    approvalConsumedAt = now;
   }
 
   public int nextQuoteGeneration() {

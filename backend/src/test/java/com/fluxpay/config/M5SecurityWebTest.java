@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fluxpay.common.api.ApiResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fluxpay.common.security.*;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import jakarta.servlet.Filter;
@@ -84,6 +86,10 @@ class M5SecurityWebTest {
   @Import({SecurityConfig.class, JwtAuthFilter.class, ProbeController.class})
   static class WebFixture {
     @Bean JwtUtil jwtUtil() { return new JwtUtil("m5-test-only-unsigned-identity-must-fail-1234567890"); }
+    @Bean ObjectMapper objectMapper() {
+      return new ObjectMapper().findAndRegisterModules()
+          .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    }
   }
 
   @RestController

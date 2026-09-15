@@ -1,0 +1,2385 @@
+{
+  "info": {
+    "name": "Fluxpay M5 Backend — risk, review and Oracle vector acceptance",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Canonical Postman collection for the current M5BackendApplication on port 8082 with m5-risk,m5-backend,m5-m3-integration. Follow docs/M5-POSTMAN-END-TO-END-TESTING.md exactly. Keep signed USER/ADMIN tokens only in private Postman environment Current values. Do not run the whole collection automatically: the current-policy folder is Runner-only, review delivery requires manual polling, and rejection/policy mutation exercises are separate. The default RU recipient and country list are synthetic demo fixtures, not legal or sanctions assertions. Risk and reasons are always computed from authoritative stored data; this collection never submits them. SQL setup, account provisioning, token minting, Kafka, payout, settlement and refunds are outside these HTTP requests. Preserve idempotency keys for replay checks. If confirmation returns 410 QUOTE_EXPIRED, generate a fresh quote and a fresh confirmation key and confirm immediately."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{adminToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8082",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sourceWalletId",
+      "value": "5f100000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "recipientId",
+      "value": "5f200000-0000-0000-0000-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "sourceAmount",
+      "value": "1500.0000",
+      "type": "string"
+    },
+    {
+      "key": "draftKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "confirmKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reconfirmKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "originalQuoteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "freshQuoteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "caseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reviewReference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "decisionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deliveryState",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentStatus",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "policyId",
+      "value": "00000000-0000-0000-0000-000000006e01",
+      "type": "string"
+    },
+    {
+      "key": "policyTitle",
+      "value": "Synthetic M5 integration policy",
+      "type": "string"
+    },
+    {
+      "key": "policyContent",
+      "value": "Synthetic test policy: manual compliance approval authorizes a new confirmation attempt only while the bound receipt is valid. The sender must obtain a fresh quote and use a new confirmation key. Quote expiry, verified KYC, recipient eligibility and sufficient available funds still apply. PROCESSING records a balanced journal and durable event intent; it does not certify external payout or settlement. Only the current configured demo rules decide risk; policy retrieval does not change their verdict.",
+      "type": "string"
+    },
+    {
+      "key": "question",
+      "value": "What checks still apply after a manual compliance approval?",
+      "type": "string"
+    },
+    {
+      "key": "ollamaUrl",
+      "value": "http://127.0.0.1:11434",
+      "type": "string"
+    },
+    {
+      "key": "embeddingModel",
+      "value": "nomic-embed-text",
+      "type": "string"
+    },
+    {
+      "key": "expectedDimensions",
+      "value": "768",
+      "type": "string"
+    },
+    {
+      "key": "allowPolicyIndexing",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "currentPolicyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expectedPolicyTitle",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "riskFixturePaymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expectedPaymentFingerprint",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assessmentSequence",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "directAssessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "directCaseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "directAssessmentData",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "firstConfirmData",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "processingConfirmData",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "originalQuoteExpiresAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "freshQuoteExpiresAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "generationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "embeddingSpaceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r2DraftKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "safeRecipientId",
+      "value": "5f200000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "r2PaymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r2QuoteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r2ConfirmKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r2CaseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r3r5DraftKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r3r5PaymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r3r5QuoteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r3r5ConfirmKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "r3r5CaseId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00. Signed-token and authorization preflight",
+      "description": "Run these four requests first. They prove that both tokens are valid and that ADMIN boundaries are enforced. Tokens belong in private Postman environment Current values, never in the exported collection.",
+      "item": [
+        {
+          "name": "1. ADMIN token can list one policy",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies?page=0&size=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ADMIN token is valid', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Success envelope is present', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.data.content).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. USER token can list owned payments",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments?page=0&size=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('USER token is valid', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Owner-scoped payment page is returned', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.data.items).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Unsigned policy request is rejected",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies?page=0&size=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unsigned request gets 401', function () { pm.expect(pm.response.code).to.equal(401); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Structured AUTH_REQUIRED error', function () { pm.expect(body.code).to.equal('AUTH_REQUIRED'); pm.expect(body.message).to.be.a('string').and.not.empty; pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.fieldErrors).to.be.an('object'); pm.expect(body.ts).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. USER cannot administer policies",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies?page=0&size=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('USER request gets 403', function () { pm.expect(pm.response.code).to.equal(403); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Structured FORBIDDEN error', function () { pm.expect(body.code).to.equal('FORBIDDEN'); pm.expect(body.correlationId).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01. Ollama and current-policy readiness",
+      "description": "Run after Ollama is serving nomic-embed-text and the backend is running. The Ollama request explicitly uses No Auth so your ADMIN token is never sent to the model server.",
+      "item": [
+        {
+          "name": "1. Warm Ollama and verify the 768-dimensional embedding",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{ollamaUrl}}/api/embed",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{embeddingModel}}\",\n  \"input\": \"search_query: sender verification\",\n  \"truncate\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ollama embed endpoint is available', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "const vector = body.embeddings && body.embeddings[0];",
+                  "pm.test('Embedding is finite, nonzero and has configured dimensions', function () { pm.expect(vector).to.be.an('array').with.lengthOf(Number(pm.variables.get('expectedDimensions'))); pm.expect(vector.every(Number.isFinite)).to.equal(true); pm.expect(vector.some(v => v !== 0)).to.equal(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Reconcile canonical hashes — safe to repeat",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/reconcile-hashes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Hash reconciliation succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Updated count is a nonnegative integer', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.data.updatedDocuments).to.be.a('number'); pm.expect(body.data.updatedDocuments).to.be.at.least(0); });",
+                  "console.log('Run this request again after the first reconciliation; updatedDocuments should then be 0.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Verify all 13 V708 current policies exist",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies?page=0&size=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Policy page is available', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "const expected = ['6e01','6e02','6e03','6e04','6e05','6f01','6f02','6f03','6f04','6f05','6f06','6f07','6f08'].map(s => '00000000-0000-0000-0000-00000000' + s);",
+                  "const ids = body.data.content.map(p => p.id.toLowerCase());",
+                  "pm.test('All 13 current policy revisions are present', function () { expected.forEach(id => pm.expect(ids, 'missing ' + id).to.include(id)); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. Index 13 current policies — run this folder with Runner data only",
+      "description": "Use Postman Collection Runner on this folder only with docs/postman/m5-current-policy-ids.json. Set allowPolicyIndexing=true only in your private environment. Each data row first proves the ID/title and then indexes that immutable revision with the configured real provider.",
+      "item": [
+        {
+          "name": "1. Verify Runner policy ID and title",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{currentPolicyId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (String(pm.variables.get('allowPolicyIndexing')).toLowerCase() !== 'true') throw new Error('Set allowPolicyIndexing=true in your private environment for this deliberate Runner operation.');",
+                  "const allowed = ['6e01','6e02','6e03','6e04','6e05','6f01','6f02','6f03','6f04','6f05','6f06','6f07','6f08'].map(s => '00000000-0000-0000-0000-00000000' + s);",
+                  "const id = String(pm.iterationData.get('currentPolicyId') || '').toLowerCase();",
+                  "if (!allowed.includes(id)) throw new Error('Runner data contains a policy ID outside the 13-ID V708 allowlist.');",
+                  "if (!pm.iterationData.get('expectedPolicyTitle')) throw new Error('Runner data is missing expectedPolicyTitle.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Policy detail succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Runner row matches immutable policy', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.data.id.toLowerCase()).to.equal(String(pm.iterationData.get('currentPolicyId')).toLowerCase()); pm.expect(body.data.title).to.equal(pm.iterationData.get('expectedPolicyTitle')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Index verified current policy with real provider",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{currentPolicyId}}/index"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (String(pm.variables.get('allowPolicyIndexing')).toLowerCase() !== 'true') throw new Error('Set allowPolicyIndexing=true in your private environment for this deliberate Runner operation.');",
+                  "const allowed = ['6e01','6e02','6e03','6e04','6e05','6f01','6f02','6f03','6f04','6f05','6f06','6f07','6f08'].map(s => '00000000-0000-0000-0000-00000000' + s);",
+                  "const id = String(pm.iterationData.get('currentPolicyId') || '').toLowerCase();",
+                  "if (!allowed.includes(id)) throw new Error('Runner data contains a policy ID outside the 13-ID V708 allowlist.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Index request succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Real immutable generation is active', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.data.policyDocumentId.toLowerCase()).to.equal(String(pm.iterationData.get('currentPolicyId')).toLowerCase()); pm.expect(body.data.mock).to.equal(false); pm.expect(body.data.chunkCount).to.be.above(0); pm.expect(body.data.generationId).to.be.a('string').and.not.empty; pm.expect(body.data.embeddingSpaceId).to.be.a('string').and.not.empty; pm.expect(body.data.replayed).to.be.a('boolean'); });",
+                  "pm.collectionVariables.set('generationId', body.data.generationId);",
+                  "pm.collectionVariables.set('embeddingSpaceId', body.data.embeddingSpaceId);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03. Grounded Oracle vector-search acceptance",
+      "description": "Run after the 13-policy Runner folder. These requests distinguish a grounded semantic match from the explicit no-answer path and require mock=false.",
+      "item": [
+        {
+          "name": "1. Relevant sender-verification question is grounded",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/copilot/ask",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"When must a sender undergo manual review because their identity is unverified?\",\n  \"paymentId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Grounded query succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Answer uses real indexed policy sources', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.data.mock).to.equal(false); pm.expect(body.data.answer).to.be.a('string').and.not.empty; pm.expect(body.data.sources).to.be.an('array').that.is.not.empty; body.data.sources.forEach(s => { pm.expect(s.policyDocumentId).to.be.a('string').and.not.empty; pm.expect(s.title).to.be.a('string').and.not.empty; pm.expect(s.excerpt).to.be.a('string').and.not.empty; }); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Unrelated question returns explicit no-answer",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/copilot/ask",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"How do I bake a chocolate cake?\",\n  \"paymentId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unrelated query succeeds safely', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('No unsupported policy answer is invented', function () { pm.expect(body.data.mock).to.equal(false); pm.expect(body.data.answer).to.equal('No grounded answer found in current policies.'); pm.expect(body.data.sources).to.be.an('array').that.is.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04. Direct authoritative risk diagnostic — optional R1 fixture",
+      "description": "First run docs/sql/m5-risk-demo-fixture.sql and paste its paymentId into riskFixturePaymentId. The API returns the fingerprint and sequence; the client never submits risk or reasons. This raw assessment is evidence-only and intentionally cannot be approved until M3 binds a review disposition.",
+      "item": [
+        {
+          "name": "1. Read server-owned assessment context",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/payments/{{riskFixturePaymentId}}/assessment-context"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[0-9a-f-]{36}$/i.test(String(pm.variables.get('riskFixturePaymentId') || ''))) throw new Error('Run docs/sql/m5-risk-demo-fixture.sql and set riskFixturePaymentId first.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Assessment context succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Fingerprint and next sequence are server-derived', function () { pm.expect(body.data.paymentId.toLowerCase()).to.equal(pm.variables.get('riskFixturePaymentId').toLowerCase()); pm.expect(body.data.expectedPaymentFingerprint).to.match(/^[0-9a-f]{64}$/); pm.expect(body.data.nextAssessmentSequence).to.be.a('number').and.above(0); });",
+                  "pm.collectionVariables.set('expectedPaymentFingerprint', body.data.expectedPaymentFingerprint);",
+                  "pm.collectionVariables.set('assessmentSequence', String(body.data.nextAssessmentSequence));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Create server-derived R1 assessment",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/compliance/assess/{{riskFixturePaymentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assessmentId\": \"{{directAssessmentId}}\",\n  \"assessmentSequence\": {{assessmentSequence}},\n  \"expectedPaymentFingerprint\": \"{{expectedPaymentFingerprint}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('directAssessmentId')) pm.collectionVariables.set('directAssessmentId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('First assessment returns 201', function () { pm.expect(pm.response.code).to.equal(201); });",
+                  "const body = pm.response.json();",
+                  "const codes = body.data.reasons.map(r => r.code);",
+                  "pm.test('R1 fixture produces authoritative HIGH review evidence', function () { pm.expect(body.data.assessmentId.toLowerCase()).to.equal(pm.collectionVariables.get('directAssessmentId').toLowerCase()); pm.expect(body.data.risk).to.equal('HIGH'); pm.expect(body.data.screeningVerdict).to.equal('REVIEW'); pm.expect(codes).to.include('KYC_UNVERIFIED'); pm.expect(codes).to.include('FIRST_TO_RECIPIENT'); pm.expect(codes).to.include('HIGH_VALUE'); });",
+                  "pm.collectionVariables.set('directCaseId', body.data.caseId);",
+                  "pm.collectionVariables.set('directAssessmentData', JSON.stringify(body.data));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Exact assessment replay returns identical result",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/compliance/assess/{{riskFixturePaymentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assessmentId\": \"{{directAssessmentId}}\",\n  \"assessmentSequence\": {{assessmentSequence}},\n  \"expectedPaymentFingerprint\": \"{{expectedPaymentFingerprint}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Exact replay returns 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Replay returns the original stored assessment', function () { pm.expect(body.data).to.deep.equal(JSON.parse(pm.collectionVariables.get('directAssessmentData'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Changed request with same assessment ID conflicts",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/compliance/assess/{{riskFixturePaymentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assessmentId\": \"{{directAssessmentId}}\",\n  \"assessmentSequence\": {{assessmentSequence}},\n  \"expectedPaymentFingerprint\": \"{{conflictingFingerprint}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fp = String(pm.variables.get('expectedPaymentFingerprint'));",
+                  "pm.variables.set('conflictingFingerprint', fp.slice(0, -1) + (fp.endsWith('0') ? '1' : '0'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Changed replay gets 409', function () { pm.expect(pm.response.code).to.equal(409); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Structured ASSESSMENT_CONFLICT error', function () { pm.expect(body.code).to.equal('ASSESSMENT_CONFLICT'); pm.expect(body.correlationId).to.be.a('string').and.not.empty; pm.expect(body.fieldErrors).to.be.an('object'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Inspect evidence-only direct case",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/cases/{{directCaseId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Direct case can be inspected', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Raw assessment is not an active payment hold', function () { pm.expect(body.data.risk).to.equal('HIGH'); pm.expect(body.data.reviewable).to.equal(false); pm.expect(body.data.paymentDisposition).to.equal(null); pm.expect(body.data.reviewReference).to.equal(null); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Direct case cannot be approved before M3 binding",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/compliance/cases/{{directCaseId}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"This must fail because direct assessment is not an M3 review hold.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unbound direct case gets 409', function () { pm.expect(pm.response.code).to.equal(409); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Structured CASE_CONFLICT error', function () { pm.expect(body.code).to.equal('CASE_CONFLICT'); pm.expect(body.correlationId).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05. Targeted R2, R3 and R5 scenarios — fresh India-recipient history only",
+      "description": "Run once on a fresh m5-backend-test-data.sql fixture before any other payment to safeRecipientId. Steps 1–4 prove R2 alone is LOW/APPROVE. Steps 5–8 create a second same-day BUSINESS payment and prove R2+R3+R5 is MEDIUM/REVIEW. Clear this folder's ten generated variables before a genuinely fresh rerun.",
+      "item": [
+        {
+          "name": "1. Create first safe-recipient payment for R2",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{r2DraftKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/draft",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"recipientId\": \"{{safeRecipientId}}\",\n  \"sourceAmount\": \"100.0000\",\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"FAMILY_SUPPORT\",\n  \"preference\": \"CHEAPEST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('r2DraftKey')) pm.collectionVariables.set('r2DraftKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('First targeted draft returns 201', function () { pm.expect(pm.response.code).to.equal(201); });",
+                  "const body = pm.response.json();",
+                  "pm.test('First targeted payment is DRAFT', function () { pm.expect(body.data.status).to.equal('DRAFT'); pm.expect(body.data.recipientId.toLowerCase()).to.equal(pm.variables.get('safeRecipientId').toLowerCase()); });",
+                  "pm.collectionVariables.set('r2PaymentId', body.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Obtain quote for R2-only payment",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/{{r2PaymentId}}/quotes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('R2 quote returns 201', function () { pm.expect(pm.response.code).to.equal(201); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Recommended quote is present', function () { pm.expect(body.data.recommendedQuoteId).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('r2QuoteId', body.data.recommendedQuoteId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Confirm R2-only payment — LOW auto-approval",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{r2ConfirmKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/{{r2PaymentId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{r2QuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('r2ConfirmKey')) pm.collectionVariables.set('r2ConfirmKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('One MEDIUM reason still auto-approves', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('R2-only payment reaches PROCESSING', function () { pm.expect(body.data.status).to.equal('PROCESSING'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Inspect R2-only passport",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/payments/{{r2PaymentId}}/passport"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('R2 passport returns 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "const codes = body.data.reasons.map(r => r.code);",
+                  "pm.test('R2 alone is LOW and PROCEED', function () { pm.expect(body.data.risk).to.equal('LOW'); pm.expect(body.data.screeningVerdict).to.equal('APPROVE'); pm.expect(body.data.paymentDisposition).to.equal('PROCEED'); pm.expect(body.data.reviewable).to.equal(false); pm.expect(codes).to.deep.equal(['FIRST_TO_RECIPIENT']); });",
+                  "pm.collectionVariables.set('r2CaseId', body.data.caseId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Create second same-day BUSINESS payment for R3 and R5",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{r3r5DraftKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/draft",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"recipientId\": \"{{safeRecipientId}}\",\n  \"sourceAmount\": \"100.0000\",\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"BUSINESS\",\n  \"preference\": \"CHEAPEST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('r3r5DraftKey')) pm.collectionVariables.set('r3r5DraftKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Second targeted draft returns 201', function () { pm.expect(pm.response.code).to.equal(201); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Second targeted payment is DRAFT', function () { pm.expect(body.data.status).to.equal('DRAFT'); });",
+                  "pm.collectionVariables.set('r3r5PaymentId', body.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Obtain quote for R3 and R5 payment",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/{{r3r5PaymentId}}/quotes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('R3/R5 quote returns 201', function () { pm.expect(pm.response.code).to.equal(201); });",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('r3r5QuoteId', body.data.recommendedQuoteId);",
+                  "pm.test('Recommended quote is present', function () { pm.expect(body.data.recommendedQuoteId).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Confirm second payment — expected MEDIUM review",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{r3r5ConfirmKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/{{r3r5PaymentId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{r3r5QuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('r3r5ConfirmKey')) pm.collectionVariables.set('r3r5ConfirmKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('R3/R5 scenario enters review', function () { pm.expect(pm.response.code).to.equal(202); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Second targeted payment is UNDER_REVIEW', function () { pm.expect(body.data.status).to.equal('UNDER_REVIEW'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Inspect R2 plus R3 plus R5 passport",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/payments/{{r3r5PaymentId}}/passport"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('R3/R5 passport returns 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "const codes = body.data.reasons.map(r => r.code);",
+                  "pm.test('Second same-day short-purpose payment is MEDIUM review', function () { pm.expect(body.data.risk).to.equal('MEDIUM'); pm.expect(body.data.screeningVerdict).to.equal('REVIEW'); pm.expect(body.data.paymentDisposition).to.equal('REVIEW_REQUIRED'); pm.expect(body.data.reviewable).to.equal(true); pm.expect(codes).to.include('FIRST_TO_RECIPIENT'); pm.expect(codes).to.include('RECIPIENT_TODAY'); pm.expect(codes).to.include('SHORT_PURPOSE'); });",
+                  "pm.collectionVariables.set('r3r5CaseId', body.data.caseId);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A. M3 review walkthrough — run stepwise and wait for delivery",
+      "item": [
+        {
+          "name": "1. Create synthetic owned draft",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{draftKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/draft",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"recipientId\": \"{{recipientId}}\",\n  \"sourceAmount\": \"{{sourceAmount}}\",\n  \"sourceCurrency\": \"USD\",\n  \"payoutCurrency\": \"INR\",\n  \"purpose\": \"FAMILY_SUPPORT\",\n  \"preference\": \"CHEAPEST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('draftKey')) pm.collectionVariables.set('draftKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('paymentId', body.data.id);",
+                  "  pm.collectionVariables.set('paymentStatus', body.data.status);",
+                  "  pm.test('Draft is owned and mutable', function () { pm.expect(body.data.status).to.equal('DRAFT'); pm.expect(body.data.sourceAmount).to.equal(pm.variables.get('sourceAmount')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Obtain original quote",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}/quotes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('originalQuoteId', body.data.recommendedQuoteId);",
+                  "  pm.collectionVariables.set('originalQuoteExpiresAt', body.data.expiresAt);",
+                  "  pm.test('Three routes and one recommendation are returned', function () { pm.expect(body.data.quotes).to.be.an('array').with.lengthOf(3); pm.expect(body.data.recommendedQuoteId).to.be.a('string').and.not.empty; pm.expect(body.data.quotes.filter(q => q.recommended)).to.have.lengthOf(1); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Confirm original quote — expected review fixture",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{confirmKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{originalQuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('confirmKey')) pm.collectionVariables.set('confirmKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([202]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('paymentStatus', body.data.status);",
+                  "  pm.collectionVariables.set('firstConfirmData', JSON.stringify(body.data));",
+                  "  pm.test('Payment is held for review', function () { pm.expect(body.data.status).to.equal('UNDER_REVIEW'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Owner passport — capture authoritative case",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/payments/{{paymentId}}/passport"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('caseId', body.data.caseId);",
+                  "  pm.collectionVariables.set('assessmentId', body.data.assessmentId);",
+                  "  pm.collectionVariables.set('reviewReference', body.data.reviewReference || '');",
+                  "  pm.collectionVariables.set('deliveryState', body.data.deliveryState || '');",
+                  "  const reasonCodes = body.data.reasons.map(r => r.code);",
+                  "  pm.test('Authoritative HIGH review contains destination and value reasons', function () { pm.expect(body.data.risk).to.equal('HIGH'); pm.expect(body.data.screeningVerdict).to.equal('REVIEW'); pm.expect(body.data.paymentDisposition).to.equal('REVIEW_REQUIRED'); pm.expect(body.data.reviewable).to.equal(true); pm.expect(reasonCodes).to.include('HIGH_RISK_DEST'); pm.expect(reasonCodes).to.include('HIGH_VALUE'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. ADMIN approve held case",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/compliance/cases/{{caseId}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Synthetic evidence reviewed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('paymentStatus') !== 'UNDER_REVIEW') throw new Error('Use an active review scenario; do not approve a PROCESSING payment.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('decisionId', body.data.decisionId);",
+                  "  pm.collectionVariables.set('deliveryState', body.data.deliveryState || '');",
+                  "  pm.test('Approval is durable and pending delivery or already acknowledged', function () { pm.expect(body.data.status).to.equal('APPROVED'); pm.expect(body.data.verdict).to.equal('APPROVE'); pm.expect(['PENDING','ACKNOWLEDGED']).to.include(body.data.deliveryState); pm.expect(body.data.decisionId).to.be.a('string').and.not.empty; });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Inspect delivery — repeat manually until acknowledged",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/cases/{{caseId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('deliveryState', body.data.deliveryState || '');",
+                  "  console.log('Delivery state:', body.data.deliveryState);",
+                  "  pm.test('Decision remains approved', function () { pm.expect(body.data.status).to.equal('APPROVED'); });",
+                  "  if (body.data.deliveryState !== 'ACKNOWLEDGED') console.warn('Wait about 10 seconds and send this request again.');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Owner payment — wait for DRAFT",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('paymentStatus', body.data.status);",
+                  "  pm.test('Approval delivery returned payment to DRAFT', function () { pm.expect(body.data.status).to.equal('DRAFT'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Obtain fresh quote after M3 acceptance",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}/quotes"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('paymentStatus') !== 'DRAFT' || pm.collectionVariables.get('deliveryState') !== 'ACKNOWLEDGED') throw new Error('Inspect delivery and payment first; M3 approval must be acknowledged and payment DRAFT.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('freshQuoteId', body.data.recommendedQuoteId);",
+                  "  pm.collectionVariables.set('freshQuoteExpiresAt', body.data.expiresAt);",
+                  "  pm.test('Fresh quote is different from held quote', function () { pm.expect(body.data.recommendedQuoteId).to.not.equal(pm.collectionVariables.get('originalQuoteId')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Reconfirm with fresh key and quote",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{reconfirmKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{freshQuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('reconfirmKey')) pm.collectionVariables.set('reconfirmKey', pm.variables.replaceIn('{{$guid}}'));",
+                  "if (pm.collectionVariables.get('reconfirmKey') === pm.collectionVariables.get('confirmKey')) throw new Error('Reconfirmation requires a new Idempotency-Key.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Approved reconfirmation must post', function () { pm.expect(pm.response.code, '202 means a new review was created; inspect its passport instead').to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('paymentStatus', body.data.status);",
+                  "  pm.collectionVariables.set('processingConfirmData', JSON.stringify(body.data));",
+                  "  pm.test('Payment reaches PROCESSING', function () { pm.expect(body.data.status).to.equal('PROCESSING'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Replay original key and original quote",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{confirmKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{originalQuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([202]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.test('Original key replays its historical review result', function () { pm.expect(body.data).to.deep.equal(JSON.parse(pm.collectionVariables.get('firstConfirmData'))); pm.expect(body.data.status).to.equal('UNDER_REVIEW'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Replay reconfirmation key and fresh quote",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{reconfirmKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{freshQuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.test('Fresh key replay is identical and remains PROCESSING', function () { pm.expect(body.data).to.deep.equal(JSON.parse(pm.collectionVariables.get('processingConfirmData'))); pm.expect(body.data.status).to.equal('PROCESSING'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B. Alternative rejection — separate undecided review only",
+      "description": "Do not use a case already approved in folder A. Clear the generated payment/quote/case IDs and idempotency keys, run A steps 1–4 to create a new UNDER_REVIEW payment, then run these three requests instead of A step 5.",
+      "item": [
+        {
+          "name": "ADMIN reject an undecided active case",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/compliance/cases/{{caseId}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Synthetic evidence insufficient\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('paymentStatus') !== 'UNDER_REVIEW') throw new Error('Select a separate active undecided review before rejection.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('decisionId', body.data.decisionId);",
+                  "  pm.collectionVariables.set('deliveryState', body.data.deliveryState || '');",
+                  "  pm.test('Rejection is durable and pending delivery or already acknowledged', function () { pm.expect(body.data.status).to.equal('REJECTED'); pm.expect(body.data.verdict).to.equal('BLOCK'); pm.expect(['PENDING','ACKNOWLEDGED']).to.include(body.data.deliveryState); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Inspect rejection delivery — repeat until acknowledged",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/cases/{{caseId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Case lookup succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('deliveryState', body.data.deliveryState || '');",
+                  "pm.test('Case remains rejected', function () { pm.expect(body.data.status).to.equal('REJECTED'); pm.expect(body.data.verdict).to.equal('BLOCK'); });",
+                  "if (body.data.deliveryState !== 'ACKNOWLEDGED') console.warn('Wait about 10 seconds and send this request again.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Rejected payment has no posting path",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('deliveryState') !== 'ACKNOWLEDGED') throw new Error('Poll rejection delivery until ACKNOWLEDGED first.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment lookup succeeds', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('M3 recorded rejection without posting', function () { pm.expect(body.data.status).to.equal('REJECTED'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C. Signed read-only operator checks",
+      "item": [
+        {
+          "name": "List reviewable cases",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/compliance/cases?reviewable=true&page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List policies",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies?page=0&size=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Policy detail",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Copilot with stored payment context",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/copilot/ask",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"question\": {{questionJson}}, \"paymentId\": \"{{paymentId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('questionJson', JSON.stringify(pm.variables.get('question')));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Copilot without payment context",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/copilot/ask",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"question\": {{questionJson}}, \"paymentId\": null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('questionJson', JSON.stringify(pm.variables.get('question')));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D. Explicit policy mutations — run only when intended",
+      "item": [
+        {
+          "name": "Reconcile legacy canonical hashes",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/reconcile-hashes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create immutable synthetic policy",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/policies",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{policyTitle}}\",\n  \"category\": \"SUPPORT\",\n  \"content\": {{policyContentJson}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('policyContentJson', JSON.stringify(pm.variables.get('policyContent')));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('policyId', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Index selected policy with configured provider",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/index"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected HTTP status', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Correlation envelope', function () { pm.expect(body.correlationId).to.be.a('string').and.not.empty; });",
+                  "if (pm.response.code < 400 && body.data) {",
+                  "  pm.collectionVariables.set('generationId', body.data.generationId);",
+                  "  pm.collectionVariables.set('embeddingSpaceId', body.data.embeddingSpaceId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

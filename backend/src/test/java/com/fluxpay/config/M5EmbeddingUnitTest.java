@@ -6,6 +6,9 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -18,7 +21,8 @@ class M5EmbeddingUnitTest {
     var defaults=assertDoesNotThrow(() -> M5VectorSettings.from(new MockEnvironment()));
     assertNotNull(defaults);
     assertEquals(768, defaults.dimensions());
-    assertEquals("mock", defaults.mode());
+    assertEquals("ollama", defaults.mode());
+    assertEquals("http://localhost:11434/api/embed", defaults.url());
     assertNotEquals(defaults.spaceId(), M5VectorSettings.from(new MockEnvironment().withProperty("embedding.provider-version","2")).spaceId());
   }
   @Test void mockReturnsDeterministicNonzeroUnitVectorAndDifferentInputsDiffer() {
@@ -47,6 +51,7 @@ class M5EmbeddingUnitTest {
       var p=new M5EmbeddingAdapter(settings("ollama","http://127.0.0.1:"+server.getAddress().getPort()+"/custom/embed",""));
       assertEquals(1, p.document("Synthetic policy.",deadline())[0]);
       assertTrue(request.get().contains("search_document: Synthetic policy."));
+      assertTrue(request.get().contains("\"truncate\":false"));
       assertEquals("/custom/embed",path.get());
       assertEquals(1,p.query("Question",deadline())[0]);
       assertTrue(request.get().contains("search_query: Question"));
@@ -77,6 +82,78 @@ class M5EmbeddingUnitTest {
     assertEquals(1,d.sqlTimeoutSeconds());
     now.set(5_000_000_000L);
     assertEquals("COPILOT_TIMEOUT",assertThrows(M5ApiException.class,d::check).code());
+  }
+  @Test void timeoutCancelsAStalledResponseBody() throws Exception {
+    var release=new CountDownLatch(1); var finished=new CountDownLatch(1);
+    var disconnected=new AtomicBoolean();
+    HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+    server.createContext("/stalled", e -> {
+      try {
+        e.sendResponseHeaders(200,16L*1024*1024+1);
+        e.getResponseBody().write('{'); e.getResponseBody().flush();
+        release.await();
+        byte[] block=new byte[64*1024];
+        for(int i=0;i<256;i++) e.getResponseBody().write(block);
+      } catch(java.io.IOException expected) { disconnected.set(true); }
+      catch(InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+      finally { e.close(); finished.countDown(); }
+    }); server.start();
+    try {
+      var p=new M5EmbeddingAdapter(settings("ollama","http://127.0.0.1:"+server.getAddress().getPort()+"/stalled",""));
+      assertEquals("EMBEDDING_TIMEOUT",assertThrows(M5ApiException.class,
+          () -> p.query("Question",new M5WorkDeadline(Duration.ofMillis(100),"EMBEDDING_TIMEOUT"))).code());
+      release.countDown();
+      assertTrue(finished.await(3,TimeUnit.SECONDS));
+      assertTrue(disconnected.get(),"timed-out response body must be actively cancelled");
+    } finally { release.countDown(); server.stop(0); }
+  }
+  @Test void interruptionCancelsAStalledResponseBody() throws Exception {
+    var bodyStarted=new CountDownLatch(1); var release=new CountDownLatch(1);
+    var finished=new CountDownLatch(1); var disconnected=new AtomicBoolean();
+    HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+    server.createContext("/interrupted", e -> {
+      try {
+        e.sendResponseHeaders(200,16L*1024*1024+1);
+        e.getResponseBody().write('{'); e.getResponseBody().flush(); bodyStarted.countDown();
+        release.await();
+        byte[] block=new byte[64*1024];
+        for(int i=0;i<256;i++) e.getResponseBody().write(block);
+      } catch(java.io.IOException expected) { disconnected.set(true); }
+      catch(InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+      finally { e.close(); finished.countDown(); }
+    }); server.start();
+    Thread caller=Thread.currentThread();
+    Thread interrupter=new Thread(() -> {
+      try { if(bodyStarted.await(2,TimeUnit.SECONDS)) caller.interrupt(); }
+      catch(InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+    });
+    try {
+      interrupter.start();
+      var p=new M5EmbeddingAdapter(settings("ollama","http://127.0.0.1:"+server.getAddress().getPort()+"/interrupted",""));
+      assertEquals("EMBEDDING_UNAVAILABLE",assertThrows(M5ApiException.class,
+          () -> p.query("Question",new M5WorkDeadline(Duration.ofSeconds(5),"EMBEDDING_TIMEOUT"))).code());
+      assertTrue(Thread.interrupted(),"interrupt status must be restored");
+      release.countDown();
+      assertTrue(finished.await(1,TimeUnit.SECONDS));
+      assertTrue(disconnected.get(),"interrupted response body must be actively cancelled");
+    } finally {
+      Thread.interrupted(); release.countDown(); server.stop(0); interrupter.join(1000);
+    }
+  }
+  @Test void rejectsOversizedProviderResponse() throws Exception {
+    HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+    server.createContext("/oversized", e -> {
+      byte[] response=("{\"embeddings\":[[1"+",0".repeat(767)+"]]}"
+          +" ".repeat(1024*1024)).getBytes(StandardCharsets.UTF_8);
+      e.sendResponseHeaders(200,response.length);
+      e.getResponseBody().write(response); e.close();
+    }); server.start();
+    try {
+      var p=new M5EmbeddingAdapter(settings("ollama",
+          "http://127.0.0.1:"+server.getAddress().getPort()+"/oversized",""));
+      assertEquals("EMBEDDING_INVALID",assertThrows(M5ApiException.class,
+          () -> p.query("Question",deadline())).code());
+    } finally { server.stop(0); }
   }
   static M5VectorSettings settings(String mode,String url,String key) { return new M5VectorSettings(mode,url,"nomic-embed-text","1",key,768,3,400,700,50,5,.35); }
   static float[] filled(float value) { var a=new float[768]; a[0]=value; return a; }

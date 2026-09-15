@@ -1,0 +1,54 @@
+[
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006e01",
+    "expectedPolicyTitle": "Current Demo Sender Verification Rule"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006e02",
+    "expectedPolicyTitle": "Current Demo First Recipient Rule"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006e03",
+    "expectedPolicyTitle": "Current Demo Source Currency Value Rule"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006e04",
+    "expectedPolicyTitle": "Current Demo Review and Payment Separation"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006e05",
+    "expectedPolicyTitle": "Current Demo Destination Rule"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f01",
+    "expectedPolicyTitle": "Demo Enhanced Due Diligence Control Limitations"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f02",
+    "expectedPolicyTitle": "Current Demo Six Rule Monitoring Scope"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f03",
+    "expectedPolicyTitle": "Unimplemented Sanctions and PEP Controls"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f04",
+    "expectedPolicyTitle": "Current Demo Purpose Rule"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f05",
+    "expectedPolicyTitle": "Current Demo Recipient Today Rule"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f06",
+    "expectedPolicyTitle": "Demo Recovery Information Boundary"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f07",
+    "expectedPolicyTitle": "Demo Support and Evidence Boundaries"
+  },
+  {
+    "currentPolicyId": "00000000-0000-0000-0000-000000006f08",
+    "expectedPolicyTitle": "Demo Identity Document Control Boundary"
+  }
+]

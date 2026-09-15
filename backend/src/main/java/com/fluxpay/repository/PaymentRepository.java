@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select p from Payment p where p.id=:id")
+  Optional<Payment> lockInternal(@Param("id") UUID id);
   Optional<Payment> findByIdAndSenderId(UUID id, UUID senderId);
 
   Page<Payment> findBySenderIdAndFlowVersionOrderByCreatedAtDescIdDesc(

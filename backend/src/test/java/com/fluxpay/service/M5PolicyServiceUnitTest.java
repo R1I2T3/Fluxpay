@@ -63,5 +63,18 @@ class M5PolicyServiceUnitTest {
     when(repo.find(any(),any())).thenReturn(Optional.empty());
     assertEquals("POLICY_NOT_FOUND",assertThrows(M5ApiException.class,()->service.get(UUID.randomUUID())).code());
   }
+  @Test void creationRejectsUtf8ByteAndWordLimitsBeforeDatabaseWork() {
+    assertEquals("VALIDATION",assertThrows(M5ApiException.class,()->service.create(new M5PolicyDtos.Create("Title","KYC","é".repeat(32769)))).code());
+    assertEquals("VALIDATION",assertThrows(M5ApiException.class,()->service.create(new M5PolicyDtos.Create("Title","KYC","word ".repeat(5001)))).code());
+    verifyNoInteractions(repo);
+  }
+  @Test void indexingAlsoRejectsOversizedHistoricalContentBeforeEmbedding() {
+    var base=document(null,null,null,0);
+    var doc=new M5PolicyDocument(base.id(),base.title(),base.category(),"word ".repeat(5001),base.documentHash(),base.createdAt(),0,"UNINDEXED",null,null,null,0);
+    when(repo.find(eq(doc.id()),any())).thenReturn(Optional.of(doc));
+    when(repo.publish(any(),anyList(),anyString(),anyString(),any())).thenReturn(document(UUID.randomUUID(),settings.spaceId(),"m5-sentence-v1:400:700:50",1));
+    assertEquals("VALIDATION",assertThrows(M5ApiException.class,()->service.index(doc.id())).code());
+    verify(provider,never()).document(anyString(),any());verify(repo,never()).publish(any(),anyList(),anyString(),anyString(),any());
+  }
   M5PolicyDocument document(UUID generation,String space,String chunker,long version) { return new M5PolicyDocument(UUID.randomUUID(),"Synthetic title","KYC","Synthetic policy.","hash",Instant.EPOCH,version,generation==null?"UNINDEXED":"INDEXED",generation,space,chunker,generation==null?0:1); }
 }

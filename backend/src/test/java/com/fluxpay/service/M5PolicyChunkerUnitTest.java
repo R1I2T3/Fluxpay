@@ -23,11 +23,33 @@ class M5PolicyChunkerUnitTest {
     assertEquals(java.util.List.of("one two three four.", "three four. five six seven eight nine."), chunker.chunks("one two three four. five six seven eight nine."));
     assertEquals(java.util.List.of("Small policy."), chunker.chunks("Small policy."));
   }
+  @Test void recognizesSentenceBoundaryBeforeClosingQuote() {
+    var chunker = new M5PolicyChunker(4,7,2);
+    assertEquals(java.util.List.of("one two three four.\"", "three four.\" five six seven eight nine."),
+        chunker.chunks("one two three four.\" five six seven eight nine."));
+  }
   @Test void rejectsNoProgressAndEveryWorkloadLimitBeforeEmbedding() {
     assertThrows(IllegalArgumentException.class, () -> new M5PolicyChunker(5,10,5));
     var c = new M5PolicyChunker(400,700,50);
     assertEquals("VALIDATION", assertThrows(M5ApiException.class, () -> c.chunks("word ".repeat(5001))).code());
     assertThrows(M5ApiException.class, () -> c.chunks("é".repeat(32769)));
     assertThrows(M5ApiException.class, () -> new M5PolicyChunker(2,3,1).chunks("word ".repeat(40)));
+  }
+  @Test void unicodeWhitespaceCannotBypassWordLimit() {
+    var words = java.util.Collections.nCopies(5001, "word");
+    assertEquals("VALIDATION", assertThrows(M5ApiException.class,
+        () -> new M5PolicyChunker(400,700,50).chunks(String.join("\u2003", words))).code());
+  }
+  @Test void chunksPreserveExactCanonicalWhitespaceSubstrings() {
+    var chunker=new M5PolicyChunker(4,7,2);
+    String shortPolicy="First rule.\nSecond\trule.";
+    assertEquals(java.util.List.of(shortPolicy),chunker.chunks(shortPolicy));
+
+    String policy="one\ttwo three four.\nfive\u2003six seven eight nine.";
+    var chunks=chunker.chunks(policy);
+    assertEquals(2,chunks.size());
+    assertEquals("one\ttwo three four.",chunks.get(0));
+    assertEquals("three four.\nfive\u2003six seven eight nine.",chunks.get(1));
+    assertTrue(chunks.stream().allMatch(policy::contains));
   }
 }

@@ -7,11 +7,20 @@ import com.fluxpay.config.M5ApiException;
 import com.fluxpay.common.security.CurrentUser;
 import com.fluxpay.dto.*;
 import com.fluxpay.repository.M5ScreeningStore;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.datasource.AbstractDataSource;
+import org.springframework.jdbc.datasource.ConnectionHolder;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class M5ComplianceLifecycleContractTest {
   final MemoryStore store=new MemoryStore();
@@ -25,6 +34,28 @@ class M5ComplianceLifecycleContractTest {
     service=new M5ComplianceService(store,reader,new M5ComplianceRulesEngine(M5ComplianceRulesUnitTest.settings()),tx,clock);
   }
   M5AssessmentRequest request(long seq) { return new M5AssessmentRequest(UUID.randomUUID(),seq,reader.snapshot.paymentId(),M5Fingerprints.payment(reader.snapshot)); }
+  @Test void unresolvedActivatedReviewCannotBeSupersededButExactReplayRemainsValid() {
+    var request=request(1); var held=service.assess(request);
+    service.recordDisposition(held.assessmentId(),"REVIEW_REQUIRED",UUID.randomUUID());
+    assertEquals("ACTIVE_REVIEW",assertThrows(M5ApiException.class,() -> service.assess(request(2))).code());
+    assertEquals(held,service.assess(request));
+    assertEquals(held.caseId(),store.heads.get(held.paymentId()).latestCaseId());
+  }
+  @Test void mismatchedFingerprintAndInvalidIdentityCannotPublish() {
+    var r=request(1);
+    assertEquals("STALE_ASSESSMENT",assertThrows(M5ApiException.class,() -> service.assess(
+        new M5AssessmentRequest(r.assessmentId(),1,r.paymentId(),"0".repeat(64)))).code());
+    assertEquals("VALIDATION",assertThrows(M5ApiException.class,() -> service.assess(
+        new M5AssessmentRequest(null,0,r.paymentId(),"bad"))).code());
+    assertTrue(store.cases.isEmpty()); assertTrue(store.heads.isEmpty());
+  }
+  @Test void nonAdminCannotListOrDecideAndInvalidFiltersAreRejected() {
+    var user=new CurrentUser(reader.snapshot.senderId(),"user@example.invalid","USER");
+    assertEquals(403,assertThrows(M5ApiException.class,() -> service.list(null,null,null,0,20,user)).status());
+    assertEquals(401,assertThrows(M5ApiException.class,() -> service.passport(reader.snapshot.paymentId(),null)).status());
+    assertEquals("VALIDATION",assertThrows(M5ApiException.class,() -> service.list("OPEN",null,null,0,20,admin)).code());
+    assertEquals("VALIDATION",assertThrows(M5ApiException.class,() -> service.list(null,null,null,-1,20,admin)).code());
+  }
   @Test void immutableReplayNeverReadsLivePaymentAndFreshCycleSeesNewRisk() {
     var a=request(1); var first=assertDoesNotThrow(() -> service.assessOutcome(a));
     assertFalse(first.replay()); assertEquals("REVIEW",first.response().screeningVerdict());
@@ -79,6 +110,33 @@ class M5ComplianceLifecycleContractTest {
     assertEquals("CASE_NOT_FOUND",assertThrows(M5ApiException.class,() -> service.passport(a.paymentId(),new CurrentUser(UUID.randomUUID(),"foreign@example.invalid","USER"))).code());
     assertEquals(1,reader.reads);
   }
+  @Test void contextRebudgetsTheBoundConnectionAfterAcquisition() {
+    var assessment=service.assess(request(1));
+    var nanos=new AtomicLong();
+    var source=new AdvancingDataSource(nanos,2_100_000_000L);
+    var inspecting=new InspectingStore(store,source);
+    var bounded=new M5ComplianceService(inspecting,reader,
+        new M5ComplianceRulesEngine(M5ComplianceRulesUnitTest.settings()),
+        new DataSourceTransactionManager(source),clock);
+    assertEquals(assessment.caseId(),bounded.context(assessment.paymentId(),admin,
+        new M5WorkDeadline(Duration.ofSeconds(5),"COPILOT_TIMEOUT",nanos::get)).get("caseId"));
+    assertNotNull(inspecting.connectionTimeoutMillis);
+    assertTrue(inspecting.connectionTimeoutMillis>0 && inspecting.connectionTimeoutMillis<=1900,
+        "post-acquisition JDBC timeout must reserve one second for integer rounding");
+  }
+  @Test void contextDoesNotQueryWhenAcquisitionLeavesNoWholeJdbcSecond() {
+    var assessment=service.assess(request(1));
+    var nanos=new AtomicLong();
+    var source=new AdvancingDataSource(nanos,4_500_000_000L);
+    var inspecting=new InspectingStore(store,source);
+    var bounded=new M5ComplianceService(inspecting,reader,
+        new M5ComplianceRulesEngine(M5ComplianceRulesUnitTest.settings()),
+        new DataSourceTransactionManager(source),clock);
+    assertEquals("COPILOT_TIMEOUT",assertThrows(M5ApiException.class,() -> bounded.context(
+        assessment.paymentId(),admin,
+        new M5WorkDeadline(Duration.ofSeconds(5),"COPILOT_TIMEOUT",nanos::get))).code());
+    assertFalse(inspecting.queried,"store must not run without one representable JDBC second");
+  }
   @Test void lostAcknowledgmentRetriesImmutablePayloadAndStaleAckBecomesConflict() {
     var a=assertDoesNotThrow(() -> service.assess(request(1))); service.recordDisposition(a.assessmentId(),"REVIEW_REQUIRED",UUID.randomUUID());
     var decision=service.decide(a.caseId(),"APPROVE",null,admin);
@@ -122,5 +180,45 @@ class M5ComplianceLifecycleContractTest {
     public List<M5ReviewDecision> pending(Instant now,int limit){return decisions.values().stream().filter(d -> d.deliveryState().equals("PENDING")&&!d.nextAttemptAt().isAfter(now)&&d.retryCount()<8).limit(limit).toList();}
     public List<M5ScreeningCase> list(String status,String risk,Boolean reviewable,int page,int size){return cases.values().stream().skip((long)page*size).limit(size).toList();}
     public long count(String status,String risk,Boolean reviewable){return cases.size();}
+  }
+  static final class AdvancingDataSource extends AbstractDataSource {
+    final AtomicLong nanos; final long acquisitionNanos;
+    AdvancingDataSource(AtomicLong nanos,long acquisitionNanos) {
+      this.nanos=nanos; this.acquisitionNanos=acquisitionNanos;
+    }
+    @Override public Connection getConnection() throws SQLException {
+      nanos.addAndGet(acquisitionNanos);
+      return DriverManager.getConnection("jdbc:h2:mem:m5_context_"+UUID.randomUUID());
+    }
+    @Override public Connection getConnection(String username,String password) throws SQLException {
+      return getConnection();
+    }
+  }
+  static final class InspectingStore implements M5ScreeningStore {
+    final MemoryStore delegate; final DataSource source;
+    boolean queried; Long connectionTimeoutMillis;
+    InspectingStore(MemoryStore delegate,DataSource source) {
+      this.delegate=delegate; this.source=source;
+    }
+    public Optional<M5ScreeningHead> head(UUID id,boolean lock) {
+      queried=true;
+      Object resource=TransactionSynchronizationManager.getResource(source);
+      if(resource instanceof ConnectionHolder holder)
+        connectionTimeoutMillis=holder.getTimeToLiveInMillis();
+      return delegate.head(id,lock);
+    }
+    public Optional<M5ScreeningCase> byCase(UUID id,boolean lock){return delegate.byCase(id,lock);}
+    public Optional<M5ReviewDecision> decisionForCase(UUID id){return delegate.decisionForCase(id);}
+    public Optional<M5ScreeningCase> byAssessment(UUID id){return delegate.byAssessment(id);}
+    public void createHead(UUID id){delegate.createHead(id);}
+    public void insertCase(M5ScreeningCase value){delegate.insertCase(value);}
+    public void updateCase(M5ScreeningCase value){delegate.updateCase(value);}
+    public void publishHead(M5ScreeningHead value){delegate.publishHead(value);}
+    public Optional<M5ReviewDecision> decision(UUID id,boolean lock){return delegate.decision(id,lock);}
+    public void insertDecision(M5ReviewDecision value){delegate.insertDecision(value);}
+    public void updateDelivery(M5ReviewDecision value){delegate.updateDelivery(value);}
+    public List<M5ReviewDecision> pending(Instant now,int limit){return delegate.pending(now,limit);}
+    public List<M5ScreeningCase> list(String status,String risk,Boolean reviewable,int page,int size){return delegate.list(status,risk,reviewable,page,size);}
+    public long count(String status,String risk,Boolean reviewable){return delegate.count(status,risk,reviewable);}
   }
 }

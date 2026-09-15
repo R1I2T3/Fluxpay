@@ -67,6 +67,12 @@ public class M3PaymentOperation {
     return id;
   }
 
+  public void complete(int status, String response) {
+    if (outcomeStatus != 0) throw new IllegalStateException("Operation is already complete");
+    outcomeStatus = status;
+    responseData = response;
+  }
+
   public UUID userId() {
     return userId;
   }
