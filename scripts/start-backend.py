@@ -2,7 +2,6 @@
 """Run Spring Boot with .env propagated; wait for docs endpoint."""
 
 import argparse, os, subprocess, sys, time, urllib.request
-from pathlib import Path
 
 from platform_commands import PROJECT_ROOT, maven_command, project_path
 
@@ -18,15 +17,6 @@ def load_env(path):
                     os.environ.setdefault(k, v)
 
 
-def configure_maven_home():
-    """Keep Maven Wrapper out of C:\\.m2 when HOME is unset or empty on Windows."""
-    if not os.environ.get("MAVEN_USER_HOME"):
-        user_profile = os.environ.get("USERPROFILE") or str(Path.home())
-        os.environ["MAVEN_USER_HOME"] = str(Path(user_profile) / ".m2")
-    if not os.environ.get("HOME"):
-        os.environ["HOME"] = os.environ.get("USERPROFILE") or str(Path.home())
-
-
 def terminate_process(process):
     if process.poll() is not None:
         return
@@ -38,6 +28,20 @@ def terminate_process(process):
         process.wait()
 
 
+def configure_windows_maven_home():
+    if sys.platform != "win32":
+        return
+
+    userprofile = os.environ.get("USERPROFILE")
+    if not userprofile:
+        return
+
+    os.environ.setdefault("MAVEN_USER_HOME", os.path.join(userprofile, ".m2"))
+    if "-Duser.home=" not in os.environ.get("MAVEN_OPTS", ""):
+        user_home_option = f'-Duser.home="{userprofile}"'
+        os.environ["MAVEN_OPTS"] = f"{os.environ.get('MAVEN_OPTS', '')} {user_home_option}".strip()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int)
@@ -46,17 +50,11 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     load_env(a.env_file)
-    configure_maven_home()
+    configure_windows_maven_home()
     port = a.port if a.port is not None else int(os.environ.get("SERVER_PORT", "8080"))
     os.environ["SERVER_PORT"] = str(port)
     p = subprocess.Popen(
-        maven_command(
-            f"-Duser.home={os.environ['HOME']}",
-            "-f",
-            "backend/pom.xml",
-            "spring-boot:run",
-            f"-Dspring-boot.run.profiles={a.profile}",
-        ),
+        maven_command("-f", "backend/pom.xml", "spring-boot:run", f"-Dspring-boot.run.profiles={a.profile}"),
         cwd=PROJECT_ROOT,
     )
     try:

@@ -17,7 +17,6 @@ spring:
         type:
           preferred_instant_jdbc_type: TIMESTAMP
   flyway:
-    baseline-on-migrate: true
     enabled: true
     locations: classpath:db/migration
     validate-on-migrate: true

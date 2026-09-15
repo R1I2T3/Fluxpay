@@ -65,6 +65,7 @@ class RootViewModel {
       { path: 'recipients', detail: { label: 'Recipients', iconClass: 'oj-ux-ico-contact-group' } },
       { path: 'payments-new', detail: { label: 'Send Money', iconClass: 'oj-ux-ico-send' } },
       { path: 'payments-list', detail: { label: 'Payments', iconClass: 'oj-ux-ico-list' } },
+      { path: 'payment-quotes', detail: { label: 'Quotes', iconClass: 'oj-ux-ico-compare' } },
     ];
     // router setup
     const router = new CoreRouter(navData, {

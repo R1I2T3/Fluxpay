@@ -1,3 +1,6 @@
 package com.fluxpay.beans;
 
-public enum RecipientStatus { ACTIVE, BLOCKED }
+public enum RecipientStatus {
+  ACTIVE,
+  BLOCKED
+}
