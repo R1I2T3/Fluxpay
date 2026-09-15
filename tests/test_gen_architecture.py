@@ -75,6 +75,13 @@ class GenModelTests(unittest.TestCase):
         self.assertTrue(any(n["id"].startswith("l1-") for n in nodes))
         html_size = len(gen.render_html(nodes).encode("utf-8"))
         self.assertLess(html_size, 500 * 1024)
+        for mid in (
+            "l3-messaging-outboxrelay",
+            "l3-messaging-paymenteventconsumer",
+            "l3-messaging-outboxservice",
+        ):
+            self.assertIn(mid, by_id)
+            self.assertIn("payment.initiated", by_id[mid]["detail"]["topics"])
 
 
 if __name__ == "__main__":
