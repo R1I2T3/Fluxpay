@@ -18,6 +18,7 @@ import com.fluxpay.dto.KycSubmitRequest;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.exception.DemoFundingDisabledException;
 import com.fluxpay.exception.KycException;
+import com.fluxpay.repository.ComplianceCaseRepository;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.KycDocumentRepository;
 import com.fluxpay.repository.LedgerEntryRepository;
@@ -29,6 +30,8 @@ import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.PolicyChunkRepository;
+import com.fluxpay.repository.PolicyDocumentRepository;
 import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
@@ -92,7 +95,10 @@ class DevelopmentDefaultsTest {
           OutboxDeliveryRepository.class,
           LedgerEntryRepository.class,
           KycDocumentRepository.class,
-          KycCaseRepository.class
+          KycCaseRepository.class,
+          ComplianceCaseRepository.class,
+          PolicyDocumentRepository.class,
+          PolicyChunkRepository.class
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }

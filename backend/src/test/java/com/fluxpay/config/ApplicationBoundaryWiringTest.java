@@ -49,7 +49,10 @@ class ApplicationBoundaryWiringTest {
           OutboxDeliveryRepository.class,
           LedgerEntryRepository.class,
           KycDocumentRepository.class,
-          KycCaseRepository.class
+          KycCaseRepository.class,
+          ComplianceCaseRepository.class,
+          PolicyDocumentRepository.class,
+          PolicyChunkRepository.class
         }) {
       runner = runner.withBean(repository, () -> mock(repository));
     }
