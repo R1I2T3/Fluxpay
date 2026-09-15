@@ -25,6 +25,12 @@ Out of scope: replacing member-owned payment, wallet, routing, KYC, authenticati
 frontend implementations; importing obsolete M5 launchers/security configurations; or changing
 existing migration history.
 
+The first delivery does not generate LLM-written answers. A second, follow-on phase will add a
+retrieval-augmented generation (RAG) answer generator after this integration is stable. That phase
+will retrieve M5 policy chunks, pass only bounded retrieved context to a configured language model,
+and require claim-level source citations. It must fall back to the current no-grounded-answer
+response whenever retrieval is insufficient or generation cannot be validated.
+
 ## Architecture
 
 M5 code is grouped by responsibility below `com.fluxpay.m5`:
@@ -56,6 +62,11 @@ Ollama is the production/default M5 provider:
 The test profile supplies a deterministic embedding implementation. Runtime properties must reject
 `mock` as the default/non-test mode and must not silently downgrade to a fake provider.
 
+The initial Copilot response is intentionally extractive: it returns a bounded answer from the
+highest-quality retrieved policy material plus citations. This proves that the vector, policy,
+authorization, and payment-context integrations work before the later RAG generator introduces a
+separate model, prompt, output-validation, and safety surface.
+
 ## Persistence and Compatibility
 
 New migrations are additive and use version numbers higher than the current M5 migrations. They
@@ -73,6 +84,9 @@ M5 endpoints reuse the application security context/current-user model. Policy a
 apply the same role checks expected by the existing backend. Input limits are validated at the API
 boundary. Copilot answers are extractive and cite the matching policy chunks; with no eligible
 matches they return a no-grounded-answer response instead of inventing an answer.
+
+The follow-on RAG phase will preserve those citations and must reject generated answers that
+reference facts outside the retrieved chunks. It is not a dependency of this integration release.
 
 ## Verification
 
