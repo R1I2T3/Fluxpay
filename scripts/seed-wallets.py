@@ -30,19 +30,19 @@ def api_request(base_url, path, token, body=None, idempotency_key=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--user-id", default=os.environ.get("M2_USER_ID"))
+    parser.add_argument("--user-id", default=os.environ.get("SEED_USER_ID"))
     parser.add_argument(
         "--base-url",
-        default=os.environ.get("M2_BASE_URL", os.environ.get("SEED_BASE_URL", "http://localhost:8080")),
+        default=os.environ.get("SEED_BASE_URL", "http://localhost:8080"),
     )
     args = parser.parse_args()
 
-    token = os.environ.get("M2_BEARER_TOKEN", "").strip()
+    token = os.environ.get("SEED_BEARER_TOKEN", "").strip()
     if not token:
-        print("seed failed: M2_BEARER_TOKEN is required")
+        print("seed failed: SEED_BEARER_TOKEN is required")
         return 2
     if not args.user_id:
-        print("seed failed: --user-id or M2_USER_ID is required")
+        print("seed failed: --user-id or SEED_USER_ID is required")
         return 2
     try:
         user_id = str(uuid.UUID(args.user_id))
@@ -57,7 +57,7 @@ def main():
                 "/api/wallets/receive-demo",
                 token,
                 {"currency": currency, "amount": amount},
-                f"seed-m2:{user_id}:{currency}:v1",
+                f"seed-wallet:{user_id}:{currency}:v1",
             )
             print(f"{currency} seed request OK")
 

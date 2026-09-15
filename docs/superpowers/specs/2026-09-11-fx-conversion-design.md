@@ -1,4 +1,8 @@
-# FluxPay M2 FX Conversion Design
+# FluxPay M2 FX Conversion Design (superseded)
+
+> Historical document retained for context only. Superseded on 2026-09-15 by
+> [Backend cleanup design](2026-09-13-backend-cleanup-design.md). Its member-era
+> names, schema, branch, and mock-FX configuration must not be used for current work.
 
 **Scope:** Complete the backend FX snapshot, preview, and wallet-conversion slice from
 the team Member 2 specification. Wallet listing, ledger-list APIs, scripts, and

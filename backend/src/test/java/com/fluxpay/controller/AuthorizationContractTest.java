@@ -42,9 +42,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * PRD section 14 ownership/role proofs across the M4 surface. The frozen security chain has no 401
- * entry point, so anonymous requests are denied with 403; role and ownership denials map to {@code
- * FORBIDDEN} {@code ApiError}s.
+ * PRD section 14 ownership/role proofs across the active API surface. The frozen security chain has
+ * no 401 entry point, so anonymous requests are denied with 403; role and ownership denials map to
+ * {@code FORBIDDEN} {@code ApiError}s.
  */
 @WebMvcTest({
   RouteController.class,

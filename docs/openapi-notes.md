@@ -1,5 +1,30 @@
 # OpenAPI notes
 
-springdoc serves `/v3/api-docs` (JSON) and `/swagger-ui.html` (UI) via `springdoc-openapi-starter-webmvc-ui:2.5.0`. Stateless JWT; `permitAll: /api/auth/**,/swagger-ui/**,/v3/api-docs/**`.
+Springdoc serves `/v3/api-docs` and `/swagger-ui.html`. Only authentication and API
+documentation routes are public; all wallet, KYC, recipient, payment, payout, route,
+and timeline endpoints require a valid JWT. The retired local-user header does not
+authenticate requests in any Spring profile.
 
-The `mock`/`local` Spring profiles are retired: every endpoint is backed by concrete production modules (persistent wallets/ledger/FX, DB eligibility gates, M3 wallet/payment/Kafka adapters) in the default profile. There is no profile switch to reach stubbed behavior anymore — offline fallbacks (`fluxpay.fx-mode=mock|solo`, `fluxpay.embedding-mode=mock`) are the only documented toggles, and they are opt-in configuration, not a Spring profile.
+The default runtime has concrete Oracle repositories, the Frankfurter HTTP FX
+adapter, a transactional outbox, scheduled Kafka relay, and timeline consumer. A
+durable event ID means the event was committed to the outbox; it does not claim that
+Kafka acknowledged delivery synchronously.
+
+No real payout provider, compliance provider, or KYC file store is bundled. Their
+absence produces explicit `503` responses. Development-only metadata KYC, demo
+funding, always-approve compliance, and simulated payout implementations are disabled
+by default and must be enabled individually. The metadata fixture never manufactures
+a storage URL. Runtime mock/solo FX modes and logging-only event delivery are retired.
+
+Payment lifecycle states are `DRAFT`, `QUOTED`, `UNDER_REVIEW`, `PROCESSING`,
+`COMPLETED`, `FAILED`, `REFUNDED`, `REJECTED`, and `CANCELLED`. Mutating wallet and
+payment operations require idempotency keys; payment action/key reuse conflicts are
+reported instead of replaying another operation.
+
+The canonical event envelope contains `eventType`, `eventId`, `paymentId`,
+`correlationId`, `occurredAt`, and a payload with `schemaVersion=1` plus a positive
+`aggregateSequence`. Event type equals the Kafka topic. Review and quarantine topics
+are part of the documented inventory.
+
+See the root README for local reset/seed commands and the required Maven
+`-Pintegration verify` environment.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate: mvn verify + ojet build + seed + smoke(login, 1 msg per topic)."""
 
-import argparse, os, shutil, subprocess, sys
+import argparse, os, subprocess, sys
 
 from platform_commands import (
     FRONTEND_DIR,
@@ -12,25 +12,6 @@ from platform_commands import (
     ojet_command,
     python_command,
 )
-
-
-def kafka_script(name):
-    """Locate a bare-metal Kafka CLI script; prefer KAFKA_HOME, then PATH."""
-    home = os.environ.get("KAFKA_HOME", "")
-    suffix = ".bat" if sys.platform == "win32" else ".sh"
-    candidates = []
-    if home:
-        if sys.platform == "win32":
-            candidates.append(os.path.join(home, "bin", "windows", name + suffix))
-        candidates.append(os.path.join(home, "bin", name + suffix))
-    found = shutil.which(name + suffix) or shutil.which(name)
-    if found:
-        candidates.append(found)
-    for candidate in candidates:
-        if candidate and os.path.exists(candidate):
-            return candidate
-    return None
-
 
 def run(cmd, cwd=PROJECT_ROOT):
     print("+", " ".join(cmd))
@@ -47,9 +28,6 @@ def main():
     load_env(a.env_file)
     configure_windows_maven_home()
     if a.suite in ("all", "backend"):
-        if run(maven_command("-f", "backend/pom.xml", "verify")):
-            print("backend FAIL")
-            return 3
         integration_requested = os.environ.get("ORACLE_TESTS_ACTIVE", "").lower() == "true"
         if integration_requested:
             required = (
@@ -60,70 +38,34 @@ def main():
             )
             missing = [name for name in required if not os.environ.get(name)]
             if missing:
-                print("persistence IT FAIL missing " + ", ".join(missing))
+                print("backend integration FAIL missing " + ", ".join(missing))
                 return 3
             if os.environ["ORACLE_TEST_USERNAME"].upper() != "FLUXPAY_TEST":
-                print("persistence IT FAIL requires ORACLE_TEST_USERNAME=FLUXPAY_TEST")
+                print("backend integration FAIL requires ORACLE_TEST_USERNAME=FLUXPAY_TEST")
                 return 3
-            if run(maven_command("-f", "backend/pom.xml", "-Dtest=PaymentEventPersistenceIT", "test")):
-                print("persistence IT FAIL")
-                return 3
+        command = ["-f", "backend/pom.xml"]
+        if integration_requested:
+            command.append("-Pintegration")
+        command.append("verify")
+        if run(maven_command(*command)):
+            print("backend FAIL")
+            return 3
+        if integration_requested:
+            print("backend unit+integration PASS")
         else:
-            print("persistence IT skipped (ORACLE_TESTS_ACTIVE is not true)")
+            print("backend unit PASS; integration SKIP (ORACLE_TESTS_ACTIVE is not true)")
     if a.suite in ("all", "frontend"):
         if run(ojet_command("build"), cwd=FRONTEND_DIR):
             print("frontend FAIL")
             return 3
     if a.suite in ("all", "e2e"):
-        if run(python_command("scripts/seed-demo.py")):
+        if run(python_command("scripts/seed-local.py")):
             print("seed FAIL")
             return 3
-        import urllib.request, json
-
-        try:
-            req = urllib.request.Request(
-                "http://localhost:8080/api/auth/login",
-                data=json.dumps({"email": "alice@demo.io", "password": "Pass123!"}).encode(),
-                headers={"Content-Type": "application/json"},
-            )
-            urllib.request.urlopen(req, timeout=5).read()
-            print("smoke login OK")
-        except Exception as e:
-            print("smoke login FAIL", e)
+        if run(python_command("scripts/smoke-local.py")):
+            print("smoke FAIL")
             return 3
-        topics = [
-            "payment.initiated",
-            "payment.route.selected",
-            "payment.screening.completed",
-            "payment.review.requested",
-            "payout.submitted",
-            "payout.failed",
-            "payout.completed",
-            "payment.refunded",
-        ]
-        producer = kafka_script("kafka-console-producer")
-        if producer is None:
-            print("produce SKIP kafka-console-producer.sh not found; set KAFKA_HOME")
-            return 0
-        bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-        for t in topics:
-            r1 = subprocess.run(
-                [
-                    producer,
-                    "--bootstrap-server",
-                    bootstrap,
-                    "--topic",
-                    t,
-                ],
-                input=b"smoke-1\n",
-                capture_output=True,
-                timeout=15,
-            )
-            if r1.returncode != 0:
-                print("produce FAIL", t)
-                return 3
-        print("smoke kafka OK 8/8")
-    print("ALL GREEN")
+    print("requested suites PASS")
     return 0
 
 

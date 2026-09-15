@@ -1,4 +1,8 @@
-# FluxPay M2 Demo Funding Design
+# FluxPay M2 Demo Funding Design (superseded)
+
+> Historical document retained for context only. Superseded on 2026-09-15 by
+> [Backend cleanup design](2026-09-13-backend-cleanup-design.md). Its member-era
+> names, schema, branch, and configuration must not be used for current work.
 
 **Date:** 2026-09-11
 

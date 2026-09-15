@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only per-currency reconciliation for FluxPay M2 ledger journals."""
+"""Read-only per-currency reconciliation for FluxPay ledger journals."""
 
 import argparse
 import os

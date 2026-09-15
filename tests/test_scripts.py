@@ -64,16 +64,67 @@ class HttpResponse:
 
 
 class ScriptCommandTests(unittest.TestCase):
-    def test_kafka_script_finds_standard_windows_installation(self):
-        script = load_script("test-all")
-        producer = os.path.join("kafka", "bin", "windows", "kafka-console-producer.bat")
+    def test_compose_infrastructure_starts_named_services_and_creates_topics_in_container(self):
+        script = load_script("start-infra")
+        commands = []
+
+        def run(command, verbose=False):
+            commands.append(command)
+            return CompletedProcess()
+
         with (
-            mock.patch.dict(os.environ, {"KAFKA_HOME": "kafka"}),
-            mock.patch.object(script.sys, "platform", "win32"),
-            mock.patch.object(script.shutil, "which", return_value=None),
-            mock.patch.object(script.os.path, "exists", side_effect=lambda path: path == producer),
+            mock.patch.object(sys, "argv", ["start-infra.py", "--mode", "compose"]),
+            mock.patch.object(script, "run", side_effect=run),
+            mock.patch.object(script, "wait_port", return_value=True),
         ):
-            self.assertEqual(script.kafka_script("kafka-console-producer"), producer)
+            self.assertEqual(script.main(), 0)
+
+        self.assertEqual(commands[0], ["docker", "compose", "up", "-d", "oracle", "kafka"])
+        topic_commands = [command for command in commands if "--create" in command]
+        self.assertEqual(len(topic_commands), 9)
+        self.assertTrue(
+            all(command[:5] == ["docker", "compose", "exec", "-T", "kafka"] for command in topic_commands)
+        )
+        created_topics = {command[command.index("--topic") + 1] for command in topic_commands}
+        self.assertIn("payment.review.requested", created_topics)
+        self.assertIn("payout.recovery.dlt", created_topics)
+
+    def test_external_infrastructure_is_probed_but_never_started_or_stopped(self):
+        start = load_script("start-infra")
+        stop = load_script("stop-infra")
+        start_commands = []
+
+        def run(command, verbose=False):
+            start_commands.append(command)
+            return CompletedProcess()
+
+        with (
+            mock.patch.object(sys, "argv", ["start-infra.py", "--mode", "external", "--skip-topics"]),
+            mock.patch.object(start, "run", side_effect=run),
+            mock.patch.object(start, "wait_port", return_value=True),
+        ):
+            self.assertEqual(start.main(), 0)
+
+        self.assertFalse(any(command[:3] == ["docker", "compose", "up"] for command in start_commands))
+        with (
+            mock.patch.object(sys, "argv", ["stop-infra.py", "--mode", "external"]),
+            mock.patch.object(stop.subprocess, "run") as stopped,
+        ):
+            self.assertEqual(stop.main(), 0)
+        stopped.assert_not_called()
+
+    def test_compose_start_with_both_services_skipped_does_not_start_everything(self):
+        script = load_script("start-infra")
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                ["start-infra.py", "--mode", "compose", "--skip-oracle", "--skip-kafka"],
+            ),
+            mock.patch.object(script, "run") as run,
+        ):
+            self.assertEqual(script.main(), 0)
+        run.assert_not_called()
 
     def test_start_backend_stays_attached_after_readiness(self):
         script = load_script("start-backend")
@@ -232,7 +283,7 @@ class ScriptCommandTests(unittest.TestCase):
         )
         self.assertEqual(run.call_args.kwargs["cwd"], PROJECT_ROOT / "frontend" / "fluxpay-ui")
 
-    def test_test_all_uses_current_python_for_seed_script(self):
+    def test_test_all_uses_current_python_for_local_seed_script(self):
         script = load_script("test-all")
         with (
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "e2e"]),
@@ -242,7 +293,9 @@ class ScriptCommandTests(unittest.TestCase):
             self.assertEqual(script.main(), 0)
 
         seed_command = run.call_args_list[0].args[0]
-        self.assertEqual(seed_command, [sys.executable, str(PROJECT_ROOT / "scripts" / "seed-demo.py")])
+        self.assertEqual(seed_command, [sys.executable, str(PROJECT_ROOT / "scripts" / "seed-local.py")])
+        smoke_command = run.call_args_list[1].args[0]
+        self.assertEqual(smoke_command, [sys.executable, str(PROJECT_ROOT / "scripts" / "smoke-local.py")])
 
     def test_test_all_uses_windows_maven_wrapper(self):
         script = load_script("test-all")
@@ -304,7 +357,7 @@ class ScriptCommandTests(unittest.TestCase):
             ):
                 self.assertEqual(script.main(), 0)
 
-        self.assertEqual(len(observed_settings), 2)
+        self.assertEqual(len(observed_settings), 1)
         self.assertEqual(
             observed_settings[0][1:],
             (
@@ -314,7 +367,8 @@ class ScriptCommandTests(unittest.TestCase):
                 "FLUXPAY_TEST",
             ),
         )
-        self.assertIn("-Dtest=PaymentEventPersistenceIT", observed_settings[1][0])
+        self.assertIn("-Pintegration", observed_settings[0][0])
+        self.assertEqual(observed_settings[0][0][-1], "verify")
 
     def test_test_all_fails_when_requested_integration_credentials_are_incomplete(self):
         script = load_script("test-all")
@@ -332,7 +386,7 @@ class ScriptCommandTests(unittest.TestCase):
         ):
             self.assertEqual(script.main(), 3)
 
-        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_count, 0)
 
     def test_test_all_rejects_application_schema_for_requested_integration(self):
         script = load_script("test-all")
@@ -353,7 +407,7 @@ class ScriptCommandTests(unittest.TestCase):
         ):
             self.assertEqual(script.main(), 3)
 
-        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_count, 0)
 
     def test_test_all_sets_windows_maven_homes_before_backend_subprocess(self):
         script = load_script("test-all")

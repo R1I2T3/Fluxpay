@@ -78,9 +78,9 @@ class FakeConnection:
         return self.fake_cursor
 
 
-class M2SeedScriptTests(unittest.TestCase):
+class WalletSeedScriptTests(unittest.TestCase):
     def test_seed_uses_three_deterministic_api_operations_and_never_prints_token(self):
-        script = load_script("seed_m2")
+        script = load_script("seed-wallets")
         user_id = "11111111-1111-1111-1111-111111111111"
         token = "secret-signed-token"
         requests = []
@@ -107,9 +107,9 @@ class M2SeedScriptTests(unittest.TestCase):
             mock.patch.object(
                 sys,
                 "argv",
-                ["seed_m2.py", "--user-id", user_id, "--base-url", "http://backend:8080"],
+                ["seed-wallets.py", "--user-id", user_id, "--base-url", "http://backend:8080"],
             ),
-            mock.patch.dict(script.os.environ, {"M2_BEARER_TOKEN": token}, clear=True),
+            mock.patch.dict(script.os.environ, {"SEED_BEARER_TOKEN": token}, clear=True),
             mock.patch.object(script.urllib.request, "urlopen", side_effect=urlopen),
             contextlib.redirect_stdout(output),
         ):
@@ -121,7 +121,7 @@ class M2SeedScriptTests(unittest.TestCase):
             body = json.loads(request.data)
             currency = body["currency"]
             self.assertEqual(body["amount"], expected[currency])
-            self.assertEqual(request.get_header("Idempotency-key"), f"seed-m2:{user_id}:{currency}:v1")
+            self.assertEqual(request.get_header("Idempotency-key"), f"seed-wallet:{user_id}:{currency}:v1")
             self.assertEqual(request.get_header("Authorization"), f"Bearer {token}")
             self.assertEqual(timeout, 5)
         self.assertTrue(requests[-1][0].full_url.endswith("/api/wallets"))
@@ -129,13 +129,13 @@ class M2SeedScriptTests(unittest.TestCase):
         self.assertIn("USD available=500.0000 held=0.0000", output.getvalue())
 
     def test_seed_rejects_missing_token_before_contacting_backend(self):
-        script = load_script("seed_m2")
+        script = load_script("seed-wallets")
         output = io.StringIO()
         with (
             mock.patch.object(
                 sys,
                 "argv",
-                ["seed_m2.py", "--user-id", "11111111-1111-1111-1111-111111111111"],
+                ["seed-wallets.py", "--user-id", "11111111-1111-1111-1111-111111111111"],
             ),
             mock.patch.dict(script.os.environ, {}, clear=True),
             mock.patch.object(script.urllib.request, "urlopen") as urlopen,
@@ -144,19 +144,19 @@ class M2SeedScriptTests(unittest.TestCase):
             self.assertEqual(script.main(), 2)
 
         urlopen.assert_not_called()
-        self.assertIn("M2_BEARER_TOKEN is required", output.getvalue())
+        self.assertIn("SEED_BEARER_TOKEN is required", output.getvalue())
 
     def test_seed_reports_backend_failure_without_exposing_token(self):
-        script = load_script("seed_m2")
+        script = load_script("seed-wallets")
         token = "do-not-print-this"
         output = io.StringIO()
         with (
             mock.patch.object(
                 sys,
                 "argv",
-                ["seed_m2.py", "--user-id", "11111111-1111-1111-1111-111111111111"],
+                ["seed-wallets.py", "--user-id", "11111111-1111-1111-1111-111111111111"],
             ),
-            mock.patch.dict(script.os.environ, {"M2_BEARER_TOKEN": token}, clear=True),
+            mock.patch.dict(script.os.environ, {"SEED_BEARER_TOKEN": token}, clear=True),
             mock.patch.object(script.urllib.request, "urlopen", side_effect=OSError("offline")),
             contextlib.redirect_stdout(output),
         ):
@@ -166,18 +166,18 @@ class M2SeedScriptTests(unittest.TestCase):
         self.assertNotIn(token, output.getvalue())
 
 
-class M2LedgerCheckScriptTests(unittest.TestCase):
+class LedgerCheckScriptTests(unittest.TestCase):
     def test_converts_project_jdbc_url_to_python_oracle_dsn(self):
-        script = load_script("check_m2_ledger")
+        script = load_script("check-ledger")
         self.assertEqual(
             script.oracle_dsn("jdbc:oracle:thin:@//localhost:1521/FREEPDB1"),
             "localhost:1521/FREEPDB1",
         )
 
     def test_read_only_check_reports_imbalances_and_ungrouped_entries_without_credentials(self):
-        script = load_script("check_m2_ledger")
+        script = load_script("check-ledger")
         connection = FakeConnection(
-            [("M2-FX-one", "USD", "100.0000", "99.5000")],
+            [("wallet:fx:one", "USD", "100.0000", "99.5000")],
             [("EUR", "CREDIT", 2, "7.0000")],
         )
         calls = []
@@ -197,7 +197,7 @@ class M2LedgerCheckScriptTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with (
-                mock.patch.object(sys, "argv", ["check_m2_ledger.py", "--env-file", str(env_file)]),
+                mock.patch.object(sys, "argv", ["check-ledger.py", "--env-file", str(env_file)]),
                 mock.patch.dict(sys.modules, {"oracledb": fake_oracledb}),
                 mock.patch.dict(script.os.environ, {}, clear=True),
                 contextlib.redirect_stdout(output),
@@ -209,17 +209,20 @@ class M2LedgerCheckScriptTests(unittest.TestCase):
             [{"user": "fluxpay", "password": "secret-db-password", "dsn": "dbhost:1521/FREEPDB1"}],
         )
         self.assertEqual(connection.fake_cursor.statements[0], "SET TRANSACTION READ ONLY")
-        self.assertIn("UNBALANCED journal=M2-FX-one currency=USD debits=100.0000 credits=99.5000", output.getvalue())
+        self.assertIn(
+            "UNBALANCED journal=wallet:fx:one currency=USD debits=100.0000 credits=99.5000",
+            output.getvalue(),
+        )
         self.assertIn("UNGROUPED currency=EUR type=CREDIT count=2 amount=7.0000", output.getvalue())
         self.assertNotIn("secret-db-password", output.getvalue())
 
     def test_ungrouped_entries_are_reported_but_do_not_hide_balanced_grouped_journals(self):
-        script = load_script("check_m2_ledger")
+        script = load_script("check-ledger")
         connection = FakeConnection([], [("USD", "CREDIT", 1, "5.0000")])
         fake_oracledb = types.SimpleNamespace(connect=lambda **kwargs: connection)
         output = io.StringIO()
         with (
-            mock.patch.object(sys, "argv", ["check_m2_ledger.py"]),
+            mock.patch.object(sys, "argv", ["check-ledger.py"]),
             mock.patch.dict(sys.modules, {"oracledb": fake_oracledb}),
             mock.patch.dict(
                 script.os.environ,

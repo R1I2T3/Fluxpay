@@ -21,6 +21,7 @@
         <java.version>17</java.version>
         <flyway.version>10.22.0</flyway.version>
         <oracle.jdbc.version>23.4.0.24.05</oracle.jdbc.version>
+        <skipITs>true</skipITs>
     </properties>
 
     <dependencies>
@@ -153,6 +154,75 @@
                     </java>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <skipITs>${skipITs}</skipITs>
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>integration</id>
+            <properties>
+                <skipITs>false</skipITs>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>require-dedicated-integration-environment</id>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireEnvironmentVariable>
+                                            <variableName>ORACLE_TEST_JDBC_URL</variableName>
+                                        </requireEnvironmentVariable>
+                                        <requireEnvironmentVariable>
+                                            <variableName>ORACLE_TEST_PASSWORD</variableName>
+                                        </requireEnvironmentVariable>
+                                        <requireEnvironmentVariable>
+                                            <variableName>KAFKA_BOOTSTRAP_SERVERS</variableName>
+                                        </requireEnvironmentVariable>
+                                        <requireProperty>
+                                            <property>env.ORACLE_TEST_USERNAME</property>
+                                            <regex>(?i)FLUXPAY_TEST</regex>
+                                            <regexMessage>Integration tests require ORACLE_TEST_USERNAME=FLUXPAY_TEST.</regexMessage>
+                                        </requireProperty>
+                                        <requireProperty>
+                                            <property>env.ORACLE_TESTS_ACTIVE</property>
+                                            <regex>(?i)true</regex>
+                                            <regexMessage>Integration tests require ORACLE_TESTS_ACTIVE=true.</regexMessage>
+                                        </requireProperty>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
