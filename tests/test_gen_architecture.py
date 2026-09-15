@@ -70,7 +70,9 @@ class GenModelTests(unittest.TestCase):
         by_id = {n["id"]: n for n in nodes}
         self.assertIn(
             "payment.initiated",
-            open(PROJECT_ROOT / "backend/src/main/java/com/fluxpay/messaging/EventTopics.java").read(),
+            (PROJECT_ROOT / "backend/src/main/java/com/fluxpay/messaging/EventTopics.java").read_text(
+                encoding="utf-8", errors="ignore"
+            ),
         )
         self.assertTrue(any(n["id"].startswith("l1-") for n in nodes))
         html_size = len(gen.render_html(nodes).encode("utf-8"))
@@ -82,6 +84,88 @@ class GenModelTests(unittest.TestCase):
         ):
             self.assertIn(mid, by_id)
             self.assertIn("payment.initiated", by_id[mid]["detail"]["topics"])
+
+    def test_event_topics_eight_parsed(self):
+        gen = load_gen()
+        topics = gen.load_event_topics(PROJECT_ROOT)
+        self.assertEqual(len(topics), 8)
+        for t in (
+            "payment.initiated",
+            "payment.route.selected",
+            "payment.screening.completed",
+            "payout.submitted",
+            "payout.failed",
+            "payout.completed",
+            "payment.refunded",
+            "payment.review.requested",
+        ):
+            self.assertIn(t, topics)
+        nodes = gen.build_model(PROJECT_ROOT)
+        by_id = {n["id"]: n for n in nodes}
+        for mid in (
+            "l3-messaging-outboxrelay",
+            "l3-messaging-paymenteventconsumer",
+            "l3-messaging-outboxservice",
+        ):
+            self.assertEqual(by_id[mid]["detail"]["topics"], topics)
+        html = gen.render_html(nodes)
+        self.assertIn("payment.route.selected", html)
+        self.assertIn("payment.review.requested", html)
+
+    def test_viewer_esc_and_topics_line(self):
+        gen = load_gen()
+        nodes = gen.build_model(PROJECT_ROOT)
+        html = gen.render_html(nodes)
+        self.assertIn("function esc", html)
+        # esc escapes <: JS mapping must contain &lt; for '<'
+        self.assertIn("&lt;", gen.VIEWER_JS)
+        self.assertIn("function esc", gen.VIEWER_JS)
+        # showDetail renders topics with esc join (C1)
+        self.assertIn("topics:", html)
+        self.assertIn("(d.topics||[]).join", html)
+        self.assertIn("esc((d.topics", html)
+
+    def test_methods_endpoints_truncation_metadata(self):
+        import tempfile
+
+        gen = load_gen()
+        nodes = gen.build_model(PROJECT_ROOT)
+        by_id = {n["id"]: n for n in nodes}
+        svc = by_id["l3-service-paymentservice"]
+        self.assertIn("methodsTotal", svc["detail"])
+        self.assertIn("methodsTruncated", svc["detail"])
+        self.assertIn("endpointsTotal", svc["detail"])
+        self.assertIn("endpointsTruncated", svc["detail"])
+        self.assertIn("methodsTruncated", gen.VIEWER_JS)
+        self.assertIn("methodsTotal", gen.VIEWER_JS)
+        self.assertIn("more)", gen.VIEWER_JS)
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            p = root / "Big.java"
+            body = "\n".join(f"public void m{i}() {{}}" for i in range(35))
+            p.write_text(f"public class Big {{\n{body}\n}}", encoding="utf-8")
+            info = gen.parse_java_file(p, root)
+            self.assertEqual(len(info["methods"]), 30)
+            self.assertEqual(info["methodsTotal"], 35)
+            self.assertTrue(info["methodsTruncated"])
+
+    def test_check_is_dry_run(self):
+        gen = load_gen()
+        rc = gen.main(["--check", "--root", str(PROJECT_ROOT)])
+        self.assertEqual(rc, 0)
+        nodes = gen.build_model(PROJECT_ROOT)
+        self.assertGreater(len(nodes), 0)
+
+    def test_parse_and_render_use_passed_root(self):
+        gen = load_gen()
+        nodes = gen.build_model(PROJECT_ROOT)
+        html1 = gen.render_html(nodes, PROJECT_ROOT)
+        html2 = gen.render_html(nodes)
+        self.assertIn("function esc", html1)
+        self.assertIn("function esc", html2)
+        p = PROJECT_ROOT / "backend/src/main/java/com/fluxpay/service/PaymentService.java"
+        info = gen.parse_java_file(p, PROJECT_ROOT)
+        self.assertEqual(info["file"], "backend/src/main/java/com/fluxpay/service/PaymentService.java")
 
 
 if __name__ == "__main__":

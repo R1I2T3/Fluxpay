@@ -2,7 +2,6 @@
 """Generate self-contained interactive architecture viewer."""
 
 import argparse
-import datetime
 import json
 import re
 import subprocess
@@ -26,7 +25,9 @@ MAPPING_RE = re.compile(r'@(GetMapping|PostMapping|PutMapping|DeleteMapping|Patc
 REQUEST_MAPPING_RE = re.compile(r'@RequestMapping\("([^"]*)"\)')
 
 
-def parse_java_file(path: Path) -> dict:
+def parse_java_file(path: Path, project_root: Path | None = None) -> dict:
+    root = project_root if project_root is not None else PROJECT_ROOT
+    backend_root = root / "backend/src/main/java/com/fluxpay"
     text = path.read_text(encoding="utf-8", errors="ignore")
     m = CLASS_RE.search(text)
     class_name = m.group(1) if m else path.stem
@@ -35,25 +36,57 @@ def parse_java_file(path: Path) -> dict:
         if marker in text:
             stereotype = label
             break
-    methods = METHOD_RE.findall(text)[:30]
-    endpoints: list[str] = []
+    all_methods = METHOD_RE.findall(text)
+    methods_total = len(all_methods)
+    methods = all_methods[:30]
+    endpoints_all: list[str] = []
     base = ""
     rm = REQUEST_MAPPING_RE.search(text)
     if rm:
         base = rm.group(1)
     for kind, sub in MAPPING_RE.findall(text):
         http = kind.replace("Mapping", "").upper()
-        endpoints.append(f"{http} {base}{sub}")
-    rel = path.relative_to(PROJECT_ROOT).as_posix()
-    pkg = path.parent.relative_to(BACKEND_ROOT).as_posix()
+        endpoints_all.append(f"{http} {base}{sub}")
+    endpoints_total = len(endpoints_all)
+    endpoints = endpoints_all[:10]
+    rel = path.relative_to(root).as_posix()
+    try:
+        pkg = path.parent.relative_to(backend_root).as_posix()
+    except ValueError:
+        pkg = "."
     return {
         "file": rel,
         "class_name": class_name,
         "package": pkg,
         "stereotype": stereotype,
         "methods": methods,
-        "endpoints": endpoints[:10],
+        "methodsTotal": methods_total,
+        "methodsTruncated": methods_total > len(methods),
+        "endpoints": endpoints,
+        "endpointsTotal": endpoints_total,
+        "endpointsTruncated": endpoints_total > len(endpoints),
     }
+
+
+FALLBACK_TOPICS = ["payment.initiated", "payout.submitted", "payout.completed"]
+TOPIC_RE = re.compile(r'"([\w\.]+)"')
+
+
+def load_event_topics(project_root: Path) -> list[str]:
+    """Parse EventTopics.java for topic strings; fallback to 3 known topics."""
+    p = project_root / "backend/src/main/java/com/fluxpay/messaging/EventTopics.java"
+    try:
+        text = p.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return list(FALLBACK_TOPICS)
+    found = TOPIC_RE.findall(text)
+    # Keep only dotted topic-like strings, dedupe preserving order.
+    seen: dict[str, None] = {}
+    for t in found:
+        if "." in t and t not in seen:
+            seen[t] = None
+    topics = list(seen.keys())
+    return topics if topics else list(FALLBACK_TOPICS)
 
 
 def build_model(project_root: Path) -> list[dict]:
@@ -97,7 +130,7 @@ def build_model(project_root: Path) -> list[dict]:
     if not java_files:
         raise RuntimeError(f"no java files under {backend_root}")
     for jf in java_files:
-        info = parse_java_file(jf)
+        info = parse_java_file(jf, project_root)
         pkg = info["package"]
         pkg_id = "l2-" + pkg.replace("/", "-")
         if pkg_id not in pkg_nodes:
@@ -128,16 +161,23 @@ def build_model(project_root: Path) -> list[dict]:
                     "file": info["file"],
                     "stereotype": info["stereotype"],
                     "methods": info["methods"],
+                    "methodsTotal": info["methodsTotal"],
+                    "methodsTruncated": info["methodsTruncated"],
                     "endpoints": info["endpoints"],
+                    "endpointsTotal": info["endpointsTotal"],
+                    "endpointsTruncated": info["endpointsTruncated"],
                     "topics": [],
                 },
             }
         )
         pkg_node = next(n for n in nodes if n["id"] == pkg_id)
         pkg_node["children"].append(class_id)
+    # NOTE: frontend/SQL/compose scan out-of-scope — L1 containers stay static
+    # (UI/Oracle/Kafka/FX) and only backend Java is parsed. See task-4 report.
+    topics = load_event_topics(project_root)
     for n in nodes:
         if n["id"] in ("l3-messaging-outboxrelay", "l3-messaging-paymenteventconsumer", "l3-messaging-outboxservice"):
-            n["detail"]["topics"] = ["payment.initiated", "payout.submitted", "payout.completed"]
+            n["detail"]["topics"] = list(topics)
     return nodes
 
 
@@ -165,7 +205,7 @@ function render(id){
 }
 function showDetail(n){
  const d=n.detail||{}; let h=`<h3>${esc(n.label)}</h3><p>kind=${n.kind} level=${n.level}</p>`;
- if(n.kind==='class'){h+=`<pre>file: ${esc(d.file||'')}\\nstereotype: ${esc(d.stereotype||'')}\\nmethods: ${esc((d.methods||[]).join(', ')||'no public methods parsed')}\\nendpoints: ${esc((d.endpoints||[]).join('; ')||'-')}</pre>`;}
+ if(n.kind==='class'){let m=(d.methods||[]).join(', ')||'no public methods parsed'; if(d.methodsTruncated){m+=` (+${d.methodsTotal-(d.methods||[]).length} more)`;} let e=(d.endpoints||[]).join('; ')||'-'; if(d.endpointsTruncated){e+=` (+${d.endpointsTotal-(d.endpoints||[]).length} more)`;} h+=`<pre>file: ${esc(d.file||'')}\nstereotype: ${esc(d.stereotype||'')}\nmethods: ${esc(m)}\nendpoints: ${esc(e)}\ntopics: ${esc((d.topics||[]).join(', ')||'-')}</pre>`;}
  else {h+=`<p>${esc(d.summary||'')} — ${(n.children||[]).length} children. Click child to drill down.</p>`;}
  document.getElementById('detail').innerHTML=h;
 }
@@ -173,12 +213,13 @@ document.addEventListener('DOMContentLoaded',()=>render('l0-system'));
 """
 
 
-def render_html(nodes: list[dict]) -> str:
+def render_html(nodes: list[dict], project_root: Path | None = None) -> str:
     import datetime
 
+    root = project_root if project_root is not None else PROJECT_ROOT
     payload = json.dumps(nodes)
     try:
-        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT, text=True).strip()
+        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=root, text=True).strip()
     except Exception:
         sha = "nogit"
     stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -195,18 +236,23 @@ def render_html(nodes: list[dict]) -> str:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--write", action="store_true")
-    p.add_argument("--check", action="store_true")
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="dry-run: build model only, no write (returns 0 if nodes>0 else 2)",
+    )
     p.add_argument("--out", default="docs/architecture.html")
     p.add_argument("--root", default=str(PROJECT_ROOT))
     a = p.parse_args(argv)
     root = Path(a.root)
     nodes = build_model(root)
     if a.check:
-        return 0
+        # Dry-run: model builds; 0 if non-empty else 2. No file I/O.
+        return 0 if len(nodes) > 0 else 2
     if a.write:
         out = root / a.out if not Path(a.out).is_absolute() else Path(a.out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(render_html(nodes), encoding="utf-8")
+        out.write_text(render_html(nodes, root), encoding="utf-8")
         print(f"wrote {out} ({len(nodes)} nodes)")
         return 0
     p.print_help()
