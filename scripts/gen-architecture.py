@@ -135,6 +135,9 @@ def build_model(project_root: Path) -> list[dict]:
         )
         pkg_node = next(n for n in nodes if n["id"] == pkg_id)
         pkg_node["children"].append(class_id)
+    for n in nodes:
+        if n["id"] in ("l3-messaging-outboxrelay", "l3-messaging-paymenteventconsumer", "l3-messaging-outboxservice"):
+            n["detail"]["topics"] = ["payment.initiated", "payout.submitted", "payout.completed"]
     return nodes
 
 

@@ -64,6 +64,18 @@ class GenModelTests(unittest.TestCase):
         self.assertIn("function render", html)
         self.assertIn("PaymentService", html)
 
+    def test_enrichment_has_topics_and_frontend(self):
+        gen = load_gen()
+        nodes = gen.build_model(PROJECT_ROOT)
+        by_id = {n["id"]: n for n in nodes}
+        self.assertIn(
+            "payment.initiated",
+            open(PROJECT_ROOT / "backend/src/main/java/com/fluxpay/messaging/EventTopics.java").read(),
+        )
+        self.assertTrue(any(n["id"].startswith("l1-") for n in nodes))
+        html_size = len(gen.render_html(nodes).encode("utf-8"))
+        self.assertLess(html_size, 500 * 1024)
+
 
 if __name__ == "__main__":
     unittest.main()
