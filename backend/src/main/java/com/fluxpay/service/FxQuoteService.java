@@ -1,7 +1,9 @@
 package com.fluxpay.service;
 
 import com.fluxpay.common.contracts.FxRateProvider;
+import com.fluxpay.common.contracts.FxSnapshotSource;
 import com.fluxpay.dto.FxSnapshot;
+import com.fluxpay.exception.FxUnavailableException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -13,6 +15,7 @@ import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Service;
 
 @Service
+@org.springframework.context.annotation.Primary
 public class FxQuoteService implements FxRateProvider {
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
   private static final Duration FRESH_FOR = Duration.ofHours(1);

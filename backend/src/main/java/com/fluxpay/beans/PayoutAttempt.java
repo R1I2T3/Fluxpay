@@ -13,7 +13,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Payout attempt mapped to {@code payout_attempts} per the V503 forward migration.
+ * Payout attempt mapped to {@code payout_attempts} per the V003 fresh-baseline DDL.
  *
  * <p>UUID strategy: {@code id} and {@code payout_route_id} are {@code RAW(16)} UUID storage mapped
  * as {@code UUID}. {@code payment_id} is the business key (e.g. {@code P-001}/{@code P-002}) stored
@@ -88,7 +88,7 @@ public class PayoutAttempt {
     this.status = PayoutAttemptStatus.PROCESSING;
   }
 
-  public void markCompleted(String providerReference) {
+  public void markCompleted(String providerReference, Instant completedAt) {
     if (status != PayoutAttemptStatus.PROCESSING) {
       throw new IllegalStateException(transitionMessage("mark COMPLETED"));
     }
@@ -96,11 +96,11 @@ public class PayoutAttempt {
         Objects.requireNonNull(providerReference, "providerReference must not be null");
     this.errorCode = null;
     this.errorMessage = null;
-    this.completedAt = Instant.now();
+    this.completedAt = Objects.requireNonNull(completedAt, "completedAt must not be null");
     this.status = PayoutAttemptStatus.COMPLETED;
   }
 
-  public void markFailed(String errorCode, String errorMessage) {
+  public void markFailed(String errorCode, String errorMessage, Instant completedAt) {
     if (status != PayoutAttemptStatus.PROCESSING) {
       throw new IllegalStateException(transitionMessage("mark FAILED"));
     }
@@ -113,7 +113,7 @@ public class PayoutAttempt {
     this.errorCode = errorCode;
     this.errorMessage = errorMessage;
     this.providerReference = null;
-    this.completedAt = Instant.now();
+    this.completedAt = Objects.requireNonNull(completedAt, "completedAt must not be null");
     this.status = PayoutAttemptStatus.FAILED;
   }
 

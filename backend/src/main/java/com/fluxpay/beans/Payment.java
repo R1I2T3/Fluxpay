@@ -1,5 +1,7 @@
 package com.fluxpay.beans;
 
+import com.fluxpay.domain.PaymentStatus;
+import com.fluxpay.domain.RoutePreference;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -22,9 +24,6 @@ public class Payment {
   @Column(name = "currency", nullable = false)
   private String sourceCurrency;
 
-  @Column(name = "m3_flow_version")
-  private int flowVersion;
-
   @Column(name = "sender_id")
   private UUID senderId;
 
@@ -35,7 +34,7 @@ public class Payment {
   private PaymentPurpose purpose;
 
   @Enumerated(EnumType.STRING)
-  private QuoteRoute preference;
+  private RoutePreference preference;
 
   @Column(name = "recipient_version")
   private long recipientVersion;
@@ -54,7 +53,7 @@ public class Payment {
   private int quoteGenerationCounter;
 
   @Enumerated(EnumType.STRING)
-  private PaymentLifecycleStatus status;
+  private PaymentStatus status;
 
   @Column(name = "event_sequence_counter")
   private int eventSequenceCounter;
@@ -91,7 +90,7 @@ public class Payment {
       String source,
       String payout,
       PaymentPurpose purpose,
-      QuoteRoute preference,
+      RoutePreference preference,
       String snapshot,
       Instant now) {
     this.id = id;
@@ -105,8 +104,7 @@ public class Payment {
     this.preference = preference;
     recipientVersion = r.version();
     recipientSnapshot = snapshot;
-    flowVersion = 1;
-    status = PaymentLifecycleStatus.DRAFT;
+    status = PaymentStatus.DRAFT;
     createdAt = now;
     updatedAt = now;
   }
@@ -143,7 +141,7 @@ public class Payment {
     return purpose;
   }
 
-  public QuoteRoute preference() {
+  public RoutePreference preference() {
     return preference;
   }
 
@@ -155,7 +153,7 @@ public class Payment {
     return recipientSnapshot;
   }
 
-  public PaymentLifecycleStatus status() {
+  public PaymentStatus status() {
     return status;
   }
 
@@ -165,10 +163,6 @@ public class Payment {
 
   public Integer currentQuoteGeneration() {
     return currentQuoteGeneration;
-  }
-
-  public int flowVersion() {
-    return flowVersion;
   }
 
   public Instant createdAt() {
@@ -213,40 +207,68 @@ public class Payment {
 
   public void quoted(int generation, Instant now) {
     currentQuoteGeneration = generation;
-    status = PaymentLifecycleStatus.QUOTED;
+    status = PaymentStatus.QUOTED;
+    updatedAt = now;
+  }
+
+  public void recoveryQuoted(int generation, Instant now) {
+    if (status != PaymentStatus.FAILED)
+      throw new IllegalStateException("Recovery quotes require a failed payment");
+    currentQuoteGeneration = generation;
     updatedAt = now;
   }
 
   public void cancel(Instant now) {
-    status = PaymentLifecycleStatus.CANCELLED;
+    status = PaymentStatus.CANCELLED;
     updatedAt = now;
   }
 
   public void reject(Instant now) {
-    status = PaymentLifecycleStatus.REJECTED;
+    status = PaymentStatus.REJECTED;
     updatedAt = now;
   }
 
   public void selectAndProcess(UUID quote, Instant now) {
     selectedQuoteId = quote;
-    status = PaymentLifecycleStatus.PROCESSING;
+    status = PaymentStatus.PROCESSING;
     updatedAt = now;
   }
 
   public void underReview(String reference, Instant now) {
-    status = PaymentLifecycleStatus.UNDER_REVIEW;
+    status = PaymentStatus.UNDER_REVIEW;
     reviewReference = reference;
     updatedAt = now;
   }
 
   public void underReview(Instant now) {
-    status = PaymentLifecycleStatus.UNDER_REVIEW;
+    status = PaymentStatus.UNDER_REVIEW;
     updatedAt = now;
   }
 
   public void recordPosting(String snapshot, Instant now) {
     postingSnapshot = snapshot;
     postedAt = now;
+    updatedAt = now;
+  }
+
+  public void completePayout(Instant now) {
+    if (status != PaymentStatus.PROCESSING)
+      throw new IllegalStateException("Payment is not processing");
+    status = PaymentStatus.COMPLETED;
+    updatedAt = now;
+  }
+
+  public void failPayout(Instant now) {
+    if (status != PaymentStatus.PROCESSING)
+      throw new IllegalStateException("Payment is not processing");
+    status = PaymentStatus.FAILED;
+    updatedAt = now;
+  }
+
+  public void refundPayout(Instant now) {
+    if (status != PaymentStatus.FAILED)
+      throw new IllegalStateException("Only a failed payment can be refunded");
+    status = PaymentStatus.REFUNDED;
     updatedAt = now;
   }
 }

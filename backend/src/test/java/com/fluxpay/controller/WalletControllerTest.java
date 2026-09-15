@@ -15,18 +15,18 @@ import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
-import com.fluxpay.config.M2ApiExceptionHandler;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
-import com.fluxpay.service.DemoFundingDisabledException;
-import com.fluxpay.service.DemoFundingRetryException;
+import com.fluxpay.exception.DemoFundingDisabledException;
+import com.fluxpay.exception.FxSystemWalletNotFoundException;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.OperationRetryException;
 import com.fluxpay.service.DemoFundingService;
-import com.fluxpay.service.FxSystemWalletNotFoundException;
-import com.fluxpay.service.InsufficientWalletFundsException;
 import com.fluxpay.service.WalletConversionService;
 import com.fluxpay.service.WalletQueryService;
+import com.fluxpay.web.advice.WalletFxApiExceptionHandler;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M2ApiExceptionHandler.class
+  WalletFxApiExceptionHandler.class
 })
 class WalletControllerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -69,7 +69,7 @@ class WalletControllerTest {
             "500.0000",
             "0.0000",
             "500.0000",
-            "M2-DEMO-44444444-4444-4444-4444-444444444444");
+            "wallet:demo:44444444-4444-4444-4444-444444444444");
     when(funding.receiveDemo(
             eq(USER_ID), eq(new WalletReceiveRequest("USD", "500.0000")), eq("fund-1")))
         .thenReturn(response);
@@ -99,7 +99,7 @@ class WalletControllerTest {
                 .header("Idempotency-Key", "fund-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"currency\":\"USD\",\"amount\":\"1.0000\"}"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -136,7 +136,7 @@ class WalletControllerTest {
   @Test
   void unresolvedRaceReturnsRetryConflict() throws Exception {
     when(funding.receiveDemo(eq(USER_ID), any(WalletReceiveRequest.class), eq("fund-race")))
-        .thenThrow(new DemoFundingRetryException());
+        .thenThrow(new OperationRetryException());
 
     mvc.perform(
             post("/api/wallets/receive-demo")
@@ -163,8 +163,7 @@ class WalletControllerTest {
             "83.50",
             "2026-09-11T01:02:03Z",
             false,
-            true,
-            "M2-FX-44444444-4444-4444-4444-444444444444");
+            "wallet:fx:44444444-4444-4444-4444-444444444444");
     when(conversion.convert(
             eq(USER_ID), eq(new WalletConvertRequest("USD", "INR", "100.0000")), eq("fx-1")))
         .thenReturn(response);
@@ -180,8 +179,7 @@ class WalletControllerTest {
         .andExpect(jsonPath("$.correlationId").value("cid-convert-1"))
         .andExpect(jsonPath("$.data.fee").value("0.5000"))
         .andExpect(jsonPath("$.data.creditedAmount").value("8308.2500"))
-        .andExpect(jsonPath("$.data.rate").value("83.50"))
-        .andExpect(jsonPath("$.data.mock").value(true));
+        .andExpect(jsonPath("$.data.rate").value("83.50"));
   }
 
   @Test
@@ -212,5 +210,21 @@ class WalletControllerTest {
                 .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"1.0000\"}"))
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.code").value("FX_UNAVAILABLE"));
+  }
+
+  @Test
+  void missingSystemIdentityReturnsUnavailableWithCorrelationId() throws Exception {
+    when(conversion.convert(eq(USER_ID), any(WalletConvertRequest.class), eq("fx-config")))
+        .thenThrow(new com.fluxpay.exception.SystemAccountUnavailableException());
+    mvc.perform(
+            post("/api/wallets/convert")
+                .header("Authorization", "Bearer " + TOKEN)
+                .header("Idempotency-Key", "fx-config")
+                .header("X-Correlation-ID", "system-config-error")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"1.0000\"}"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.code").value("SYSTEM_ACCOUNT_UNAVAILABLE"))
+        .andExpect(jsonPath("$.correlationId").value("system-config-error"));
   }
 }

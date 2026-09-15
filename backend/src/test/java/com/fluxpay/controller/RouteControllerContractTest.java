@@ -14,21 +14,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fluxpay.beans.PayoutRoute;
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
-import com.fluxpay.config.M4ApiExceptionHandler;
-import com.fluxpay.dto.RoutePreference;
+import com.fluxpay.domain.PaymentStatus;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
-import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.RouteMetrics;
+import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -40,7 +40,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** HTTP contract for the customer route catalog: list plus owner-gated recommendation. */
@@ -49,10 +48,9 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M4ApiExceptionHandler.class,
+  PayoutApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class RouteControllerContractTest {
 
   private static final UUID OWNER_ID =
@@ -87,7 +85,7 @@ class RouteControllerContractTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
     standard =
         PayoutRoute.seed(
             R_STANDARD,
@@ -132,6 +130,29 @@ class RouteControllerContractTest {
         .andExpect(jsonPath("$.data.routes[1].totalAttempts").value(4));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"NO_ACTIVE_ROUTES", "INVALID_AMOUNT"})
+  void quoteFailuresPreserveStatusCodeAndCorrelation(String code) {
+    when(reader.get("P-001")).thenReturn(payment);
+    when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
+    when(catalog.recommend(eq("P-001"), eq(RoutePreference.BALANCED), anyString()))
+        .thenThrow(
+            new com.fluxpay.exception.BusinessException(
+                org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY,
+                code,
+                "Quote unavailable"));
+    org.assertj.core.api.Assertions.assertThatCode(
+            () ->
+                mvc.perform(
+                        post("/api/payments/P-001/recommend-route")
+                            .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
+                            .header("X-Correlation-ID", "quote-error"))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value(code))
+                    .andExpect(jsonPath("$.correlationId").value("quote-error")))
+        .doesNotThrowAnyException();
+  }
+
   @Test
   void recommendReturnsQuotesWithMarketRate() throws Exception {
     when(reader.get("P-001")).thenReturn(payment);
@@ -141,13 +162,17 @@ class RouteControllerContractTest {
             standard,
             new BigDecimal("148.0000"),
             new BigDecimal("146.8160"),
-            new BigDecimal("146811.0000"));
+            new BigDecimal("146081.9200"),
+            new BigDecimal("5.0000"),
+            new BigDecimal("995.0000"));
     RouteQuote instantQuote =
         new RouteQuote(
             instant,
             new BigDecimal("148.0000"),
             new BigDecimal("145.0400"),
-            new BigDecimal("145032.5000"));
+            new BigDecimal("143444.5600"),
+            new BigDecimal("11.0000"),
+            new BigDecimal("989.0000"));
     when(catalog.recommend(eq("P-001"), eq(RoutePreference.BALANCED), anyString()))
         .thenReturn(new RouteRecommendation(standard, List.of(standardQuote, instantQuote)));
 

@@ -7,6 +7,7 @@ spring:
     password: ${ORACLE_PASSWORD}
     driver-class-name: oracle.jdbc.OracleDriver
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     properties:
@@ -23,6 +24,15 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 fluxpay:
-  fx-provider-url: ${FX_PROVIDER_URL}
-  embedding-mode: ${EMBEDDING_MODE:mock}
+  # Documented Frankfurter v1 /latest endpoint (see https://frankfurter.dev/v1/).
+  # fluxpay.fx-mode/FLUXPAY_FX_MODE was retired: any value fails startup explicitly.
+  fx-provider-url: ${FX_PROVIDER_URL:}
+  # Compliance-vector mode; default is the production embedding path (no mock default).
+  embedding-mode: ${EMBEDDING_MODE:live}
   jwt-secret: ${JWT_SECRET}
+  system-user-id: ${FLUXPAY_SYSTEM_USER_ID:}
+  demo-funding-enabled: ${FLUXPAY_DEMO_FUNDING_ENABLED:false}
+  development:
+    kyc-metadata-enabled: ${FLUXPAY_DEVELOPMENT_KYC_METADATA_ENABLED:false}
+    simulated-compliance-enabled: ${FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED:false}
+    simulated-payouts-enabled: ${FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED:false}

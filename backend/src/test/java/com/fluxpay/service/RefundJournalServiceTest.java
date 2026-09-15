@@ -1,74 +1,124 @@
 package com.fluxpay.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.*;
 
-import com.fluxpay.common.contracts.LedgerWriter;
-import com.fluxpay.common.enums.PaymentStatus;
-import com.fluxpay.config.MockLedgerWriter;
-import java.math.BigDecimal;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
-import org.mockito.InOrder;
 
+/** The real journal and persistent writer must preserve every account under replay and failure. */
 class RefundJournalServiceTest {
-  @Test
-  void postsNewBalancedLinesWithoutTouchingTheOriginalDebitKey() {
-    LedgerWriter ledger = mock(LedgerWriter.class);
-    PaymentSnapshot payment = payment();
-    new RefundJournalService(ledger).refund(payment);
+  final PaymentAccountingTest fixture = new PaymentAccountingTest();
+  final AccountingDatabase db = fixture.db;
+  final RefundJournalService refunds =
+      db.transactional(new RefundJournalService(db.journals, db.writer));
 
-    InOrder order = inOrder(ledger);
-    order
-        .verify(ledger)
-        .append(
-            payment.payoutClearingWalletId(),
-            "DEBIT",
-            new BigDecimal("1000.00"),
-            "USD",
-            "refund:P-001:clearing:debit");
-    order
-        .verify(ledger)
-        .append(
-            payment.senderWalletId(),
-            "CREDIT",
-            new BigDecimal("1000.00"),
-            "USD",
-            "refund:P-001:sender:credit");
-    verifyNoMoreInteractions(ledger);
+  @Test
+  void concurrentFullFeeRefundsReverseExactlyThreeEntriesOnce() throws Exception {
+    fixture.confirm("5.0000");
+    var originals =
+        db.jdbc.queryForList(
+            "select * from entries where journal=? order by entry_key",
+            "payment:" + fixture.paymentId);
+    var executor = Executors.newFixedThreadPool(4);
+    var start = new CountDownLatch(1);
+    try {
+      List<Future<?>> results = new ArrayList<>();
+      for (int i = 0; i < 4; i++)
+        results.add(
+            executor.submit(
+                () -> {
+                  try {
+                    start.await();
+                  } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                  }
+                  refunds.refund(fixture.snapshot("5.0000"));
+                }));
+      start.countDown();
+      for (Future<?> result : results) result.get(10, TimeUnit.SECONDS);
+    } finally {
+      executor.shutdownNow();
+    }
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("100.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("0.0000");
+    assertThat(db.count()).isEqualTo(6);
+    assertThat(
+            db.jdbc.queryForList(
+                "select * from entries where journal=? order by entry_key",
+                "payment:" + fixture.paymentId))
+        .isEqualTo(originals);
+    assertThat(refunds.isAlreadyRefunded(fixture.snapshot("5.0000"))).isTrue();
   }
 
   @Test
-  void doubleRefundRestoresBalancesOnceAndPreservesOriginalEntry() {
-    MockLedgerWriter ledger = new MockLedgerWriter();
-    PaymentSnapshot payment = payment();
-    MockLedgerWriter.LedgerEntry originalBefore =
-        ledger.entriesSnapshot().get("payment:P-001:debit");
-
-    RefundJournalService journal = new RefundJournalService(ledger);
-    journal.refund(payment);
-    journal.refund(payment);
-
-    assertThat(ledger.balancesSnapshot().get(payment.senderWalletId()))
-        .isEqualByComparingTo(new BigDecimal("10000.00"));
-    assertThat(ledger.balancesSnapshot().get(payment.payoutClearingWalletId()))
-        .isEqualByComparingTo(new BigDecimal("0.00"));
-    // 2 seeded originals (P-001, P-002) + 2 refund lines for P-001
-    assertThat(ledger.entriesSnapshot()).hasSize(4);
-    assertThat(ledger.entriesSnapshot().get("payment:P-001:debit")).isEqualTo(originalBefore);
-    assertThat(ledger.entriesSnapshot())
-        .containsKeys("refund:P-001:clearing:debit", "refund:P-001:sender:credit");
+  void failureAfterClearingDebitRollsBackAndRetryRestoresAllAccounts() {
+    fixture.confirm("5.0000");
+    db.failKey = "refund:" + fixture.paymentId + ":fee:debit";
+    assertThatThrownBy(() -> refunds.refund(fixture.snapshot("5.0000")))
+        .hasMessageContaining("controlled persistence failure");
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("95.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("5.0000");
+    assertThat(db.count()).isEqualTo(3);
+    assertThat(refunds.isAlreadyRefunded(fixture.snapshot("5.0000"))).isFalse();
+    db.failKey = null;
+    refunds.refund(fixture.snapshot("5.0000"));
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("100.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("0.0000");
+    assertThat(db.count()).isEqualTo(6);
   }
 
-  private static PaymentSnapshot payment() {
-    return new PaymentSnapshot(
-        "P-001",
-        UUID.nameUUIDFromBytes("fluxpay:P-001:user".getBytes()),
-        UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes()),
-        UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes()),
-        new BigDecimal("1000.00"),
+  @Test
+  void zeroFeeRefundHasTwoLegsAndReplayDoesNotNeedAFeeEntry() {
+    fixture.confirm("0.0000");
+    refunds.refund(fixture.snapshot("0.0000"));
+    refunds.refund(fixture.snapshot("0.0000"));
+    assertThat(db.count()).isEqualTo(4);
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("100.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("0.0000");
+    assertThat(refunds.isAlreadyRefunded(fixture.snapshot("0.0000"))).isTrue();
+  }
+
+  @Test
+  void journalCannotCombineOneOldRefundEntryWithNewEntries() {
+    fixture.confirm("5.0000");
+    db.jdbc.update(
+        "insert into entries values (?,?,?,?,?,?,?)",
+        "refund:" + fixture.paymentId + ":clearing:debit",
+        db.clearing,
+        "DEBIT",
+        new java.math.BigDecimal("95.0000"),
         "USD",
-        "KES",
-        PaymentStatus.ROUTED);
+        "refund:" + fixture.paymentId,
+        "Reversal of payment:" + fixture.paymentId);
+    assertThatThrownBy(() -> refunds.refund(fixture.snapshot("5.0000")))
+        .hasMessageContaining("cannot mix replayed and newly posted entries");
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("95.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("5.0000");
+    assertThat(db.count()).isEqualTo(4);
+    assertThat(refunds.isAlreadyRefunded(fixture.snapshot("5.0000"))).isFalse();
+  }
+
+  @Test
+  void failedConfirmationRollsBackEarlierCreditsAndAnExactReplayCannotDebitAgain() {
+    db.failKey = "payment:" + fixture.paymentId + ":customer";
+    assertThatThrownBy(() -> fixture.confirm("5.0000"))
+        .hasMessageContaining("controlled persistence failure");
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("100.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("0.0000");
+    assertThat(db.count()).isZero();
+    db.failKey = null;
+    fixture.confirm("5.0000");
+    fixture.confirm("5.0000");
+    assertThat(db.count()).isEqualTo(3);
+    assertThat(db.balance(db.customer)).isEqualByComparingTo("0.0000");
+    assertThat(db.balance(db.clearing)).isEqualByComparingTo("95.0000");
+    assertThat(db.balance(db.fee)).isEqualByComparingTo("5.0000");
   }
 }

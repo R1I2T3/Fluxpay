@@ -12,10 +12,10 @@ import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
-import com.fluxpay.config.M2ApiExceptionHandler;
 import com.fluxpay.dto.FxSnapshot;
+import com.fluxpay.exception.FxUnavailableException;
 import com.fluxpay.service.FxQuoteService;
-import com.fluxpay.service.FxUnavailableException;
+import com.fluxpay.web.advice.WalletFxApiExceptionHandler;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -32,7 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M2ApiExceptionHandler.class
+  WalletFxApiExceptionHandler.class
 })
 class FxControllerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -57,8 +57,7 @@ class FxControllerTest {
                 "INR",
                 new BigDecimal("83.50"),
                 Instant.parse("2026-09-11T01:02:03Z"),
-                true,
-                false));
+                true));
 
     mvc.perform(
             get("/api/fx/rate")
@@ -73,14 +72,13 @@ class FxControllerTest {
         .andExpect(jsonPath("$.data.to").value("INR"))
         .andExpect(jsonPath("$.data.rate").value("83.50"))
         .andExpect(jsonPath("$.data.fetchedAt").value("2026-09-11T01:02:03Z"))
-        .andExpect(jsonPath("$.data.stale").value(true))
-        .andExpect(jsonPath("$.data.mock").value(false));
+        .andExpect(jsonPath("$.data.stale").value(true));
   }
 
   @Test
   void unauthenticatedPreviewIsRejected() throws Exception {
     mvc.perform(get("/api/fx/rate").queryParam("from", "USD").queryParam("to", "INR"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

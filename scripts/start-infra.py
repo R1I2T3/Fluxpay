@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
-"""Up Oracle (Docker on Linux) and bare-metal KRaft Kafka, probe readiness, create 7 topics."""
+"""Start or probe FluxPay infrastructure and provision its Kafka topics."""
 
-import argparse, os, shutil, socket, subprocess, sys, time
+import argparse
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from urllib.parse import urlsplit
 
-from platform_commands import PROJECT_ROOT, project_path
+from platform_commands import PROJECT_ROOT, load_env
+
 
 TOPICS = [
     "payment.initiated",
     "payment.route.selected",
     "payment.screening.completed",
+    "payment.review.requested",
     "payout.submitted",
     "payout.failed",
     "payout.completed",
@@ -17,16 +26,7 @@ TOPICS = [
 ]
 
 DEFAULT_BOOTSTRAP = "localhost:9092"
-
-
-def load_env(path):
-    path = project_path(path)
-    if os.path.exists(path):
-        for line in open(path):
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k, v)
+DEFAULT_ORACLE = "jdbc:oracle:thin:@//localhost:1521/FREEPDB1"
 
 
 def run(cmd, verbose=False):
@@ -43,31 +43,37 @@ def split_host_port(value, default_port):
     return host.strip("[]"), int(port)
 
 
+def oracle_host_port(jdbc_url):
+    prefix = "jdbc:oracle:thin:@"
+    if not jdbc_url.startswith(prefix):
+        raise ValueError("ORACLE_JDBC_URL must be an Oracle thin JDBC URL")
+    address = jdbc_url[len(prefix) :]
+    if not address.startswith("//"):
+        raise ValueError("ORACLE_JDBC_URL must use //host:port/service syntax")
+    parsed = urlsplit("oracle:" + address)
+    if not parsed.hostname:
+        raise ValueError("ORACLE_JDBC_URL has no host")
+    return parsed.hostname, parsed.port or 1521
+
+
 def kafka_script(name):
-    """Locate a bare-metal Kafka CLI script; prefer KAFKA_HOME, then PATH."""
-    home = os.environ.get("KAFKA_HOME", "")
+    """Locate a Kafka CLI script for externally managed Kafka."""
+    kafka_home = os.environ.get("KAFKA_HOME", "")
     suffix = ".bat" if sys.platform == "win32" else ".sh"
     candidates = []
-    if home:
-        # Linux: $KAFKA_HOME/bin/kafka-topics.sh, Windows: %KAFKA_HOME%\bin\windows\kafka-topics.bat
-        # or %KAFKA_HOME%\bin\kafka-topics.bat depending on distribution layout.
-        candidates.append(os.path.join(home, "bin", name + suffix))
+    if kafka_home:
+        candidates.append(os.path.join(kafka_home, "bin", name + suffix))
         if sys.platform == "win32":
-            candidates.append(os.path.join(home, "bin", "windows", name + ".bat"))
-        else:
-            candidates.append(os.path.join(home, "bin", "windows", name + suffix))
+            candidates.append(os.path.join(kafka_home, "bin", "windows", name + ".bat"))
     found = shutil.which(name + suffix) or shutil.which(name)
     if found:
         candidates.append(found)
-    for candidate in candidates:
-        if candidate and os.path.exists(candidate):
-            return candidate
-    return None
+    return next((candidate for candidate in candidates if os.path.exists(candidate)), None)
 
 
 def wait_port(host, port, timeout=30, verbose=False):
-    t0 = time.time()
-    while time.time() - t0 < timeout:
+    started = time.time()
+    while time.time() - started < timeout:
         try:
             socket.create_connection((host, port), timeout=2).close()
             return True
@@ -79,76 +85,103 @@ def wait_port(host, port, timeout=30, verbose=False):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--skip-oracle", action="store_true")
-    ap.add_argument("--skip-kafka", action="store_true")
-    ap.add_argument("--env-file", default=".env")
-    ap.add_argument("--verbose", action="store_true")
-    a = ap.parse_args()
-    load_env(a.env_file)
-    if not a.skip_oracle:
-        r = run(["docker", "compose", "up", "-d"], verbose=a.verbose)
-        if r.returncode != 0:
-            print("compose up failed")
-            return 1
-    if not a.skip_oracle:
-        try:
-            import oracledb
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["compose", "external"])
+    parser.add_argument("--skip-oracle", action="store_true")
+    parser.add_argument("--skip-kafka", action="store_true")
+    parser.add_argument("--skip-topics", action="store_true")
+    parser.add_argument("--env-file", default=".env")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+    load_env(args.env_file)
 
-            url = os.environ.get("ORACLE_JDBC_URL", "")
-            user = os.environ.get("ORACLE_USERNAME", "fluxpay")
-            pw = os.environ.get("ORACLE_PASSWORD", "fluxpay_dev_123")
-            host = "localhost"
-            port = 1521
-            if not wait_port(host, port, timeout=120, verbose=a.verbose):
-                print("oracle port timeout")
-                return 2
-            print("oracle port OK")
-        except ImportError:
-            print("oracledb not installed; port check only")
-            wait_port("localhost", 1521, timeout=120, verbose=a.verbose)
-    if not a.skip_kafka:
-        # Kafka-owned bare-metal KRaft block: no Docker Kafka commands here.
-        bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", DEFAULT_BOOTSTRAP)
-        kafka_host, kafka_port = split_host_port(bootstrap, 9092)
+    mode = args.mode or os.environ.get("FLUXPAY_INFRA_MODE", "compose").lower()
+    if mode not in ("compose", "external"):
+        print("invalid FLUXPAY_INFRA_MODE; expected compose or external")
+        return 2
+
+    if mode == "compose":
+        services = []
+        if not args.skip_oracle:
+            services.append("oracle")
+        if not args.skip_kafka:
+            services.append("kafka")
+        if services:
+            result = run(["docker", "compose", "up", "-d", *services], verbose=args.verbose)
+            if result.returncode != 0:
+                print("compose up failed")
+                return 1
+
+    if not args.skip_oracle:
+        try:
+            oracle_host, oracle_port = oracle_host_port(
+                os.environ.get("ORACLE_JDBC_URL", DEFAULT_ORACLE)
+            )
+        except ValueError as exception:
+            print(f"oracle configuration failed: {exception}")
+            return 2
+        if not wait_port(oracle_host, oracle_port, timeout=120, verbose=args.verbose):
+            print("oracle port timeout")
+            return 2
+        print("oracle port OK")
+
+    if args.skip_kafka:
+        return 0
+
+    bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", DEFAULT_BOOTSTRAP)
+    kafka_host, kafka_port = split_host_port(bootstrap, 9092)
+    if not wait_port(kafka_host, kafka_port, timeout=60, verbose=args.verbose):
+        print("kafka port timeout")
+        return 2
+    if args.skip_topics:
+        print("kafka port OK; topic provisioning skipped")
+        return 0
+
+    if mode == "compose":
+        base_command = [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "kafka",
+            "/opt/kafka/bin/kafka-topics.sh",
+            "--bootstrap-server",
+            os.environ.get("KAFKA_CONTAINER_BOOTSTRAP_SERVERS", "kafka:9092"),
+        ]
+    else:
         topics_script = kafka_script("kafka-topics")
         if topics_script is None:
-            print("kafka-topics.sh not found; set KAFKA_HOME to a bare-metal Kafka install")
-            return 2
-        if not wait_port(kafka_host, kafka_port, timeout=60, verbose=a.verbose):
-            print("kafka port timeout")
-            return 2
-        probe = run(
-            [topics_script, "--bootstrap-server", bootstrap, "--list"],
-            verbose=a.verbose,
-        )
-        if probe.returncode != 0:
-            print("kafka bootstrap probe failed")
-            return 2
-        ok = 0
-        for t in TOPICS:
-            r = run(
-                [
-                    topics_script,
-                    "--create",
-                    "--if-not-exists",
-                    "--topic",
-                    t,
-                    "--bootstrap-server",
-                    bootstrap,
-                    "--partitions",
-                    "3",
-                    "--replication-factor",
-                    "1",
-                ],
-                verbose=a.verbose,
+            print(
+                "external Kafka topic provisioning needs kafka-topics; "
+                "set KAFKA_HOME or use --skip-topics"
             )
-            if r.returncode == 0:
-                ok += 1
-        print(f"{ok}/{len(TOPICS)} topics OK")
-        if ok != len(TOPICS):
-            return 1
-    return 0
+            return 2
+        base_command = [topics_script, "--bootstrap-server", bootstrap]
+
+    if run([*base_command, "--list"], verbose=args.verbose).returncode != 0:
+        print("kafka bootstrap probe failed")
+        return 2
+
+    created = 0
+    for topic in TOPICS:
+        result = run(
+            [
+                *base_command,
+                "--create",
+                "--if-not-exists",
+                "--topic",
+                topic,
+                "--partitions",
+                "3",
+                "--replication-factor",
+                "1",
+            ],
+            verbose=args.verbose,
+        )
+        if result.returncode == 0:
+            created += 1
+    print(f"{created}/{len(TOPICS)} topics OK")
+    return 0 if created == len(TOPICS) else 1
 
 
 if __name__ == "__main__":

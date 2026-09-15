@@ -15,6 +15,7 @@ import com.fluxpay.common.enums.KycStatus;
 import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycReviewRequest;
 import com.fluxpay.dto.KycSubmitRequest;
+import com.fluxpay.exception.KycException;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.KycDocumentRepository;
 import com.fluxpay.repository.UserRepository;
@@ -39,7 +40,26 @@ class KycServiceTest {
 
   @BeforeEach
   void setUp() {
-    kycService = new KycService(kycCases, kycDocuments, users);
+    kycService = service(true);
+  }
+
+  private KycService service(boolean metadataEnabled) {
+    return new KycService(
+        kycCases,
+        kycDocuments,
+        users,
+        java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC),
+        metadataEnabled);
+  }
+
+  @Test
+  void disabledStorageFailsHonestlyWithoutClaimingAnUpload() {
+    KycService disabled = service(false);
+    UUID userId = UUID.randomUUID();
+
+    assertKycCode(() -> disabled.submit(userId, request()), KycException.KYC_STORAGE_UNAVAILABLE);
+    verify(kycCases, never()).saveAndFlush(any(KycCase.class));
+    verify(kycDocuments, never()).saveAll(any());
   }
 
   @Test
@@ -68,6 +88,7 @@ class KycServiceTest {
     ArgumentCaptor<KycCase> caseCaptor = ArgumentCaptor.forClass(KycCase.class);
     verify(kycCases).saveAndFlush(caseCaptor.capture());
     KycCase savedCase = caseCaptor.getValue();
+    assertThat(savedCase.getSubmittedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
     assertThat(savedCase.getUserId()).isEqualTo(userId);
     assertThat(savedCase.getStatus()).isEqualTo(KycStatus.PENDING);
     assertThat(savedCase.getDocNumber()).isEqualTo("ABCDE1234F");
@@ -77,11 +98,14 @@ class KycServiceTest {
     ArgumentCaptor<List<KycDocument>> documentsCaptor = ArgumentCaptor.forClass(List.class);
     verify(kycDocuments).saveAll(documentsCaptor.capture());
     KycDocument document = documentsCaptor.getValue().get(0);
+    assertThat(document.getUploadedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
     assertThat(document.getKycCase()).isSameAs(savedCase);
     assertThat(document.getFileName()).isEqualTo("pan-card.pdf");
     assertThat(document.getFileType()).isEqualTo("application/pdf");
     assertThat(document.getFileSize()).isEqualTo(1024);
-    assertThat(document.getStorageUrl()).startsWith("mock://kyc/" + savedCase.getId() + "/");
+    assertThat(document.getStorageUrl()).isEqualTo(KycDocument.NOT_STORED_METADATA_ONLY);
+    assertThat(document.getStorageUrl()).doesNotContain("mock://");
+    assertThat(document.getStorageUrl()).doesNotStartWith("http");
   }
 
   @Test
@@ -90,7 +114,7 @@ class KycServiceTest {
     when(kycCases.findByUserIdForUpdate(userId))
         .thenReturn(Optional.of(kycCase(userId, KycStatus.PENDING)));
 
-    assertKycCode(() -> kycService.submit(userId, request()), M1KycException.KYC_ALREADY_PENDING);
+    assertKycCode(() -> kycService.submit(userId, request()), KycException.KYC_ALREADY_PENDING);
   }
 
   @Test
@@ -99,7 +123,7 @@ class KycServiceTest {
     when(kycCases.findByUserIdForUpdate(userId))
         .thenReturn(Optional.of(kycCase(userId, KycStatus.VERIFIED)));
 
-    assertKycCode(() -> kycService.submit(userId, request()), M1KycException.KYC_ALREADY_VERIFIED);
+    assertKycCode(() -> kycService.submit(userId, request()), KycException.KYC_ALREADY_VERIFIED);
   }
 
   @Test
@@ -126,7 +150,7 @@ class KycServiceTest {
     assertKycCode(
         () ->
             kycService.reject(UUID.randomUUID(), UUID.randomUUID(), new KycReviewRequest(0L, "  ")),
-        M1KycException.REJECT_REASON_REQUIRED);
+        KycException.REJECT_REASON_REQUIRED);
 
     verify(kycCases, never()).findByIdForUpdate(any());
   }
@@ -139,7 +163,7 @@ class KycServiceTest {
 
     assertKycCode(
         () -> kycService.approve(UUID.randomUUID(), applicationId, new KycReviewRequest(1L, null)),
-        M1KycException.KYC_CONFLICT);
+        KycException.KYC_CONFLICT);
   }
 
   @Test
@@ -183,8 +207,8 @@ class KycServiceTest {
 
   private void assertKycCode(Runnable action, String expectedCode) {
     assertThatThrownBy(action::run)
-        .isInstanceOf(M1KycException.class)
-        .extracting(exception -> ((M1KycException) exception).getCode())
+        .isInstanceOf(KycException.class)
+        .extracting(exception -> ((KycException) exception).getCode())
         .isEqualTo(expectedCode);
   }
 }

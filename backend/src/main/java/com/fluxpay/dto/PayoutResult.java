@@ -4,14 +4,26 @@ import java.math.BigDecimal;
 import java.util.Objects;
 
 public record PayoutResult(
-    boolean success,
+    Outcome outcome,
     String providerRef,
     String errorCode,
     String errorMessage,
     BigDecimal providerFee) {
+  /** Provider certainty is explicit; diagnostic text never determines whether funds are safe. */
+  public enum Outcome {
+    COMPLETED,
+    FAILED,
+    UNCERTAIN
+  }
+
+  public boolean success() {
+    return outcome == Outcome.COMPLETED;
+  }
+
   public PayoutResult {
+    Objects.requireNonNull(outcome, "outcome must not be null");
     Objects.requireNonNull(providerFee, "providerFee must not be null");
-    if (success) {
+    if (outcome == Outcome.COMPLETED) {
       if (providerRef == null || providerRef.isBlank()) {
         throw new IllegalArgumentException("providerRef must be present on success");
       }
@@ -35,10 +47,15 @@ public record PayoutResult(
   }
 
   public static PayoutResult ok(String providerRef, BigDecimal providerFee) {
-    return new PayoutResult(true, providerRef, null, null, providerFee);
+    return new PayoutResult(Outcome.COMPLETED, providerRef, null, null, providerFee);
   }
 
   public static PayoutResult failed(String errorCode, String errorMessage, BigDecimal providerFee) {
-    return new PayoutResult(false, null, errorCode, errorMessage, providerFee);
+    return new PayoutResult(Outcome.FAILED, null, errorCode, errorMessage, providerFee);
+  }
+
+  public static PayoutResult uncertain(
+      String errorCode, String errorMessage, BigDecimal providerFee) {
+    return new PayoutResult(Outcome.UNCERTAIN, null, errorCode, errorMessage, providerFee);
   }
 }

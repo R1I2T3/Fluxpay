@@ -1,18 +1,14 @@
 package com.fluxpay.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fluxpay.common.api.ApiError;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.*;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,13 +20,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
   private final JwtAuthFilter jwtAuthFilter;
-  private final Environment environment;
   private final ObjectMapper objectMapper;
 
-  public SecurityConfig(
-      JwtAuthFilter jwtAuthFilter, Environment environment, ObjectMapper objectMapper) {
+  public SecurityConfig(JwtAuthFilter jwtAuthFilter, ObjectMapper objectMapper) {
     this.jwtAuthFilter = jwtAuthFilter;
-    this.environment = environment;
     this.objectMapper = objectMapper;
   }
 
@@ -47,11 +40,6 @@ public class SecurityConfig {
             a ->
                 a.requestMatchers(
                         "/api/auth/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
-                    .permitAll()
-                    .requestMatchers(
-                        request ->
-                            environment.acceptsProfiles(Profiles.of("local"))
-                                && request.getHeader("X-Local-User-Id") != null)
                     .permitAll()
                     .anyRequest()
                     .authenticated())
@@ -96,6 +84,6 @@ public class SecurityConfig {
     response.setHeader(CorrelationIdFilter.HEADER, correlationId);
     objectMapper.writeValue(
         response.getOutputStream(),
-        new ApiError(correlationId, code, message, Map.of(), Instant.now()));
+        com.fluxpay.common.web.ApiErrorFactory.create(code, message, Map.of(), correlationId));
   }
 }

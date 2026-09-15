@@ -13,14 +13,14 @@ import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
-import com.fluxpay.config.M2ApiExceptionHandler;
 import com.fluxpay.dto.LedgerEntryResponse;
 import com.fluxpay.dto.LedgerPageResponse;
 import com.fluxpay.dto.WalletSummaryResponse;
+import com.fluxpay.exception.WalletNotFoundException;
 import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.WalletConversionService;
-import com.fluxpay.service.WalletNotFoundException;
 import com.fluxpay.service.WalletQueryService;
+import com.fluxpay.web.advice.WalletFxApiExceptionHandler;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M2ApiExceptionHandler.class
+  WalletFxApiExceptionHandler.class
 })
 class WalletReadControllerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -78,7 +78,7 @@ class WalletReadControllerTest {
 
   @Test
   void walletListRequiresAuthentication() throws Exception {
-    mvc.perform(get("/api/wallets")).andExpect(status().isForbidden());
+    mvc.perform(get("/api/wallets")).andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -89,7 +89,7 @@ class WalletReadControllerTest {
             "DEBIT",
             "10.5000",
             "USD",
-            "M2-FX-journal",
+            "wallet:fx:journal",
             "FX conversion gross debit",
             "2026-09-11T04:05:06Z");
     when(queries.ledger(USER_ID, WALLET_ID, 1, 2))
@@ -153,6 +153,7 @@ class WalletReadControllerTest {
 
   @Test
   void ledgerRequiresAuthentication() throws Exception {
-    mvc.perform(get("/api/wallets/{walletId}/ledger", WALLET_ID)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/wallets/{walletId}/ledger", WALLET_ID))
+        .andExpect(status().isUnauthorized());
   }
 }

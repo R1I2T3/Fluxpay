@@ -10,18 +10,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
-import com.fluxpay.config.M4ApiExceptionHandler;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.TimelineEventResponse;
-import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.TimelineService;
+import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -34,7 +34,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** HTTP contract for the payment timeline: chronological events behind the owner gate. */
@@ -43,10 +42,9 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M4ApiExceptionHandler.class,
+  PayoutApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class TimelineControllerContractTest {
 
   private static final UUID OWNER_ID =
@@ -75,7 +73,7 @@ class TimelineControllerContractTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
   }
 
   @Test

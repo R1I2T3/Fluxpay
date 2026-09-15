@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Single canonical payment event mapped to {@code payment_events} per V402 DDL.
+ * Single canonical payment event mapped to {@code payment_events} per the V004 fresh-baseline DDL.
  *
  * <p>UUID strategy: {@code id} is {@code RAW(16)} UUID storage mapped as {@code UUID}. {@code
  * payment_id} is the business key (e.g. {@code P-001}) stored as {@code VARCHAR2(50)} with no FK.

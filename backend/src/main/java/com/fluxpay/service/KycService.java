@@ -9,6 +9,7 @@ import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycReviewRequest;
 import com.fluxpay.dto.KycStatusResponse;
 import com.fluxpay.dto.KycSubmitRequest;
+import com.fluxpay.exception.KycException;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.KycDocumentRepository;
 import com.fluxpay.repository.UserRepository;
@@ -17,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,12 +27,22 @@ public class KycService {
   private final KycCaseRepository kycCases;
   private final KycDocumentRepository kycDocuments;
   private final UserRepository users;
+  private final java.time.Clock clock;
+  private final boolean metadataEnabled;
 
   public KycService(
-      KycCaseRepository kycCases, KycDocumentRepository kycDocuments, UserRepository users) {
+      KycCaseRepository kycCases,
+      KycDocumentRepository kycDocuments,
+      UserRepository users,
+      java.time.Clock clock,
+      @org.springframework.beans.factory.annotation.Value(
+              "${fluxpay.development.kyc-metadata-enabled:false}")
+          boolean metadataEnabled) {
     this.kycCases = kycCases;
     this.kycDocuments = kycDocuments;
     this.users = users;
+    this.clock = clock;
+    this.metadataEnabled = metadataEnabled;
   }
 
   @Transactional(readOnly = true)
@@ -42,7 +52,15 @@ public class KycService {
 
   @Transactional
   public KycStatusResponse submit(UUID userId, KycSubmitRequest request) {
-    Instant now = Instant.now();
+    // Validate storage capability before claiming a completed external action: document metadata
+    // requires an explicitly enabled development metadata store. Without it, fail honestly instead
+    // of manufacturing a URL that pretends a file was stored.
+    if (!metadataEnabled) {
+      throw new KycException(
+          KycException.KYC_STORAGE_UNAVAILABLE,
+          "No KYC document storage is configured; files were not stored.");
+    }
+    Instant now = clock.instant();
     KycCase kycCase =
         kycCases
             .findByUserIdForUpdate(userId)
@@ -52,11 +70,6 @@ public class KycService {
     kycCase = kycCases.saveAndFlush(kycCase);
     replaceDocuments(kycCase, request.documents(), now);
     return toStatusResponse(kycCase);
-  }
-
-  @Transactional(readOnly = true)
-  public List<KycAdminRow> listForAdmin(KycStatus status) {
-    return listForAdmin(status, PageRequest.of(0, 50));
   }
 
   @Transactional(readOnly = true)
@@ -72,19 +85,18 @@ public class KycService {
   public KycStatusResponse approve(UUID reviewerId, UUID applicationId, KycReviewRequest request) {
     KycCase kycCase = reviewableCase(applicationId, request.expectedVersion());
     User reviewer = findUser(reviewerId);
-    kycCase.approve(reviewer, Instant.now());
+    kycCase.approve(reviewer, clock.instant());
     return toStatusResponse(kycCases.saveAndFlush(kycCase));
   }
 
   @Transactional
   public KycStatusResponse reject(UUID reviewerId, UUID applicationId, KycReviewRequest request) {
     if (request.reason() == null || request.reason().isBlank()) {
-      throw new M1KycException(
-          M1KycException.REJECT_REASON_REQUIRED, "a rejection reason is required");
+      throw new KycException(KycException.REJECT_REASON_REQUIRED, "a rejection reason is required");
     }
     KycCase kycCase = reviewableCase(applicationId, request.expectedVersion());
     User reviewer = findUser(reviewerId);
-    kycCase.reject(reviewer, Instant.now(), request.reason().trim());
+    kycCase.reject(reviewer, clock.instant(), request.reason().trim());
     return toStatusResponse(kycCases.saveAndFlush(kycCase));
   }
 
@@ -101,12 +113,12 @@ public class KycService {
 
   private KycCase resubmitOrReject(KycCase existing, KycSubmitRequest request, Instant now) {
     if (existing.getStatus() == KycStatus.PENDING) {
-      throw new M1KycException(
-          M1KycException.KYC_ALREADY_PENDING, "KYC application is already pending");
+      throw new KycException(
+          KycException.KYC_ALREADY_PENDING, "KYC application is already pending");
     }
     if (existing.getStatus() == KycStatus.VERIFIED) {
-      throw new M1KycException(
-          M1KycException.KYC_ALREADY_VERIFIED, "KYC application is already verified");
+      throw new KycException(
+          KycException.KYC_ALREADY_VERIFIED, "KYC application is already verified");
     }
     existing.resubmit(request.docType(), request.docNumber().trim(), now);
     return existing;
@@ -125,7 +137,8 @@ public class KycService {
               file.fileName().trim(),
               file.fileType(),
               file.fileSize(),
-              "mock://kyc/" + kycCase.getId() + "/" + documentId,
+              // Metadata-only development record: explicitly states files were not stored.
+              KycDocument.NOT_STORED_METADATA_ONLY,
               uploadedAt));
     }
     kycDocuments.saveAll(documents);
@@ -136,14 +149,13 @@ public class KycService {
         kycCases
             .findByIdForUpdate(applicationId)
             .orElseThrow(
-                () ->
-                    new M1KycException(M1KycException.KYC_NOT_FOUND, "KYC application not found"));
+                () -> new KycException(KycException.KYC_NOT_FOUND, "KYC application not found"));
     if (expectedVersion == null || kycCase.getVersion() != expectedVersion) {
-      throw new M1KycException(M1KycException.KYC_CONFLICT, "KYC application has changed");
+      throw new KycException(KycException.KYC_CONFLICT, "KYC application has changed");
     }
     if (kycCase.getStatus() != KycStatus.PENDING) {
-      throw new M1KycException(
-          M1KycException.KYC_ALREADY_DECIDED, "KYC application is already decided");
+      throw new KycException(
+          KycException.KYC_ALREADY_DECIDED, "KYC application is already decided");
     }
     return kycCase;
   }
@@ -168,7 +180,7 @@ public class KycService {
 
   private KycAdminRow toAdminRow(KycCase kycCase) {
     // Orphaned user must not fail the entire admin list; surface a placeholder instead.
-    // TODO(M2): replace per-row user/document queries with a fetch-join or batch load.
+    // TODO: replace per-row user/document queries with a fetch-join or batch load.
     User user = users.findById(kycCase.getUserId()).orElse(null);
     String email = user == null ? "unknown@fluxpay.invalid" : user.getEmail();
     String fullName = user == null ? "Unknown user" : user.getFullName();

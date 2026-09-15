@@ -3,7 +3,7 @@ package com.fluxpay.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fluxpay.beans.PayoutRoute;
-import com.fluxpay.dto.RoutePreference;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteQuote;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -59,9 +59,7 @@ class RouteRecommenderTest {
   @Test
   void cheapestAtOneHundredIsLocalPartner() {
     assertThat(
-            recommender
-                .recommend(
-                    new BigDecimal("100.00"), RoutePreference.CHEAPEST, BigDecimal.ONE, routes)
+            recommend(new BigDecimal("100.00"), RoutePreference.CHEAPEST, BigDecimal.ONE, routes)
                 .recommended()
                 .code())
         .isEqualTo("LOCAL_PARTNER");
@@ -70,9 +68,7 @@ class RouteRecommenderTest {
   @Test
   void fastestIsInstantPayout() {
     assertThat(
-            recommender
-                .recommend(
-                    new BigDecimal("1000.00"), RoutePreference.FASTEST, BigDecimal.ONE, routes)
+            recommend(new BigDecimal("1000.00"), RoutePreference.FASTEST, BigDecimal.ONE, routes)
                 .recommended()
                 .code())
         .isEqualTo("INSTANT_PAYOUT");
@@ -81,9 +77,7 @@ class RouteRecommenderTest {
   @Test
   void balancedAtOneThousandIsStandardBank() {
     assertThat(
-            recommender
-                .recommend(
-                    new BigDecimal("1000.00"), RoutePreference.BALANCED, BigDecimal.ONE, routes)
+            recommend(new BigDecimal("1000.00"), RoutePreference.BALANCED, BigDecimal.ONE, routes)
                 .recommended()
                 .code())
         .isEqualTo("STANDARD_BANK");
@@ -93,9 +87,7 @@ class RouteRecommenderTest {
   void inactiveRoutesAreNeverEvaluated() {
     routes.get(0).update("5.00", "0.8", 240, "99.50", false);
     assertThat(
-            recommender
-                .recommend(
-                    new BigDecimal("1000.00"), RoutePreference.BALANCED, BigDecimal.ONE, routes)
+            recommend(new BigDecimal("1000.00"), RoutePreference.BALANCED, BigDecimal.ONE, routes)
                 .quotes())
         .noneMatch(q -> q.route().code().equals("STANDARD_BANK"));
   }
@@ -103,8 +95,7 @@ class RouteRecommenderTest {
   @Test
   void quoteExposesMarketRateAndOfferedRate() {
     RouteQuote quote =
-        recommender
-            .recommend(
+        recommend(
                 new BigDecimal("1000.00"),
                 RoutePreference.CHEAPEST,
                 new BigDecimal("148.0000"),
@@ -116,5 +107,31 @@ class RouteRecommenderTest {
             .orElseThrow();
     assertThat(quote.marketRate()).isEqualByComparingTo("148.0000");
     assertThat(quote.offeredRate()).isEqualByComparingTo("146.8160");
+    assertThat(quote.recipientAmount()).isEqualByComparingTo("146081.9200");
+  }
+
+  private com.fluxpay.dto.RouteRecommendation recommend(
+      BigDecimal amount, RoutePreference preference, BigDecimal rate, List<PayoutRoute> active) {
+    return recommender.recommend(
+        preference,
+        new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy())
+            .price(amount, rate, active));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(RoutePreference.class)
+  void exactTiesUseRouteCodeRegardlessOfInputOrder(RoutePreference preference) {
+    var z = PayoutRoute.seed(UUID.randomUUID(), "Z_BANK", "Z", "Z", "STANDARD", "5", "0", 10, "99");
+    var a = PayoutRoute.seed(UUID.randomUUID(), "A_BANK", "A", "A", "STANDARD", "5", "0", 10, "99");
+    assertThat(
+            recommend(new BigDecimal("100"), preference, new BigDecimal("80"), List.of(z, a))
+                .recommended()
+                .code())
+        .isEqualTo("A_BANK");
+    assertThat(
+            recommend(new BigDecimal("100"), preference, new BigDecimal("80"), List.of(a, z))
+                .recommended()
+                .code())
+        .isEqualTo("A_BANK");
   }
 }

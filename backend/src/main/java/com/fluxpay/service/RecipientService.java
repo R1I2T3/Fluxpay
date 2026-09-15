@@ -2,9 +2,9 @@ package com.fluxpay.service;
 
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
-import com.fluxpay.config.M3BusinessException;
 import com.fluxpay.dto.RecipientRequest;
 import com.fluxpay.dto.RecipientResponse;
+import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.RecipientRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -105,11 +105,11 @@ public class RecipientService {
         r.version());
   }
 
-  private M3BusinessException conflict(String c, String m) {
-    return new M3BusinessException(HttpStatus.CONFLICT, c, m);
+  private BusinessException conflict(String c, String m) {
+    return new BusinessException(HttpStatus.CONFLICT, c, m);
   }
 
-  private M3BusinessException notFound(String c, String m) {
-    return new M3BusinessException(HttpStatus.NOT_FOUND, c, m);
+  private BusinessException notFound(String c, String m) {
+    return new BusinessException(HttpStatus.NOT_FOUND, c, m);
   }
 }

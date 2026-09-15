@@ -16,6 +16,7 @@ import com.fluxpay.common.enums.KycStatus;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.dto.LoginRequest;
 import com.fluxpay.dto.RegisterRequest;
+import com.fluxpay.exception.AuthException;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.UserRepository;
 import java.time.Instant;
@@ -41,7 +42,14 @@ class AuthServiceTest {
 
   @BeforeEach
   void setUp() {
-    authService = new AuthService(users, kycCases, passwordEncoder, jwt, walletProvisioner);
+    authService =
+        new AuthService(
+            users,
+            kycCases,
+            passwordEncoder,
+            jwt,
+            walletProvisioner,
+            java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC));
   }
 
   @Test
@@ -58,6 +66,8 @@ class AuthServiceTest {
     ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
     verify(users).saveAndFlush(userCaptor.capture());
     User savedUser = userCaptor.getValue();
+    assertThat(savedUser.getCreatedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
+    assertThat(savedUser.getUpdatedAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
     assertThat(savedUser.getEmail()).isEqualTo("new.user@fluxpay.test");
     assertThat(savedUser.getFullName()).isEqualTo("New User");
     assertThat(savedUser.getRole()).isEqualTo("USER");
@@ -76,9 +86,9 @@ class AuthServiceTest {
             () ->
                 authService.register(
                     new RegisterRequest(" New.User@FluxPay.Test ", "Pass123!", "New User")))
-        .isInstanceOf(M1AuthException.class)
-        .extracting(exception -> ((M1AuthException) exception).getCode())
-        .isEqualTo(M1AuthException.EMAIL_EXISTS);
+        .isInstanceOf(AuthException.class)
+        .extracting(exception -> ((AuthException) exception).getCode())
+        .isEqualTo(AuthException.EMAIL_EXISTS);
 
     verify(users, never()).saveAndFlush(any());
     verify(walletProvisioner, never()).provision(any());
@@ -93,8 +103,8 @@ class AuthServiceTest {
             () ->
                 authService.register(
                     new RegisterRequest("new.user@fluxpay.test", oversizedPassword, "New User")))
-        .isInstanceOf(M1AuthException.class)
-        .extracting(exception -> ((M1AuthException) exception).getCode())
+        .isInstanceOf(AuthException.class)
+        .extracting(exception -> ((AuthException) exception).getCode())
         .isEqualTo("VALIDATION");
 
     verify(users, never()).saveAndFlush(any());
@@ -121,18 +131,18 @@ class AuthServiceTest {
 
     assertThatThrownBy(
             () -> authService.login(new LoginRequest("unknown@fluxpay.test", "Pass123!")))
-        .isInstanceOf(M1AuthException.class)
-        .extracting(exception -> ((M1AuthException) exception).getCode())
-        .isEqualTo(M1AuthException.INVALID_CREDENTIALS);
+        .isInstanceOf(AuthException.class)
+        .extracting(exception -> ((AuthException) exception).getCode())
+        .isEqualTo(AuthException.INVALID_CREDENTIALS);
 
     User user = user("known@fluxpay.test", "USER");
     when(users.findByCanonicalEmail("known@fluxpay.test")).thenReturn(Optional.of(user));
 
     assertThatThrownBy(
             () -> authService.login(new LoginRequest("known@fluxpay.test", "WrongPass123!")))
-        .isInstanceOf(M1AuthException.class)
-        .extracting(exception -> ((M1AuthException) exception).getCode())
-        .isEqualTo(M1AuthException.INVALID_CREDENTIALS);
+        .isInstanceOf(AuthException.class)
+        .extracting(exception -> ((AuthException) exception).getCode())
+        .isEqualTo(AuthException.INVALID_CREDENTIALS);
   }
 
   @Test

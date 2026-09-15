@@ -1,5 +1,6 @@
 package com.fluxpay.beans;
 
+import com.fluxpay.common.json.OperationJson;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -8,7 +9,12 @@ import org.hibernate.type.SqlTypes;
 
 /** Receive/convert request identity and committed response; orchestration owns the transaction. */
 @Entity
-@Table(name = "wallet_operations")
+@Table(
+    name = "wallet_operations",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uq_wallet_operation_key",
+            columnNames = {"user_id", "operation_type", "client_key"}))
 public class WalletOperation {
   @Id
   @JdbcTypeCode(SqlTypes.BINARY)
@@ -62,6 +68,7 @@ public class WalletOperation {
       String normalizedRequest,
       String journalReference) {
     this.id = id;
+    OperationJson.requireObject(normalizedRequest);
     this.userId = userId;
     this.operationType = operationType;
     this.clientKey = clientKey;
@@ -78,6 +85,7 @@ public class WalletOperation {
     if (!"IN_PROGRESS".equals(status)) {
       throw new IllegalStateException("A completed operation cannot be overwritten");
     }
+    OperationJson.requireObject(responseSnapshot);
     this.responseSnapshot = responseSnapshot;
     this.status = "COMPLETED";
   }

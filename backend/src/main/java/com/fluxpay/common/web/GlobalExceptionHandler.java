@@ -1,18 +1,19 @@
 package com.fluxpay.common.web;
 
 import com.fluxpay.common.api.ApiError;
-import java.time.Instant;
 import java.util.*;
-import org.slf4j.MDC;
 import org.springframework.http.*;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-  private String cid() {
-    String v = MDC.get("correlationId");
-    return v == null ? "none" : v;
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ResponseEntity<ApiError> optimisticLock(
+      ObjectOptimisticLockingFailureException exception) {
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(ApiErrorFactory.create("CONFLICT", exception.getMessage(), Map.of()));
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -22,24 +23,24 @@ public class GlobalExceptionHandler {
         .getFieldErrors()
         .forEach(f -> fields.put(f.getField(), String.valueOf(f.getDefaultMessage())));
     return ResponseEntity.badRequest()
-        .body(new ApiError(cid(), "VALIDATION", "validation failed", fields, Instant.now()));
+        .body(ApiErrorFactory.create("VALIDATION", "validation failed", fields));
   }
 
   @ExceptionHandler(NoSuchElementException.class)
   public ResponseEntity<ApiError> notFound(NoSuchElementException e) {
     return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        .body(new ApiError(cid(), "NOT_FOUND", e.getMessage(), Map.of(), Instant.now()));
+        .body(ApiErrorFactory.create("NOT_FOUND", e.getMessage(), Map.of()));
   }
 
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<ApiError> conflict(IllegalStateException e) {
     return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(new ApiError(cid(), "CONFLICT", e.getMessage(), Map.of(), Instant.now()));
+        .body(ApiErrorFactory.create("CONFLICT", e.getMessage(), Map.of()));
   }
 
   @ExceptionHandler(SecurityException.class)
   public ResponseEntity<ApiError> auth(SecurityException e) {
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-        .body(new ApiError(cid(), "AUTH", e.getMessage(), Map.of(), Instant.now()));
+        .body(ApiErrorFactory.create("AUTH", e.getMessage(), Map.of()));
   }
 }

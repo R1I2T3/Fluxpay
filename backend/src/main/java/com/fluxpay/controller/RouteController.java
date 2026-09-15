@@ -2,19 +2,18 @@ package com.fluxpay.controller;
 
 import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.common.api.ApiResponse;
+import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
-import com.fluxpay.dto.RoutePreference;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.exception.ForbiddenException;
-import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.RouteMetrics;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Objects;
-import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Profile("mock")
 @RestController
 @RequestMapping("/api")
 public class RouteController {
@@ -95,7 +93,7 @@ public class RouteController {
                         quote.route().getName(),
                         quote.marketRate(),
                         quote.offeredRate(),
-                        quote.route().getBaseFee(),
+                        quote.feeAmount(),
                         quote.recipientAmount(),
                         quote.route().getEstimatedMinutes(),
                         quote.route().getId().toString().equals(recommendedId)))

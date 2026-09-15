@@ -1,217 +1,188 @@
 package com.fluxpay.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.fluxpay.beans.PayoutAttempt;
-import com.fluxpay.common.enums.PaymentStatus;
-import com.fluxpay.common.security.JwtAuthFilter;
-import com.fluxpay.common.security.JwtUtil;
-import com.fluxpay.common.security.SecurityConfig;
-import com.fluxpay.common.web.CorrelationIdFilter;
-import com.fluxpay.common.web.GlobalExceptionHandler;
-import com.fluxpay.config.M4ApiExceptionHandler;
-import com.fluxpay.dto.PayoutOutcome;
+import com.fluxpay.common.contracts.*;
+import com.fluxpay.common.security.*;
+import com.fluxpay.common.web.*;
+import com.fluxpay.domain.PaymentStatus;
+import com.fluxpay.dto.PayoutApi;
 import com.fluxpay.exception.QuoteExpiredException;
-import com.fluxpay.repository.PayoutAttemptRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
-import com.fluxpay.service.PaymentEligibilityGate;
-import com.fluxpay.service.PaymentReader;
-import com.fluxpay.service.PaymentSnapshot;
-import com.fluxpay.service.PayoutExecutionService;
-import com.fluxpay.service.RecoveryService;
-import com.fluxpay.service.RouteAdminAuthorizer;
+import com.fluxpay.service.*;
+import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Optional;
-import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import java.util.*;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** HTTP contract for payout submission: owner gate, quote gate, and idempotent confirm. */
 @WebMvcTest(PayoutController.class)
 @Import({
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M4ApiExceptionHandler.class,
+  PayoutApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class PayoutControllerContractTest {
-
-  private static final UUID OWNER_ID =
-      UUID.nameUUIDFromBytes("fluxpay:test:owner".getBytes(StandardCharsets.UTF_8));
-  private static final UUID OTHER_ID =
-      UUID.nameUUIDFromBytes("fluxpay:test:other".getBytes(StandardCharsets.UTF_8));
-  private static final UUID ATTEMPT_ID =
-      UUID.nameUUIDFromBytes("fluxpay:attempt:a-1".getBytes(StandardCharsets.UTF_8));
-  private static final UUID ROUTE_ID =
-      UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
-
-  @Autowired private MockMvc mvc;
-
-  @MockBean private PaymentReader reader;
-  @MockBean private RouteAdminAuthorizer authorizer;
-  @MockBean private PaymentEligibilityGate gate;
-  @MockBean private PayoutExecutionService execution;
-  @MockBean private RecoveryService recovery;
-  @MockBean private PayoutAttemptRepository attempts;
-  @MockBean private PayoutRouteRepository routes;
-  @MockBean private JwtUtil jwt;
-
-  private PaymentSnapshot payment;
-  private PayoutAttempt completedAttempt;
+  static final UUID OWNER = UUID.randomUUID(), PAYMENT = UUID.randomUUID();
+  @Autowired MockMvc mvc;
+  @MockBean PaymentOperationService operations;
+  @MockBean PaymentReader reader;
+  @MockBean RouteAdminAuthorizer authorizer;
+  @MockBean PayoutExecutionService execution;
+  @MockBean RecoveryService recovery;
+  @MockBean JwtUtil jwt;
 
   @BeforeEach
-  void setUp() {
+  void setup() {
     MockSecurity.stubJwt(jwt);
-    payment =
-        new PaymentSnapshot(
-            "P-001",
-            OWNER_ID,
-            UUID.nameUUIDFromBytes("fluxpay:P-001:sender".getBytes(StandardCharsets.UTF_8)),
-            UUID.nameUUIDFromBytes("fluxpay:P-001:clearing".getBytes(StandardCharsets.UTF_8)),
-            new BigDecimal("1000.00"),
-            "USD",
-            "KES",
-            PaymentStatus.ROUTED);
-    completedAttempt =
-        PayoutAttempt.initiated(
-            ATTEMPT_ID, "P-001", 1, ROUTE_ID, Instant.parse("2026-09-04T10:00:00Z"));
-    completedAttempt.markProcessing();
-    completedAttempt.markCompleted("SB-1");
+    when(reader.get(PAYMENT.toString()))
+        .thenReturn(
+            new PaymentSnapshot(
+                PAYMENT.toString(),
+                OWNER,
+                UUID.randomUUID(),
+                null,
+                new BigDecimal("100"),
+                "USD",
+                "INR",
+                PaymentStatus.PROCESSING));
+    when(authorizer.isOwner(any(), any())).thenReturn(true);
+  }
+
+  org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request(
+      String action, String body) {
+    return post("/api/payments/" + PAYMENT + "/" + action)
+        .header("Authorization", MockSecurity.bearer(OWNER, "CUSTOMER"))
+        .header("X-Correlation-ID", "cid")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(body);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"submit-payout", "retry-payout", "switch-route", "refund"})
+  void everyMutationRequiresCallerKey(String action) throws Exception {
+    mvc.perform(request(action, "{\"routeCode\":\"BANK\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_IDEMPOTENCY_KEY"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
   }
 
   @Test
-  void ownerSubmitWithValidQuoteReturnsAttempt() throws Exception {
-    when(reader.get("P-001")).thenReturn(payment);
-    when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    when(gate.confirmIdempotent(eq(payment), eq("key-1")))
-        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(false, "evt-1"));
-    when(execution.submit("P-001", "STANDARD_BANK", "cid-pay-1"))
-        .thenReturn(PayoutOutcome.completed().withEventId("evt-published"));
-    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(completedAttempt));
-
+  void ownerSubmitReturnsStoredOutcomeAndDurableEventIdentity() throws Exception {
+    var result =
+        new PayoutApi.OutcomeResponse(
+            1, "BANK", "COMPLETED", "ref", null, List.of(), false, "durable-event");
+    when(execution.perform(OWNER, "submit", "SUBMIT", PAYMENT, "BANK", null, "cid"))
+        .thenReturn(result);
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
-                .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
-                .header("X-Correlation-ID", "cid-pay-1")
-                .header("Idempotency-Key", "key-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"routeCode\":\"STANDARD_BANK\"}"))
+            request("submit-payout", "{\"routeCode\":\"BANK\"}")
+                .header("Idempotency-Key", "submit"))
         .andExpect(status().isOk())
-        .andExpect(header().string("X-Correlation-ID", "cid-pay-1"))
-        .andExpect(jsonPath("$.correlationId").value("cid-pay-1"))
-        .andExpect(jsonPath("$.data.routeCode").value("STANDARD_BANK"))
+        .andExpect(header().string("X-Correlation-ID", "cid"))
         .andExpect(jsonPath("$.data.status").value("COMPLETED"))
         .andExpect(jsonPath("$.data.attemptNumber").value(1))
-        .andExpect(jsonPath("$.data.alreadyConfirmed").value(false))
-        .andExpect(jsonPath("$.data.originalEventId").doesNotExist());
-    verify(execution).submit("P-001", "STANDARD_BANK", "cid-pay-1");
-    verify(gate).complete(payment, "key-1", "evt-published");
+        .andExpect(jsonPath("$.data.originalEventId").value("durable-event"));
   }
 
   @Test
-  void nonOwnerSubmitIsForbidden() throws Exception {
-    when(reader.get("P-001")).thenReturn(payment);
-    when(authorizer.isOwner(any(), eq(payment))).thenReturn(false);
-
+  void nonOwnerCannotSubmit() throws Exception {
+    when(authorizer.isOwner(any(), any())).thenReturn(false);
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
-                .header("Authorization", MockSecurity.bearer(OTHER_ID, "CUSTOMER"))
-                .header("X-Correlation-ID", "cid-pay-2")
-                .header("Idempotency-Key", "key-2")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"routeCode\":\"STANDARD_BANK\"}"))
+            request("submit-payout", "{\"routeCode\":\"BANK\"}")
+                .header("Idempotency-Key", "submit"))
         .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.code").value("FORBIDDEN"))
-        .andExpect(jsonPath("$.correlationId").value("cid-pay-2"));
-    verify(gate, never()).assertActiveQuote(any(), anyString());
-    verify(execution, never()).submit(anyString(), anyString(), anyString());
+        .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    verifyNoInteractions(execution);
   }
 
   @Test
-  void expiredQuoteDoesNotCreateAttempt() throws Exception {
-    when(gate.confirmIdempotent(any(), eq("key-3")))
-        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(false, null));
-    when(reader.get("P-001")).thenReturn(payment);
-    when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    doThrow(new QuoteExpiredException("quote for P-001 is expired or missing"))
-        .when(gate)
-        .assertActiveQuote(eq(payment), eq("STANDARD_BANK"));
-
+  void expiredQuoteRetainsHttpContract() throws Exception {
+    when(execution.perform(any(), any(), any(), any(), any(), any(), any()))
+        .thenThrow(new QuoteExpiredException("expired"));
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
-                .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
-                .header("X-Correlation-ID", "cid-pay-3")
-                .header("Idempotency-Key", "key-3")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"routeCode\":\"STANDARD_BANK\"}"))
+            request("submit-payout", "{\"routeCode\":\"BANK\"}")
+                .header("Idempotency-Key", "submit"))
         .andExpect(status().isPreconditionFailed())
-        .andExpect(jsonPath("$.code").value("QUOTE_EXPIRED"))
-        .andExpect(jsonPath("$.correlationId").value("cid-pay-3"));
-    verify(gate).release(payment, "key-3");
-    verify(execution, never()).submit(anyString(), anyString(), anyString());
+        .andExpect(jsonPath("$.code").value("QUOTE_EXPIRED"));
   }
 
   @Test
-  void duplicateIdempotencyKeyReplaysWithoutNewAttempt() throws Exception {
-    doThrow(new QuoteExpiredException("expired since original execution"))
-        .when(gate)
-        .assertActiveQuote(any(), anyString());
-    when(reader.get("P-001")).thenReturn(payment);
-    when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
-    when(gate.confirmIdempotent(eq(payment), eq("key-dup")))
-        .thenReturn(new PaymentEligibilityGate.ConfirmOutcome(true, "orig-evt-9"));
-    when(attempts.findFirstByPaymentIdOrderByAttemptNumberDesc("P-001"))
-        .thenReturn(Optional.of(completedAttempt));
-
+  void replacementQuoteIdentityIsIncludedInSwitchAction() throws Exception {
+    var quote = UUID.randomUUID();
+    when(execution.perform(OWNER, "switch", "SWITCH", PAYMENT, "BANK2", quote, "cid"))
+        .thenReturn(
+            new PayoutApi.OutcomeResponse(
+                2, "BANK2", "COMPLETED", "ref2", null, List.of(), false, "event2"));
     mvc.perform(
-            post("/api/payments/P-001/submit-payout")
-                .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
-                .header("X-Correlation-ID", "cid-pay-4")
-                .header("Idempotency-Key", "key-dup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"routeCode\":\"STANDARD_BANK\"}"))
+            request("switch-route", "{\"routeCode\":\"BANK2\",\"quoteId\":\"" + quote + "\"}")
+                .header("Idempotency-Key", "switch"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.alreadyConfirmed").value(true))
-        .andExpect(jsonPath("$.data.originalEventId").value("orig-evt-9"))
-        .andExpect(jsonPath("$.data.attemptNumber").value(1));
-    verify(gate, never()).assertActiveQuote(any(), anyString());
-    verify(execution, never()).submit(anyString(), anyString(), anyString());
+        .andExpect(jsonPath("$.data.routeCode").value("BANK2"));
   }
 
   @Test
-  void switchRouteWithoutBodyIsBadRequest() throws Exception {
-    when(reader.get("P-001")).thenReturn(payment);
-    when(authorizer.isOwner(any(), eq(payment))).thenReturn(true);
+  void emptySwitchRouteRequiresRequote() throws Exception {
+    mvc.perform(request("switch-route", "{\"routeCode\":\"\"}").header("Idempotency-Key", "switch"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("REQUOTE_REQUIRED"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
+    verifyNoInteractions(execution);
+  }
 
+  @Test
+  void retryAcceptsExplicitReplacementQuoteIdentity() throws Exception {
+    var quote = UUID.randomUUID();
+    when(execution.perform(OWNER, "retry", "RETRY", PAYMENT, null, quote, "cid"))
+        .thenReturn(
+            new PayoutApi.OutcomeResponse(
+                2, "BANK", "COMPLETED", "ref2", null, List.of(), false, "event2"));
     mvc.perform(
-            post("/api/payments/P-001/switch-route")
-                .header("Authorization", MockSecurity.bearer(OWNER_ID, "CUSTOMER"))
-                .header("X-Correlation-ID", "cid-pay-5")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"routeCode\":\"\"}"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+            request("retry-payout", "{\"quoteId\":\"" + quote + "\"}")
+                .header("Idempotency-Key", "retry"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+  }
+
+  @Test
+  void switchRequoteErrorPreservesCorrelationAndCode() throws Exception {
+    when(execution.perform(any(), any(), eq("SWITCH"), any(), any(), any(), any()))
+        .thenThrow(
+            new com.fluxpay.exception.BusinessException(
+                org.springframework.http.HttpStatus.CONFLICT,
+                "REQUOTE_REQUIRED",
+                "Select another quote"));
+    mvc.perform(
+            request("switch-route", "{\"routeCode\":\"BANK2\"}")
+                .header("Idempotency-Key", "switch"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("REQUOTE_REQUIRED"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
+  }
+
+  @Test
+  void missingProviderSurfacesServiceUnavailable() throws Exception {
+    when(execution.perform(any(), any(), eq("SUBMIT"), any(), any(), any(), any()))
+        .thenThrow(
+            new com.fluxpay.exception.BusinessException(
+                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "PAYOUT_PROVIDER_UNAVAILABLE",
+                "No payout provider is configured."));
+    mvc.perform(
+            request("submit-payout", "{\"routeCode\":\"BANK\"}")
+                .header("Idempotency-Key", "submit"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.code").value("PAYOUT_PROVIDER_UNAVAILABLE"))
+        .andExpect(jsonPath("$.correlationId").value("cid"));
   }
 }

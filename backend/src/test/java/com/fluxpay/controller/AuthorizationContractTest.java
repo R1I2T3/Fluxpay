@@ -12,23 +12,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fluxpay.common.enums.PaymentStatus;
+import com.fluxpay.common.contracts.PaymentEligibilityGate;
+import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
-import com.fluxpay.config.M4ApiExceptionHandler;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
-import com.fluxpay.service.PaymentEligibilityGate;
-import com.fluxpay.service.PaymentReader;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.PayoutExecutionService;
 import com.fluxpay.service.RecoveryService;
-import com.fluxpay.service.RouteAdminAuthorizer;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.TimelineService;
+import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -39,13 +39,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * PRD section 14 ownership/role proofs across the M4 surface. The frozen security chain has no 401
- * entry point, so anonymous requests are denied with 403; role and ownership denials map to {@code
- * FORBIDDEN} {@code ApiError}s.
+ * PRD section 14 ownership/role proofs across the active API surface. The frozen security chain has
+ * no 401 entry point, so anonymous requests are denied with 403; role and ownership denials map to
+ * {@code FORBIDDEN} {@code ApiError}s.
  */
 @WebMvcTest({
   RouteController.class,
@@ -57,10 +56,9 @@ import org.springframework.test.web.servlet.MockMvc;
   SecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
-  M4ApiExceptionHandler.class,
+  PayoutApiExceptionHandler.class,
   GlobalExceptionHandler.class
 })
-@ActiveProfiles("mock")
 class AuthorizationContractTest {
 
   private static final UUID OWNER_ID =
@@ -76,6 +74,7 @@ class AuthorizationContractTest {
   @Autowired private MockMvc mvc;
 
   @MockBean private PaymentReader reader;
+  @MockBean private com.fluxpay.service.PaymentOperationService operations;
   @MockBean private RouteCatalogService catalog;
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private TimelineService timeline;
@@ -100,7 +99,7 @@ class AuthorizationContractTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.ROUTED);
+            PaymentStatus.PROCESSING);
   }
 
   @Test
@@ -121,12 +120,15 @@ class AuthorizationContractTest {
 
   @Test
   void adminEndpointRejectsAnonymous() throws Exception {
+    // Anonymous requests hit the SecurityConfig authentication entry point (401 AUTH_REQUIRED)
+    // before any controller logic runs.
     mvc.perform(
             put("/api/admin/routes/" + R_STANDARD.toString())
                 .header("X-Correlation-ID", "cid-auth-2")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(UPDATE_BODY))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
     verify(catalog, never()).updateRoute(anyString(), any());
   }
 
@@ -175,6 +177,6 @@ class AuthorizationContractTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     verify(gate, never()).assertActiveQuote(any(), anyString());
-    verify(execution, never()).submit(anyString(), anyString(), anyString());
+    verify(execution, never()).perform(any(), any(), any(), any(), any(), any(), any());
   }
 }

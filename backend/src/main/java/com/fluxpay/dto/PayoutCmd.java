@@ -8,9 +8,15 @@ public record PayoutCmd(
     String sourceCurrency,
     String targetCurrency,
     String routeCode,
-    BigDecimal routeBaseFee,
-    int attemptNumber) {
+    BigDecimal customerFee,
+    int attemptNumber,
+    BigDecimal offeredRate,
+    BigDecimal recipientAmount,
+    java.util.UUID attemptId,
+    String idempotencyKey) {
   public PayoutCmd {
+    if (attemptId == null || !("payout:" + attemptId).equals(idempotencyKey))
+      throw new IllegalArgumentException("Provider key must identify the persisted payout attempt");
     if (paymentId == null || paymentId.isBlank()) {
       throw new IllegalArgumentException("paymentId must not be blank");
     }
@@ -26,8 +32,8 @@ public record PayoutCmd(
     if (routeCode == null || routeCode.isBlank()) {
       throw new IllegalArgumentException("routeCode must not be blank");
     }
-    if (routeBaseFee == null || routeBaseFee.signum() < 0) {
-      throw new IllegalArgumentException("routeBaseFee must not be negative");
+    if (customerFee == null || customerFee.signum() < 0) {
+      throw new IllegalArgumentException("customerFee must not be negative");
     }
     if (attemptNumber < 1) {
       throw new IllegalArgumentException("attemptNumber must be at least 1");

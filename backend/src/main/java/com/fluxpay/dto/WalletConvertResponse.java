@@ -12,5 +12,4 @@ public record WalletConvertResponse(
     String rate,
     String rateFetchedAt,
     boolean stale,
-    boolean mock,
     String journalReference) {}

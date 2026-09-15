@@ -4,20 +4,23 @@ import com.fluxpay.beans.LedgerEntry;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.LedgerWriter;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.repository.LedgerEntryRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Oracle-backed writer and the sole runtime mutation path for posted wallet balances. */
 @Service
+@Primary
 public class PersistentLedgerWriter implements LedgerWriter {
   private static final Set<String> ENTRY_TYPES = Set.of("DEBIT", "CREDIT");
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
@@ -25,12 +28,23 @@ public class PersistentLedgerWriter implements LedgerWriter {
   private final WalletRepository wallets;
   private final LedgerEntryRepository entries;
   private final LedgerPostingContext context;
+  private final java.time.Clock clock;
 
   public PersistentLedgerWriter(
-      WalletRepository wallets, LedgerEntryRepository entries, LedgerPostingContext context) {
+      WalletRepository wallets,
+      LedgerEntryRepository entries,
+      LedgerPostingContext context,
+      java.time.Clock clock) {
     this.wallets = wallets;
     this.entries = entries;
     this.context = context;
+    this.clock = clock;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public boolean contains(String idempotencyKey) {
+    return entries.findByIdempotencyKey(idempotencyKey).isPresent();
   }
 
   @Override
@@ -87,7 +101,7 @@ public class PersistentLedgerWriter implements LedgerWriter {
             idempotencyKey,
             metadata == null ? null : metadata.journalReference(),
             metadata == null ? null : metadata.narration(),
-            Instant.now()));
+            clock.instant()));
     wallets.saveAndFlush(wallet);
   }
 

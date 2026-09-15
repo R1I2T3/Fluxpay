@@ -7,9 +7,13 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.WalletOperation;
-import com.fluxpay.config.M2DemoFundingConfig;
+import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.dto.WalletReceiveRequest;
 import com.fluxpay.dto.WalletResponse;
+import com.fluxpay.exception.DemoFundingDisabledException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
+import com.fluxpay.exception.OperationRaceException;
+import com.fluxpay.exception.OperationRetryException;
 import com.fluxpay.repository.WalletOperationRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -22,12 +26,12 @@ class DemoFundingServiceTest {
   private static final UUID SYSTEM_USER_ID =
       UUID.fromString("22222222-2222-2222-2222-222222222222");
   private static final String KEY = "demo-funding-1";
-  private static final String NORMALIZED = "{\"currency\":\"USD\",\"amount\":\"500.0000\"}";
+  private static final String NORMALIZED = "{\"amount\":\"500.0000\",\"currency\":\"USD\"}";
   private static final String SNAPSHOT =
       "{\"walletId\":\"33333333-3333-3333-3333-333333333333\","
           + "\"currency\":\"USD\",\"balance\":\"500.0000\","
           + "\"heldBalance\":\"0.0000\",\"availableBalance\":\"500.0000\","
-          + "\"journalReference\":\"M2-DEMO-44444444-4444-4444-4444-444444444444\"}";
+          + "\"journalReference\":\"wallet:demo:44444444-4444-4444-4444-444444444444\"}";
 
   private WalletOperationRepository operations;
   private WalletPostingService posting;
@@ -62,7 +66,7 @@ class DemoFundingServiceTest {
     assertEquals("USD", result.currency());
     assertEquals("500.0000", result.balance());
     assertEquals("500.0000", result.availableBalance());
-    assertEquals("M2-DEMO-44444444-4444-4444-4444-444444444444", result.journalReference());
+    assertEquals("wallet:demo:44444444-4444-4444-4444-444444444444", result.journalReference());
   }
 
   @Test
@@ -113,7 +117,7 @@ class DemoFundingServiceTest {
         .thenThrow(new OperationRaceException());
 
     assertThrows(
-        DemoFundingRetryException.class,
+        OperationRetryException.class,
         () -> service(true).receiveDemo(USER_ID, new WalletReceiveRequest("USD", "500.0000"), KEY));
   }
 
@@ -143,15 +147,17 @@ class DemoFundingServiceTest {
 
   private DemoFundingService service(boolean enabled) {
     return new DemoFundingService(
-        new M2DemoFundingConfig(enabled, SYSTEM_USER_ID.toString()),
-        operations,
-        posting,
-        objectMapper);
+        new DemoFundingConfig(enabled),
+        new WalletOperationService(
+            operations,
+            objectMapper,
+            mock(org.springframework.transaction.PlatformTransactionManager.class)),
+        posting);
   }
 
   private static WalletOperation completedOperation(String normalized, String snapshot) {
     WalletOperation operation =
-        new WalletOperation(USER_ID, "RECEIVE_DEMO", KEY, normalized, "M2-DEMO-test");
+        new WalletOperation(USER_ID, "RECEIVE_DEMO", KEY, normalized, "wallet:demo:test");
     operation.complete(snapshot);
     return operation;
   }
@@ -163,6 +169,6 @@ class DemoFundingServiceTest {
         balance,
         "0.0000",
         balance,
-        "M2-DEMO-44444444-4444-4444-4444-444444444444");
+        "wallet:demo:44444444-4444-4444-4444-444444444444");
   }
 }

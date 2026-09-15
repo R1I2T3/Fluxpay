@@ -7,11 +7,13 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
-import com.fluxpay.config.M2DemoFundingConfig;
-import com.fluxpay.config.M2FxConfig;
+import com.fluxpay.config.DemoFundingConfig;
+import com.fluxpay.config.FxConfig;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
+import com.fluxpay.exception.InsufficientWalletFundsException;
+import com.fluxpay.exception.SystemAccountUnavailableException;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -52,7 +54,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@EnabledIfEnvironmentVariable(named = "M2_ORACLE_TESTS", matches = "true")
+@EnabledIfEnvironmentVariable(named = "ORACLE_TESTS_ACTIVE", matches = "true")
 @DataJpaTest(
     showSql = false,
     properties = {
@@ -60,15 +62,18 @@ import org.springframework.transaction.support.TransactionTemplate;
       "spring.jpa.hibernate.ddl-auto=validate",
       "spring.jpa.properties.hibernate.jdbc.time_zone=UTC",
       "fluxpay.demo-funding-enabled=true",
-      "fluxpay.fx-mode=mock",
       "fluxpay.fx-provider-url=https://fx.invalid/latest"
     })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = WalletConversionPostingOracleTest.JpaConfiguration.class)
 @Import({
-  M2DemoFundingConfig.class,
-  M2FxConfig.class,
+  com.fluxpay.config.ClockConfig.class,
+  DemoFundingConfig.class,
+  FxConfig.class,
+  com.fluxpay.config.SystemAccountConfig.class,
+  SystemAccountService.class,
   WalletConversionService.class,
+  WalletOperationService.class,
   WalletPostingService.class,
   LedgerJournalService.class,
   PersistentLedgerWriter.class,
@@ -92,12 +97,11 @@ class WalletConversionPostingOracleTest {
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry properties) throws Exception {
     migrateIsolatedSchema();
-    properties.add("spring.datasource.url", () -> System.getenv("ORACLE_JDBC_URL"));
-    properties.add("spring.datasource.username", () -> System.getenv("ORACLE_USERNAME"));
-    properties.add("spring.datasource.password", () -> System.getenv("ORACLE_PASSWORD"));
+    properties.add("spring.datasource.url", () -> System.getenv("ORACLE_TEST_JDBC_URL"));
+    properties.add("spring.datasource.username", () -> System.getenv("ORACLE_TEST_USERNAME"));
+    properties.add("spring.datasource.password", () -> System.getenv("ORACLE_TEST_PASSWORD"));
     properties.add("spring.datasource.driver-class-name", () -> "oracle.jdbc.OracleDriver");
-    properties.add("fluxpay.demo-system-user-id", SYSTEM_USER_ID::toString);
-    properties.add("fluxpay.fx-system-user-id", SYSTEM_USER_ID::toString);
+    properties.add("fluxpay.system-user-id", SYSTEM_USER_ID::toString);
   }
 
   @Autowired WalletConversionService conversion;
@@ -181,7 +185,7 @@ class WalletConversionPostingOracleTest {
     int ledgerBefore = allLedgerCount();
 
     assertThrows(
-        FxSystemWalletNotFoundException.class,
+        SystemAccountUnavailableException.class,
         () -> conversion.convert(userId, new WalletConvertRequest("USD", "INR", "10"), key));
 
     assertEquals(money("50.0000"), databaseBalance(source.getId()));
@@ -310,9 +314,9 @@ class WalletConversionPostingOracleTest {
   private void insertUser(UUID userId, String label) {
     jdbc.update(
         "INSERT INTO users(id,email,password_hash,full_name) "
-            + "VALUES (HEXTORAW(?),?,'!M2_TEST_NO_LOGIN!','M2 FX fixture')",
+            + "VALUES (HEXTORAW(?),?,'!ORACLE_TEST_NO_LOGIN!','wallet-ledger FX fixture')",
         raw(userId),
-        label + "-" + userId + "@m2.invalid");
+        label + "-" + userId + "@oracle-test.invalid");
   }
 
   private BigDecimal databaseBalance(UUID walletId) {
@@ -369,7 +373,7 @@ class WalletConversionPostingOracleTest {
   }
 
   private static FxSnapshot snapshot(String from, String to, String rate) {
-    return new FxSnapshot(from, to, new BigDecimal(rate), FETCHED_AT, false, true);
+    return new FxSnapshot(from, to, new BigDecimal(rate), FETCHED_AT, false);
   }
 
   private static Stream<Arguments> directedPairs() {
@@ -391,20 +395,23 @@ class WalletConversionPostingOracleTest {
   }
 
   private static void migrateIsolatedSchema() throws Exception {
-    String username = System.getenv("ORACLE_USERNAME");
-    if (!"FLUXPAY_M2_TEST".equalsIgnoreCase(username)) {
-      throw new IllegalStateException("Oracle tests require the dedicated FLUXPAY_M2_TEST schema");
+    String username = System.getenv("ORACLE_TEST_USERNAME");
+    if (!"FLUXPAY_TEST".equalsIgnoreCase(username)) {
+      throw new IllegalStateException("Oracle tests require the dedicated FLUXPAY_TEST schema");
     }
     try (Connection connection =
             DriverManager.getConnection(
-                System.getenv("ORACLE_JDBC_URL"), username, System.getenv("ORACLE_PASSWORD"));
+                System.getenv("ORACLE_TEST_JDBC_URL"),
+                username,
+                System.getenv("ORACLE_TEST_PASSWORD"));
         Statement statement = connection.createStatement();
         ResultSet result = statement.executeQuery("SELECT USER FROM dual")) {
       result.next();
-      assertEquals("FLUXPAY_M2_TEST", result.getString(1));
+      assertEquals("FLUXPAY_TEST", result.getString(1));
     }
     Flyway.configure()
-        .dataSource(System.getenv("ORACLE_JDBC_URL"), username, System.getenv("ORACLE_PASSWORD"))
+        .dataSource(
+            System.getenv("ORACLE_TEST_JDBC_URL"), username, System.getenv("ORACLE_TEST_PASSWORD"))
         .locations("classpath:db/migration")
         .cleanDisabled(true)
         .baselineOnMigrate(false)

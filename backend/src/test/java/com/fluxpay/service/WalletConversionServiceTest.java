@@ -13,6 +13,9 @@ import com.fluxpay.beans.WalletOperation;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
+import com.fluxpay.exception.FxUnavailableException;
+import com.fluxpay.exception.LedgerIdempotencyConflictException;
+import com.fluxpay.exception.OperationRaceException;
 import com.fluxpay.repository.WalletOperationRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -25,10 +28,10 @@ class WalletConversionServiceTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
   private static final String KEY = "convert-1";
   private static final String NORMALIZED =
-      "{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"100.0000\"}";
+      "{\"amount\":\"100.0000\",\"from\":\"USD\",\"to\":\"INR\"}";
   private static final Instant FETCHED_AT = Instant.parse("2026-09-11T01:02:03Z");
   private static final FxSnapshot FX =
-      new FxSnapshot("USD", "INR", new BigDecimal("83.50"), FETCHED_AT, false, true);
+      new FxSnapshot("USD", "INR", new BigDecimal("83.50"), FETCHED_AT, false);
 
   private WalletOperationRepository operations;
   private WalletPostingService posting;
@@ -40,7 +43,14 @@ class WalletConversionServiceTest {
     operations = mock(WalletOperationRepository.class);
     posting = mock(WalletPostingService.class);
     quotes = mock(FxQuoteService.class);
-    service = new WalletConversionService(operations, posting, quotes, new ObjectMapper());
+    service =
+        new WalletConversionService(
+            new WalletOperationService(
+                operations,
+                new ObjectMapper(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)),
+            posting,
+            quotes);
   }
 
   @Test
@@ -88,7 +98,7 @@ class WalletConversionServiceTest {
   @Test
   void changedPayloadCannotReuseACompletedKey() {
     WalletOperation completed =
-        new WalletOperation(USER_ID, "CONVERT", KEY, NORMALIZED, "M2-FX-completed");
+        new WalletOperation(USER_ID, "CONVERT", KEY, NORMALIZED, "wallet:fx:completed");
     completed.complete("{}");
     when(operations.findByUserIdAndOperationTypeAndClientKey(USER_ID, "CONVERT", KEY))
         .thenReturn(Optional.of(completed));
@@ -172,7 +182,6 @@ class WalletConversionServiceTest {
         "83.50",
         FETCHED_AT.toString(),
         false,
-        true,
-        "M2-FX-44444444-4444-4444-4444-444444444444");
+        "wallet:fx:44444444-4444-4444-4444-444444444444");
   }
 }

@@ -16,6 +16,13 @@ import org.hibernate.annotations.JdbcTypeCode;
 @Entity
 @Table(name = "kyc_documents")
 public class KycDocument {
+  /**
+   * Sentinel persisted when no document storage implementation is configured. Development
+   * metadata-only submissions record file name/type/size with this marker to state explicitly that
+   * files were not stored; it must never be mistaken for a retrievable file URL.
+   */
+  public static final String NOT_STORED_METADATA_ONLY = "not-stored:metadata-only";
+
   @Id
   @JdbcTypeCode(Types.BINARY)
   @Column(name = "id", nullable = false, columnDefinition = "RAW(16)")
