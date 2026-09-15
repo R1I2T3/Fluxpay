@@ -8,6 +8,7 @@ export const routes = [
   { path: 'recipients', detail: { label: 'Recipients' } },
   { path: 'payments-new', detail: { label: 'New Payment' } },
   { path: 'payments-list', detail: { label: 'Payments' } },
+  { path: 'payment-quotes', detail: { label: 'Quote Comparison' } },
   { path: 'tracking', detail: { label: 'Tracking' } },
   { path: 'screening', detail: { label: 'Screening' } },
   { path: 'policies', detail: { label: 'Policies' } },

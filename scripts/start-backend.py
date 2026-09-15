@@ -3,18 +3,12 @@
 
 import argparse, os, subprocess, sys, time, urllib.request
 
-from platform_commands import PROJECT_ROOT, maven_command, project_path
-
-
-def load_env(path):
-    path = project_path(path)
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as env_file:
-            for line in env_file:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k, v)
+from platform_commands import (
+    PROJECT_ROOT,
+    configure_windows_maven_home,
+    load_env,
+    maven_command,
+)
 
 
 def terminate_process(process):
@@ -31,17 +25,25 @@ def terminate_process(process):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int)
-    ap.add_argument("--profile", default="local")
+    ap.add_argument("--profile")
     ap.add_argument("--env-file", default=".env")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     load_env(a.env_file)
+    configure_windows_maven_home()
+    retired_fx_mode = os.environ.get("FLUXPAY_FX_MODE")
+    if retired_fx_mode is not None and retired_fx_mode.strip() != "":
+        print(
+            "FLUXPAY_FX_MODE is retired (was %r): remove it from %s and set FX_PROVIDER_URL "
+            "(for example https://api.frankfurter.dev/v1/latest) for live rates." % (retired_fx_mode, a.env_file)
+        )
+        return 2
     port = a.port if a.port is not None else int(os.environ.get("SERVER_PORT", "8080"))
     os.environ["SERVER_PORT"] = str(port)
-    p = subprocess.Popen(
-        maven_command("-f", "backend/pom.xml", "spring-boot:run", f"-Dspring-boot.run.profiles={a.profile}"),
-        cwd=PROJECT_ROOT,
-    )
+    command_args = ["-f", "backend/pom.xml", "spring-boot:run"]
+    if a.profile:
+        command_args.append(f"-Dspring-boot.run.profiles={a.profile}")
+    p = subprocess.Popen(maven_command(*command_args), cwd=PROJECT_ROOT)
     try:
         for _ in range(30):
             returncode = p.poll()
