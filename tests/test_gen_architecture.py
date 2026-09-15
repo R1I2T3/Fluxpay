@@ -39,6 +39,21 @@ class GenModelTests(unittest.TestCase):
             if n["parent"] is not None:
                 self.assertIn(n["parent"], by_id)
 
+    def test_write_and_check_roundtrip(self):
+        import tempfile
+
+        gen = load_gen()
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "arch.html"
+            rc = gen.main(["--write", "--out", str(out), "--root", str(PROJECT_ROOT)])
+            self.assertEqual(rc, 0)
+            html = out.read_text(encoding="utf-8")
+            self.assertIn("l3-service-paymentservice", html)
+            self.assertIn("breadcrumb", html)
+            self.assertNotIn("/*__MODEL__*/", html)
+            rc2 = gen.main(["--check", "--root", str(PROJECT_ROOT)])
+            self.assertIn(rc2, (0, 1))
+
 
 if __name__ == "__main__":
     unittest.main()

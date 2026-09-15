@@ -136,3 +136,41 @@ def build_model(project_root: Path) -> list[dict]:
         pkg_node = next(n for n in nodes if n["id"] == pkg_id)
         pkg_node["children"].append(class_id)
     return nodes
+
+
+HTML_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8"><title>FluxPay Architecture</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;margin:0}#left{width:42%;border-right:1px solid #ddd;padding:12px;overflow:auto;height:100vh}#right{width:58%;padding:12px;overflow:auto;height:100vh}button.crumb{margin-right:6px}ul{list-style:none;padding-left:16px}li{margin:4px 0}.node{cursor:pointer;color:#0b5fff;text-decoration:underline;background:none;border:none;padding:0;font-size:14px}pre{background:#f6f6f6;padding:8px;overflow:auto}</style>
+</head><body><div id="left"><div id="crumbs" aria-label="breadcrumb"></div><h2 id="title"></h2><ul id="tree"></ul></div>
+<div id="right"><h2>Detail</h2><div id="detail">Click a class.</div><footer id="foot"></footer></div>
+<script>const MODEL=/*__MODEL__*/[];</script>
+<script src="__INLINE__"></script></body></html>"""
+
+
+def render_html(nodes: list[dict]) -> str:
+    payload = json.dumps(nodes)
+    return HTML_TEMPLATE.replace("/*__MODEL__*/[]", payload)
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--check", action="store_true")
+    p.add_argument("--out", default="docs/architecture.html")
+    p.add_argument("--root", default=str(PROJECT_ROOT))
+    a = p.parse_args(argv)
+    root = Path(a.root)
+    nodes = build_model(root)
+    if a.check:
+        return 0
+    if a.write:
+        out = root / a.out if not Path(a.out).is_absolute() else Path(a.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_html(nodes), encoding="utf-8")
+        print(f"wrote {out} ({len(nodes)} nodes)")
+        return 0
+    p.print_help()
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
