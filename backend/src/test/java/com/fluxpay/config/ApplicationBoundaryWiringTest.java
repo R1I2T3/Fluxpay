@@ -27,12 +27,19 @@ class ApplicationBoundaryWiringTest {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
                 "spring.kafka.listener.auto-startup=false",
                 "fluxpay.fx-provider-url=https://fx.invalid/latest",
-                "fluxpay.jwt-secret=boundary-test-secret-at-least-thirty-two-bytes")
+                "fluxpay.jwt-secret=boundary-test-secret-at-least-thirty-two-bytes",
+                "fluxpay.m5.compliance.review-thresholds.USD=10000",
+                "fluxpay.m5.vector.ollama-base-url=http://127.0.0.1:11434",
+                "fluxpay.m5.vector.embedding-model=qwen3-embedding:4b",
+                "fluxpay.m5.vector.dimensions=1536",
+                "fluxpay.m5.vector.embedding-space-id=ollama/qwen3-embedding:4b/1536",
+                "fluxpay.m5.vector.chunker-version=m5-sentence-v1")
             .withBean(
                 org.springframework.transaction.PlatformTransactionManager.class,
                 () -> mock(org.springframework.transaction.PlatformTransactionManager.class))
             .withBean(
                 NamedParameterJdbcTemplate.class, () -> mock(NamedParameterJdbcTemplate.class));
+    runner = runner.withBean(org.springframework.jdbc.core.JdbcTemplate.class, () -> mock(org.springframework.jdbc.core.JdbcTemplate.class));
     for (Class repository :
         new Class<?>[] {
           WalletRepository.class,

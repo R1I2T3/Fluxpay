@@ -17,9 +17,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(
-    name = "fluxpay.development.simulated-compliance-enabled",
+    name = "fluxpay.m5.compliance.enabled",
     havingValue = "false",
-    matchIfMissing = true)
+    matchIfMissing = false)
 public class UnavailableComplianceAssessor implements ComplianceAssessor {
   @Override
   public ScreeningVerdict assess(UUID userId, BigDecimal amount, String currency) {

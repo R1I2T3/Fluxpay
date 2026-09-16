@@ -15,7 +15,6 @@ import com.fluxpay.development.SimulatedLocalPartnerProvider;
 import com.fluxpay.development.SimulatedStandardBankProvider;
 import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycSubmitRequest;
-import com.fluxpay.exception.BusinessException;
 import com.fluxpay.exception.DemoFundingDisabledException;
 import com.fluxpay.exception.KycException;
 import com.fluxpay.repository.ComplianceCaseRepository;
@@ -38,7 +37,7 @@ import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
 import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.KycService;
-import com.fluxpay.service.UnavailableComplianceAssessor;
+import com.fluxpay.m5.application.M5AmountComplianceAssessor;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -64,7 +63,13 @@ class DevelopmentDefaultsTest {
       "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
       "spring.kafka.listener.auto-startup=false",
       "fluxpay.fx-provider-url=https://fx.invalid/latest",
-      "fluxpay.jwt-secret=default-context-test-secret-at-least-thirty-two-bytes"
+      "fluxpay.jwt-secret=default-context-test-secret-at-least-thirty-two-bytes",
+      "fluxpay.m5.compliance.review-thresholds.USD=10000",
+      "fluxpay.m5.vector.ollama-base-url=http://127.0.0.1:11434",
+      "fluxpay.m5.vector.embedding-model=qwen3-embedding:4b",
+      "fluxpay.m5.vector.dimensions=1536",
+      "fluxpay.m5.vector.embedding-space-id=ollama/qwen3-embedding:4b/1536",
+      "fluxpay.m5.vector.chunker-version=m5-sentence-v1"
     };
     String[] combined = new String[defaults.length + properties.length];
     System.arraycopy(defaults, 0, combined, 0, defaults.length);
@@ -79,6 +84,7 @@ class DevelopmentDefaultsTest {
                 () -> mock(org.springframework.transaction.PlatformTransactionManager.class))
             .withBean(
                 NamedParameterJdbcTemplate.class, () -> mock(NamedParameterJdbcTemplate.class));
+    base = base.withBean(org.springframework.jdbc.core.JdbcTemplate.class, () -> mock(org.springframework.jdbc.core.JdbcTemplate.class));
     for (Class repository :
         new Class<?>[] {
           WalletRepository.class,
@@ -130,21 +136,7 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
               assertThat(context.getBeansOfType(ComplianceAssessor.class)).hasSize(1);
               assertThat(context.getBean(ComplianceAssessor.class))
-                  .isInstanceOf(UnavailableComplianceAssessor.class);
-
-              // Disabled compliance fails honestly with 503.
-              assertThatThrownBy(
-                      () ->
-                          context
-                              .getBean(ComplianceAssessor.class)
-                              .assess(
-                                  UUID.randomUUID(), new java.math.BigDecimal("10.0000"), "USD"))
-                  .isInstanceOfSatisfying(
-                      BusinessException.class,
-                      error -> {
-                        assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-                        assertThat(error.code()).isEqualTo("COMPLIANCE_UNAVAILABLE");
-                      });
+                  .isInstanceOf(M5AmountComplianceAssessor.class);
 
               // Missing KYC storage fails honestly with 503 before claiming an upload.
               KycService kyc = context.getBean(KycService.class);
