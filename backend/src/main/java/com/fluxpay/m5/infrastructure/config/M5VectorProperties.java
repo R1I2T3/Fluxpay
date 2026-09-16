@@ -12,4 +12,5 @@ public record M5VectorProperties(
     @NotBlank String ollamaBaseUrl,
     @NotBlank String embeddingModel,
     @Positive int dimensions,
-    @NotBlank String embeddingSpaceId) {}
+    @NotBlank String embeddingSpaceId,
+    @NotBlank String chunkerVersion) {}
