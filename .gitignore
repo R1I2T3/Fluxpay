@@ -9,3 +9,5 @@ __pycache__/
 .npm-cache/
 .maven-repo/
 .worktrees/
+
+.m2-verification/
