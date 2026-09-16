@@ -29,6 +29,11 @@ fluxpay:
   fx-provider-url: ${FX_PROVIDER_URL:}
   # Compliance-vector mode; default is the production embedding path (no mock default).
   embedding-mode: ${EMBEDDING_MODE:live}
+  m5:
+    vector:
+      ollama-base-url: ${M5_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+      embedding-model: ${M5_OLLAMA_EMBEDDING_MODEL:qwen3-embedding:4b}
+      dimensions: ${M5_OLLAMA_EMBEDDING_DIMENSIONS:1536}
   jwt-secret: ${JWT_SECRET}
   system-user-id: ${FLUXPAY_SYSTEM_USER_ID:}
   demo-funding-enabled: ${FLUXPAY_DEMO_FUNDING_ENABLED:false}
