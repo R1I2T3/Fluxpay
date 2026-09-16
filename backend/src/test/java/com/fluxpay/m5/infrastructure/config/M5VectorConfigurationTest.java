@@ -16,7 +16,8 @@ class M5VectorConfigurationTest {
           .withPropertyValues(
               "fluxpay.m5.vector.ollama-base-url=http://127.0.0.1:11434",
               "fluxpay.m5.vector.embedding-model=qwen3-embedding:4b",
-              "fluxpay.m5.vector.dimensions=1536");
+              "fluxpay.m5.vector.dimensions=1536",
+              "fluxpay.m5.vector.embedding-space-id=ollama/qwen3-embedding:4b/1536");
 
   @Test
   void exposesOnlyTheConcreteOllamaEmbeddingPort() {

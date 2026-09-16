@@ -9,4 +9,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "fluxpay.m5.vector")
 public record M5VectorProperties(
-    @NotBlank String ollamaBaseUrl, @NotBlank String embeddingModel, @Positive int dimensions) {}
+    @NotBlank String ollamaBaseUrl,
+    @NotBlank String embeddingModel,
+    @Positive int dimensions,
+    @NotBlank String embeddingSpaceId) {}

@@ -34,6 +34,7 @@ fluxpay:
       ollama-base-url: ${M5_OLLAMA_BASE_URL:http://127.0.0.1:11434}
       embedding-model: ${M5_OLLAMA_EMBEDDING_MODEL:qwen3-embedding:4b}
       dimensions: ${M5_OLLAMA_EMBEDDING_DIMENSIONS:1536}
+      embedding-space-id: ${M5_OLLAMA_EMBEDDING_SPACE_ID:ollama/qwen3-embedding:4b/1536}
   jwt-secret: ${JWT_SECRET}
   system-user-id: ${FLUXPAY_SYSTEM_USER_ID:}
   demo-funding-enabled: ${FLUXPAY_DEMO_FUNDING_ENABLED:false}
