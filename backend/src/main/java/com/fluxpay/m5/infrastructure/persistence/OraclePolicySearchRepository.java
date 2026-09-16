@@ -51,8 +51,8 @@ public class OraclePolicySearchRepository implements PolicySearchPort {
             connection -> {
               try (PreparedStatement statement = connection.prepareStatement(NEAREST_CHUNKS_SQL)) {
                 statement.setObject(1, queryEmbedding, OracleType.VECTOR_FLOAT32);
-                statement.setObject(2, queryEmbedding, OracleType.VECTOR_FLOAT32);
-                statement.setString(3, embeddingSpaceId);
+                statement.setString(2, embeddingSpaceId);
+                statement.setObject(3, queryEmbedding, OracleType.VECTOR_FLOAT32);
                 statement.setInt(4, limit);
                 try (ResultSet resultSet = statement.executeQuery()) {
                   List<PolicyMatch> matches = new ArrayList<>();

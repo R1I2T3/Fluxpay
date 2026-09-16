@@ -32,6 +32,9 @@ public class ComplianceCase {
   @Column(name = "payment_id", columnDefinition = "RAW(16)", nullable = false)
   private UUID paymentId;
 
+  @Column(name = "review_reference", length = 36)
+  private String reviewReference;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "risk", length = 10, nullable = false)
   private ComplianceRisk risk;
@@ -80,6 +83,14 @@ public class ComplianceCase {
 
   public void setPaymentId(UUID paymentId) {
     this.paymentId = paymentId;
+  }
+
+  public String getReviewReference() {
+    return reviewReference;
+  }
+
+  public void setReviewReference(String reviewReference) {
+    this.reviewReference = reviewReference;
   }
 
   public ComplianceRisk getRisk() {

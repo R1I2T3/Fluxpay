@@ -65,8 +65,8 @@ class OraclePolicySearchRepositoryTest {
         .contains("pd.index_state = 'INDEXED'")
         .contains("pd.embedding_space_id = ?");
     verify(statement).setObject(eq(1), same(query), eq(OracleType.VECTOR_FLOAT32));
-    verify(statement).setObject(eq(2), same(query), eq(OracleType.VECTOR_FLOAT32));
-    verify(statement).setString(3, "qwen3-embedding:4b/1536");
+    verify(statement).setString(2, "qwen3-embedding:4b/1536");
+    verify(statement).setObject(eq(3), same(query), eq(OracleType.VECTOR_FLOAT32));
     verify(statement).setInt(4, 5);
   }
 

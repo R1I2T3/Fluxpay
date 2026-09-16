@@ -61,4 +61,35 @@ class OraclePolicyIndexStoreTest {
     writes.verify(chunkStatement).executeUpdate();
     writes.verify(documentStatement).executeUpdate();
   }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void clearsActiveGenerationThenDeletesChunksAndGenerationsForAPolicy() throws Exception {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    Connection connection = mock(Connection.class);
+    PreparedStatement clearDocument = mock(PreparedStatement.class);
+    PreparedStatement deleteChunks = mock(PreparedStatement.class);
+    PreparedStatement deleteGenerations = mock(PreparedStatement.class);
+    UUID documentId = UUID.randomUUID();
+    when(jdbcTemplate.execute(any(ConnectionCallback.class)))
+        .thenAnswer(
+            invocation ->
+                ((ConnectionCallback<?>) invocation.getArgument(0)).doInConnection(connection));
+    when(connection.prepareStatement(any(String.class)))
+        .thenReturn(clearDocument, deleteChunks, deleteGenerations);
+
+    new OraclePolicyIndexStore(jdbcTemplate).delete(documentId);
+
+    ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+    verify(connection, org.mockito.Mockito.times(3)).prepareStatement(sql.capture());
+    assertThat(sql.getAllValues())
+        .containsExactly(
+            "UPDATE policy_documents SET active_generation_id = NULL WHERE id = ?",
+            "DELETE FROM policy_chunks WHERE policy_document_id = ?",
+            "DELETE FROM policy_generations WHERE policy_document_id = ?");
+    InOrder deletion = inOrder(clearDocument, deleteChunks, deleteGenerations);
+    deletion.verify(clearDocument).executeUpdate();
+    deletion.verify(deleteChunks).executeUpdate();
+    deletion.verify(deleteGenerations).executeUpdate();
+  }
 }

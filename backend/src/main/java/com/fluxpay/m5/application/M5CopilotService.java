@@ -4,9 +4,11 @@ import com.fluxpay.m5.api.CopilotAnswerResponse;
 import com.fluxpay.m5.api.CopilotRequest;
 import com.fluxpay.m5.api.CopilotSource;
 import com.fluxpay.m5.domain.M5EmbeddingPort;
+import com.fluxpay.m5.domain.M5ChatPort;
 import com.fluxpay.m5.domain.PolicyMatch;
 import com.fluxpay.m5.domain.PolicySearchPort;
 import com.fluxpay.m5.infrastructure.config.M5VectorProperties;
+import com.fluxpay.m5.infrastructure.config.M5CopilotProperties;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,16 +19,22 @@ public class M5CopilotService {
   private static final int TOP_K = 5;
 
   private final M5EmbeddingPort embeddingPort;
+  private final M5ChatPort chatPort;
   private final PolicySearchPort policySearchPort;
   private final M5VectorProperties vectorProperties;
+  private final M5CopilotProperties copilotProperties;
 
   public M5CopilotService(
       M5EmbeddingPort embeddingPort,
+      M5ChatPort chatPort,
       PolicySearchPort policySearchPort,
-      M5VectorProperties vectorProperties) {
+      M5VectorProperties vectorProperties,
+      M5CopilotProperties copilotProperties) {
     this.embeddingPort = embeddingPort;
+    this.chatPort = chatPort;
     this.policySearchPort = policySearchPort;
     this.vectorProperties = vectorProperties;
+    this.copilotProperties = copilotProperties;
   }
 
   @Transactional(readOnly = true)
@@ -34,10 +42,9 @@ public class M5CopilotService {
     float[] queryEmbedding = embeddingPort.embedQuery(request.question());
     List<PolicyMatch> matches =
         policySearchPort.search(queryEmbedding, vectorProperties.embeddingSpaceId(), TOP_K);
-    if (matches.isEmpty()) {
+    if (matches.isEmpty() || matches.get(0).distance() > copilotProperties.maxDistance()) {
       return new CopilotAnswerResponse(
-          "I couldn't find an active indexed policy that answers this question yet. "
-              + "Upload and index a relevant policy, then try again.",
+          "I can help with FluxPay compliance, KYC, AML, payment-review, country-rule, and payout-support questions. Please ask a question about an indexed policy.",
           List.of());
     }
     List<CopilotSource> sources =
@@ -50,13 +57,7 @@ public class M5CopilotService {
                         match.chunkNumber(),
                         excerpt(match.content(), 200)))
             .toList();
-    PolicyMatch bestMatch = matches.get(0);
-    String answer =
-        "Based on the \""
-            + bestMatch.title()
-            + "\" policy: "
-            + excerpt(bestMatch.content(), 320);
-    return new CopilotAnswerResponse(answer, sources);
+    return new CopilotAnswerResponse(chatPort.answer(request.question(), sources), sources);
   }
 
   private static String excerpt(String content, int maxLength) {

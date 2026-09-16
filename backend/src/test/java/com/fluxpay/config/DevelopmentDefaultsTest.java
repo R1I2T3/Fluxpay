@@ -69,7 +69,11 @@ class DevelopmentDefaultsTest {
       "fluxpay.m5.vector.embedding-model=qwen3-embedding:4b",
       "fluxpay.m5.vector.dimensions=1536",
       "fluxpay.m5.vector.embedding-space-id=ollama/qwen3-embedding:4b/1536",
-      "fluxpay.m5.vector.chunker-version=m5-sentence-v1"
+      "fluxpay.m5.vector.chunker-version=m5-sentence-v1",
+      "fluxpay.m5.copilot.chat-model=qwen3:4b",
+      "fluxpay.m5.copilot.chat-temperature=0.2",
+      "fluxpay.m5.copilot.max-distance=0.65",
+      "fluxpay.m5.copilot.chat-timeout-seconds=90"
     };
     String[] combined = new String[defaults.length + properties.length];
     System.arraycopy(defaults, 0, combined, 0, defaults.length);

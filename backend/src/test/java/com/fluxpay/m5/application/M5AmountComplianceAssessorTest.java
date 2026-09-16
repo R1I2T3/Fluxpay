@@ -28,4 +28,16 @@ class M5AmountComplianceAssessorTest {
     assertThat(assessor.assess(UUID.randomUUID(), BigDecimal.ONE, "EUR"))
         .isEqualTo(ScreeningVerdict.REVIEW);
   }
+
+  @Test
+  void providesConcreteRiskEvidenceForEveryReviewOutcome() {
+    var thresholdReview =
+        assessor.assessDetailed(UUID.randomUUID(), new BigDecimal("10000.01"), "USD");
+    var unsupportedCurrency = assessor.assessDetailed(UUID.randomUUID(), BigDecimal.ONE, "EUR");
+
+    assertThat(thresholdReview.risk()).isEqualTo(com.fluxpay.common.enums.ComplianceRisk.MEDIUM);
+    assertThat(thresholdReview.reasons()).containsExactly("AMOUNT_EXCEEDS_REVIEW_THRESHOLD");
+    assertThat(unsupportedCurrency.risk()).isEqualTo(com.fluxpay.common.enums.ComplianceRisk.HIGH);
+    assertThat(unsupportedCurrency.reasons()).containsExactly("UNSUPPORTED_SOURCE_CURRENCY");
+  }
 }

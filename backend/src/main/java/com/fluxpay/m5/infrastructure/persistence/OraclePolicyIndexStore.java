@@ -27,6 +27,12 @@ public class OraclePolicyIndexStore implements M5PolicyIndexStore {
           + "SET active_generation_id = ?, embedding_space_id = ?, chunker_version = ?, "
           + "index_state = 'INDEXED', chunk_count = ? "
           + "WHERE id = ?";
+  private static final String CLEAR_ACTIVE_GENERATION_SQL =
+      "UPDATE policy_documents SET active_generation_id = NULL WHERE id = ?";
+  private static final String DELETE_CHUNKS_SQL =
+      "DELETE FROM policy_chunks WHERE policy_document_id = ?";
+  private static final String DELETE_GENERATIONS_SQL =
+      "DELETE FROM policy_generations WHERE policy_document_id = ?";
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -64,6 +70,26 @@ public class OraclePolicyIndexStore implements M5PolicyIndexStore {
                   chunks.size());
               return null;
             });
+  }
+
+  @Override
+  public void delete(UUID policyDocumentId) {
+    jdbcTemplate.execute(
+        (ConnectionCallback<Void>)
+            connection -> {
+              executeForDocument(connection, CLEAR_ACTIVE_GENERATION_SQL, policyDocumentId);
+              executeForDocument(connection, DELETE_CHUNKS_SQL, policyDocumentId);
+              executeForDocument(connection, DELETE_GENERATIONS_SQL, policyDocumentId);
+              return null;
+            });
+  }
+
+  private static void executeForDocument(
+      java.sql.Connection connection, String sql, UUID policyDocumentId) throws java.sql.SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+      statement.setBytes(1, raw16(policyDocumentId));
+      statement.executeUpdate();
+    }
   }
 
   private static void insertGeneration(

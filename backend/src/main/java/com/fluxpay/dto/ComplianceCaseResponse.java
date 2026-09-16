@@ -9,6 +9,7 @@ import java.util.UUID;
 public record ComplianceCaseResponse(
     UUID id,
     UUID paymentId,
+    String reviewReference,
     ComplianceRisk risk,
     ComplianceCaseStatus status,
     List<String> riskReasons,

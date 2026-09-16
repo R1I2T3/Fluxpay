@@ -10,4 +10,7 @@ public interface M5PolicyIndexStore {
       String embeddingSpaceId,
       String chunkerVersion,
       List<IndexedPolicyChunk> chunks);
+
+  /** Removes the active vector generation and all embedded chunks for one policy document. */
+  void delete(UUID policyDocumentId);
 }

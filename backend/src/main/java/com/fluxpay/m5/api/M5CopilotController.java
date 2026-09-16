@@ -4,6 +4,7 @@ import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.m5.application.M5CopilotService;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +21,7 @@ public class M5CopilotController {
   }
 
   @PostMapping("/ask")
+  @PreAuthorize("hasRole('ADMIN')")
   public ApiResponse<CopilotAnswerResponse> ask(@Valid @RequestBody CopilotRequest request) {
     String correlationId = MDC.get("correlationId");
     return new ApiResponse<>(
