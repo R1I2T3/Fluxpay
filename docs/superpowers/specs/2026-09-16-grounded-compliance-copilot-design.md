@@ -36,6 +36,16 @@ The following environment-backed properties are introduced under the existing `m
 
 If Ollama generation is unavailable, malformed, blank, or times out, the API returns a controlled service-unavailable response. It must not be converted into a misleading authentication failure during error dispatch.
 
+## Payment Risk Review and Decisioning
+
+The currently merged application has a `compliance_cases` table and case CRUD endpoints, but the records are manually created and neither case approval nor case rejection changes the associated payment. The historical `feat/05-member5-updated` implementation cannot be merged directly because it replaces the current payment, security, migration, and messaging structures.
+
+The compatible implementation will introduce a detailed result alongside the existing `ComplianceAssessor` verdict. It contains a verdict, `LOW`/`MEDIUM`/`HIGH` risk, machine-readable risk reasons, and a suggested reviewer action. The concrete M5 assessor will produce only facts available through the current payment-assessment contract: a configured-currency amount above the review threshold produces `MEDIUM` risk with `AMOUNT_EXCEEDS_REVIEW_THRESHOLD`; an unsupported currency produces `HIGH` risk with `UNSUPPORTED_CURRENCY`; invalid assessment input produces `HIGH` risk with `INVALID_PAYMENT_DATA`; and an in-threshold configured payment produces `LOW` risk and automatic approval. KYC is already enforced before screening by the existing payment-confirmation flow, while first-recipient, same-day-recipient, and destination-country rules from the old branch are deliberately not claimed without reliable current-domain inputs.
+
+When a review verdict is produced during payment confirmation, the system will atomically store the selected quote and review reference on the payment, create one open compliance case containing the detailed risk result, and publish the existing review-request event. A migration adds the review reference to `compliance_cases`, allowing a decision to be bound to precisely the payment review it resolves.
+
+Only an authenticated `ADMIN` may approve or reject an open compliance case. The backend derives the reviewer identity from the JWT rather than trusting a client-supplied reviewer name. Rejecting sets the linked under-review payment to `REJECTED`; approving requires the stored quote to remain valid, posts the payment, moves it to `PROCESSING`, and publishes the existing payment-initiated event. Payment and case updates occur in one transaction. A stale/expired quote leaves the case open and returns a conflict rather than posting at an unverified rate.
+
 ## Tests
 
 - A relevant policy question calls the chat port with the retrieved excerpts, returns its generated answer, and preserves citations.
@@ -43,4 +53,7 @@ If Ollama generation is unavailable, malformed, blank, or times out, the API ret
 - An empty corpus returns the same refusal without generation.
 - A chat-provider failure is mapped to the controlled service-unavailable API response.
 - The Ollama chat adapter sends a non-streaming request with the configured model and parses the generated content.
-
+- A payment that exceeds the M5 amount threshold enters review with an open case containing the threshold risk reason.
+- An admin approval posts the payment and moves both the case and payment to their approved/processing states.
+- An admin rejection records the server-derived reviewer and moves the payment to `REJECTED`.
+- A non-admin cannot decide a compliance case, and an expired stored quote cannot be approved.
