@@ -12,7 +12,7 @@ import com.fluxpay.messaging.PaymentEventConsumer;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentRepository;
-import com.fluxpay.m5.application.M5AmountComplianceAssessor;
+import com.fluxpay.service.AmountComplianceAssessor;
 import com.fluxpay.service.PaymentOperationService;
 import com.fluxpay.service.WalletOperationService;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,7 @@ class ProductionBootTest {
 
     assertThat(context.getBean(FxSnapshotSource.class)).isInstanceOf(FrankfurterFxProvider.class);
     assertThat(context.getBean(ComplianceAssessor.class))
-        .isInstanceOf(M5AmountComplianceAssessor.class);
+        .isInstanceOf(AmountComplianceAssessor.class);
     assertThat(context.getBeansOfType(PayoutProvider.class)).isEmpty();
   }
 }

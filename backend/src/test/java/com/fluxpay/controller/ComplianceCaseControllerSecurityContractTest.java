@@ -4,8 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fluxpay.common.security.CurrentUser;
 import com.fluxpay.dto.ComplianceDecisionRequest;
-import com.fluxpay.m5.api.CopilotRequest;
-import com.fluxpay.m5.api.M5CopilotController;
+import com.fluxpay.dto.CopilotRequest;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,27 +12,23 @@ import org.springframework.security.access.prepost.PreAuthorize;
 class ComplianceCaseControllerSecurityContractTest {
 
   @Test
-  void onlyAdminsCanMutateOrDeleteMemberFiveData() throws NoSuchMethodException {
+  void onlyAdminsCanMutateComplianceDataOrAskCopilot() throws NoSuchMethodException {
     PreAuthorize approve =
         ComplianceCaseController.class
-            .getMethod(
-                "approve", UUID.class, ComplianceDecisionRequest.class, CurrentUser.class)
+            .getMethod("approve", UUID.class, ComplianceDecisionRequest.class, CurrentUser.class)
             .getAnnotation(PreAuthorize.class);
     PreAuthorize reject =
         ComplianceCaseController.class
-            .getMethod(
-                "reject", UUID.class, ComplianceDecisionRequest.class, CurrentUser.class)
+            .getMethod("reject", UUID.class, ComplianceDecisionRequest.class, CurrentUser.class)
             .getAnnotation(PreAuthorize.class);
     PreAuthorize deleteCase =
         ComplianceCaseController.class
             .getMethod("delete", UUID.class)
             .getAnnotation(PreAuthorize.class);
     PreAuthorize deletePolicy =
-        PolicyController.class
-            .getMethod("delete", UUID.class)
-            .getAnnotation(PreAuthorize.class);
+        PolicyController.class.getMethod("delete", UUID.class).getAnnotation(PreAuthorize.class);
     PreAuthorize askCopilot =
-        M5CopilotController.class
+        CopilotController.class
             .getMethod("ask", CopilotRequest.class)
             .getAnnotation(PreAuthorize.class);
 

@@ -2,7 +2,8 @@
 
 FluxPay is a Java 17 / Spring Boot 3.2.5 payment backend with Oracle persistence,
 Kafka-backed durable events, JWT authentication, wallet/ledger accounting, quotes,
-payments, payout orchestration, recovery, and timeline APIs. The frontend is outside
+payments, payout orchestration, recovery, timeline APIs, policy indexing, and a
+policy-grounded compliance copilot. The frontend is outside
 the backend-cleanup verification scope.
 
 ## Local configuration
@@ -49,7 +50,7 @@ it never removes volumes or unrelated topics. In external mode, set
 `FLUXPAY_EXTERNAL_BROKER_FRESH=true` only after verifying that the dedicated broker
 contains no stale FluxPay events.
 
-After the reset, start the backend once so Flyway installs `V001` through `V005`, run
+After the reset, start the backend once so Flyway installs the versioned migrations, run
 the seed twice to prove idempotence, copy the reported system UUID into
 `FLUXPAY_SYSTEM_USER_ID`, then restart the backend:
 
@@ -100,14 +101,48 @@ python -B scripts/test-all.py --suite e2e
 
 The default application uses the HTTP Frankfurter FX adapter, Oracle repositories,
 Kafka outbox relay, and JWT owner/admin authorization. `X-Local-User-Id` is never an
-authentication mechanism. With no real provider credentials, payout, compliance,
-and KYC document-storage operations fail explicitly; the application does not claim
+authentication mechanism. With no real provider credentials, payout and
+KYC document-storage operations fail explicitly; the application does not claim
 production readiness for those integrations.
+
+Compliance uses configurable source-currency amount thresholds to request review.
+Policy indexing and copilot answers use Ollama and Oracle vector search; configure
+the `FLUXPAY_OLLAMA_*`, `FLUXPAY_POLICY_CHUNKER_VERSION`, `FLUXPAY_COPILOT_*`, and
+`FLUXPAY_COMPLIANCE_*` settings in `.env.example` for the local providers.
 
 Development-only metadata KYC, demo funding, simulated compliance, and simulated
 payout providers are off by default and require their explicit `FLUXPAY_DEVELOPMENT_*`
-or funding toggles. Metadata KYC records state that files were not stored. Embedding
-and policy-vector work remains intentionally unfinished.
+or funding toggles. Metadata KYC records state that files were not stored.
+
+## Backend structure
+
+Production code under `backend/src/main/java/com/fluxpay` follows these shared
+packages. Tests mirror them under `backend/src/test/java/com/fluxpay`.
+
+| Package | Responsibility |
+| --- | --- |
+| `controller` | HTTP endpoints, including policy indexing and copilot |
+| `service` | Application workflows and compliance assessment |
+| `dto` | Request, response, and boundary data records |
+| `common/contracts` | Ports implemented by providers and persistence adapters |
+| `adapter/ollama`, `adapter/persistence` | Ollama HTTP and Oracle vector implementations |
+| `config` | Spring wiring and validated configuration properties |
+| `exception` | Application and provider exceptions |
+| `beans`, `repository` | Persistent entities and repository interfaces |
+| `domain`, `messaging`, `development` | Domain rules, event delivery, and opt-in development implementations |
+
+Name code for its responsibility, without milestone/member prefixes or a separate
+`m5` package. New compliance, vector, and copilot properties use
+`fluxpay.compliance.*`, `fluxpay.vector.*`, and `fluxpay.copilot.*`. Legacy
+`fluxpay.m5.*` values for the settings listed in `application.yml` and `M5_*`
+environment variables remain fallback inputs; the new `FLUXPAY_*` inputs take
+precedence over those fallbacks.
+
+Versioned Flyway migrations `V601`–`V605` retain their original filenames, SQL,
+and constraint names to preserve existing migration history. The stored
+`m5-sentence-v1` chunker identifier also remains unchanged because the chunking
+algorithm has not changed. These compatibility identifiers are not package or
+class naming conventions.
 
 ## Formatting
 
