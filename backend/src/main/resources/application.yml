@@ -27,8 +27,6 @@ fluxpay:
   # Documented Frankfurter v1 /latest endpoint (see https://frankfurter.dev/v1/).
   # fluxpay.fx-mode/FLUXPAY_FX_MODE was retired: any value fails startup explicitly.
   fx-provider-url: ${FX_PROVIDER_URL:}
-  # Compliance-vector mode; default is the production embedding path (no mock default).
-  embedding-mode: ${EMBEDDING_MODE:live}
   compliance:
     enabled: ${FLUXPAY_COMPLIANCE_ENABLED:${fluxpay.m5.compliance.enabled:${M5_COMPLIANCE_ENABLED:true}}}
     review-thresholds:

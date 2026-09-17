@@ -10,10 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 /**
- * Default compliance assessor: no real compliance integration is configured, so every assessment
- * fails honestly with {@code 503 COMPLIANCE_UNAVAILABLE} before any external action is claimed. The
- * development-only always-approve {@code SimulatedComplianceAssessor} replaces this bean only when
- * explicitly enabled.
+ * Rejects assessments with {@code 503 COMPLIANCE_UNAVAILABLE} when {@code
+ * fluxpay.compliance.enabled=false}.
  */
 @Component
 @ConditionalOnProperty(

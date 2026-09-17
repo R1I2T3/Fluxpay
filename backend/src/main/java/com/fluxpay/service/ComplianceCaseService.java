@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,17 +38,6 @@ public class ComplianceCaseService {
   private final PayoutOutboxService outbox;
   private final Clock clock;
 
-  public ComplianceCaseService(ComplianceCaseRepository repository, ObjectMapper objectMapper) {
-    this.repository = repository;
-    this.objectMapper = objectMapper;
-    this.payments = null;
-    this.quotes = null;
-    this.posting = null;
-    this.outbox = null;
-    this.clock = Clock.systemUTC();
-  }
-
-  @Autowired
   public ComplianceCaseService(
       ComplianceCaseRepository repository,
       ObjectMapper objectMapper,
@@ -110,18 +98,8 @@ public class ComplianceCaseService {
   }
 
   @Transactional
-  public ComplianceCaseResponse approve(UUID id, ComplianceDecisionRequest request) {
-    return decide(id, ComplianceCaseStatus.APPROVED, request, request.decidedBy());
-  }
-
-  @Transactional
   public ComplianceCaseResponse approve(UUID id, ComplianceDecisionRequest request, String reviewer) {
     return decide(id, ComplianceCaseStatus.APPROVED, request, reviewer);
-  }
-
-  @Transactional
-  public ComplianceCaseResponse reject(UUID id, ComplianceDecisionRequest request) {
-    return decide(id, ComplianceCaseStatus.REJECTED, request, request.decidedBy());
   }
 
   @Transactional
