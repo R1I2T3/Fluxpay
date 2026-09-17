@@ -198,9 +198,20 @@ export class Page {
   dismissAction=()=>this.confirmAction('');
   confirmQuote=()=>this.run(async()=>{
     if(!this.selectedQuote()||!this.quoteValid())throw new Error('This quote has expired. Refresh your quotes.');
-    this.payment(await api.confirm(this.paymentId(),this.selectedQuote().id));this.confirmAction('');this.step(3);
+    await this.acceptQuote();
     if(this.screen==='tracking')await this.inspectData();
-  },'Your payment has been confirmed.');
+  });
+  private async acceptQuote(){
+    try{this.payment(await api.confirm(this.paymentId(),this.selectedQuote().id));}
+    catch(error){
+      // A compliance block is returned as an HTTP error after persisting REJECTED.
+      const latest=await api.payment(this.paymentId()).catch(()=>undefined);
+      if(latest)this.payment(latest);
+      if(latest?.status!=='REJECTED')throw error;
+    }
+    this.confirmAction('');this.step(3);
+    this.notice(this.payment()?.status==='UNDER_REVIEW'?'Your transfer is awaiting compliance review.':this.payment()?.status==='REJECTED'?'This transfer was rejected by compliance.':'Your payment has been confirmed.');
+  }
   trackPayment=()=>navigate('tracking',{payment:this.paymentId()});
   openPayment=(p:any)=>navigate('tracking',{payment:p.id});
   paymentOption=(p:any)=>this.money(p.sourceAmount,p.sourceCurrency)+' · '+this.label(p.status)+' · '+p.id.slice(0,8);
@@ -226,7 +237,7 @@ export class Page {
     const id=this.paymentId(),action=this.confirmAction();
     if(action==='confirm') {
       if(!this.selectedQuote()||!this.quoteValid())throw new Error('Choose a current quote.');
-      this.payment(await api.confirm(id,this.selectedQuote().id));this.step(3);
+      await this.acceptQuote();
     } else if(action==='cancel')await api.cancel(id);
     else if(action==='refund')await api.refund(id);
     else {

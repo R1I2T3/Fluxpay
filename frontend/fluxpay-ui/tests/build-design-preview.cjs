@@ -17,12 +17,12 @@ const output = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta
 require.config({baseUrl:'js',paths:{knockout:'libs/knockout/knockout-3.5.1.debug'}});
 define('services/flux-api',[],function(){return {fluxApi:new Proxy({}, {get:function(){return async function(){throw new Error('Design preview: service actions are disabled.');};}})};});
 define('services/session',['knockout'],function(ko){return {session:{user:ko.observable({fullName:'Alex Morgan',email:'alex@example.test',role:'ADMIN',kycStatus:'VERIFIED'}),isAdmin:ko.observable(true),restore:async function(){},set:function(){throw new Error('Authentication is disabled in design preview');}},navigate:function(route){location.href='design-preview.html?screen='+encodeURIComponent(route);}};});
-require(['knockout','services/page','services/session'],function(ko,module,sessionModule){
+require(['knockout','services/page','services/session','viewModels/admin'],function(ko,module,sessionModule,Admin){
  (async function(){
   const screens=['dashboard','wallets','payments-new','payments-list','recipients','tracking','kyc','account','admin'];
   const screen=new URLSearchParams(location.search).get('screen')||'dashboard';
   if(!screens.includes(screen))throw new Error('Unknown preview screen');
-  const page=new module.Page('home'); // Suppress automatic loading, even if a token happens to exist.
+  const page=screen==='admin'?new Admin({}):new module.Page('home'); // All API calls remain rejecting stubs.
   page.screen=screen;
   sessionModule.session.user().role=screen==='admin'?'ADMIN':'CUSTOMER';
   sessionModule.session.isAdmin(screen==='admin');
