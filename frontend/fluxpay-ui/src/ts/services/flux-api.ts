@@ -13,7 +13,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown, idem = f
   let response: Response;
   try { response = await fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }); }
   catch { throw new Error('Unable to reach the payment service. Check your connection and try again.'); }
-  const json = await response.json().catch(() => ({}));
+  const json = response.status === 204 ? {} : await response.json().catch(() => ({}));
   if (response.ok || response.status < 500) pending.delete(operation);
   if (!response.ok) {
     if (response.status===401 && !path.startsWith('/api/auth/')) {
@@ -33,5 +33,23 @@ export const fluxApi = {
   recipients:()=>request<any[]>('/api/recipients'), recipient:(b:any)=>request<any>('/api/recipients','POST',b,true), updateRecipient:(id:string,b:any)=>request<any>(`/api/recipients/${id}`,'PUT',b),
   payments:(page=0)=>request<any>(`/api/payments?page=${page}&size=20`), payment:(id:string)=>request<any>(`/api/payments/${id}`), draft:(b:any)=>request<any>('/api/payments/draft','POST',b,true), quotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`,'POST',undefined,true), getQuotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`), confirm:(id:string,q:string)=>request<any>(`/api/payments/${id}/confirm`,'POST',{quoteId:q},true), cancel:(id:string)=>request<any>(`/api/payments/${id}/cancel`,'POST',undefined,true), timeline:(id:string)=>request<any[]>(`/api/payments/${id}/timeline`),
   routes:()=>request<any>('/api/routes'), recommend:(id:string,p:string)=>request<any>(`/api/payments/${id}/recommend-route`,'POST',{preference:p}), payout:(id:string,r:string)=>request<any>(`/api/payments/${id}/submit-payout`,'POST',{routeCode:r},true), retry:(id:string,q:string)=>request<any>(`/api/payments/${id}/retry-payout`,'POST',{quoteId:q},true), switchRoute:(id:string,r:string,q:string)=>request<any>(`/api/payments/${id}/switch-route`,'POST',{routeCode:r,quoteId:q},true), refund:(id:string)=>request<any>(`/api/payments/${id}/refund`,'POST',undefined,true),
-  adminKyc:(status='PENDING',page=0)=>request<any[]>(`/api/admin/kyc/applications?status=${status}&page=${page}&size=20`), approve:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/approve`,'PUT',b), reject:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/reject`,'PUT',b), updateRoute:(id:string,b:any)=>request<any>(`/api/admin/routes/${id}`,'PUT',b)
+  adminKyc:(status='PENDING',page=0)=>request<any[]>(`/api/admin/kyc/applications?status=${status}&page=${page}&size=20`), approve:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/approve`,'PUT',b), reject:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/reject`,'PUT',b), updateRoute:(id:string,b:any)=>request<any>(`/api/admin/routes/${id}`,'PUT',b),
+  policies:()=>request<PolicyDocument[]>('/api/policies'),
+  policy:(id:string)=>request<PolicyDocument>(`/api/policies/${encodeURIComponent(id)}`),
+  createPolicy:(body:{title:string;category:string;content:string})=>request<PolicyDocument>('/api/policies','POST',body),
+  policyChunks:(id:string)=>request<PolicyChunk[]>(`/api/policies/${encodeURIComponent(id)}/chunks`),
+  addPolicyChunk:(id:string,content:string)=>request<PolicyChunk>(`/api/policies/${encodeURIComponent(id)}/chunks`,'POST',{content}),
+  indexPolicy:(id:string)=>request<{policyDocumentId:string;chunkCount:number}>(`/api/policies/${encodeURIComponent(id)}/index`,'POST'),
+  deletePolicy:(id:string)=>request<void>(`/api/policies/${encodeURIComponent(id)}`,'DELETE'),
+  complianceCases:(status='ALL')=>request<ComplianceCase[]>('/api/compliance/cases'+(status==='ALL'?'':'?status='+encodeURIComponent(status))),
+  complianceCase:(id:string)=>request<ComplianceCase>(`/api/compliance/cases/${encodeURIComponent(id)}`),
+  createComplianceCase:(body:{paymentId:string;risk:string;riskReasons:string[];suggestedAction:string})=>request<ComplianceCase>('/api/compliance/cases','POST',body),
+  decideComplianceCase:(id:string,decision:'approve'|'reject',decisionReason:string)=>request<ComplianceCase>(`/api/compliance/cases/${encodeURIComponent(id)}/${decision}`,'PUT',{decisionReason}),
+  deleteComplianceCase:(id:string)=>request<void>(`/api/compliance/cases/${encodeURIComponent(id)}`,'DELETE'),
+  askCopilot:(question:string,paymentId?:string)=>request<CopilotAnswer>('/api/copilot/ask','POST',{question,...(paymentId?{paymentId}:{})})
 };
+
+export interface PolicyChunk { id:string; policyDocumentId:string; chunkNumber:number; content:string; createdAt:string; }
+export interface PolicyDocument { id:string; title:string; category:string; content:string; documentHash:string; createdAt:string; chunks:PolicyChunk[]; }
+export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
+export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }

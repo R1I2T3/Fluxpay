@@ -10,7 +10,9 @@ module.exports = async function(config) {
       hostname:target.hostname,port:target.port || (target.protocol==='https:'?443:80),
       path:req.url,method:req.method,headers:{...req.headers,host:target.host}
     }, incoming => {res.writeHead(incoming.statusCode,incoming.headers);incoming.pipe(res);});
-    upstream.setTimeout(30000,()=>upstream.destroy(new Error('Backend timeout')));
+    // Copilot may spend up to 90 seconds generating an answer; do not cut it off at 30s.
+    const policyWork = req.url.startsWith('/api/copilot/') || /^\/api\/policies\/[^/]+\/index(?:\?|$)/.test(req.url);
+    upstream.setTimeout(policyWork ? 120000 : 30000,()=>upstream.destroy(new Error('Backend timeout')));
     upstream.on('error',()=>{
       if(!res.headersSent) res.writeHead(502,{'Content-Type':'application/json'});
       res.end(JSON.stringify({code:'BACKEND_UNAVAILABLE',message:'The payment service is unavailable. Start the backend and try again.'}));

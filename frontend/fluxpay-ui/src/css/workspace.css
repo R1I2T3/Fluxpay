@@ -1293,3 +1293,51 @@
     transform: none;
   }
 }
+/* Administration knowledge and review workspace: shares the customer design tokens. */
+.workspace-page .admin-tabs { display:flex; gap:8px; overflow-x:auto; padding:6px; margin:0 0 28px; background:#eaf0fa; border:1px solid #dce5f4; border-radius:22px; }
+.workspace-page .admin-tabs button { flex:1; white-space:nowrap; border:0; background:transparent; color:#53657f; border-radius:16px; padding:15px 20px; font:inherit; font-weight:650; cursor:pointer; transition:background .2s,color .2s,box-shadow .2s; }
+.workspace-page .admin-tabs button.selected { background:#fff; color:#1457d4; box-shadow:0 4px 16px #173b7112; }
+.workspace-page .admin-tabs button:hover { color:#1457d4; }
+.workspace-page .admin-intro { display:flex; align-items:center; justify-content:space-between; gap:24px; background:linear-gradient(120deg,#edf4ff,#f9fbff 65%,#e8f8fa); }
+.workspace-page .admin-intro h2,.workspace-page .copilot-composer h2 { font-size:clamp(26px,3vw,40px); letter-spacing:-1.4px; line-height:1.1; margin:12px 0; }
+.workspace-page .admin-intro p { max-width:650px; }
+.workspace-page .admin-toolbar { display:flex; align-items:end; gap:16px; margin-bottom:24px; }
+.workspace-page .admin-toolbar label:first-child { flex:1; }
+.workspace-page .admin-toolbar label { margin:0; }
+.workspace-page .admin-toolbar>.pill { margin-bottom:1px; }
+.workspace-page .admin-editor { border:1px solid #bfcfed; scroll-margin-top:100px; }
+.workspace-page .admin-reference { color:#687891; font-size:12px; overflow-wrap:anywhere; margin:10px 0 20px; }
+.workspace-page .admin-reasons { padding-left:24px; line-height:1.8; }
+.workspace-page .preserve-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; }
+.workspace-page .policy-content { max-height:400px; overflow:auto; padding:20px; background:#f6f8fc; border-radius:18px; }
+.workspace-page .policy-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.workspace-page .policy-card { text-align:left; padding:24px; border:1px solid #e0e7f2; border-radius:22px; background:linear-gradient(145deg,#fff,#f4f7fd); color:#182c49; font:inherit; cursor:pointer; transition:transform .2s,border-color .2s; min-width:0; }
+.workspace-page .policy-card:hover { transform:translateY(-3px); border-color:#91b5ef; }
+.workspace-page .policy-card h3 { margin:14px 0 10px; overflow-wrap:anywhere; }
+.workspace-page .policy-card p { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.65; color:#66768c; }
+.workspace-page .policy-card-footer { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-top:22px; color:#5a718e; }
+.workspace-page .policy-card-footer>span { color:#2563eb; font-size:25px; }
+.workspace-page .policy-chunks details { margin:12px 0; padding:16px 20px; background:#f5f8fd; border:1px solid #e0e7f2; border-radius:15px; }
+.workspace-page details summary { cursor:pointer; font-weight:600; padding:8px 0; }
+.workspace-page .risk-badge { display:inline-flex; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:750; letter-spacing:.04em; background:#e9f3fe; color:#2465a5; }
+.workspace-page .risk-badge[data-risk='HIGH'] { background:#fff0ec; color:#a33d29; }
+.workspace-page .risk-badge[data-risk='MEDIUM'] { background:#fff6df; color:#8b6410; }
+.workspace-page .pill.danger { color:#a43838; background:#fff0f0; border:1px solid #f0cccc; }
+.workspace-page .copilot-layout { display:grid; grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr); gap:24px; align-items:start; }
+.workspace-page .copilot-composer { background:linear-gradient(155deg,#eaf2ff,#fff 65%); }
+.workspace-page .copilot-response { min-height:540px; }
+.workspace-page .copilot-response>.empty-state { padding:100px 20px; }
+.workspace-page .copilot-answer { font-size:16px; color:#253b58; }
+.workspace-page .copilot-sources article { padding:20px; background:#f6f8fc; border:1px solid #e0e7f2; border-radius:18px; margin:14px 0; }
+.workspace-page .copilot-sources blockquote { margin:12px 0; padding-left:14px; border-left:3px solid #9cbaf0; color:#5d6d82; }
+.workspace-page .admin-confirmation { position:fixed; inset:0; z-index:150; display:grid; place-items:center; background:#10213b77; backdrop-filter:blur(7px); padding:20px; }
+.workspace-page .admin-confirmation .modal { max-height:90dvh; overflow:auto; }
+.workspace-page .admin-editor .detail-line strong { overflow-wrap:anywhere; min-width:0; }
+@media(max-width:1050px){.workspace-page .policy-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:700px){
+  .workspace-page .admin-tabs{border-radius:16px;}.workspace-page .admin-tabs button{padding:12px 15px;font-size:13px;}
+  .workspace-page .admin-intro{align-items:stretch;flex-direction:column;}.workspace-page .admin-toolbar{flex-wrap:wrap;}.workspace-page .admin-toolbar label:first-child{flex-basis:100%;}
+  .workspace-page .policy-grid,.workspace-page .copilot-layout{grid-template-columns:1fr;}.workspace-page .copilot-response{min-height:280px;}
+  .workspace-page .admin-editor .detail-line{align-items:flex-start;gap:10px;}.workspace-page .admin-editor .detail-line strong{max-width:70%;}
+}
+@media(prefers-reduced-motion:reduce){.workspace-page .policy-card,.workspace-page .admin-tabs button{transition:none;}.workspace-page .policy-card:hover{transform:none;}}
