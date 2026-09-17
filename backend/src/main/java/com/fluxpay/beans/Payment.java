@@ -240,6 +240,11 @@ public class Payment {
     updatedAt = now;
   }
 
+  public void underReview(UUID quoteId, String reference, Instant now) {
+    selectedQuoteId = quoteId;
+    underReview(reference, now);
+  }
+
   public void underReview(Instant now) {
     status = PaymentStatus.UNDER_REVIEW;
     updatedAt = now;

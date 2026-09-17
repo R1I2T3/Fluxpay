@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.*;
 import com.fluxpay.common.enums.ScreeningVerdict;
+import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.*;
 import com.fluxpay.exception.BusinessException;
@@ -39,6 +40,8 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
   final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
   final PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
   final PostingPort posting = mock(PostingPort.class);
+  final KycGate kyc = mock(KycGate.class);
+  final ComplianceCaseService complianceCases = mock(ComplianceCaseService.class);
   final PaymentQuote quote =
       new PaymentQuote(
           UUID.randomUUID(),
@@ -62,7 +65,6 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
-    var kyc = mock(KycGate.class);
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
     when(compliance.assess(user, payment.sourceAmount(), "USD"))
@@ -83,10 +85,67 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
             new ObjectMapper().findAndRegisterModules(),
             Clock.systemUTC(),
             mock(org.springframework.transaction.PlatformTransactionManager.class)),
-        mock(OutboxEventRepository.class),
-        mock(OutboxDeliveryRepository.class),
+        new PayoutOutboxService(
+            mock(OutboxEventRepository.class),
+            mock(OutboxDeliveryRepository.class),
+            new ObjectMapper().findAndRegisterModules(),
+            Clock.fixed(time, ZoneOffset.UTC)),
         new ObjectMapper().findAndRegisterModules(),
-        routes);
+        routes,
+        complianceCases);
+  }
+
+  @Test
+  void reviewConfirmationCreatesACaseBoundToThePaymentReviewReference() {
+    when(kyc.isVerified(user)).thenReturn(true);
+    var compliance = mock(ComplianceAssessor.class);
+    when(compliance.assess(user, payment.sourceAmount(), "USD")).thenReturn(ScreeningVerdict.REVIEW);
+    when(compliance.assessDetailed(user, payment.sourceAmount(), "USD"))
+        .thenReturn(
+            new ComplianceAssessment(
+                ScreeningVerdict.REVIEW,
+                com.fluxpay.common.enums.ComplianceRisk.MEDIUM,
+                List.of("AMOUNT_EXCEEDS_REVIEW_THRESHOLD"),
+                "Hold payment for manual compliance review before payout."));
+    payment.quoted(1, NOW);
+    when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
+    when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
+    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    var recipients = mock(RecipientRepository.class);
+    when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
+    var reviewService =
+        new PaymentConfirmationService(
+            payments,
+            quotes,
+            recipients,
+            kyc,
+            compliance,
+            posting,
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            new PaymentOperationService(
+                mock(PaymentOperationRepository.class),
+                new ObjectMapper().findAndRegisterModules(),
+                Clock.systemUTC(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)),
+            new PayoutOutboxService(
+                mock(OutboxEventRepository.class),
+                mock(OutboxDeliveryRepository.class),
+                new ObjectMapper().findAndRegisterModules(),
+                Clock.fixed(NOW, ZoneOffset.UTC)),
+            new ObjectMapper().findAndRegisterModules(),
+            routes,
+            complianceCases);
+
+    var response = reviewService.confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key");
+
+    assertThat(response.status()).isEqualTo(PaymentStatus.UNDER_REVIEW);
+    verify(complianceCases)
+        .openReview(
+            payment.id(),
+            payment.reviewReference(),
+            com.fluxpay.common.enums.ComplianceRisk.MEDIUM,
+            List.of("AMOUNT_EXCEEDS_REVIEW_THRESHOLD"),
+            "Hold payment for manual compliance review before payout.");
   }
 
   @Test

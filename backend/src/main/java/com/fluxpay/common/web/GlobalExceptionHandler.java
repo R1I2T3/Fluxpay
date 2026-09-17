@@ -1,6 +1,7 @@
 package com.fluxpay.common.web;
 
 import com.fluxpay.common.api.ApiError;
+import com.fluxpay.exception.ChatException;
 import java.util.*;
 import org.springframework.http.*;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -42,5 +43,13 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiError> auth(SecurityException e) {
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
         .body(ApiErrorFactory.create("AUTH", e.getMessage(), Map.of()));
+  }
+
+  @ExceptionHandler(ChatException.class)
+  public ResponseEntity<ApiError> copilotUnavailable(ChatException exception) {
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        .body(
+            ApiErrorFactory.create(
+                "COPILOT_UNAVAILABLE", "Compliance Copilot is temporarily unavailable.", Map.of()));
   }
 }

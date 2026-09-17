@@ -15,9 +15,9 @@ import com.fluxpay.development.SimulatedLocalPartnerProvider;
 import com.fluxpay.development.SimulatedStandardBankProvider;
 import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycSubmitRequest;
-import com.fluxpay.exception.BusinessException;
 import com.fluxpay.exception.DemoFundingDisabledException;
 import com.fluxpay.exception.KycException;
+import com.fluxpay.repository.ComplianceCaseRepository;
 import com.fluxpay.repository.KycCaseRepository;
 import com.fluxpay.repository.KycDocumentRepository;
 import com.fluxpay.repository.LedgerEntryRepository;
@@ -29,13 +29,15 @@ import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.PolicyChunkRepository;
+import com.fluxpay.repository.PolicyDocumentRepository;
 import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
+import com.fluxpay.service.AmountComplianceAssessor;
 import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.KycService;
-import com.fluxpay.service.UnavailableComplianceAssessor;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -44,7 +46,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -61,7 +62,17 @@ class DevelopmentDefaultsTest {
       "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
       "spring.kafka.listener.auto-startup=false",
       "fluxpay.fx-provider-url=https://fx.invalid/latest",
-      "fluxpay.jwt-secret=default-context-test-secret-at-least-thirty-two-bytes"
+      "fluxpay.jwt-secret=default-context-test-secret-at-least-thirty-two-bytes",
+      "fluxpay.compliance.review-thresholds.USD=10000",
+      "fluxpay.vector.ollama-base-url=http://127.0.0.1:11434",
+      "fluxpay.vector.embedding-model=qwen3-embedding:4b",
+      "fluxpay.vector.dimensions=1536",
+      "fluxpay.vector.embedding-space-id=ollama/qwen3-embedding:4b/1536",
+      "fluxpay.vector.chunker-version=m5-sentence-v1",
+      "fluxpay.copilot.chat-model=qwen3:4b",
+      "fluxpay.copilot.chat-temperature=0.2",
+      "fluxpay.copilot.max-distance=0.65",
+      "fluxpay.copilot.chat-timeout-seconds=90"
     };
     String[] combined = new String[defaults.length + properties.length];
     System.arraycopy(defaults, 0, combined, 0, defaults.length);
@@ -76,6 +87,10 @@ class DevelopmentDefaultsTest {
                 () -> mock(org.springframework.transaction.PlatformTransactionManager.class))
             .withBean(
                 NamedParameterJdbcTemplate.class, () -> mock(NamedParameterJdbcTemplate.class));
+    base =
+        base.withBean(
+            org.springframework.jdbc.core.JdbcTemplate.class,
+            () -> mock(org.springframework.jdbc.core.JdbcTemplate.class));
     for (Class repository :
         new Class<?>[] {
           WalletRepository.class,
@@ -92,7 +107,10 @@ class DevelopmentDefaultsTest {
           OutboxDeliveryRepository.class,
           LedgerEntryRepository.class,
           KycDocumentRepository.class,
-          KycCaseRepository.class
+          KycCaseRepository.class,
+          ComplianceCaseRepository.class,
+          PolicyDocumentRepository.class,
+          PolicyChunkRepository.class
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }
@@ -124,21 +142,7 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
               assertThat(context.getBeansOfType(ComplianceAssessor.class)).hasSize(1);
               assertThat(context.getBean(ComplianceAssessor.class))
-                  .isInstanceOf(UnavailableComplianceAssessor.class);
-
-              // Disabled compliance fails honestly with 503.
-              assertThatThrownBy(
-                      () ->
-                          context
-                              .getBean(ComplianceAssessor.class)
-                              .assess(
-                                  UUID.randomUUID(), new java.math.BigDecimal("10.0000"), "USD"))
-                  .isInstanceOfSatisfying(
-                      BusinessException.class,
-                      error -> {
-                        assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-                        assertThat(error.code()).isEqualTo("COMPLIANCE_UNAVAILABLE");
-                      });
+                  .isInstanceOf(AmountComplianceAssessor.class);
 
               // Missing KYC storage fails honestly with 503 before claiming an upload.
               KycService kyc = context.getBean(KycService.class);
