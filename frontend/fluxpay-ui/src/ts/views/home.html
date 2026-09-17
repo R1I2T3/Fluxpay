@@ -1,0 +1,362 @@
+<div class="fp-landing" data-bind="css:{'motion-paused':motionPaused}">
+  <section class="lp-hero-scroll" aria-labelledby="landing-title">
+    <div class="lp-hero-stage">
+      <div
+        class="lp-hero-image"
+        role="img"
+        aria-label="A new perspective beneath a bright blue sky"
+      ></div>
+      <div class="lp-hero-shade"></div>
+      <div class="lp-hero-copy">
+        <h1 id="landing-title">Money &amp; beyond.</h1>
+        <p>
+          This is your money, reimagined. Everyday<br class="lp-desktop" />
+          balances and global possibilities.<br class="lp-desktop" />
+          All in one place.
+        </p>
+        <a class="lp-button lp-button-white" href="?ojr=register" data-route="register"
+          >Make your move</a
+        >
+      </div>
+      <div class="lp-hero-next">
+        <h2>Your everyday,<br />reimagined.</h2>
+        <p>
+          Hold, exchange, and send. Make room for more<br class="lp-desktop" />
+          with your multi-currency FluxPay account.
+        </p>
+        <a class="lp-button lp-button-white" href="?ojr=wallets" data-route="wallets"
+          >Discover your account</a
+        >
+      </div>
+      <div class="lp-glass-account" aria-label="Illustrative account preview">
+        <span>Personal · USD</span><strong>$6,012<span>.00</span></strong>
+        <a class="lp-button lp-button-white lp-small" href="?ojr=wallets" data-route="wallets"
+          >Accounts</a
+        >
+        <div class="lp-glass-actions" aria-hidden="true">
+          <span>＋</span><span>⇄</span><span>↗</span><span>···</span>
+        </div>
+        <div class="lp-glass-bottom"><span>🇺🇸 USD</span><span>🇪🇺 EUR</span><span>🇮🇳 INR</span></div>
+        <small>Product illustration · not your balance</small>
+      </div>
+      <div class="lp-hero-bottom">
+        <span>YOUR WORLD. WIDE OPEN.</span
+        ><a href="#possibilities" aria-label="Explore the homepage">↓</a
+        ><span>SCROLL TO EXPLORE</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-proof" id="possibilities" aria-labelledby="proof-title">
+    <h2 id="proof-title" data-reveal>A world of money.<br />One place to make it yours.</h2>
+    <div class="lp-proof-grid" data-reveal>
+      <div>
+        <span class="lp-proof-icon">＄ € ₹</span><strong>Three currencies</strong>
+        <p>USD, EUR, and INR.<br />Ready for your everyday.</p>
+      </div>
+      <div>
+        <span class="lp-proof-icon">⇄</span><strong>Exchange with clarity</strong>
+        <p>Check a live rate.<br />Know your next move.</p>
+      </div>
+      <div>
+        <span class="lp-proof-icon">↗</span><strong>Your route, your choice</strong>
+        <p>Compare transfer quotes.<br />Choose what works for you.</p>
+      </div>
+      <div>
+        <span class="lp-proof-icon">⌁</span><strong>Every step in sight</strong>
+        <p>From confirmation to payout.<br />Follow your transfer.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-life lp-full-scene" aria-labelledby="life-title">
+    <div class="lp-scene-media" aria-hidden="true">
+      <video
+        class="lp-film active"
+        data-src="css/media/wallet-possibility-loop.mp4"
+        poster="css/media/wallet-possibility-loop.jpg"
+        muted
+        loop
+        playsinline
+        preload="none"
+      ></video>
+    </div>
+    <div class="lp-scene-scrim"></div>
+    <div class="lp-section-copy lp-light" data-reveal>
+      <h2 id="life-title">Life, meets possibility.</h2>
+      <p>
+        For the places you’re going. And the people who matter.<br class="lp-desktop" />
+        Take your money further, with FluxPay.
+      </p>
+      <a class="lp-button lp-button-white" href="?ojr=payments-new" data-route="payments-new"
+        >Explore global transfers</a
+      >
+    </div>
+    <div
+      class="lp-destination"
+      id="scene-description"
+      role="tabpanel"
+      data-bind="attr:{'aria-labelledby':'scene-tab-'+scene()}"
+    >
+      <span data-bind="text:sceneCaption"></span><strong data-bind="text:sceneTitle"></strong>
+      <div aria-hidden="true"><span>🇺🇸</span><i>⇄</i><span>🇪🇺</span><i>⇄</i><span>🇮🇳</span></div>
+      <a href="?ojr=wallets" data-route="wallets" class="lp-button lp-button-white lp-small"
+        >Your wallets</a
+      >
+    </div>
+    <div class="lp-scene-tabs" role="tablist" aria-label="Explore life with FluxPay">
+      <button
+        id="scene-tab-0"
+        role="tab"
+        aria-controls="scene-description"
+        data-bind="click:function(){selectScene(0)},event:{keydown:sceneKey},attr:{'aria-selected':scene()===0,tabindex:scene()===0?0:-1}"
+      >
+        Adventure
+      </button>
+      <button
+        id="scene-tab-1"
+        role="tab"
+        aria-controls="scene-description"
+        data-bind="click:function(){selectScene(1)},event:{keydown:sceneKey},attr:{'aria-selected':scene()===1,tabindex:scene()===1?0:-1}"
+      >
+        A little freedom
+      </button>
+      <button
+        id="scene-tab-2"
+        role="tab"
+        aria-controls="scene-description"
+        data-bind="click:function(){selectScene(2)},event:{keydown:sceneKey},attr:{'aria-selected':scene()===2,tabindex:scene()===2?0:-1}"
+      >
+        Everyday life
+      </button>
+    </div>
+    <span class="lp-film-note">Your next chapter starts here.</span>
+  </section>
+
+  <section
+    class="lp-wallet-showcase lp-dark-scene"
+    aria-labelledby="wallet-showcase-title"
+    data-bind="attr:{'data-currency':showcaseCurrency}"
+  >
+    <div class="lp-section-copy lp-light" data-reveal>
+      <h2 id="wallet-showcase-title">Elevate your everyday.</h2>
+      <p>
+        Three currencies. One beautifully simple account.<br class="lp-desktop" />
+        Keep your balances together, and your options open.
+      </p>
+      <a class="lp-button lp-button-white" href="?ojr=wallets" data-route="wallets"
+        >Meet your wallets</a
+      >
+    </div>
+    <div class="lp-wallet-stage" aria-label="Illustrative currency wallets">
+      <div class="lp-wallet-halo"></div>
+      <div class="lp-metal-card lp-card-back" aria-hidden="true">
+        <span>FluxPay</span><i>✦</i><small>MONEY WITHOUT BORDERS</small>
+      </div>
+      <div class="lp-metal-card lp-card-front">
+        <span>FluxPay<b data-bind="text:showcaseCurrency"></b></span>
+        <div class="lp-card-chip" aria-hidden="true">▥</div>
+        <strong data-bind="text:currencySymbol" aria-hidden="true"></strong
+        ><small>MULTI-CURRENCY WALLET</small><i aria-hidden="true">✦</i>
+      </div>
+      <div class="lp-card-reflection" aria-hidden="true"></div>
+    </div>
+    <div class="lp-wallet-tabs" role="group" aria-label="Preview a currency wallet">
+      <button
+        data-bind="click:function(){showcaseCurrency('USD')},attr:{'aria-pressed':showcaseCurrency()==='USD'}"
+      >
+        US dollar</button
+      ><button
+        data-bind="click:function(){showcaseCurrency('EUR')},attr:{'aria-pressed':showcaseCurrency()==='EUR'}"
+      >
+        Euro</button
+      ><button
+        data-bind="click:function(){showcaseCurrency('INR')},attr:{'aria-pressed':showcaseCurrency()==='INR'}"
+      >
+        Indian rupee
+      </button>
+    </div>
+    <p class="lp-fine-print">
+      Wallet illustration. FluxPay does not issue physical or virtual payment cards.
+    </p>
+  </section>
+
+  <section class="lp-transfer-showcase lp-dark-scene" aria-labelledby="transfer-showcase-title">
+    <div class="lp-section-copy lp-light" data-reveal>
+      <h2 id="transfer-showcase-title">A great move.<br />From start to finish.</h2>
+      <p>
+        Compare routes. Choose your quote. Follow the journey.<br class="lp-desktop" />
+        International transfers, with a clearer view.
+      </p>
+      <a class="lp-button lp-button-white" href="?ojr=payments-new" data-route="payments-new"
+        >Find your next route</a
+      >
+    </div>
+    <figure class="lp-wallet-film-frame" id="wallet-film" data-reveal>
+      <video
+        class="lp-wallet-film"
+        data-src="css/media/cross-border-wallet.mp4"
+        data-mobile-src="css/media/cross-border-wallet-mobile.mp4"
+        poster="css/media/cross-border-wallet.jpg"
+        data-mobile-poster="css/media/cross-border-wallet-mobile.jpg"
+        muted
+        loop
+        playsinline
+        preload="none"
+        aria-label="FluxPay cross-border wallets: choose a currency, compare routes, and track your transfer"
+        aria-describedby="wallet-film-caption"
+      ></video>
+      <figcaption id="wallet-film-caption">
+        <div>
+          <strong>Your money, in motion.</strong
+          ><span>Choose your wallet. Compare your routes. Follow your transfer.</span>
+        </div>
+        <button
+          type="button"
+          class="lp-film-play"
+          data-bind="click:toggleMotion,attr:{'aria-label':motionPaused()?'Play wallet film':'Pause wallet film','aria-pressed':!motionPaused()}"
+        >
+          <span aria-hidden="true" data-bind="text:motionPaused()?'▶':'Ⅱ'"></span
+          ><span data-bind="text:motionPaused()?'Play film':'Pause film'"></span>
+        </button>
+      </figcaption>
+    </figure>
+    <div class="lp-film-links">
+      <span>12-second FluxPay film · silent · illustrative flow</span
+      ><a href="?ojr=tracking" data-route="tracking">Track your transfer ↗</a>
+    </div>
+  </section>
+
+  <section class="lp-security" aria-labelledby="security-title">
+    <div class="lp-section-copy" data-reveal>
+      <h2 id="security-title">Your money’s<br />clearer space.</h2>
+      <p>
+        Identity verification. Transparent quotes. An auditable history.<br class="lp-desktop" />
+        More visibility, from your first move to your next.
+      </p>
+      <a class="lp-button lp-button-blue" href="?ojr=kyc" data-route="kyc">Explore verification</a>
+    </div>
+    <div class="lp-security-art" aria-hidden="true">
+      <div class="lp-security-ring ring-one"></div>
+      <div class="lp-security-ring ring-two"></div>
+      <div class="lp-security-ring ring-three"></div>
+      <div class="lp-shield">
+        <svg viewBox="0 0 140 165">
+          <defs>
+            <linearGradient id="shield-silver" x1="0" y1="0" x2="1" y2="1">
+              <stop stop-color="#fff" />
+              <stop offset=".45" stop-color="#c9d8e8" />
+              <stop offset=".7" stop-color="#f9fcff" />
+              <stop offset="1" stop-color="#8aabc9" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M70 8 130 30v53c0 36-29 59-60 74C39 142 10 119 10 83V30Z"
+            fill="url(#shield-silver)"
+            stroke="#ffffff"
+            stroke-width="2"
+          />
+          <path
+            d="m43 81 18 18 37-42"
+            fill="none"
+            stroke="#64819f"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="9"
+          />
+        </svg>
+      </div>
+      <span class="lp-orbit-label label-one">◇ Identity verified</span
+      ><span class="lp-orbit-label label-two">⌁ Traceable transfers</span>
+    </div>
+  </section>
+
+  <section class="lp-explore" aria-labelledby="explore-title">
+    <div class="lp-section-copy" data-reveal>
+      <h2 id="explore-title">All the ways to move.</h2>
+      <p>A little less friction. A lot more possibility.</p>
+    </div>
+    <div class="lp-explore-grid">
+      <a class="lp-explore-card" href="?ojr=wallets" data-route="wallets" data-reveal
+        ><span class="lp-explore-number">01</span>
+        <h3>Your money.<br />In good company.</h3>
+        <p>USD, EUR, and INR wallets.<br />One view of what’s yours.</p>
+        <span class="lp-explore-art">＄ € ₹</span
+        ><span class="lp-explore-link">Explore wallets <i>↗</i></span></a
+      >
+      <a class="lp-explore-card" href="?ojr=recipients" data-route="recipients" data-reveal
+        ><span class="lp-explore-number">02</span>
+        <h3>Keep your<br />people close.</h3>
+        <p>Save recipient details.<br />Be ready for the next transfer.</p>
+        <span class="lp-people-art" aria-hidden="true"><b>↗</b><b>♡</b><b>◎</b></span
+        ><span class="lp-explore-link">Meet your recipients <i>↗</i></span></a
+      >
+      <a class="lp-explore-card" href="?ojr=payments-list" data-route="payments-list" data-reveal
+        ><span class="lp-explore-number">03</span>
+        <h3>Every move.<br />All together.</h3>
+        <p>Find your transfers.<br />Pick up where you left off.</p>
+        <span class="lp-history-art" aria-hidden="true"><i></i><i></i><i></i></span
+        ><span class="lp-explore-link">See your activity <i>↗</i></span></a
+      >
+    </div>
+  </section>
+  <section class="lp-ending lp-full-scene" aria-labelledby="journey-title">
+    <video
+      class="lp-ending-film"
+      data-src="css/media/wallet-journey-loop.mp4"
+      poster="css/media/wallet-journey-loop.jpg"
+      muted
+      loop
+      playsinline
+      preload="none"
+      aria-hidden="true"
+    ></video>
+    <div class="lp-ending-shade"></div>
+    <div data-reveal>
+      <h2 id="journey-title">Go where<br />life takes you.</h2>
+      <a class="lp-button lp-button-white" href="?ojr=register" data-route="register"
+        >Get started with FluxPay</a
+      >
+    </div>
+  </section>
+  <footer class="lp-footer">
+    <div class="lp-footer-top">
+      <a class="lp-footer-brand" href="?ojr=home" data-route="home">FluxPay<span>✦</span></a>
+      <p>Your world. Your money.</p>
+    </div>
+    <div class="lp-footer-links">
+      <div>
+        <h3>Everyday money</h3>
+        <a href="?ojr=dashboard" data-route="dashboard">Your overview</a
+        ><a href="?ojr=wallets" data-route="wallets">Wallets &amp; exchange</a
+        ><a href="?ojr=account" data-route="account">Your account</a>
+      </div>
+      <div>
+        <h3>Global transfers</h3>
+        <a href="?ojr=payments-new" data-route="payments-new">Send money</a
+        ><a href="?ojr=recipients" data-route="recipients">Your recipients</a
+        ><a href="?ojr=payments-list" data-route="payments-list">Transactions</a>
+      </div>
+      <div>
+        <h3>Stay in control</h3>
+        <a href="?ojr=tracking" data-route="tracking">Track a transfer</a
+        ><a href="?ojr=kyc" data-route="kyc">Identity verification</a
+        ><a href="?ojr=login" data-route="login">Log in</a>
+      </div>
+    </div>
+    <div class="lp-footer-bottom">
+      <span>© 2026 FluxPay</span><span>USD · EUR · INR</span
+      ><small
+        >Product previews are illustrative. Actual rates, fees, and availability are shown in your
+        account.</small
+      >
+    </div>
+  </footer>
+  <button
+    class="lp-motion-toggle"
+    data-bind="click:toggleMotion,attr:{'aria-pressed':motionPaused,'aria-label':motionPaused()?'Play page animations':'Pause page animations'}"
+  >
+    <span aria-hidden="true" data-bind="text:motionPaused()?'▶':'Ⅱ'"></span
+    ><span data-bind="text:motionPaused()?'Play motion':'Pause motion'"></span>
+  </button>
+</div>

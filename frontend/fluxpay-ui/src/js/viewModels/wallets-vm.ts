@@ -1,6 +1,3 @@
-import { api } from '../services/api-client';
-export class WalletsViewModel {
-  constructor() {
-    void api;
-  }
-}
+import * as ko from 'knockout'; import { flux } from '../services/api-client';
+export class WalletsViewModel { wallets=ko.observableArray<any>([]); ledger=ko.observableArray<any>([]); selected=ko.observable('');fundCurrency=ko.observable('USD');fundAmount=ko.observable(500);from=ko.observable('USD');to=ko.observable('INR');convertAmount=ko.observable(100);rate=ko.observable<any>();notice=ko.observable('');error=ko.observable('');busy=ko.observable(false);constructor(){void this.load();}async load(){this.busy(true);try{this.wallets(await flux.wallets());await this.refreshRate();}catch(e:any){this.error(e.message);}finally{this.busy(false);}}async showLedger(w:any){this.selected(w.walletId);try{this.ledger((await flux.ledger(w.walletId)).entries||[]);}catch(e:any){this.error(e.message);}}async fund(){try{const r=await flux.fund({currency:this.fundCurrency(),amount:Number(this.fundAmount()).toFixed(4)});this.notice(`Funds received in ${r.currency} wallet.`);await this.load();}catch(e:any){this.error(e.message);}}async refreshRate(){try{this.rate(await flux.rate(this.from(),this.to()));}catch(e:any){this.error(e.message);}}async convert(){try{const r=await flux.convert({from:this.from(),to:this.to(),amount:Number(this.convertAmount()).toFixed(4)});this.notice(`${r.creditedAmount} ${r.to} credited at ${r.rate}.`);await this.load();}catch(e:any){this.error(e.message);}} }
+export default new WalletsViewModel();

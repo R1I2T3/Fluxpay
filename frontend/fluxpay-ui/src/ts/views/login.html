@@ -1,0 +1,136 @@
+<section class="fp-auth fp-auth-login" aria-labelledby="auth-title">
+  <aside class="fa-story" aria-label="Your world, connected">
+    <video
+      class="fa-film"
+      data-src="css/media/wallet-possibility-loop.mp4"
+      poster="css/media/wallet-possibility-loop.jpg"
+      muted
+      loop
+      playsinline
+      preload="none"
+      aria-hidden="true"
+    ></video>
+    <div class="fa-story-shade"></div>
+    <div class="fa-story-copy">
+      <span class="fa-kicker"
+        ><span class="fa-spark" aria-hidden="true">✦</span> YOUR WORLD, CONNECTED</span
+      >
+      <h2>A little closer.<br />A lot more<br />possible.</h2>
+      <p>Across currencies. Across borders.<br />Right where you left off.</p>
+    </div>
+    <div class="fa-wallet-preview" aria-hidden="true">
+      <div class="fa-preview-top"><span>One place. More possibilities.</span><span>↗</span></div>
+      <div class="fa-currencies">
+        <span><i>$</i>USD</span><b>⇄</b><span><i>€</i>EUR</span><b>⇄</b><span><i>₹</i>INR</span>
+      </div>
+      <div class="fa-preview-bottom">
+        <span>Hold. Exchange. Send.</span><small>Wallet illustration</small>
+      </div>
+    </div>
+    <div class="fa-story-footer">
+      <span>YOUR MONEY. WITHOUT BORDERS.</span
+      ><button
+        class="fa-motion"
+        type="button"
+        data-bind="click:toggleMotion, attr:{'aria-label':motionPaused() ? 'Play background animation' : 'Pause background animation', 'aria-pressed':motionPaused}"
+      >
+        <span aria-hidden="true" data-bind="text:motionPaused() ? '▷' : 'Ⅱ'"></span
+        ><span data-bind="text:motionPaused() ? 'Play' : 'Pause'"></span>
+      </button>
+    </div>
+  </aside>
+  <div class="fa-form-side">
+    <div class="fa-form-inner">
+      <nav class="fa-switcher" aria-label="Account access">
+        <a href="?ojr=login" data-route="login" aria-current="page">Log in</a
+        ><a href="?ojr=register" data-route="register">Sign up</a>
+      </nav>
+      <div class="fa-intro">
+        <span class="fa-form-icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="5" y="10" width="14" height="11" rx="3" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></svg></span
+        ><span class="fa-eyebrow">GOOD TO SEE YOU AGAIN</span>
+        <h1 id="auth-title">Welcome back.</h1>
+        <p>Your world of money, all in one place.<br />Log in to make your next move.</p>
+      </div>
+      <div class="alert error fa-alert" role="alert" data-bind="visible:error">
+        <span aria-hidden="true">!</span>
+        <p data-bind="text:error"></p>
+      </div>
+      <div class="alert success fa-alert" role="status" data-bind="visible:notice">
+        <span aria-hidden="true">✓</span>
+        <p data-bind="text:notice"></p>
+      </div>
+      <form class="fa-form" data-bind="submit:signIn,attr:{'aria-busy':busy}">
+        <fieldset data-bind="disable:busy">
+          <legend class="fa-sr-only">Log in to your FluxPay account</legend>
+          <div class="fa-field">
+            <label for="login-email">Email address</label
+            ><input
+              id="login-email"
+              type="email"
+              name="email"
+              autocomplete="username"
+              inputmode="email"
+              autocapitalize="none"
+              spellcheck="false"
+              required
+              maxlength="255"
+              placeholder="you@example.com"
+              data-bind="textInput:email"
+            />
+          </div>
+          <div class="fa-field">
+            <label for="login-password">Password</label>
+            <div class="fa-password">
+              <input
+                id="login-password"
+                type="password"
+                name="password"
+                autocomplete="current-password"
+                required
+                placeholder="Enter your password"
+                data-bind="textInput:password,attr:{type:passwordVisible() ? 'text' : 'password'}"
+              /><button
+                class="fa-password-toggle"
+                type="button"
+                aria-controls="login-password"
+                data-bind="click:togglePassword,attr:{'aria-label':passwordVisible() ? 'Hide password' : 'Show password','aria-pressed':passwordVisible},text:passwordVisible() ? 'Hide' : 'Show'"
+              ></button>
+            </div>
+          </div>
+          <button class="fa-submit" type="submit" data-bind="disable:busy">
+            <span class="fa-spinner" aria-hidden="true" data-bind="visible:busy"></span
+            ><span data-bind="text:busy() ? 'Logging in…' : 'Log in'"></span
+            ><span class="fa-submit-arrow" aria-hidden="true" data-bind="visible:!busy()">↗</span>
+          </button>
+        </fieldset>
+      </form>
+      <p class="fa-other">
+        New here?
+        <a href="?ojr=register" data-route="register"
+          >Create your account <span aria-hidden="true">→</span></a
+        >
+      </p>
+      <div class="fa-reassurance">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="m12 3 8 3v5c0 5-8 10-8 10S4 16 4 11V6l8-3Z" />
+          <path d="m8 12 3 3 5-6" />
+        </svg>
+        <p>
+          Your account. Your control.<span>Access your wallets and follow every transfer.</span>
+        </p>
+      </div>
+      <a class="fa-back" href="?ojr=home" data-route="home"
+        ><span aria-hidden="true">←</span> Back to FluxPay</a
+      >
+    </div>
+  </div>
+</section>

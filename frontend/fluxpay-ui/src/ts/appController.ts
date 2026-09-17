@@ -1,152 +1,62 @@
-/**
- * @license
- * Copyright (c) 2014, 2024, Oracle and/or its affiliates.
- * Licensed under The Universal Permissive License (UPL), Version 1.0
- * as shown at https://oss.oracle.com/licenses/upl/
- * @ignore
- */
 import * as ko from 'knockout';
-import * as ModuleUtils from 'ojs/ojmodule-element-utils';
-import * as ResponsiveUtils from 'ojs/ojresponsiveutils';
-import * as ResponsiveKnockoutUtils from 'ojs/ojresponsiveknockoututils';
 import CoreRouter = require('ojs/ojcorerouter');
 import ModuleRouterAdapter = require('ojs/ojmodulerouter-adapter');
 import KnockoutRouterAdapter = require('ojs/ojknockoutrouteradapter');
 import UrlParamAdapter = require('ojs/ojurlparamadapter');
-import ArrayDataProvider = require('ojs/ojarraydataprovider');
-import 'ojs/ojknockout';
-import 'ojs/ojmodule-element';
-import { ojNavigationList } from 'ojs/ojnavigationlist';
-import { ojModule } from 'ojs/ojmodule-element';
 import Context = require('ojs/ojcontext');
-import 'ojs/ojdrawerpopup';
-
-interface CoreRouterDetail {
-  label: string;
-  iconClass: string;
-}
+import 'ojs/ojmodule-element';
+import { session, navigate } from './services/session';
 
 class RootViewModel {
-  manner: ko.Observable<string>;
-  message: ko.Observable<string | undefined>;
-  smScreen: ko.Observable<boolean> | undefined;
-  mdScreen: ko.Observable<boolean> | undefined;
-  router: CoreRouter<CoreRouterDetail> | undefined;
-  moduleAdapter: ModuleRouterAdapter<CoreRouterDetail>;
-  sideDrawerOn: ko.Observable<boolean>;
-  navDataProvider: ojNavigationList<string, CoreRouter.CoreRouterState<CoreRouterDetail>>['data'];
-  appName: ko.Observable<string>;
-  userLogin: ko.Observable<string>;
-  footerLinks: Array<object>;
-  selection: KnockoutRouterAdapter<CoreRouterDetail>;
-
-  constructor() {
-    // handle announcements sent when pages change, for Accessibility.
-    this.manner = ko.observable('polite');
-    this.message = ko.observable();
-
-    let globalBodyElement: HTMLElement = document.getElementById('globalBody') as HTMLElement;
-    globalBodyElement.addEventListener('announce', this.announcementHandler, false);
-
-    // media queries for responsive layouts
-    let smQuery: string | null = ResponsiveUtils.getFrameworkQuery('sm-only');
-    if (smQuery) {
-      this.smScreen = ResponsiveKnockoutUtils.createMediaQueryObservable(smQuery);
-    }
-
-    let mdQuery: string | null = ResponsiveUtils.getFrameworkQuery('md-up');
-    if (mdQuery) {
-      this.mdScreen = ResponsiveKnockoutUtils.createMediaQueryObservable(mdQuery);
-    }
-
-    const navData = [
-      { path: '', redirect: 'dashboard' },
-      { path: 'dashboard', detail: { label: 'Dashboard', iconClass: 'oj-ux-ico-bar-chart' } },
-      { path: 'recipients', detail: { label: 'Recipients', iconClass: 'oj-ux-ico-contact-group' } },
-      { path: 'payments-new', detail: { label: 'Send Money', iconClass: 'oj-ux-ico-send' } },
-      { path: 'payments-list', detail: { label: 'Payments', iconClass: 'oj-ux-ico-list' } },
-      { path: 'payment-quotes', detail: { label: 'Quotes', iconClass: 'oj-ux-ico-compare' } },
-    ];
-    // router setup
-    const router = new CoreRouter(navData, {
-      urlAdapter: new UrlParamAdapter(),
+  session = session;
+  menuOpen = ko.observable(false);
+  message = ko.observable('');
+  nav = [
+    {path:'dashboard',label:'Overview',icon:'◫'}, {path:'wallets',label:'Wallets & exchange',icon:'◉'},
+    {path:'payments-new',label:'Send money',icon:'↗'}, {path:'payments-list',label:'Transactions',icon:'⇄'},
+    {path:'recipients',label:'Recipients',icon:'◎'}, {path:'tracking',label:'Track a transfer',icon:'⌁'},
+    {path:'kyc',label:'Verification',icon:'◇'}, {path:'account',label:'My account',icon:'○'},
+    {path:'admin',label:'Administration',icon:'⊞'}
+  ];
+  router: CoreRouter<any>;
+  moduleAdapter: ModuleRouterAdapter<any>;
+  selection: KnockoutRouterAdapter<any>;
+  isHome: ko.PureComputed<boolean>;
+  isPublic: ko.PureComputed<boolean>;
+  isAdminWorkspace: ko.PureComputed<boolean>;
+  accountPath = ko.pureComputed(()=>session.isAdmin()?'admin':'dashboard');
+  visibleNav = ko.pureComputed(()=>this.nav.filter(n=>session.isAdmin()?n.path==='admin':n.path!=='admin'));
+  constructor(){
+    const routes = [{path:'',redirect:'home'}, ...['home','login','register',...this.nav.map(n=>n.path)].map(path=>({path,detail:{label:path}}))];
+    this.router = new CoreRouter(routes,{urlAdapter:new UrlParamAdapter()});
+    this.moduleAdapter = new ModuleRouterAdapter(this.router);
+    this.selection = new KnockoutRouterAdapter(this.router);
+    this.isHome = ko.pureComputed(()=>this.selection.path()==='home');
+    this.isPublic = ko.pureComputed(()=>['home','login','register',''].includes(this.selection.path()||''));
+    this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||this.selection.path()==='admin'));
+    this.selection.path.subscribe(()=>{this.menuOpen(false);window.scrollTo({top:0});});
+    window.addEventListener('fluxpay:navigate', (event:any)=> {
+      const {path,params} = event.detail;
+      // Existing login and account links request dashboard; admins land in Administration.
+      const destination=path==='dashboard'?this.accountPath():path;
+      void this.router.go({path:destination,params:destination===path?(params||{}):{}}).catch(e=>this.message(e.message));
     });
-    router.sync();
-
-    this.moduleAdapter = new ModuleRouterAdapter(router);
-
-    this.selection = new KnockoutRouterAdapter(router);
-
-    // Setup the navDataProvider with the routes, excluding the first redirected
-    // route.
-    this.navDataProvider = new ArrayDataProvider(navData.slice(1), { keyAttributes: 'path' });
-
-    // drawer
-    this.sideDrawerOn = ko.observable(false);
-
-    // close drawer on medium and larger screens
-    this.mdScreen?.subscribe(() => {
-      this.sideDrawerOn(false);
+    // Support old bookmarks and all in-page links through the same router.
+    const fromHash=()=>{const hash=location.hash.slice(1);if(hash){const [path,query]=hash.split('?');if(routes.some(r=>r.path===path)){const params:Record<string,string>={};new URLSearchParams(query||'').forEach((value,key)=>params[key]=value);navigate(path,params);history.replaceState(null,'',location.pathname+location.search);}}};
+    window.addEventListener('hashchange',fromHash);
+    const initialRoute=this.router.sync().then(fromHash).catch(()=>navigate('home'));
+    document.addEventListener('click', event=>{
+      const link=(event.target as Element).closest('a[data-route]') as HTMLAnchorElement;
+      if(link && !(event as MouseEvent).ctrlKey && !(event as MouseEvent).metaKey){event.preventDefault();navigate(link.dataset.route!);}
     });
-
-    // header
-
-    // application Name used in Branding Area
-    this.appName = ko.observable('App Name');
-    // user Info used in Global Navigation area
-
-    this.userLogin = ko.observable('john.hancock@oracle.com');
-    // footer
-    this.footerLinks = [
-      {
-        name: 'About Oracle',
-        linkId: 'aboutOracle',
-        linkTarget: 'http://www.oracle.com/us/corporate/index.html#menu-about',
-      },
-      {
-        name: 'Contact Us',
-        id: 'contactUs',
-        linkTarget: 'http://www.oracle.com/us/corporate/contact/index.html',
-      },
-      {
-        name: 'Legal Notices',
-        id: 'legalNotices',
-        linkTarget: 'http://www.oracle.com/us/legal/index.html',
-      },
-      {
-        name: 'Terms Of Use',
-        id: 'termsOfUse',
-        linkTarget: 'http://www.oracle.com/us/legal/terms/index.html',
-      },
-      {
-        name: 'Your Privacy Rights',
-        id: 'yourPrivacyRights',
-        linkTarget: 'http://www.oracle.com/us/legal/privacy/index.html',
-      },
-    ];
-    // release the application bootstrap busy state
+    // Also handle a saved dashboard URL after the user's role has been restored.
+    void Promise.all([initialRoute,session.restore()]).then(()=>{
+      if(session.isAdmin()&&this.selection.path()==='dashboard')navigate('admin');
+    });
     Context.getPageContext().getBusyContext().applicationBootstrapComplete();
   }
-
-  announcementHandler = (event: any): void => {
-    this.message(event.detail.message);
-    this.manner(event.detail.manner);
-  };
-
-  // called by navigation drawer toggle button and after selection of nav drawer item
-  toggleDrawer = (): void => {
-    this.sideDrawerOn(!this.sideDrawerOn());
-  };
-
-  // a close listener so we can move focus back to the toggle button when the drawer closes
-  openedChangedHandler = (event: CustomEvent): void => {
-    if (event.detail.value === false) {
-      const drawerToggleButtonElement = document.querySelector(
-        '#drawerToggleButton',
-      ) as HTMLElement;
-      drawerToggleButtonElement.focus();
-    }
-  };
+  go = (item:any)=>navigate(item.path);
+  toggleMenu = ()=>this.menuOpen(!this.menuOpen());
+  logout = ()=>{session.clear();navigate('home');};
 }
-
 export default new RootViewModel();

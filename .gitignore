@@ -8,3 +8,4 @@ __pycache__/
 .npm-cache/
 .maven-repo/
 .worktrees/
+.video-tools/
