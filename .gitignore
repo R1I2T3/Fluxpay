@@ -1,4 +1,5 @@
 target/
+.m2/
 node_modules/
 .env
 *.log
@@ -9,3 +10,4 @@ __pycache__/
 .maven-repo/
 .worktrees/
 .video-tools/
+.m2-verification/

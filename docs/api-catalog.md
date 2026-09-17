@@ -1,6 +1,6 @@
 # FluxPay Bruno API Catalog
 
-This catalog documents all 32 HTTP API endpoints exposed by the FluxPay backend.
+This catalog documents all 46 HTTP API endpoints exposed by the FluxPay backend.
 
 ## Bruno setup
 
@@ -12,11 +12,11 @@ This catalog documents all 32 HTTP API endpoints exposed by the FluxPay backend.
 | Admin header | `Authorization: Bearer {{adminToken}}` |
 | JSON header | `Content-Type: application/json` |
 | Optional tracing header | `X-Correlation-ID: bruno-test-001` |
-| Required mutation header | `Idempotency-Key: {{$guid}}` |
+| Required wallet/payment mutation header | `Idempotency-Key: {{$guid}}` |
 | Swagger UI | `http://localhost:8080/swagger-ui.html` |
 | OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
 
-Store the login response token as the Bruno environment variable `token`. Store IDs returned by earlier requests as `walletId`, `recipientId`, `paymentId`, `quoteId`, `routeId`, and `kycApplicationId`.
+Store the login response token as the Bruno environment variable `token`. Store IDs returned by earlier requests as `walletId`, `recipientId`, `paymentId`, `quoteId`, `routeId`, `kycApplicationId`, `policyDocumentId`, and `complianceCaseId`.
 
 Successful responses normally use this envelope:
 
@@ -110,6 +110,45 @@ Seeded route codes are `STANDARD_BANK`, `INSTANT_PAYOUT`, and `LOCAL_PARTNER`.
 | 31 | `POST {{baseUrl}}/api/payments/{{paymentId}}/refund` | Bearer + Idempotency-Key; owner only | No body | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","eventId":"<event-uuid>","idempotentReplay":false}}` |
 | 32 | `GET {{baseUrl}}/api/payments/{{paymentId}}/timeline` | Bearer token; owner only | None | **200** `{"correlationId":"...","data":[{"eventId":"<event-uuid>","paymentId":"<payment-uuid>","eventType":"payment.initiated","kafkaTopic":"payment.initiated","correlationId":"bruno-test-001","payload":{"schemaVersion":1,"aggregateSequence":1},"occurredAt":"2026-09-15T10:00:00Z"}]}` |
 
+## Policy APIs
+
+| # | Method and URL | Auth / headers | Request body | Status and sample output |
+|---:|---|---|---|---|
+| 33 | `POST {{baseUrl}}/api/policies` | Bearer token | `{"title":"High-value payment review","category":"PAYMENT_REVIEW","content":"Payments above the configured threshold require compliance review."}` | **201** `{"correlationId":"...","data":{"id":"<policy-uuid>","title":"High-value payment review","category":"PAYMENT_REVIEW","content":"Payments above the configured threshold require compliance review.","documentHash":"<sha-256>","createdAt":"2026-09-15T10:00:00Z","chunks":[]}}` |
+| 34 | `GET {{baseUrl}}/api/policies` | Bearer token | None | **200** `{"correlationId":"...","data":[{"id":"<policy-uuid>","title":"High-value payment review","category":"PAYMENT_REVIEW","content":"Payments above the configured threshold require compliance review.","documentHash":"<sha-256>","createdAt":"2026-09-15T10:00:00Z","chunks":[]}]}` |
+| 35 | `GET {{baseUrl}}/api/policies/{{policyDocumentId}}` | Bearer token | None | **200** Same policy document response shape as endpoint 33, including its `chunks` array. |
+| 36 | `POST {{baseUrl}}/api/policies/{{policyDocumentId}}/chunks` | Bearer token | `{"content":"Payments above the configured threshold require compliance review."}` | **201** `{"correlationId":"...","data":{"id":"<chunk-uuid>","policyDocumentId":"<policy-uuid>","chunkNumber":1,"content":"Payments above the configured threshold require compliance review.","createdAt":"2026-09-15T10:01:00Z"}}` |
+| 37 | `GET {{baseUrl}}/api/policies/{{policyDocumentId}}/chunks` | Bearer token | None | **200** `{"correlationId":"...","data":[{"id":"<chunk-uuid>","policyDocumentId":"<policy-uuid>","chunkNumber":1,"content":"Payments above the configured threshold require compliance review.","createdAt":"2026-09-15T10:01:00Z"}]}` |
+| 38 | `POST {{baseUrl}}/api/policies/{{policyDocumentId}}/index` | Bearer token | No body | **200** `{"correlationId":"...","data":{"policyDocumentId":"<policy-uuid>","chunkCount":1}}` |
+| 39 | `DELETE {{baseUrl}}/api/policies/{{policyDocumentId}}` | Admin token | None | **204** No content. |
+
+Policy categories are `KYC`, `AML`, `PAYMENT_REVIEW`, `COUNTRY_RULE`, and `SUPPORT`.
+
+Policy titles are limited to 200 characters. Creating a policy with the same title and content as an existing policy returns **409**. Indexing rebuilds vector chunks from the policy document content and publishes a new active vector generation.
+
+## Compliance case APIs
+
+| # | Method and URL | Auth / headers | Request body / parameters | Status and sample output |
+|---:|---|---|---|---|
+| 40 | `POST {{baseUrl}}/api/compliance/cases` | Bearer token | `{"paymentId":"{{paymentId}}","risk":"HIGH","riskReasons":["High-value payment"],"suggestedAction":"Review source of funds"}` | **201** `{"correlationId":"...","data":{"id":"<case-uuid>","paymentId":"<payment-uuid>","reviewReference":null,"risk":"HIGH","status":"OPEN","riskReasons":["High-value payment"],"suggestedAction":"Review source of funds","decidedBy":null,"decidedAt":null,"decisionReason":null,"createdAt":"2026-09-15T10:00:00Z"}}` |
+| 41 | `GET {{baseUrl}}/api/compliance/cases?status=OPEN` | Bearer token | Optional `status` query parameter | **200** `{"correlationId":"...","data":[{"id":"<case-uuid>","paymentId":"<payment-uuid>","reviewReference":null,"risk":"HIGH","status":"OPEN","riskReasons":["High-value payment"],"suggestedAction":"Review source of funds","decidedBy":null,"decidedAt":null,"decisionReason":null,"createdAt":"2026-09-15T10:00:00Z"}]}` |
+| 42 | `GET {{baseUrl}}/api/compliance/cases/{{complianceCaseId}}` | Bearer token | None | **200** Same compliance case response shape as endpoint 40. |
+| 43 | `PUT {{baseUrl}}/api/compliance/cases/{{complianceCaseId}}/approve` | Admin token | `{"decisionReason":"Source of funds verified"}` | **200** `{"correlationId":"...","data":{"id":"<case-uuid>","paymentId":"<payment-uuid>","reviewReference":null,"risk":"HIGH","status":"APPROVED","riskReasons":["High-value payment"],"suggestedAction":"Review source of funds","decidedBy":"admin@local.fluxpay","decidedAt":"2026-09-15T10:05:00Z","decisionReason":"Source of funds verified","createdAt":"2026-09-15T10:00:00Z"}}` |
+| 44 | `PUT {{baseUrl}}/api/compliance/cases/{{complianceCaseId}}/reject` | Admin token | `{"decisionReason":"Source of funds could not be verified"}` | **200** Same response shape as endpoint 43 with status `REJECTED`. |
+| 45 | `DELETE {{baseUrl}}/api/compliance/cases/{{complianceCaseId}}` | Admin token | None | **204** No content. Only an open, manually created case can be deleted. |
+
+Compliance risk values are `LOW`, `MEDIUM`, and `HIGH`. Case status values are `OPEN`, `APPROVED`, `REJECTED`, and `CLOSED`.
+
+The decision reason is optional and limited to 500 characters. The server records `decidedBy` from the authenticated administrator rather than trusting a value supplied in the request. Approving or rejecting a case created by the automated payment-review workflow also advances or rejects its linked payment; a manually created case has no `reviewReference` and does not change payment state.
+
+## Compliance Copilot API
+
+| # | Method and URL | Auth / headers | Request body | Status and sample output |
+|---:|---|---|---|---|
+| 46 | `POST {{baseUrl}}/api/copilot/ask` | Admin token | `{"question":"When does a payment require manual review?","paymentId":"{{paymentId}}"}`. `paymentId` is optional. | **200** `{"correlationId":"...","data":{"answer":"Payments above the configured threshold require compliance review.","sources":[{"policyDocumentId":"<policy-uuid>","title":"High-value payment review","chunkNumber":1,"excerpt":"Payments above the configured threshold require compliance review."}]}}` |
+
+The copilot returns an empty `sources` array and a scoped fallback answer when no indexed policy is relevant enough to answer the question.
+
 ## Important runtime conditions
 
 | Feature | Default behavior | Setting needed for successful local testing |
@@ -117,6 +156,8 @@ Seeded route codes are `STANDARD_BANK`, `INSTANT_PAYOUT`, and `LOCAL_PARTNER`.
 | Demo wallet funding | Returns **404 NOT_FOUND** | `FLUXPAY_DEMO_FUNDING_ENABLED=true` |
 | KYC submission | Returns **503 KYC_STORAGE_UNAVAILABLE** | `FLUXPAY_DEVELOPMENT_KYC_METADATA_ENABLED=true` |
 | Compliance confirmation | Real provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true` |
+| Policy indexing | Requires Ollama embeddings and Oracle vector storage | Configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_POLICY_CHUNKER_VERSION` settings |
+| Compliance Copilot | Requires an indexed policy corpus, Ollama embeddings/chat, and Oracle vector search | Index at least one policy and configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_COPILOT_*` settings |
 | Payout submission | Real payout provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true` |
 | FX calls | Depend on the configured HTTP FX provider | Configure `FX_PROVIDER_URL` and network access |
 | Draft payment | User must be KYC verified | Approve KYC using an admin token first |
@@ -136,6 +177,7 @@ Seeded route codes are `STANDARD_BANK`, `INSTANT_PAYOUT`, and `LOCAL_PARTNER`.
 | Insufficient wallet funds | 422 | `{"correlationId":"...","code":"INSUFFICIENT_FUNDS","message":"Insufficient wallet funds","fieldErrors":{},"ts":"..."}` |
 | Expired quote | 412 | `{"correlationId":"...","code":"QUOTE_EXPIRED","message":"Quote has expired","fieldErrors":{},"ts":"..."}` |
 | Missing external provider | 503 | `{"correlationId":"...","code":"FX_UNAVAILABLE","message":"FX provider is unavailable","fieldErrors":{},"ts":"..."}` |
+| Copilot provider unavailable | 503 | `{"correlationId":"...","code":"COPILOT_UNAVAILABLE","message":"Compliance Copilot is temporarily unavailable.","fieldErrors":{},"ts":"..."}` |
 
 ## Recommended Bruno test order
 
@@ -151,4 +193,9 @@ Seeded route codes are `STANDARD_BANK`, `INSTANT_PAYOUT`, and `LOCAL_PARTNER`.
 | 8 | Confirm the quote | None |
 | 9 | Submit the payout | None |
 | 10 | Read payment details and timeline | None |
+| 11 | Create a policy document | `policyDocumentId` |
+| 12 | Add or list policy chunks, then index the policy | None |
+| 13 | Ask the Compliance Copilot a policy question | None |
+| 14 | Create or list compliance cases | `complianceCaseId` |
+| 15 | Approve, reject, or delete the compliance case as appropriate | None |
 

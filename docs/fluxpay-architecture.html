@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.17.0-dev.1">
-  <title>FluxPay — Top to Bottom Module Map Diagram</title>
+  <title>FluxPay — Current System Architecture Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5081,11 +5081,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="BLUEPRINT / REV 01"
            data-preset-badge-editorial="EDITORIAL / FIELD NOTE">
         <div class="pulse-dot"></div>
-        <h1>FluxPay — Top to Bottom Module Map</h1>
+        <h1>FluxPay — Current System Architecture</h1>
       </div>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"system-overview","label":"L0 System overview","focus":["fluxpay-ui","api-layer","payment-core","kafka","oracle"],"note":"Top level: UI to API to core to events to durable state."},{"id":"backend-services","label":"L1 Backend services","focus":["api-layer","auth-sec","payment-core","wallet-ledger","payout-orch","kyc-compliance"],"note":"Drill into Spring Boot services behind the controllers."},{"id":"money-movement","label":"L2 Money movement","focus":["payment-core","wallet-ledger","payout-orch","outbox-relay","payout-providers"],"note":"Follow reserve, post, orchestrate, and submit payout."},{"id":"data-events","label":"L3 Data and events","focus":["outbox-relay","kafka","wallet-ledger","oracle"],"note":"Bottom level: outbox relay, Kafka envelopes, Oracle state."}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"customer-flow","label":"Customer payment flow","focus":["client","ui","api","payments","oracle"],"note":"Authenticated customers create, quote, confirm, and observe payments through the Spring Boot API."},{"id":"payout-events","label":"Payout and timeline","focus":["payments","outbox","kafka","oracle","providers"],"note":"Payout operations commit durable outbox work; Kafka delivery subsequently builds the payment timeline."},{"id":"compliance-copilot","label":"Compliance and copilot","focus":["api","compliance","oracle","ollama"],"note":"Policy documents become Oracle vector generations and provide cited context for the admin-only copilot."}]</script>
 
     <script id="archify-i18n-data" type="application/json">{"locale":"en","messages":{"viewer.kind.frontend":"Frontend","viewer.kind.backend":"Backend","viewer.kind.database":"Database","viewer.kind.cloud":"Cloud","viewer.kind.security":"Security","viewer.kind.messagebus":"Message bus","viewer.kind.external":"External","viewer.kind.neutral":"Neutral","viewer.kind.node":"Node","viewer.kind.start":"Start","viewer.kind.active":"Active","viewer.kind.waiting":"Waiting","viewer.kind.decision":"Decision","viewer.kind.success":"Success","viewer.kind.failure":"Failure","viewer.toolbar.actions":"Diagram actions","viewer.theme.toggle.title":"Toggle theme (T)","viewer.theme.toggle":"Toggle color theme","viewer.theme.dark":"Dark","viewer.theme.light":"Light","viewer.preset.choose.title":"Choose visual style (S cycles)","viewer.preset.choose":"Choose visual style","viewer.preset.style":"Style","viewer.preset.menu":"Visual style","viewer.preset.identity":"Visual identity","viewer.preset.cycles":"S cycles","viewer.preset.classic":"Classic","viewer.preset.classic.short":"Classic","viewer.preset.classic.hint":"Stable technical default","viewer.preset.flow":"Signal Flow","viewer.preset.flow.short":"Flow","viewer.preset.flow.hint":"Motion-forward presentation","viewer.preset.blueprint":"Blueprint","viewer.preset.blueprint.hint":"Engineering review","viewer.preset.editorial":"Editorial","viewer.preset.editorial.hint":"Publication and launch notes","viewer.preset.badge.signalFlow":"SIGNAL FLOW","viewer.preset.badge.blueprint":"BLUEPRINT / REV 01","viewer.preset.badge.editorial":"EDITORIAL / FIELD NOTE","viewer.preset.badge.editorialPlate":"ARCHIFY / PLATE 04","viewer.preset.current":"Visual style: {style}. Choose visual style","viewer.motion.live":"Live","viewer.motion.still":"Still","viewer.motion.pause":"Pause motion","viewer.motion.resume":"Resume motion","viewer.motion.reduced":"Motion paused by reduced-motion preference","viewer.motion.hidden":"Motion paused while this page is hidden","viewer.motion.yielding":"Pause motion; currently yielding to {owner}","viewer.motion.yielding.title":"Live preview enabled · yielding to {owner}","viewer.owner.story":"the guided story","viewer.owner.chapter":"the active chapter","viewer.owner.chapterPreview":"the chapter delta preview","viewer.owner.handoff":"the chapter handoff","viewer.owner.route":"Route Probe","viewer.owner.lens":"Semantic Lens","viewer.owner.relationship":"Relationship Preview","viewer.owner.intent":"Intent Trace","viewer.owner.focus":"semantic focus","viewer.owner.legend":"legend preview","viewer.owner.reader":"reader interaction","viewer.present.enter":"Enter presentation stage","viewer.present.enter.title":"Presentation stage (F)","viewer.present.exit":"Exit presentation stage","viewer.present.exit.title":"Exit presentation stage (F or Escape)","viewer.present.present":"Present","viewer.present.exit.label":"Exit","viewer.export.button":"Export","viewer.export.button.title":"Export diagram (E)","viewer.export.diagram":"Export diagram","viewer.export.menu":"Export","viewer.export.subtitle":"Portable, clean outputs","viewer.export.share":"Share","viewer.export.shareCard":"Share Card","viewer.export.routeShareCard":"Route Share Card","viewer.export.reachShareCard":"Reach Share Card","viewer.export.copyShareCard":"Copy Share Card","viewer.export.copyDiagram":"Copy diagram","viewer.export.clipboardPng":"PNG to clipboard","viewer.export.raster":"Raster images","viewer.export.image":"Image","viewer.export.lossless":"Lossless image","viewer.export.compact":"Compact image","viewer.export.modern":"Modern image","viewer.export.vectorMotion":"Vector and motion","viewer.export.vectorMotion.heading":"Vector \u0026 motion","viewer.export.editable":"Editable vector","viewer.export.motion6s":"6s motion","viewer.export.unsupported":"Not supported by this browser","viewer.export.clipboardUnsupported":"Clipboard image write not supported by this browser","viewer.export.clipboardUnsupported.period":"Clipboard image write not supported by this browser.","viewer.export.clipboardUnsupported.short":"Clipboard image write not supported in this browser.","viewer.export.motionUnavailable":"Motion capture unavailable in this browser","viewer.export.webmUnavailable":"WebM unavailable in this browser","viewer.export.failed":"Export failed: {message}","viewer.export.unknownVariant":"Unknown Share Card variant: {variant}","viewer.export.routeRequired":"Trace a route before exporting a Route Share Card","viewer.export.reachRequired":"Trace authored reach before exporting a Reach Share Card","viewer.export.unknown":"unknown","viewer.export.routeFailed":"Route Share Card export failed: {message}","viewer.export.reachFailed":"Reach Share Card export failed: {message}","viewer.export.copyFailed":"Copy failed: {message}","viewer.export.copiedPng":"Copied PNG to clipboard","viewer.export.copiedShare":"Copied Share Card","viewer.export.downloadedShare":"Downloaded Share Card","viewer.export.downloadedRoute":"Downloaded Route Share Card","viewer.export.downloadedReach":"Downloaded Reach Share Card","viewer.export.downloadedWebm":"Downloaded WebM","viewer.export.recording":"Recording 6 seconds of motion…","viewer.export.card.routeSummary.one":"Route: {source} → {target} · {count} directed hop","viewer.export.card.routeSummary.other":"Route: {source} → {target} · {count} directed hops","viewer.export.card.reachSummary":"Authored {direction} from {origin} · {nodes} · {links} · max {hops}","viewer.export.card.node.one":"{count} node","viewer.export.card.node.other":"{count} nodes","viewer.export.card.link.one":"{count} link","viewer.export.card.link.other":"{count} links","viewer.export.card.hop.one":"{count} hop","viewer.export.card.hop.other":"{count} hops","viewer.export.card.routeBadge":"ARCHIFY · ROUTE · {hops}","viewer.export.card.reachBadge":"ARCHIFY · {direction} REACH","viewer.export.card.defaultBadge":"ARCHIFY · {preset} · {theme}","viewer.export.direction.upstream":"Upstream","viewer.export.direction.downstream":"Downstream","viewer.export.error.canvasUnavailable":"Canvas unavailable for {label}","viewer.export.error.contextUnavailable":"2D canvas context unavailable for {label}","viewer.export.error.toBlobUnavailable":"canvas.toBlob unavailable for {label}","viewer.export.error.toBlobNull":"canvas.toBlob returned no data for {label}","viewer.export.error.variantsCombined":"Share Card variants cannot be combined","viewer.export.error.viewerState":"Share Card export could not remove temporary viewer state","viewer.export.error.routeState":"Route Card export could not preserve the resolved route safely","viewer.export.error.reachState":"Reach Card export could not preserve authored reach safely","viewer.export.error.webmRequirements":"WebM motion export requires a trace animation and browser MediaRecorder support","viewer.export.error.mediaRecorder":"MediaRecorder failed","viewer.export.error.emptyWebm":"MediaRecorder produced an empty WebM","viewer.export.error.webmBackground":"SVG background could not be loaded for WebM export","viewer.guided.region":"Guided diagram views","viewer.guided.previous":"Previous guided view","viewer.guided.previous.title":"Previous guided view ([)","viewer.guided.next":"Next guided view","viewer.guided.next.title":"Next guided view (])","viewer.guided.views":"Guided views","viewer.guided.explore":"Explore this system","viewer.guided.intro":"Step through curated paths without changing the source diagram.","viewer.guided.trail":"Story trail","viewer.guided.beat":"Beat","viewer.guided.nextBeat":"Next","viewer.guided.play":"Play guided story","viewer.guided.play.title":"Play guided story (P)","viewer.guided.pause":"Pause guided story","viewer.guided.pause.title":"Pause guided story (P)","viewer.guided.replay":"Replay guided story","viewer.guided.replay.title":"Replay guided story (P)","viewer.guided.playStory":"Play story","viewer.guided.pauseStory":"Pause","viewer.guided.replayStory":"Replay story","viewer.guided.motionUnavailable":"Story playback unavailable while motion is Still","viewer.guided.enableMotion":"Switch motion to Live to play the guided story","viewer.guided.selectBeatLink":"Select a Story Beat to copy its exact link","viewer.guided.copyMoment":"Copy moment","viewer.guided.momentCopied":"Moment link copied","viewer.guided.momentCopyFailed":"Could not copy story moment link","viewer.guided.copied":"Copied","viewer.guided.copyFailed":"Copy failed","viewer.guided.showAll":"Show all","viewer.guided.showAll.aria":"Show entire diagram","viewer.guided.chapters":"Story chapters","viewer.guided.storyTrail":"Story trail for {label}: {count} beats","viewer.guided.chapter.open":"Open chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.current":"Current chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.selectedNodes":"{count} selected nodes","viewer.guided.chapter.stops":"{count} stops","viewer.guided.chapter.stop.one":"{count} stop","viewer.guided.chapter.stop.other":"{count} stops","viewer.guided.chapter.current.title":"{label} — current chapter, {count} stops","viewer.guided.chapter.delta.expanded":"{stay} stay, {enter} enter, {leave} leave","viewer.guided.chapter.delta.aria":"Open chapter {index} of {total}: {label}. Chapter focus delta: {delta}","viewer.guided.chapter.delta.title":"{label} — {delta} chapter focus","viewer.guided.handoff":"{from} → {to} · via {label}","viewer.guided.share.chapter":"Chapter {index} / {total}","viewer.guided.share.initial":"Chapter 01 / 01","viewer.guided.share.default":"Guided chapter","viewer.guided.state.ready":"Ready","viewer.guided.state.playing":"Playing","viewer.guided.state.settled":"Settled","viewer.guided.state.paused":"Paused","viewer.guided.state.pinned":"Pinned","viewer.guided.state.still":"Still","viewer.guided.share.step":"Step {index} / {total} · {label}","viewer.guided.share.staticMoment":"{step} · Static moment","viewer.guided.share.complete":"{count} steps complete · {note}","viewer.guided.share.settled":"Path settled for reading.","viewer.guided.share.staticPath":"{count} steps · Static path","viewer.guided.share.ready":"{count} steps · Ready","viewer.guided.share.aria":"{state} chapter {index} of {total}: {label}. {beat}. {route}","viewer.guided.beat.start":"Beat {index} / {total} · {label} · starting point","viewer.guided.beat.forward":"Beat {index} / {total} · {from} → {to}","viewer.guided.beat.reverse":"Beat {index} / {total} · {from} → {to} · reverse authored link","viewer.guided.beat.multiple":"Beat {index} / {total} · {from} ⇄ {to} · {count} authored links","viewer.guided.beat.group":"Beat {index} / {total} · {from} · {to} · grouped · no direct link","viewer.guided.beat.aria.prefix":"Story beat {index} of {total}: {label}. ","viewer.guided.beat.aria.start":"Starting point.","viewer.guided.beat.aria.forward":"From {from} through one authored forward relationship.","viewer.guided.beat.aria.reverse":"From {from}; the authored relationship points from {to} to {from}.","viewer.guided.beat.aria.multiple":"From {from} through {count} authored relationships; shown without arbitrary motion.","viewer.guided.beat.aria.group":"Grouped from {from} with no direct authored relationship.","viewer.guided.caption.start":"Starting point","viewer.guided.caption.grouped":"Grouped transition · no direct authored link","viewer.guided.caption.more":" +{count} more","viewer.guided.caption.reverse":"Reverse authored relationship","viewer.guided.caption.relationships":"{count} authored relationships","viewer.guided.caption.relationship":"Authored relationship","viewer.guided.caption.direction":"authored direction: {from} → {to}","viewer.guided.caption.starting":"Authored starting point","viewer.guided.beatLink":"Copy link to current story moment: Beat {index} of {total}: {label}","viewer.guided.noStory":"This diagram has no authored guided story.","viewer.guide.eyebrow":"Diagram guide","viewer.guide.close":"Close diagram guide","viewer.guide.inspecting":"Inspecting compiled semantics","viewer.guide.actions":"Diagram exploration actions","viewer.guide.find":"Find any node","viewer.guide.find.hint":"Search labels, responsibilities, kinds, and stable IDs.","viewer.guide.route":"Trace a route","viewer.guide.route.aria":"Trace a directed route","viewer.guide.route.hint":"Ask how two semantic nodes connect in authored direction.","viewer.guide.map":"See the whole system","viewer.guide.map.hint":"Open Semantic Radar with a live viewport and stable nodes.","viewer.guide.lens":"Compare semantic kinds","viewer.guide.lens.hint":"Count roles, reveal their traffic, and compare direct authored links.","viewer.guide.story":"Play the guided story","viewer.guide.story.hint":"Walk the authored chapters and real relationships.","viewer.guide.present":"Enter Presentation Stage","viewer.guide.present.hint":"Give the live diagram the viewport without changing export.","viewer.guide.shortcuts":"Additional keyboard shortcuts","viewer.guide.shortcut.export":"Export","viewer.guide.shortcut.theme":"Theme","viewer.guide.shortcut.style":"Style","viewer.guide.shortcut.reset":"Reset","viewer.guide.shortcut.zoomIn":"Zoom in","viewer.guide.shortcut.zoomOut":"Zoom out","viewer.guide.shortcut.close":"Close","viewer.guide.facts":"{nodes} · {relationships} · {views}","viewer.guide.fact.node.one":"{count} semantic node","viewer.guide.fact.node.other":"{count} semantic nodes","viewer.guide.fact.relationship.one":"{count} relationship","viewer.guide.fact.relationship.other":"{count} relationships","viewer.guide.fact.view.one":"{count} guided view","viewer.guide.fact.view.other":"{count} guided views","viewer.guide.story.available.one":"Walk {count} authored chapter and its real relationships.","viewer.guide.story.available.other":"Walk {count} authored chapters and their real relationships.","viewer.guide.story.unavailable":"No authored guided story in this diagram.","viewer.guide.open":"Open diagram guide","viewer.guide.noStory":"This diagram has no authored guided story.","viewer.finder.title":"Find a node","viewer.finder.close":"Close node finder","viewer.finder.placeholder":"Search labels or IDs","viewer.finder.search":"Search diagram nodes","viewer.finder.results":"Diagram nodes","viewer.finder.empty":"No matching nodes","viewer.finder.result.focus":"Focus {label}","viewer.finder.result.routeStart":"Choose {label} as route start","viewer.finder.result.routeTarget":"Choose {label} as route destination, {links}","viewer.finder.status.empty":"No matching nodes","viewer.finder.status.count.one":"{count} matching node","viewer.finder.status.count.other":"{count} matching nodes","viewer.finder.noun.nodes":"nodes","viewer.finder.link.one":"{count} link","viewer.finder.link.other":"{count} links","viewer.finder.result.focus.one":"Focus {label}, {count} related connection","viewer.finder.result.focus.other":"Focus {label}, {count} related connections","viewer.finder.status.filtered":"{visible} of {available} {noun}","viewer.finder.status.all":"{available} {noun}","viewer.passport.eyebrow":"Semantic passport","viewer.passport.metadata":"Node metadata","viewer.passport.evidence":"Verified source evidence","viewer.passport.verified":"Verified source","viewer.passport.verificationScope":"Verified against local Git at the pinned revision. Remote access has not been checked.","viewer.passport.reach":"Authored reach","viewer.passport.reach.trace":"Trace authored reachability","viewer.passport.upstream":"Upstream","viewer.passport.downstream":"Downstream","viewer.passport.upstream.trace":"Trace upstream authored reachability","viewer.passport.downstream.trace":"Trace downstream authored reachability","viewer.passport.close":"Close semantic passport","viewer.passport.copy":"Copy link","viewer.passport.copy.focus":"Copy link to focused node","viewer.passport.relations":"Relations","viewer.passport.relations.show":"Show connected relationships","viewer.passport.relations.hide":"Hide connected relationships","viewer.passport.relations.list":"Connected relationships","viewer.passport.copyRelation":"Copy relation","viewer.passport.copyNode":"Copy node","viewer.passport.copyPinned":"Copy link to pinned relationship","viewer.passport.copySource":"Copy link to source node","viewer.passport.copy.focused.success":"Focused node link copied","viewer.passport.copy.pinned.success":"Pinned relationship link copied","viewer.passport.copy.focused.failed":"Could not copy focused node link","viewer.passport.copy.pinned.failed":"Could not copy pinned relationship link","viewer.passport.relationship.none":"No connected relationships","viewer.passport.relationship.count.one":"{count} relation","viewer.passport.relationship.count.other":"{count} relations","viewer.passport.relationship.show.one":"Show {count} connected relationship","viewer.passport.relationship.show.other":"Show {count} connected relationships","viewer.passport.relationship.summary":"{out} outgoing · {in} incoming{loops}","viewer.passport.relationship.loops":" · {count} loop","viewer.passport.relationship.explorer":"Direct relationship explorer","viewer.passport.relationship.help":"Use arrow keys to explore relationships. Press Enter or Space to pin details; Escape clears.","viewer.passport.relationship.loopsBack":"loops back","viewer.passport.relationship.connectsTo":"connects to","viewer.passport.relationship.connectsFrom":"connects from","viewer.passport.relationship.pinned":"Pinned relationship · {from} → {to} · {label}","viewer.passport.relationship.inspect":"Inspect relationship {index} of {total}: {from} to {to}, {label}. Press Enter for details.","viewer.passport.relationship.group.out":"Outgoing","viewer.passport.relationship.group.in":"Incoming","viewer.passport.relationship.group.loop":"Self loops","viewer.passport.relationship.row":"{group}: {relationship}, {neighbor}","viewer.passport.relationship.direction.out":"OUT →","viewer.passport.relationship.direction.in":"← IN","viewer.passport.relationship.direction.loop":"LOOP","viewer.passport.sourceCount.one":"{count} verified source reference","viewer.passport.sourceCount.other":"{count} verified source references","viewer.passport.sourceMarker":"SRC","viewer.passport.beacon.one":"{count} verified source; focus this node to inspect","viewer.passport.beacon.other":"{count} verified sources; focus this node to inspect","viewer.passport.repository.open":"Open verified repository revision {revision}","viewer.passport.source.open":"Open verified source {path} at revision {revision}","viewer.passport.source.openLink":"Open ↗","viewer.passport.reach.upstream.one":"Trace {count} upstream authored node","viewer.passport.reach.upstream.other":"Trace {count} upstream authored nodes","viewer.passport.reach.downstream.one":"Trace {count} downstream authored node","viewer.passport.reach.downstream.other":"Trace {count} downstream authored nodes","viewer.passport.reach.noUpstream":"No upstream authored nodes","viewer.passport.reach.noDownstream":"No downstream authored nodes","viewer.passport.reach.status":"{direction} · {nodes} nodes · {links} links · max {hops} hops","viewer.route.eyebrow":"Route probe","viewer.route.start":"Choose a start node","viewer.route.start.find":"Find start","viewer.route.start.find.aria":"Find a route start","viewer.route.copy":"Copy link","viewer.route.copy.aria":"Copy link to traced route","viewer.route.clear":"Clear","viewer.route.clear.aria":"Clear route probe","viewer.route.traced":"Traced route","viewer.route.pickTwo":"Pick two semantic nodes on the diagram","viewer.route.pickOne":"Pick a semantic node on the diagram","viewer.route.controls":"Route journey controls","viewer.route.previous":"Previous route position","viewer.route.play":"Play route journey","viewer.route.pause":"Pause route journey","viewer.route.replay":"Replay route journey","viewer.route.next":"Next route position","viewer.route.journey":"Journey","viewer.route.pause.label":"Pause","viewer.route.replay.label":"Replay","viewer.route.overview":"Overview","viewer.route.overview.aria":"Show complete route overview","viewer.route.instructions":"Choose the source, then the destination. Direction matters.","viewer.route.destination":"Choose a destination from {label}","viewer.route.destination.find":"Find target","viewer.route.destination.find.aria":"Find a reachable route destination","viewer.route.differentDestination":"Choose a different destination","viewer.route.distinct":"A route needs two distinct semantic nodes.","viewer.route.unreachable":"No directed route to {label}","viewer.route.unreachable.detail":"{target} is not reachable from {source}. Pick a highlighted destination.","viewer.route.start.instructions":"Select the source. The next step will reveal only directed destinations.","viewer.route.copy.success":"Traced route link copied","viewer.route.copy.failed":"Could not copy traced route link","viewer.route.position":"Route position {index} of {total}: {label}","viewer.route.step":"Step {index} of {total} · {phase} · {label}","viewer.route.motionRequired":"Automatic journey requires Live motion","viewer.route.trigger.clear":"Clear traced route","viewer.route.overview.status":"{nodes} · {hops} · shortest authored route","viewer.route.overview.node.one":"{count} node","viewer.route.overview.node.other":"{count} nodes","viewer.route.overview.hop.one":"{count} directed hop","viewer.route.overview.hop.other":"{count} directed hops","viewer.route.phase.playing":"Playing","viewer.route.phase.complete":"Complete","viewer.route.phase.inspecting":"Inspecting","viewer.route.destination.count.one":"{count} directed destination available. Pick a highlighted node.","viewer.route.destination.count.other":"{count} directed destinations available. Pick a highlighted node.","viewer.route.noOutgoing":"No outgoing route starts here. Clear and choose another source.","viewer.route.result.title":"{source} to {target}","viewer.route.finder.source.title":"Choose route start","viewer.route.finder.source.placeholder":"Search route sources","viewer.route.finder.source.empty":"No matching route sources","viewer.route.finder.source.results":"Nodes that can start a route","viewer.route.finder.source.noun":"route sources","viewer.route.finder.source.badge":"start","viewer.route.finder.target.title":"Destination from {label}","viewer.route.finder.target.placeholder":"Search reachable destinations","viewer.route.finder.target.empty":"No matching reachable destinations","viewer.route.finder.target.results":"Reachable route destinations","viewer.route.finder.target.noun":"reachable destinations","viewer.route.hop.one":"{count} hop","viewer.route.hop.other":"{count} hops","viewer.lens.eyebrow":"Semantic lens","viewer.lens.title":"Compare system roles","viewer.lens.close":"Close semantic lens","viewer.lens.instruction":"Choose up to two semantic kinds. One reveals its real traffic; two compare only direct authored relationships.","viewer.lens.kinds":"Semantic kinds","viewer.lens.choose":"Choose a kind to inspect its nodes and touching relationships.","viewer.lens.copy":"Copy link to semantic lens","viewer.lens.clear":"Clear semantic lens","viewer.lens.open":"Open semantic lens","viewer.lens.openActive":"Open active semantic lens","viewer.lens.legend":"Semantic legend","viewer.lens.legend.inspect.one":"Inspect {label}, {count} node","viewer.lens.legend.inspect.other":"Inspect {label}, {count} nodes","viewer.lens.kind.count.one":"{label}, {count} node","viewer.lens.kind.count.other":"{label}, {count} nodes","viewer.lens.compare.one":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationship","viewer.lens.compare.other":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationships","viewer.lens.single":"{nodes} · {relationships} · connected peers remain visible","viewer.lens.node.one":"{count} {label} node","viewer.lens.node.other":"{count} {label} nodes","viewer.lens.relationship.one":"{count} touching relationship","viewer.lens.relationship.other":"{count} touching relationships","viewer.radar.title":"Semantic radar","viewer.radar.building":"Building overview","viewer.radar.openFull":"Open full semantic radar","viewer.radar.open":"Open radar","viewer.radar.close":"Close semantic radar","viewer.radar.surface":"Diagram overview. Click a node to focus it, or use arrow keys to pan.","viewer.radar.click":"Click node","viewer.radar.drag":"Drag to pan","viewer.radar.space":"Semantic radar needs more MAP space.","viewer.radar.nodes":"Semantic diagram radar nodes","viewer.radar.focus":"Focus {label} from Semantic Radar","viewer.radar.status":"{count} nodes · {viewport}","viewer.radar.fullMap":"{count} nodes · full map","viewer.radar.compacted":"Radar compacted to avoid covering the Semantic Passport or MAP controls.","viewer.radar.cancelWaiting":"Cancel semantic radar waiting for more MAP space","viewer.radar.needsSpace":"Semantic radar needs more visible MAP space","viewer.radar.viewport.full":"full map","viewer.radar.viewport.width":"{percent}% width","viewer.radar.viewport.scale":"{percent}% viewport","viewer.nav.controls":"Diagram view controls","viewer.nav.route":"Trace a directed route","viewer.nav.route.title":"Trace route (R)","viewer.nav.route.short":"PATH","viewer.nav.radar":"Open semantic radar","viewer.nav.radar.title":"Semantic radar (M)","viewer.nav.radar.short":"MAP","viewer.nav.lens":"Open semantic lens","viewer.nav.lens.title":"Semantic lens (L)","viewer.nav.lens.short":"LENS","viewer.nav.find":"Find a node","viewer.nav.find.title":"Find a node (/)","viewer.nav.guide":"Open diagram guide","viewer.nav.guide.title":"Diagram guide (?)","viewer.nav.zoomOut":"Zoom out","viewer.nav.zoomOut.title":"Zoom out (-)","viewer.nav.reset":"Reset diagram view","viewer.nav.reset.title":"Reset view (0)","viewer.nav.read":"READ","viewer.nav.zoomIn":"Zoom in","viewer.nav.zoomIn.title":"Zoom in (+)","viewer.nav.camera":"{hint}. Reset diagram view","viewer.nav.camera.title":"{semantic}{hint} · reset view (0)","viewer.nav.camera.semantic":"Semantic camera active · ","viewer.nav.level.map":"MAP","viewer.nav.level.read":"READ","viewer.nav.level.full":"FULL","viewer.nav.level.auto":"AUTO","viewer.nav.detail.map":"Zoom in to reveal relationship labels and node context","viewer.nav.detail.read":"Zoom in again to reveal tags and annotations","viewer.nav.detail.full":"Full diagram detail","viewer.intent.summary":"{label}. {out} outgoing, {in} incoming{loops}. {total} connections. Press Enter for details.","viewer.intent.loops":", {count} self loop","viewer.common.copied":"Copied","viewer.common.copyFailed":"Copy failed","viewer.common.copyLink":"Copy link","viewer.common.clear":"Clear","viewer.common.close":"Close"}}</script>
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
@@ -5130,8 +5130,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1150 622" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
-        <title id="archify-diagram-title">FluxPay — Top to Bottom Module Map</title>
+      <svg viewBox="0 0 1250 860" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
+        <title id="archify-diagram-title">FluxPay — Current System Architecture</title>
         <desc id="archify-diagram-description">An architecture diagram generated by Archify.</desc>
         <!-- Definitions -->
         <defs>
@@ -5156,258 +5156,249 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="FluxPay Backend: Spring Boot 3.2 / Java 17" x="10" y="68" width="1100" height="486" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="FluxPay application" x="177" y="162" width="846" height="434" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="security-group" data-composition-frame-id="1" data-composition-frame-label="sg-api: JWT owner/admin" x="10" y="80" width="420" height="304" rx="8" class="c-security-group" stroke-width="1"/>
-
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="2" data-composition-frame-label="Data &amp; Events" x="680" y="440" width="430" height="114" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="security-group" data-composition-frame-id="1" data-composition-frame-label="Authenticated API boundary" x="386" y="166" width="198" height="280" rx="8" class="c-security-group" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="fluxpay-ui" data-edge-to="api-layer" data-edge-label="HTTPS" data-edge-key="0" data-edge-id="ui-to-api" data-composition-points="190,339;250,339" d="M 190 339 L 250 339" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="auth-sec" data-edge-to="api-layer" data-edge-label="verify JWT" data-edge-key="1" data-edge-id="auth-to-api" data-composition-points="190,142;220,142;220,325;250,325" d="M 190 142 L 212 142 Q 220 142 220 150 L 220 317 Q 220 325 228 325 L 250 325" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="api-layer" data-edge-to="payment-core" data-edge-label="draft/confirm" data-edge-key="2" data-edge-id="api-to-payment" data-composition-points="400,332;480,332" d="M 400 332 L 480 332" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="api-layer" data-edge-to="kyc-compliance" data-edge-label="KYC gate" data-edge-key="3" data-edge-id="api-to-kyc" data-composition-points="325,300;325,174" d="M 325 300 L 325 174" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="payment-core" data-edge-to="wallet-ledger" data-edge-label="reserve/post" data-edge-key="4" data-edge-id="payment-to-wallet" data-composition-points="555,364;555,470" d="M 555 364 L 555 470" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="payment-core" data-edge-to="payout-orch" data-edge-label="orchestrate" data-edge-key="5" data-edge-id="payment-to-payout" data-composition-points="630,332;710,332" d="M 630 332 L 710 332" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="payment-core" data-edge-to="fx-provider" data-edge-label="FX quote" data-edge-key="6" data-edge-id="payment-to-fx" data-composition-points="555,300;555,174" d="M 555 300 L 555 174" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="payout-orch" data-edge-to="payout-providers" data-edge-label="submit" data-edge-key="7" data-edge-id="payout-to-providers" data-composition-points="785,300;785,174" d="M 785 300 L 785 174" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="payout-orch" data-edge-to="outbox-relay" data-edge-label="outbox write" data-edge-key="8" data-edge-id="payout-to-outbox" data-composition-points="860,332;930,332" d="M 860 332 L 930 332" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="outbox-relay" data-edge-to="kafka" data-edge-label="relay" data-edge-key="9" data-edge-id="outbox-to-kafka" data-composition-points="1005,364;1005,470" d="M 1005 364 L 1005 470" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="wallet-ledger" data-edge-to="oracle" data-edge-label="ledger" data-edge-key="10" data-edge-id="wallet-to-oracle" data-composition-points="630,502;710,502" d="M 630 502 L 710 502" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="client" data-edge-to="ui" data-edge-label="HTTPS" data-edge-key="0" data-edge-id="client-ui" data-composition-points="180,393;205,393" d="M 180 393 L 205 393" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="ui" data-edge-to="api" data-edge-label="REST /api" data-edge-key="1" data-edge-id="ui-api" data-composition-points="355,393;400,393" d="M 355 393 L 400 393" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="api" data-edge-to="auth" data-edge-label="validate Bearer JWT" data-edge-key="2" data-edge-id="api-auth" data-composition-points="485,360;485,256" d="M 485 360 L 485 256" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="api" data-edge-to="payments" data-edge-label="payment, wallet, route APIs" data-edge-key="3" data-edge-id="api-payments" data-composition-points="570,393;595,393;595,333;620,333" d="M 570 393 L 587 393 Q 595 393 595 385 L 595 341 Q 595 333 603 333 L 620 333" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="api" data-edge-to="compliance" data-edge-label="KYC, case, policy, copilot APIs" data-edge-key="4" data-edge-id="api-compliance" data-composition-points="570,393;595,393;595,543;620,543" d="M 570 393 L 587 393 Q 595 393 595 401 L 595 535 Q 595 543 603 543 L 620 543" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="payments" data-edge-to="oracle" data-edge-label="transactional state + ledger" data-edge-key="5" data-edge-id="payments-oracle" data-composition-points="795,333;805,333;805,443;1040,443" d="M 795 333 L 800 333 Q 805 333 805 338 L 805 435 Q 805 443 813 443 L 1040 443" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="compliance" data-edge-to="oracle" data-edge-label="cases, policies, vector generations" data-edge-key="6" data-edge-id="compliance-oracle" data-composition-points="825,536;932.5,536;932.5,443;1040,443" d="M 825 536 L 924.5 536 Q 932.5 536 932.5 528 L 932.5 451 Q 932.5 443 940.5 443 L 1040 443" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="payments" data-edge-to="outbox" data-edge-label="durable payment events" data-edge-key="7" data-edge-id="payments-outbox" data-composition-points="795,333;820,333" d="M 795 333 L 820 333" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="outbox" data-edge-to="kafka" data-edge-label="relay canonical envelopes" data-edge-key="8" data-edge-id="outbox-kafka" data-composition-points="995,333;1017.5,333;1017.5,243;1040,243" d="M 995 333 L 1009.5 333 Q 1017.5 333 1017.5 325 L 1017.5 251 Q 1017.5 243 1025.5 243 L 1040 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="kafka" data-edge-to="oracle" data-edge-label="idempotent timeline ingestion" data-edge-key="9" data-edge-id="kafka-oracle" data-composition-points="1137.5,276;1137.5,410" d="M 1137.5 276 L 1137.5 410" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="payments" data-edge-to="providers" data-edge-label="FX quotes and payouts" data-edge-key="10" data-edge-id="payments-providers" data-composition-points="707.5,300;707.5,146" d="M 707.5 300 L 707.5 146" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="compliance" data-edge-to="ollama" data-edge-label="embed, retrieve, answer" data-edge-key="11" data-edge-id="compliance-ollama" data-composition-points="825,550;932.5,550;932.5,643;1040,643" d="M 825 550 L 924.5 550 Q 932.5 550 932.5 558 L 932.5 635 Q 932.5 643 940.5 643 L 1040 643" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Components -->
-        <g id="node-fluxpay-ui" data-node-id="fluxpay-ui" data-node-label="FluxPay UI" tabindex="0" role="button" aria-label="Focus FluxPay UI, Oracle JET / TS, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Oracle JET / TS" data-node-context="Architecture component">
-          <title>FluxPay UI · Oracle JET / TS · Architecture component</title>
-          <rect x="40" y="300" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="40" y="300" width="150" height="64" rx="6" class="c-frontend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(46 306) scale(0.6875)">
+        <g id="node-client" data-node-id="client" data-node-label="Customer / Admin" tabindex="0" role="button" aria-label="Focus Customer / Admin, browser client, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="browser client" data-node-context="Architecture component">
+          <title>Customer / Admin · browser client · Architecture component</title>
+          <rect x="35" y="360" width="145" height="66" rx="6" class="c-mask"/>
+          <rect x="35" y="360" width="145" height="66" rx="6" class="c-external" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(41 366) scale(0.6875)">
+            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
+            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="107.5" y="391" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Customer / Admin</text>
+        <text data-detail="context" x="107.5" y="407" class="t-muted" font-size="9" text-anchor="middle">browser client</text>
+        </g>
+
+        <g id="node-ui" data-node-id="ui" data-node-label="FluxPay UI" tabindex="0" role="button" aria-label="Focus FluxPay UI, React web client, FluxPay application" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="React web client" data-node-context="FluxPay application">
+          <title>FluxPay UI · React web client · FluxPay application</title>
+          <rect x="205" y="360" width="150" height="66" rx="6" class="c-mask"/>
+          <rect x="205" y="360" width="150" height="66" rx="6" class="c-frontend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(211 366) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="115" y="330" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">FluxPay UI</text>
-        <text data-detail="context" x="115" y="346" class="t-muted" font-size="9" text-anchor="middle">Oracle JET / TS</text>
+          <text data-node-label="" data-detail-anchor="" x="280" y="391" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">FluxPay UI</text>
+        <text data-detail="context" x="280" y="407" class="t-muted" font-size="9" text-anchor="middle">React web client</text>
         </g>
 
-        <g id="node-api-layer" data-node-id="api-layer" data-node-label="API Controllers" tabindex="0" role="button" aria-label="Focus API Controllers, Spring Boot :8080, FluxPay Backend: Spring Boot 3.2 / Java 17 › sg-api: JWT owner/admin" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Spring Boot :8080" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17 › sg-api: JWT owner/admin">
-          <title>API Controllers · Spring Boot :8080 · FluxPay Backend: Spring Boot 3.2 / Java 17 › sg-api: JWT owner/admin</title>
-          <rect x="250" y="300" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="250" y="300" width="150" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(256 306) scale(0.6875)">
+        <g id="node-api" data-node-id="api" data-node-label="Spring Boot API" tabindex="0" role="button" aria-label="Focus Spring Boot API, controllers + request advice, FluxPay application › Authenticated API boundary" aria-pressed="false" data-node-kind="backend" data-node-sublabel="controllers + request advice" data-node-tag="Java 17" data-node-context="FluxPay application › Authenticated API boundary">
+          <title>Spring Boot API · controllers + request advice · FluxPay application › Authenticated API boundary · Java 17</title>
+          <rect x="400" y="360" width="170" height="66" rx="6" class="c-mask"/>
+          <rect x="400" y="360" width="170" height="66" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(406 366) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="325" y="330" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">API Controllers</text>
-        <text data-detail="context" x="325" y="346" class="t-muted" font-size="9" text-anchor="middle">Spring Boot :8080</text>
+          <text data-node-label="" data-detail-anchor="" x="485" y="391" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Spring Boot API</text>
+        <text data-detail="context" x="485" y="407" class="t-muted" font-size="9" text-anchor="middle">controllers + request advice</text>
+        <text data-detail="fine" x="485" y="418" class="t-backend" font-size="7" text-anchor="middle">Java 17</text>
         </g>
 
-        <g id="node-auth-sec" data-node-id="auth-sec" data-node-label="JWT Auth" tabindex="0" role="button" aria-label="Focus JWT Auth, JwtAuthFilter, FluxPay Backend: Spring Boot 3.2 / Java 17 › sg-api: JWT owner/admin" aria-pressed="false" data-node-kind="security" data-node-sublabel="JwtAuthFilter" data-node-tag="owner / admin" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17 › sg-api: JWT owner/admin">
-          <title>JWT Auth · JwtAuthFilter · FluxPay Backend: Spring Boot 3.2 / Java 17 › sg-api: JWT owner/admin · owner / admin</title>
-          <rect x="40" y="110" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="40" y="110" width="150" height="64" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(46 116) scale(0.6875)">
+        <g id="node-auth" data-node-id="auth" data-node-label="JWT Security" tabindex="0" role="button" aria-label="Focus JWT Security, role and ownership checks, FluxPay application › Authenticated API boundary" aria-pressed="false" data-node-kind="security" data-node-sublabel="role and ownership checks" data-node-context="FluxPay application › Authenticated API boundary">
+          <title>JWT Security · role and ownership checks · FluxPay application › Authenticated API boundary</title>
+          <rect x="400" y="190" width="170" height="66" rx="6" class="c-mask"/>
+          <rect x="400" y="190" width="170" height="66" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(406 196) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="115" y="140" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">JWT Auth</text>
-        <text data-detail="context" x="115" y="156" class="t-muted" font-size="9" text-anchor="middle">JwtAuthFilter</text>
-        <text data-detail="fine" x="115" y="166" class="t-security" font-size="7" text-anchor="middle">owner / admin</text>
+          <text data-node-label="" data-detail-anchor="" x="485" y="221" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">JWT Security</text>
+        <text data-detail="context" x="485" y="237" class="t-muted" font-size="9" text-anchor="middle">role and ownership checks</text>
         </g>
 
-        <g id="node-payment-core" data-node-id="payment-core" data-node-label="Payment Core" tabindex="0" role="button" aria-label="Focus Payment Core, Quote + Confirm, FluxPay Backend: Spring Boot 3.2 / Java 17" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Quote + Confirm" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17">
-          <title>Payment Core · Quote + Confirm · FluxPay Backend: Spring Boot 3.2 / Java 17</title>
-          <rect x="480" y="300" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="480" y="300" width="150" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(486 306) scale(0.6875)">
+        <g id="node-payments" data-node-id="payments" data-node-label="Payments &amp; Wallets" tabindex="0" role="button" aria-label="Focus Payments &amp; Wallets, quotes, posting, routes, FluxPay application" aria-pressed="false" data-node-kind="backend" data-node-sublabel="quotes, posting, routes" data-node-context="FluxPay application">
+          <title>Payments &amp; Wallets · quotes, posting, routes · FluxPay application</title>
+          <rect x="620" y="300" width="175" height="66" rx="6" class="c-mask"/>
+          <rect x="620" y="300" width="175" height="66" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(626 306) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="555" y="330" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Payment Core</text>
-        <text data-detail="context" x="555" y="346" class="t-muted" font-size="9" text-anchor="middle">Quote + Confirm</text>
+          <text data-node-label="" data-detail-anchor="" x="707.5" y="331" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Payments &amp; Wallets</text>
+        <text data-detail="context" x="707.5" y="347" class="t-muted" font-size="9" text-anchor="middle">quotes, posting, routes</text>
         </g>
 
-        <g id="node-wallet-ledger" data-node-id="wallet-ledger" data-node-label="Wallet &amp; Ledger" tabindex="0" role="button" aria-label="Focus Wallet &amp; Ledger, PostingService, FluxPay Backend: Spring Boot 3.2 / Java 17" aria-pressed="false" data-node-kind="backend" data-node-sublabel="PostingService" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17">
-          <title>Wallet &amp; Ledger · PostingService · FluxPay Backend: Spring Boot 3.2 / Java 17</title>
-          <rect x="480" y="470" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="480" y="470" width="150" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(486 476) scale(0.6875)">
+        <g id="node-compliance" data-node-id="compliance" data-node-label="Compliance, Policy &amp; Copilot" tabindex="0" role="button" aria-label="Focus Compliance, Policy &amp; Copilot, KYC, reviews, vector retrieval, FluxPay application" aria-pressed="false" data-node-kind="backend" data-node-sublabel="KYC, reviews, vector retrieval" data-node-context="FluxPay application">
+          <title>Compliance, Policy &amp; Copilot · KYC, reviews, vector retrieval · FluxPay application</title>
+          <rect x="620" y="510" width="205" height="66" rx="6" class="c-mask"/>
+          <rect x="620" y="510" width="205" height="66" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(626 516) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="555" y="500" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Wallet &amp; Ledger</text>
-        <text data-detail="context" x="555" y="516" class="t-muted" font-size="9" text-anchor="middle">PostingService</text>
+          <text data-node-label="" data-detail-anchor="" x="722.5" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Compliance, Policy &amp; Copilot</text>
+        <text data-detail="context" x="722.5" y="557" class="t-muted" font-size="9" text-anchor="middle">KYC, reviews, vector retrieval</text>
         </g>
 
-        <g id="node-payout-orch" data-node-id="payout-orch" data-node-label="Payout Orchestration" tabindex="0" role="button" aria-label="Focus Payout Orchestration, Execution + Recovery, FluxPay Backend: Spring Boot 3.2 / Java 17" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Execution + Recovery" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17">
-          <title>Payout Orchestration · Execution + Recovery · FluxPay Backend: Spring Boot 3.2 / Java 17</title>
-          <rect x="710" y="300" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="710" y="300" width="150" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(716 306) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="785" y="330" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Payout Orchestration</text>
-        <text data-detail="context" x="785" y="346" class="t-muted" font-size="9" text-anchor="middle">Execution + Recovery</text>
-        </g>
-
-        <g id="node-kyc-compliance" data-node-id="kyc-compliance" data-node-label="KYC &amp; Screening" tabindex="0" role="button" aria-label="Focus KYC &amp; Screening, KycService + Gates, FluxPay Backend: Spring Boot 3.2 / Java 17" aria-pressed="false" data-node-kind="backend" data-node-sublabel="KycService + Gates" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17">
-          <title>KYC &amp; Screening · KycService + Gates · FluxPay Backend: Spring Boot 3.2 / Java 17</title>
-          <rect x="250" y="110" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="250" y="110" width="150" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(256 116) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="325" y="140" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">KYC &amp; Screening</text>
-        <text data-detail="context" x="325" y="156" class="t-muted" font-size="9" text-anchor="middle">KycService + Gates</text>
-        </g>
-
-        <g id="node-outbox-relay" data-node-id="outbox-relay" data-node-label="Outbox Relay" tabindex="0" role="button" aria-label="Focus Outbox Relay, Relay + DispatchJob, FluxPay Backend: Spring Boot 3.2 / Java 17" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Relay + DispatchJob" data-node-context="FluxPay Backend: Spring Boot 3.2 / Java 17">
-          <title>Outbox Relay · Relay + DispatchJob · FluxPay Backend: Spring Boot 3.2 / Java 17</title>
-          <rect x="930" y="300" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="930" y="300" width="150" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(936 306) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="1005" y="330" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Outbox Relay</text>
-        <text data-detail="context" x="1005" y="346" class="t-muted" font-size="9" text-anchor="middle">Relay + DispatchJob</text>
-        </g>
-
-        <g id="node-kafka" data-node-id="kafka" data-node-label="Kafka" tabindex="0" role="button" aria-label="Focus Kafka, 9 topics, Data &amp; Events" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="9 topics" data-node-tag="payment.* / payout.*" data-node-context="Data &amp; Events">
-          <title>Kafka · 9 topics · Data &amp; Events · payment.* / payout.*</title>
-          <rect x="930" y="470" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="930" y="470" width="150" height="64" rx="6" class="c-messagebus" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(936 476) scale(0.6875)">
+        <g id="node-outbox" data-node-id="outbox" data-node-label="Transactional Outbox" tabindex="0" role="button" aria-label="Focus Transactional Outbox, scheduled relay, FluxPay application" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="scheduled relay" data-node-context="FluxPay application">
+          <title>Transactional Outbox · scheduled relay · FluxPay application</title>
+          <rect x="820" y="300" width="175" height="66" rx="6" class="c-mask"/>
+          <rect x="820" y="300" width="175" height="66" rx="6" class="c-messagebus" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(826 306) scale(0.6875)">
             <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
             <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
             <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
             <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="1005" y="500" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Kafka</text>
-        <text data-detail="context" x="1005" y="516" class="t-muted" font-size="9" text-anchor="middle">9 topics</text>
-        <text data-detail="fine" x="1005" y="526" class="t-messagebus" font-size="7" text-anchor="middle">payment.* / payout.*</text>
+          <text data-node-label="" data-detail-anchor="" x="907.5" y="331" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Transactional Outbox</text>
+        <text data-detail="context" x="907.5" y="347" class="t-muted" font-size="9" text-anchor="middle">scheduled relay</text>
         </g>
 
-        <g id="node-oracle" data-node-id="oracle" data-node-label="Oracle DB" tabindex="0" role="button" aria-label="Focus Oracle DB, Flyway V001-V005, Data &amp; Events" aria-pressed="false" data-node-kind="database" data-node-sublabel="Flyway V001-V005" data-node-context="Data &amp; Events">
-          <title>Oracle DB · Flyway V001-V005 · Data &amp; Events</title>
-          <rect x="710" y="470" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="710" y="470" width="150" height="64" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(716 476) scale(0.6875)">
+        <g id="node-oracle" data-node-id="oracle" data-node-label="Oracle Database" tabindex="0" role="button" aria-label="Focus Oracle Database, OLTP, events, AI Vector Search, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="OLTP, events, AI Vector Search" data-node-tag="Flyway" data-node-context="Architecture component">
+          <title>Oracle Database · OLTP, events, AI Vector Search · Architecture component · Flyway</title>
+          <rect x="1040" y="410" width="195" height="66" rx="6" class="c-mask"/>
+          <rect x="1040" y="410" width="195" height="66" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1046 416) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="785" y="500" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Oracle DB</text>
-        <text data-detail="context" x="785" y="516" class="t-muted" font-size="9" text-anchor="middle">Flyway V001-V005</text>
+          <text data-node-label="" data-detail-anchor="" x="1137.5" y="441" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Oracle Database</text>
+        <text data-detail="context" x="1137.5" y="457" class="t-muted" font-size="9" text-anchor="middle">OLTP, events, AI Vector Search</text>
+        <text data-detail="fine" x="1137.5" y="468" class="t-database" font-size="7" text-anchor="middle">Flyway</text>
         </g>
 
-        <g id="node-fx-provider" data-node-id="fx-provider" data-node-label="Frankfurter FX" tabindex="0" role="button" aria-label="Focus Frankfurter FX, FxRateProvider, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="FxRateProvider" data-node-context="Architecture component">
-          <title>Frankfurter FX · FxRateProvider · Architecture component</title>
-          <rect x="480" y="110" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="480" y="110" width="150" height="64" rx="6" class="c-external" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(486 116) scale(0.6875)">
+        <g id="node-kafka" data-node-id="kafka" data-node-label="Kafka" tabindex="0" role="button" aria-label="Focus Kafka, payment event topics, Architecture component" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="payment event topics" data-node-context="Architecture component">
+          <title>Kafka · payment event topics · Architecture component</title>
+          <rect x="1040" y="210" width="195" height="66" rx="6" class="c-mask"/>
+          <rect x="1040" y="210" width="195" height="66" rx="6" class="c-messagebus" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(1046 216) scale(0.6875)">
+            <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
+            <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
+            <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
+            <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1137.5" y="241" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Kafka</text>
+        <text data-detail="context" x="1137.5" y="257" class="t-muted" font-size="9" text-anchor="middle">payment event topics</text>
+        </g>
+
+        <g id="node-ollama" data-node-id="ollama" data-node-label="Ollama" tabindex="0" role="button" aria-label="Focus Ollama, embeddings + grounded chat, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="embeddings + grounded chat" data-node-context="Architecture component">
+          <title>Ollama · embeddings + grounded chat · Architecture component</title>
+          <rect x="1040" y="610" width="195" height="66" rx="6" class="c-mask"/>
+          <rect x="1040" y="610" width="195" height="66" rx="6" class="c-external" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(1046 616) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="555" y="140" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Frankfurter FX</text>
-        <text data-detail="context" x="555" y="156" class="t-muted" font-size="9" text-anchor="middle">FxRateProvider</text>
+          <text data-node-label="" data-detail-anchor="" x="1137.5" y="641" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Ollama</text>
+        <text data-detail="context" x="1137.5" y="657" class="t-muted" font-size="9" text-anchor="middle">embeddings + grounded chat</text>
         </g>
 
-        <g id="node-payout-providers" data-node-id="payout-providers" data-node-label="Bank Partners" tabindex="0" role="button" aria-label="Focus Bank Partners, PayoutProvider, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="PayoutProvider" data-node-context="Architecture component">
-          <title>Bank Partners · PayoutProvider · Architecture component</title>
-          <rect x="710" y="110" width="150" height="64" rx="6" class="c-mask"/>
-          <rect x="710" y="110" width="150" height="64" rx="6" class="c-external" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(716 116) scale(0.6875)">
+        <g id="node-providers" data-node-id="providers" data-node-label="FX &amp; Payout Providers" tabindex="0" role="button" aria-label="Focus FX &amp; Payout Providers, HTTP FX; simulated payout adapters, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="HTTP FX; simulated payout adapters" data-node-context="Architecture component">
+          <title>FX &amp; Payout Providers · HTTP FX; simulated payout adapters · Architecture component</title>
+          <rect x="620" y="80" width="175" height="66" rx="6" class="c-mask"/>
+          <rect x="620" y="80" width="175" height="66" rx="6" class="c-external" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(626 86) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="785" y="140" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Bank Partners</text>
-        <text data-detail="context" x="785" y="156" class="t-muted" font-size="9" text-anchor="middle">PayoutProvider</text>
+          <text data-node-label="" data-detail-anchor="" x="707.5" y="111" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">FX &amp; Payout Providers</text>
+        <text data-detail="context" x="707.5" y="127" class="t-muted" font-size="8.1" text-anchor="middle">HTTP FX; simulated payout adapters</text>
         </g>
 
         <!-- Connection labels -->
-        <g data-detail="context" data-edge-from="fluxpay-ui" data-edge-to="api-layer" data-edge-label="HTTPS" data-edge-key="0" data-edge-id="ui-to-api">
-          <rect x="203" y="368" width="34" height="14" rx="3" class="c-mask"/>
-          <text x="220" y="378" class="t-backend" font-size="8" text-anchor="middle">HTTPS</text>
+        <g data-detail="context" data-edge-from="client" data-edge-to="ui" data-edge-label="HTTPS" data-edge-key="0" data-edge-id="client-ui">
+          <rect x="176" y="430" width="34" height="14" rx="3" class="c-mask"/>
+          <text x="193" y="440" class="t-backend" font-size="8" text-anchor="middle">HTTPS</text>
         </g>
-        <g data-detail="context" data-edge-from="auth-sec" data-edge-to="api-layer" data-edge-label="verify JWT" data-edge-key="1" data-edge-id="auth-to-api">
-          <rect x="191" y="213.5" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="220" y="223.5" class="t-security" font-size="8" text-anchor="middle">verify JWT</text>
+        <g data-detail="context" data-edge-from="ui" data-edge-to="api" data-edge-label="REST /api" data-edge-key="1" data-edge-id="ui-api">
+          <rect x="351.4" y="430" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
+          <text x="378" y="440" class="t-backend" font-size="8" text-anchor="middle">REST /api</text>
         </g>
-        <g data-detail="context" data-edge-from="api-layer" data-edge-to="payment-core" data-edge-label="draft/confirm" data-edge-key="2" data-edge-id="api-to-payment">
-          <rect x="403.8" y="312" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="440" y="322" class="t-muted" font-size="8" text-anchor="middle">draft/confirm</text>
+        <g data-detail="context" data-edge-from="api" data-edge-to="auth" data-edge-label="validate Bearer JWT" data-edge-key="2" data-edge-id="api-auth">
+          <rect x="434.4" y="340" width="101.2" height="14" rx="3" class="c-mask"/>
+          <text x="485" y="350" class="t-security" font-size="8" text-anchor="middle">validate Bearer JWT</text>
         </g>
-        <g data-detail="context" data-edge-from="api-layer" data-edge-to="kyc-compliance" data-edge-label="KYC gate" data-edge-key="3" data-edge-id="api-to-kyc">
-          <rect x="300.8" y="280" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="325" y="290" class="t-muted" font-size="8" text-anchor="middle">KYC gate</text>
+        <g data-detail="context" data-edge-from="api" data-edge-to="payments" data-edge-label="payment, wallet, route APIs" data-edge-key="3" data-edge-id="api-payments">
+          <rect x="520.2" y="275" width="139.6" height="14" rx="3" class="c-mask"/>
+          <text x="590" y="285" class="t-muted" font-size="8" text-anchor="middle">payment, wallet, route APIs</text>
         </g>
-        <g data-detail="context" data-edge-from="payment-core" data-edge-to="wallet-ledger" data-edge-label="reserve/post" data-edge-key="4" data-edge-id="payment-to-wallet">
-          <rect x="521.2" y="368" width="67.6" height="14" rx="3" class="c-mask"/>
-          <text x="555" y="378" class="t-muted" font-size="8" text-anchor="middle">reserve/post</text>
+        <g data-detail="context" data-edge-from="api" data-edge-to="compliance" data-edge-label="KYC, case, policy, copilot APIs" data-edge-key="4" data-edge-id="api-compliance">
+          <rect x="515.6" y="448" width="158.79999999999998" height="14" rx="3" class="c-mask"/>
+          <text x="595" y="458" class="t-muted" font-size="8" text-anchor="middle">KYC, case, policy, copilot APIs</text>
         </g>
-        <g data-detail="context" data-edge-from="payment-core" data-edge-to="payout-orch" data-edge-label="orchestrate" data-edge-key="5" data-edge-id="payment-to-payout">
-          <rect x="638.6" y="312" width="62.8" height="14" rx="3" class="c-mask"/>
-          <text x="670" y="322" class="t-muted" font-size="8" text-anchor="middle">orchestrate</text>
+        <g data-detail="context" data-edge-from="payments" data-edge-to="oracle" data-edge-label="transactional state + ledger" data-edge-key="5" data-edge-id="payments-oracle">
+          <rect x="732.8" y="368" width="144.4" height="14" rx="3" class="c-mask"/>
+          <text x="805" y="378" class="t-muted" font-size="8" text-anchor="middle">transactional state + ledger</text>
         </g>
-        <g data-detail="context" data-edge-from="payment-core" data-edge-to="fx-provider" data-edge-label="FX quote" data-edge-key="6" data-edge-id="payment-to-fx">
-          <rect x="530.8" y="280" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="555" y="290" class="t-muted" font-size="8" text-anchor="middle">FX quote</text>
+        <g data-detail="context" data-edge-from="compliance" data-edge-to="oracle" data-edge-label="cases, policies, vector generations" data-edge-key="6" data-edge-id="compliance-oracle">
+          <rect x="843.5" y="469.5" width="178" height="14" rx="3" class="c-mask"/>
+          <text x="932.5" y="479.5" class="t-muted" font-size="8" text-anchor="middle">cases, policies, vector generations</text>
         </g>
-        <g data-detail="context" data-edge-from="payout-orch" data-edge-to="payout-providers" data-edge-label="submit" data-edge-key="7" data-edge-id="payout-to-providers">
-          <rect x="765.6" y="280" width="38.8" height="14" rx="3" class="c-mask"/>
-          <text x="785" y="290" class="t-muted" font-size="8" text-anchor="middle">submit</text>
+        <g data-detail="context" data-edge-from="payments" data-edge-to="outbox" data-edge-label="durable payment events" data-edge-key="7" data-edge-id="payments-outbox">
+          <rect x="749.2" y="275" width="115.6" height="14" rx="3" class="c-mask"/>
+          <text x="807" y="285" class="t-muted" font-size="8" text-anchor="middle">durable payment events</text>
         </g>
-        <g data-detail="context" data-edge-from="payout-orch" data-edge-to="outbox-relay" data-edge-label="outbox write" data-edge-key="8" data-edge-id="payout-to-outbox">
-          <rect x="861.2" y="312" width="67.6" height="14" rx="3" class="c-mask"/>
-          <text x="895" y="322" class="t-muted" font-size="8" text-anchor="middle">outbox write</text>
+        <g data-detail="context" data-edge-from="outbox" data-edge-to="kafka" data-edge-label="relay canonical envelopes" data-edge-key="8" data-edge-id="outbox-kafka">
+          <rect x="952.5" y="284" width="130" height="14" rx="3" class="c-mask"/>
+          <text x="1017.5" y="294" class="t-backend" font-size="8" text-anchor="middle">relay canonical envelopes</text>
         </g>
-        <g data-detail="context" data-edge-from="outbox-relay" data-edge-to="kafka" data-edge-label="relay" data-edge-key="9" data-edge-id="outbox-to-kafka">
-          <rect x="988" y="368" width="34" height="14" rx="3" class="c-mask"/>
-          <text x="1005" y="378" class="t-muted" font-size="8" text-anchor="middle">relay</text>
+        <g data-detail="context" data-edge-from="kafka" data-edge-to="oracle" data-edge-label="idempotent timeline ingestion" data-edge-key="9" data-edge-id="kafka-oracle">
+          <rect x="1062.9" y="286" width="149.2" height="14" rx="3" class="c-mask"/>
+          <text x="1137.5" y="296" class="t-muted" font-size="8" text-anchor="middle">idempotent timeline ingestion</text>
         </g>
-        <g data-detail="context" data-edge-from="wallet-ledger" data-edge-to="oracle" data-edge-label="ledger" data-edge-key="10" data-edge-id="wallet-to-oracle">
-          <rect x="650.6" y="482" width="38.8" height="14" rx="3" class="c-mask"/>
-          <text x="670" y="492" class="t-muted" font-size="8" text-anchor="middle">ledger</text>
+        <g data-detail="context" data-edge-from="payments" data-edge-to="providers" data-edge-label="FX quotes and payouts" data-edge-key="10" data-edge-id="payments-providers">
+          <rect x="652.1" y="280" width="110.8" height="14" rx="3" class="c-mask"/>
+          <text x="707.5" y="290" class="t-muted" font-size="8" text-anchor="middle">FX quotes and payouts</text>
+        </g>
+        <g data-detail="context" data-edge-from="compliance" data-edge-to="ollama" data-edge-label="embed, retrieve, answer" data-edge-key="11" data-edge-id="compliance-ollama">
+          <rect x="872.3" y="576.5" width="120.39999999999999" height="14" rx="3" class="c-mask"/>
+          <text x="932.5" y="586.5" class="t-messagebus" font-size="8" text-anchor="middle">embed, retrieve, answer</text>
         </g>
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
-        <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="FluxPay Backend: Spring Boot 3.2 / Java 17">
-          <rect data-graph-role="structural-frame-label-mask" x="14" y="72" width="236.79999999999998" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="18" y="85" class="t-cloud" font-size="9" font-weight="600">FluxPay Backend: Spring Boot 3.2 / Java 17</text>
+        <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="FluxPay application">
+          <rect data-graph-role="structural-frame-label-mask" x="181" y="170" width="112.6" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="185" y="183" class="t-cloud" font-size="9" font-weight="600">FluxPay application</text>
         </g>
 
-        <g data-graph-role="structural-frame-label" data-composition-frame-id="1" data-composition-frame-kind="security-group" data-composition-frame-label="sg-api: JWT owner/admin">
-          <rect data-graph-role="structural-frame-label-mask" x="14" y="90" width="134.2" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="18" y="103" class="t-security" font-size="9" font-weight="600">sg-api: JWT owner/admin</text>
-        </g>
-
-        <g data-graph-role="structural-frame-label" data-composition-frame-id="2" data-composition-frame-kind="region" data-composition-frame-label="Data &amp; Events">
-          <rect data-graph-role="structural-frame-label-mask" x="684" y="450" width="80.2" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="688" y="463" class="t-cloud" font-size="9" font-weight="600">Data &amp; Events</text>
+        <g data-graph-role="structural-frame-label" data-composition-frame-id="1" data-composition-frame-kind="security-group" data-composition-frame-label="Authenticated API boundary">
+          <rect data-graph-role="structural-frame-label-mask" x="390" y="170" width="150.4" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="394" y="183" class="t-security" font-size="9" font-weight="600">Authenticated API boundary</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="40" y="586" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="606" data-legend-width="83">
-            <rect x="40" y="597" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
-            <text x="62" y="606" class="t-muted" font-size="10" font-weight="500">Frontend</text>
+          <text x="40" y="824" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="844" data-legend-width="83">
+            <rect x="40" y="835" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
+            <text x="62" y="844" class="t-muted" font-size="10" font-weight="500">Frontend</text>
           </g>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="606" data-legend-width="78">
-            <rect x="145" y="597" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
-            <text x="167" y="606" class="t-muted" font-size="10" font-weight="500">Backend</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="844" data-legend-width="78">
+            <rect x="145" y="835" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
+            <text x="167" y="844" class="t-muted" font-size="10" font-weight="500">Backend</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="606" data-legend-width="83">
-            <rect x="245" y="597" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
-            <text x="267" y="606" class="t-muted" font-size="10" font-weight="500">Database</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="844" data-legend-width="83">
+            <rect x="245" y="835" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
+            <text x="267" y="844" class="t-muted" font-size="10" font-weight="500">Database</text>
           </g>
-          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="350" data-legend-baseline="606" data-legend-width="83">
-            <rect x="350" y="597" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
-            <text x="372" y="606" class="t-muted" font-size="10" font-weight="500">Security</text>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="350" data-legend-baseline="844" data-legend-width="83">
+            <rect x="350" y="835" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
+            <text x="372" y="844" class="t-muted" font-size="10" font-weight="500">Security</text>
           </g>
-          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Message bus" data-legend-x="455" data-legend-baseline="606" data-legend-width="98">
-            <rect x="455" y="597" width="16" height="10" rx="2.5" class="c-messagebus" stroke-width="1"/>
-            <text x="477" y="606" class="t-muted" font-size="10" font-weight="500">Message bus</text>
+          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Message bus" data-legend-x="455" data-legend-baseline="844" data-legend-width="98">
+            <rect x="455" y="835" width="16" height="10" rx="2.5" class="c-messagebus" stroke-width="1"/>
+            <text x="477" y="844" class="t-muted" font-size="10" font-weight="500">Message bus</text>
           </g>
-          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="575" data-legend-baseline="606" data-legend-width="83">
-            <rect x="575" y="597" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
-            <text x="597" y="606" class="t-muted" font-size="10" font-weight="500">External</text>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="575" data-legend-baseline="844" data-legend-width="83">
+            <rect x="575" y="835" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
+            <text x="597" y="844" class="t-muted" font-size="10" font-weight="500">External</text>
           </g>
         </g>
       </svg>
@@ -5599,34 +5590,33 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Top: Edge</h3>
+          <h3>Core money movement</h3>
         </div>
         <ul>
-          <li>&bull; FluxPay UI calls Spring controllers over HTTPS</li>
-          <li>&bull; JWT filter enforces owner/admin authorization</li>
+          <li>&bull; Payments, wallet posting, route selection, and payout execution share Oracle-backed transactional state.</li>
+          <li>&bull; External FX and payout providers are accessed through explicit adapters.</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot emerald"></div>
-          <h3>Middle: Services</h3>
+          <div class="card-dot orange"></div>
+          <h3>Reliable event trail</h3>
         </div>
         <ul>
-          <li>&bull; Payment Core handles quote, confirm, recovery</li>
-          <li>&bull; Wallet and Ledger post double-entry journals</li>
-          <li>&bull; Payout orchestration submits to bank partners</li>
+          <li>&bull; Payment and compliance transitions write a transactional outbox.</li>
+          <li>&bull; The relay publishes Kafka envelopes; idempotent ingestion persists the timeline for read APIs.</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>Bottom: State</h3>
+          <div class="card-dot violet"></div>
+          <h3>Grounded compliance</h3>
         </div>
         <ul>
-          <li>&bull; Outbox relay publishes canonical envelopes to 9 Kafka topics</li>
-          <li>&bull; Oracle stores payments, wallets, ledger, KYC via Flyway V001-V005</li>
+          <li>&bull; Policy indexing chunks documents, asks Ollama for embeddings, and publishes an immutable Oracle vector generation.</li>
+          <li>&bull; The admin copilot retrieves cited passages before requesting its grounded chat answer.</li>
         </ul>
       </div>
     </div>
@@ -6431,8 +6421,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         clone.insertBefore(style, clone.firstChild);
         clone.insertBefore(bgRect, style.nextSibling);
 
+        // The XML declaration pins UTF-8: without it, consumers that guess an
+        // encoding instead of defaulting to UTF-8 mangle non-ASCII text.
         return {
-          svgString: new XMLSerializer().serializeToString(clone),
+          svgString: '<?xml version="1.0" encoding="UTF-8"?>\n' +
+            new XMLSerializer().serializeToString(clone),
           width: vb.width * scale,
           height: vb.height * scale,
           canonicalStateClean: canonicalStateClean,
@@ -8082,8 +8075,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       function relationshipHitRecords() {
         var recordsByKey = {};
-        var recordsById = {};
-        var byId = {};
+        var recordsById = Object.create(null);
+        var byId = Object.create(null);
         nodes().forEach(function (node) { byId[node.getAttribute('data-node-id')] = node; });
         var records = [];
         edges().forEach(function (edge) {
@@ -8833,7 +8826,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           Archify.routeProbe.clear({ updateUrl: false, restoreFocus: false });
         }
         var nodeList = nodes();
-        var byId = {};
+        var byId = Object.create(null);
         nodeList.forEach(function (node) { byId[node.getAttribute('data-node-id')] = node; });
         var normalized = [];
         (ids || []).forEach(function (id) {
@@ -8847,8 +8840,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         clear({ updateUrl: false, preserveView: true });
         activeIds = normalized;
-        var selected = {};
-        var related = {};
+        var selected = Object.create(null);
+        var related = Object.create(null);
         var seenEdges = {};
         var matchedEdges = 0;
         normalized.forEach(function (id) { selected[id] = true; related[id] = true; });
@@ -9199,7 +9192,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         clear({ announce: false });
         var nodeList = nodes();
         var edgeList = edges();
-        var byId = {};
+        var byId = Object.create(null);
         nodeList.forEach(function (node) { byId[node.getAttribute('data-node-id')] = node; });
         var selected = byId[id];
         if (!selected) return false;
@@ -9208,7 +9201,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         overlay.setAttribute('class', 'intent-trace-overlay');
         overlay.setAttribute('data-intent-trace-overlay', '');
         overlay.setAttribute('aria-hidden', 'true');
-        var related = {};
+        var related = Object.create(null);
         var seen = {};
         var counts = { out: 0, in: 0, loop: 0 };
         related[id] = true;
@@ -9379,12 +9372,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
       try { views = JSON.parse(data.textContent || '[]'); } catch (_) { views = []; }
       if (!views.length) return { count: 0, active: function () { return null; } };
-      var canonicalNodeIds = {};
+      var canonicalNodeIds = Object.create(null);
       Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id]'), function (node) {
         canonicalNodeIds[node.getAttribute('data-node-id')] = true;
       });
       views.forEach(function (view) {
-        var seen = {};
+        var seen = Object.create(null);
         view.focus = (view.focus || []).filter(function (id) {
           if (!canonicalNodeIds[id] || seen[id]) return false;
           seen[id] = true;
@@ -9413,8 +9406,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       function chapterDelta(previous, destination) {
         var previousFocus = previous ? previous.focus : [];
         var destinationFocus = destination ? destination.focus : [];
-        var previousIds = {};
-        var destinationIds = {};
+        var previousIds = Object.create(null);
+        var destinationIds = Object.create(null);
         previousFocus.forEach(function (id) { previousIds[id] = true; });
         destinationFocus.forEach(function (id) { destinationIds[id] = true; });
         return {
@@ -9426,7 +9419,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
       function chapterAnchor(previous, destination, outgoingBeatIndex, delta) {
         if (!previous || !destination) return '';
-        var stayIds = {};
+        var stayIds = Object.create(null);
         delta.stay.forEach(function (id) { stayIds[id] = true; });
         var activeBeat = outgoingBeatIndex >= 0 ? previous.focus[outgoingBeatIndex] : '';
         if (activeBeat && stayIds[activeBeat]) return activeBeat;
@@ -9444,7 +9437,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
 
       function classifyHandoff(delta, anchor) {
-        var roles = {};
+        var roles = Object.create(null);
         delta.stay.forEach(function (id) { roles[id] = 'stay'; });
         delta.enter.forEach(function (id) { roles[id] = 'enter'; });
         delta.leave.forEach(function (id) { roles[id] = 'leave'; });
@@ -9761,7 +9754,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (activePreviewIndex === index && svg.getAttribute('data-chapter-preview') === views[index].id) return true;
         clearChapterPreviewPresentation();
         var delta = chapterDelta(activeIndex >= 0 ? views[activeIndex] : null, views[index]);
-        var roles = {};
+        var roles = Object.create(null);
         delta.stay.forEach(function (id) { roles[id] = 'stay'; });
         delta.enter.forEach(function (id) { roles[id] = 'enter'; });
         delta.leave.forEach(function (id) { roles[id] = 'leave'; });
@@ -10415,7 +10408,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         var nodeList = Array.prototype.slice.call(svg.querySelectorAll('[data-node-id]'));
         var edgeList = Array.prototype.slice.call(svg.querySelectorAll('[data-edge-from][data-edge-to]'));
-        var byId = {};
+        var byId = Object.create(null);
         nodeList.forEach(function (node) { byId[node.getAttribute('data-node-id')] = node; });
         storySteps = view.focus.map(function (_, index) { return storyStep(view, index, edgeList, byId); });
         var labels = [];
@@ -11866,8 +11859,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         return true;
       }
       function semanticIds(ids, includeNeighbors) {
-        var seeds = {};
-        var wanted = {};
+        var seeds = Object.create(null);
+        var wanted = Object.create(null);
         (ids || []).forEach(function (id) { seeds[id] = true; wanted[id] = true; });
         if (includeNeighbors) {
           Array.prototype.forEach.call(svg.querySelectorAll('[data-edge-from][data-edge-to]'), function (edge) {
@@ -13335,7 +13328,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       function outgoingByNode() {
         var byId = nodesById();
-        var outgoing = {};
+        var outgoing = Object.create(null);
         edges().forEach(function (edge) {
           var from = edge.getAttribute('data-edge-from');
           var to = edge.getAttribute('data-edge-to');
@@ -13347,7 +13340,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       function reachableFrom(source) {
         var outgoing = outgoingByNode();
-        var reached = {};
+        var reached = Object.create(null);
         var queue = [source];
         reached[source] = true;
         for (var cursor = 0; cursor < queue.length; cursor += 1) {
@@ -13362,7 +13355,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       function hopDistancesFrom(source) {
         var outgoing = outgoingByNode();
-        var distances = {};
+        var distances = Object.create(null);
         var queue = [source];
         distances[source] = 0;
         for (var cursor = 0; cursor < queue.length; cursor += 1) {
@@ -13378,7 +13371,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       function shortestDirectedPath(source, target) {
         if (source === target) return null;
         var outgoing = outgoingByNode();
-        var previous = {};
+        var previous = Object.create(null);
         var queue = [source];
         previous[source] = null;
         for (var cursor = 0; cursor < queue.length && !Object.prototype.hasOwnProperty.call(previous, target); cursor += 1) {
@@ -13908,7 +13901,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           var sourceIds = nodes().map(function (node) { return node.getAttribute('data-node-id'); }).filter(function (id) {
             return outgoing[id] && outgoing[id].length;
           });
-          var sourceBadges = {};
+          var sourceBadges = Object.create(null);
           sourceIds.forEach(function (id) { sourceBadges[id] = viewerText('viewer.route.finder.source.badge'); });
           return {
             kind: 'route-source',
@@ -13924,7 +13917,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (mode === 'target' && startId && byId[startId]) {
           var distances = hopDistancesFrom(startId);
           var targetIds = Object.keys(distances).filter(function (id) { return id !== startId && byId[id]; });
-          var targetBadges = {};
+          var targetBadges = Object.create(null);
           targetIds.forEach(function (id) {
             targetBadges[id] = viewerCount('viewer.route.hop', distances[id]);
           });
@@ -14133,7 +14126,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var MAX_LENS_FLOW_EDGES = 24;
 
       function nodesById() {
-        var byId = {};
+        var byId = Object.create(null);
         Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id][data-node-kind]'), function (node) {
           var id = node.getAttribute('data-node-id');
           if (id && !byId[id]) byId[id] = node;
@@ -14300,7 +14293,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           return (byId[id].getAttribute('data-node-kind') || 'neutral') === kind;
         });
         if (!matches.length) return false;
-        var chosen = {};
+        var chosen = Object.create(null);
         matches.forEach(function (id) {
           chosen[id] = true;
           byId[id].setAttribute('data-legend-preview-match', '');
@@ -14476,7 +14469,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         options = options || {};
         cleanSvgState();
         var byId = nodesById();
-        var nodeKind = {};
+        var nodeKind = Object.create(null);
         Object.keys(byId).forEach(function (id) { nodeKind[id] = byId[id].getAttribute('data-node-kind') || 'neutral'; });
         if (!selectedKinds.length) {
           status.textContent = viewerText('viewer.lens.choose');

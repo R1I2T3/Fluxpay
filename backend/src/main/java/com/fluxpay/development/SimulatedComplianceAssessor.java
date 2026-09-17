@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component;
  * Development-only always-approve compliance assessor.
  *
  * <p>Active only when {@code fluxpay.development.simulated-compliance-enabled=true} (default {@code
- * false}). Outside that mode confirmation returns {@code 503 COMPLIANCE_UNAVAILABLE} via {@link
- * com.fluxpay.service.UnavailableComplianceAssessor}; unfinished compliance is never silently
- * treated as approval.
+ * false}). With simulation disabled, {@link com.fluxpay.service.AmountComplianceAssessor} handles
+ * assessments by default; disabling compliance selects {@link
+ * com.fluxpay.service.UnavailableComplianceAssessor} instead.
  */
 @Component
 @ConditionalOnProperty(

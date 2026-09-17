@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FluxPay — Current System Architecture",
+    "quality_profile": "showcase",
+    "viewBox": [1250, 860],
+    "views": [
+      {"id": "customer-flow", "label": "Customer payment flow", "focus": ["client", "ui", "api", "payments", "oracle"], "note": "Authenticated customers create, quote, confirm, and observe payments through the Spring Boot API."},
+      {"id": "payout-events", "label": "Payout and timeline", "focus": ["payments", "outbox", "kafka", "oracle", "providers"], "note": "Payout operations commit durable outbox work; Kafka delivery subsequently builds the payment timeline."},
+      {"id": "compliance-copilot", "label": "Compliance and copilot", "focus": ["api", "compliance", "oracle", "ollama"], "note": "Policy documents become Oracle vector generations and provide cited context for the admin-only copilot."}
+    ]
+  },
+  "components": [
+    {"id": "client", "type": "external", "label": "Customer / Admin", "sublabel": "browser client", "pos": [35, 360], "size": [145, 66]},
+    {"id": "ui", "type": "frontend", "label": "FluxPay UI", "sublabel": "React web client", "pos": [205, 360], "size": [150, 66]},
+    {"id": "api", "type": "backend", "label": "Spring Boot API", "sublabel": "controllers + request advice", "tag": "Java 17", "pos": [400, 360], "size": [170, 66]},
+    {"id": "auth", "type": "security", "label": "JWT Security", "sublabel": "role and ownership checks", "pos": [400, 190], "size": [170, 66]},
+    {"id": "payments", "type": "backend", "label": "Payments & Wallets", "sublabel": "quotes, posting, routes", "pos": [620, 300], "size": [175, 66]},
+    {"id": "compliance", "type": "backend", "label": "Compliance, Policy & Copilot", "sublabel": "KYC, reviews, vector retrieval", "pos": [620, 510], "size": [205, 66]},
+    {"id": "outbox", "type": "messagebus", "label": "Transactional Outbox", "sublabel": "scheduled relay", "pos": [820, 300], "size": [175, 66]},
+    {"id": "oracle", "type": "database", "label": "Oracle Database", "sublabel": "OLTP, events, AI Vector Search", "tag": "Flyway", "pos": [1040, 410], "size": [195, 66]},
+    {"id": "kafka", "type": "messagebus", "label": "Kafka", "sublabel": "payment event topics", "pos": [1040, 210], "size": [195, 66]},
+    {"id": "ollama", "type": "external", "label": "Ollama", "sublabel": "embeddings + grounded chat", "pos": [1040, 610], "size": [195, 66]},
+    {"id": "providers", "type": "external", "label": "FX & Payout Providers", "sublabel": "HTTP FX; simulated payout adapters", "pos": [620, 80], "size": [175, 66]}
+  ],
+  "boundaries": [
+    {"kind": "region", "label": "FluxPay application", "wraps": ["ui", "api", "auth", "payments", "compliance", "outbox"], "pad": 28},
+    {"kind": "security-group", "label": "Authenticated API boundary", "wraps": ["api", "auth"], "pad": 14}
+  ],
+  "connections": [
+    {"id": "client-ui", "from": "client", "to": "ui", "label": "HTTPS", "variant": "emphasis", "labelAt": [193, 440]},
+    {"id": "ui-api", "from": "ui", "to": "api", "label": "REST /api", "variant": "emphasis", "labelAt": [378, 440]},
+    {"id": "api-auth", "from": "api", "to": "auth", "label": "validate Bearer JWT", "variant": "security"},
+    {"id": "api-payments", "from": "api", "to": "payments", "label": "payment, wallet, route APIs", "labelAt": [590, 285]},
+    {"id": "api-compliance", "from": "api", "to": "compliance", "label": "KYC, case, policy, copilot APIs"},
+    {"id": "payments-oracle", "from": "payments", "to": "oracle", "label": "transactional state + ledger", "fromSide": "right", "toSide": "left", "via": [[805, 333], [805, 443]]},
+    {"id": "compliance-oracle", "from": "compliance", "to": "oracle", "label": "cases, policies, vector generations"},
+    {"id": "payments-outbox", "from": "payments", "to": "outbox", "label": "durable payment events", "labelAt": [807, 285]},
+    {"id": "outbox-kafka", "from": "outbox", "to": "kafka", "label": "relay canonical envelopes", "variant": "emphasis", "labelDy": 16},
+    {"id": "kafka-oracle", "from": "kafka", "to": "oracle", "label": "idempotent timeline ingestion", "labelDy": 30},
+    {"id": "payments-providers", "from": "payments", "to": "providers", "label": "FX quotes and payouts"},
+    {"id": "compliance-ollama", "from": "compliance", "to": "ollama", "label": "embed, retrieve, answer", "variant": "dashed"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "Core money movement", "items": ["Payments, wallet posting, route selection, and payout execution share Oracle-backed transactional state.", "External FX and payout providers are accessed through explicit adapters."]},
+    {"dot": "orange", "title": "Reliable event trail", "items": ["Payment and compliance transitions write a transactional outbox.", "The relay publishes Kafka envelopes; idempotent ingestion persists the timeline for read APIs."]},
+    {"dot": "violet", "title": "Grounded compliance", "items": ["Policy indexing chunks documents, asks Ollama for embeddings, and publishes an immutable Oracle vector generation.", "The admin copilot retrieves cited passages before requesting its grounded chat answer."]}
+  ]
+}

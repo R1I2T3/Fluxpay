@@ -5,6 +5,7 @@ import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.ComplianceAssessor;
+import com.fluxpay.common.contracts.ComplianceAssessment;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.PostingPort;
 import com.fluxpay.common.enums.ScreeningVerdict;
@@ -43,6 +44,7 @@ public class PaymentConfirmationService {
   private final PayoutOutboxService outbox;
   private final ObjectMapper objectMapper;
   private final PayoutRouteRepository routes;
+  private final ComplianceCaseService complianceCases;
 
   public PaymentConfirmationService(
       PaymentRepository payments,
@@ -68,7 +70,8 @@ public class PaymentConfirmationService {
         operations,
         new PayoutOutboxService(outboxEvents, deliveries, objectMapper, clock),
         objectMapper,
-        routes);
+        routes,
+        null);
   }
 
   @org.springframework.beans.factory.annotation.Autowired
@@ -83,7 +86,8 @@ public class PaymentConfirmationService {
       PaymentOperationService operations,
       PayoutOutboxService outbox,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes) {
+      PayoutRouteRepository routes,
+      ComplianceCaseService complianceCases) {
     this.payments = payments;
     this.quotes = quotes;
     this.recipients = recipients;
@@ -95,6 +99,7 @@ public class PaymentConfirmationService {
     this.outbox = outbox;
     this.objectMapper = objectMapper;
     this.routes = routes;
+    this.complianceCases = complianceCases;
   }
 
   public PaymentResponse confirm(
@@ -157,8 +162,18 @@ public class PaymentConfirmationService {
       return new PaymentOperationService.Result<>(422, blocked, payment.id());
     }
     if (verdict == ScreeningVerdict.REVIEW) {
+      ComplianceAssessment assessment = assessDetailedWithTimeout(userId, payment);
       String reviewReference = UUID.randomUUID().toString();
-      payment.underReview(reviewReference, now);
+      payment.underReview(quote.id(), reviewReference, now);
+      if (complianceCases == null) {
+        throw new IllegalStateException("Compliance review case workflow is not configured");
+      }
+      complianceCases.openReview(
+          payment.id(),
+          reviewReference,
+          assessment.risk(),
+          assessment.reasons(),
+          assessment.suggestedAction());
       outbox.enqueue(
           payment,
           com.fluxpay.messaging.EventTopics.PAYMENT_REVIEW_REQUESTED,
@@ -264,6 +279,36 @@ public class PaymentConfirmationService {
       Throwable cause = e.getCause();
       if (cause instanceof BusinessException mbe) {
         throw mbe;
+      }
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment failed.");
+    }
+  }
+
+  private ComplianceAssessment assessDetailedWithTimeout(UUID userId, Payment payment) {
+    try {
+      return CompletableFuture.supplyAsync(
+              () ->
+                  compliance.assessDetailed(
+                      userId, payment.sourceAmount(), payment.sourceCurrency()))
+          .get(3, TimeUnit.SECONDS);
+    } catch (TimeoutException e) {
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment timed out.");
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment was interrupted.");
+    } catch (java.util.concurrent.ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof BusinessException businessException) {
+        throw businessException;
       }
       throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE,

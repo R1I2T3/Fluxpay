@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "FluxPay Endpoint Chains — DTO to Response",
+    "quality_profile": "showcase",
+    "viewBox": [1280, 1120],
+    "column_fit": "spread",
+    "views": [
+      {"id":"payment-confirm","label":"Confirm payment","focus":["request","controller","payment-service","repository","oracle","response"],"note":"PaymentController.confirm validates, delegates confirmation, and wraps PaymentResponse."},
+      {"id":"wallet-convert","label":"Convert wallet funds","focus":["request","controller","payment-service","repository","oracle","response"],"note":"WalletController.convert passes WalletConvertRequest to the conversion service."},
+      {"id":"policy-index","label":"Index a policy","focus":["request","controller","policy-service","repository","oracle","response"],"note":"PolicyIndexController.index publishes a policy vector generation."},
+      {"id":"copilot-ask","label":"Ask the copilot","focus":["request","controller","policy-service","repository","oracle","response"],"note":"CopilotController.ask retrieves policy matches before returning cited answers."}
+    ]
+  },
+  "participants": [
+    {"id":"request","type":"external","label":"Request DTO"},
+    {"id":"controller","type":"backend","label":"Controller Method"},
+    {"id":"payment-service","type":"backend","label":"Money Service"},
+    {"id":"policy-service","type":"backend","label":"Policy Service"},
+    {"id":"repository","type":"database","label":"Repository / Adapter"},
+    {"id":"oracle","type":"database","label":"Oracle Storage"},
+    {"id":"response","type":"external","label":"ApiResponse DTO"}
+  ],
+  "segments": [
+    {"from":150,"to":356,"label":"Payment confirmation"},
+    {"from":376,"to":558,"label":"Wallet conversion"},
+    {"from":578,"to":782,"label":"Policy indexing"},
+    {"from":802,"to":1006,"label":"Compliance Copilot"}
+  ],
+  "messages": [
+    {"from":"request","to":"controller","y":180,"label":"ConfirmPaymentRequest + POST /api/payments/{id}/confirm","variant":"emphasis"},
+    {"from":"controller","to":"payment-service","y":222,"label":"PaymentController.confirm(user, id, request, key)","variant":"security"},
+    {"from":"payment-service","to":"repository","y":264,"label":"PaymentConfirmationService.confirm → lock payment + quote"},
+    {"from":"repository","to":"oracle","y":306,"label":"PaymentRepository / PaymentQuoteRepository"},
+    {"from":"payment-service","to":"controller","y":340,"label":"PaymentResponse (PROCESSING or UNDER_REVIEW)","variant":"return"},
+    {"from":"controller","to":"response","y":372,"label":"ApiResponse<PaymentResponse> · 200 / 202","variant":"return"},
+    {"from":"request","to":"controller","y":410,"label":"WalletConvertRequest + POST /api/wallets/convert","variant":"emphasis"},
+    {"from":"controller","to":"payment-service","y":452,"label":"WalletController.convert(user, request, idempotencyKey)","variant":"security"},
+    {"from":"payment-service","to":"repository","y":494,"label":"WalletConversionService.convert → posting + operation repositories"},
+    {"from":"repository","to":"oracle","y":536,"label":"Wallet / ledger transactional writes"},
+    {"from":"payment-service","to":"controller","y":568,"label":"WalletConvertResponse","variant":"return"},
+    {"from":"controller","to":"response","y":600,"label":"ApiResponse<WalletConvertResponse>","variant":"return"},
+    {"from":"request","to":"controller","y":638,"label":"PathVariable id + POST /api/policies/{id}/index","variant":"emphasis"},
+    {"from":"controller","to":"policy-service","y":680,"label":"PolicyIndexController.index(id)"},
+    {"from":"policy-service","to":"repository","y":722,"label":"PolicyIndexingService.index → document + vector store"},
+    {"from":"repository","to":"oracle","y":764,"label":"PolicyDocumentRepository + OraclePolicyIndexStore"},
+    {"from":"policy-service","to":"controller","y":796,"label":"PolicyIndexResult","variant":"return"},
+    {"from":"controller","to":"response","y":828,"label":"ApiResponse<PolicyIndexResult>","variant":"return"},
+    {"from":"request","to":"controller","y":866,"label":"CopilotRequest + POST /api/copilot/ask","variant":"emphasis"},
+    {"from":"controller","to":"policy-service","y":908,"label":"CopilotController.ask(request) · ADMIN","variant":"security"},
+    {"from":"policy-service","to":"repository","y":940,"label":"CopilotService.ask → PolicySearchPort.search"},
+    {"from":"repository","to":"oracle","y":970,"label":"OraclePolicySearchRepository vector search"},
+    {"from":"policy-service","to":"controller","y":1000,"label":"CopilotAnswerResponse + cited CopilotSource list","variant":"return"},
+    {"from":"controller","to":"response","y":1030,"label":"ApiResponse<CopilotAnswerResponse>","variant":"return"}
+  ],
+  "activations": [
+    {"participant":"controller","from":174,"to":1032,"type":"backend"},
+    {"participant":"payment-service","from":216,"to":572,"type":"backend"},
+    {"participant":"policy-service","from":674,"to":1004,"type":"backend"},
+    {"participant":"repository","from":258,"to":976,"type":"database"},
+    {"participant":"oracle","from":300,"to":976,"type":"database"}
+  ],
+  "cards": [
+    {"dot":"cyan","title":"Controller contract","items":["Each trace begins with the DTO or route parameters accepted by a concrete controller method.","Controllers apply headers, authentication, and validation before delegation."]},
+    {"dot":"emerald","title":"Service and persistence","items":["Services own the use case and call repositories or persistence adapters for durable state.","Each trace names its concrete service and repository/adapter path."]},
+    {"dot":"violet","title":"Response contract","items":["A response DTO returns to the controller.","The controller wraps it in the typed ApiResponse envelope and applicable HTTP status."]}
+  ]
+}
