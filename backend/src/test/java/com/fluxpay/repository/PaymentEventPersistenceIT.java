@@ -11,6 +11,7 @@ import com.fluxpay.beans.PaymentPurpose;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
+import com.fluxpay.beans.TransferProvider;
 import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.beans.User;
 import com.fluxpay.beans.Wallet;
@@ -19,7 +20,9 @@ import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.PostingPort;
 import com.fluxpay.common.enums.ScreeningVerdict;
+import com.fluxpay.domain.DestinationType;
 import com.fluxpay.domain.PaymentStatus;
+import com.fluxpay.domain.RailType;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.ConfirmPaymentRequest;
 import com.fluxpay.dto.PostingAccounts;
@@ -32,6 +35,7 @@ import com.fluxpay.service.PaymentConfirmationService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
@@ -61,6 +65,7 @@ class PaymentEventPersistenceIT {
   @Autowired PaymentQuoteRepository quotes;
   @Autowired RecipientRepository recipients;
   @Autowired TransferRouteRepository routes;
+  @Autowired TransferProviderRepository providers;
   @Autowired UserRepository users;
   @Autowired WalletRepository wallets;
   @Autowired JdbcTemplate jdbc;
@@ -132,7 +137,9 @@ class PaymentEventPersistenceIT {
     UUID recipientId = UUID.randomUUID();
     UUID quoteId = UUID.randomUUID();
     UUID routeId = UUID.randomUUID();
-    String routeCode = "IT_" + UUID.randomUUID().toString().substring(0, 12);
+    UUID providerId = UUID.randomUUID();
+    String routeCode =
+        ("IT_" + UUID.randomUUID().toString().substring(0, 12)).toUpperCase(Locale.ROOT);
     Instant now = Instant.now();
 
     try {
@@ -158,17 +165,34 @@ class PaymentEventPersistenceIT {
                   "INR",
                   RecipientStatus.ACTIVE,
                   now));
+      TransferProvider provider =
+          providers.saveAndFlush(
+              TransferProvider.create(
+                  providerId,
+                  "PROV_" + routeCode,
+                  "Timeline provider",
+                  RailType.BANK_NETWORK,
+                  true,
+                  false,
+                  now));
       routes.saveAndFlush(
-          TransferRoute.seed(
+          TransferRoute.create(
               routeId,
+              provider,
               routeCode,
               "Timeline route",
-              "Fixture provider",
-              "STANDARD",
-              "5.0000",
-              "0.000000",
+              DestinationType.EXTERNAL_ACCOUNT,
+              "IN",
+              "INR",
+              new BigDecimal("5.0000"),
+              new BigDecimal("0.000000"),
               60,
-              "99.00"));
+              new BigDecimal("99.00"),
+              null,
+              null,
+              true,
+              false,
+              now));
 
       Payment payment =
           new Payment(
@@ -240,7 +264,7 @@ class PaymentEventPersistenceIT {
       assertThat(payload.get("aggregateSequence").asInt()).isEqualTo(1);
       assertThat(payload.get("status").asText()).isEqualTo(PaymentStatus.PROCESSING.name());
     } finally {
-      cleanupConfirmationFixture(userId, paymentId, recipientId, routeId);
+      cleanupConfirmationFixture(userId, paymentId, recipientId, routeId, providerId);
     }
   }
 
@@ -286,7 +310,7 @@ class PaymentEventPersistenceIT {
   }
 
   private void cleanupConfirmationFixture(
-      UUID userId, UUID paymentId, UUID recipientId, UUID routeId) {
+      UUID userId, UUID paymentId, UUID recipientId, UUID routeId, UUID providerId) {
     String paymentHex = hex(paymentId);
     List<String> eventIds =
         jdbc.queryForList(
@@ -305,6 +329,7 @@ class PaymentEventPersistenceIT {
     jdbc.update("DELETE FROM recipients WHERE id=HEXTORAW(?)", hex(recipientId));
     jdbc.update("DELETE FROM wallets WHERE user_id=HEXTORAW(?)", hex(userId));
     jdbc.update("DELETE FROM transfer_routes WHERE id=HEXTORAW(?)", hex(routeId));
+    jdbc.update("DELETE FROM transfer_providers WHERE id=HEXTORAW(?)", hex(providerId));
     jdbc.update("DELETE FROM users WHERE id=HEXTORAW(?)", hex(userId));
   }
 

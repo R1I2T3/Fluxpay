@@ -57,6 +57,7 @@ class PayoutLifecycleIntegrationTest {
   PaymentRepository payments;
   PaymentQuoteRepository quotes;
   TransferRouteRepository routes;
+  TransferProviderRepository providers;
   PayoutAttemptRepository attempts;
   PaymentOperationRepository operations;
   OutboxEventRepository events;
@@ -88,7 +89,9 @@ class PayoutLifecycleIntegrationTest {
             Payment.class.getName(),
             Recipient.class.getName(),
             PaymentQuote.class.getName(),
+            TransferProvider.class.getName(),
             TransferRoute.class.getName(),
+            TransferRouteOutcome.class.getName(),
             PayoutAttempt.class.getName(),
             PaymentOperation.class.getName(),
             OutboxEvent.class.getName(),
@@ -105,6 +108,7 @@ class PayoutLifecycleIntegrationTest {
     payments = repositories.getRepository(PaymentRepository.class);
     quotes = repositories.getRepository(PaymentQuoteRepository.class);
     routes = repositories.getRepository(TransferRouteRepository.class);
+    providers = repositories.getRepository(TransferProviderRepository.class);
     attempts = repositories.getRepository(PayoutAttemptRepository.class);
     operations = repositories.getRepository(PaymentOperationRepository.class);
     events = repositories.getRepository(OutboxEventRepository.class);
@@ -152,9 +156,7 @@ class PayoutLifecycleIntegrationTest {
         s -> {
           recipients.save(recipient);
           payments.save(payment);
-          routes.save(
-              TransferRoute.seed(
-                  UUID.randomUUID(), "BANK", "Bank", "Bank", "STANDARD", "5", "0", 1, "99"));
+          saveRoute("BANK", "Bank");
           quotes.save(
               new PaymentQuote(
                   quoteId,
@@ -254,6 +256,47 @@ class PayoutLifecycleIntegrationTest {
                 refunds,
                 outbox,
                 clock));
+  }
+
+  TransferProvider routeProvider() {
+    return providers
+        .findByProviderCode("TEST_PROVIDER")
+        .orElseGet(
+            () ->
+                providers.saveAndFlush(
+                    TransferProvider.create(
+                        UUID.randomUUID(),
+                        "TEST_PROVIDER",
+                        "Test Provider",
+                        RailType.BANK_NETWORK,
+                        true,
+                        false,
+                        NOW)));
+  }
+
+  void saveRoute(String code, String name) {
+    saveRoute(code, name, "5.0000");
+  }
+
+  void saveRoute(String code, String name, String fee) {
+    routes.save(
+        TransferRoute.create(
+            UUID.randomUUID(),
+            routeProvider(),
+            code,
+            name,
+            DestinationType.EXTERNAL_ACCOUNT,
+            "ZZ",
+            "USD",
+            new BigDecimal(fee),
+            new BigDecimal("0.000000"),
+            1,
+            new BigDecimal("99.00"),
+            null,
+            null,
+            true,
+            false,
+            NOW));
   }
 
   @SuppressWarnings("unchecked")
@@ -415,11 +458,7 @@ class PayoutLifecycleIntegrationTest {
                 ? PayoutResult.failed("declined", "Known final rejection", BigDecimal.ZERO)
                 : PayoutResult.ok("recovered", BigDecimal.ZERO);
     submit();
-    tx.executeWithoutResult(
-        s ->
-            routes.save(
-                TransferRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99")));
+    tx.executeWithoutResult(s -> saveRoute("BANK2", "Bank2"));
     now.set(NOW.plusSeconds(901));
     var refreshed =
         org.junit.jupiter.api.Assertions.assertDoesNotThrow(
@@ -496,9 +535,7 @@ class PayoutLifecycleIntegrationTest {
     tx.executeWithoutResult(
         s -> {
           routes.findByRouteCode("BANK").orElseThrow().update("6", "0", 1, "99", true);
-          routes.save(
-              TransferRoute.seed(
-                  UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "6", "0", 1, "99"));
+          saveRoute("BANK2", "Bank2", "6.0000");
         });
     now.set(NOW.plusSeconds(901));
     var fresh = quoteService().createOrCurrent(user, id, "current-fees");
@@ -564,11 +601,7 @@ class PayoutLifecycleIntegrationTest {
   void invalidSwitchRoutesConsistentlyRequireRequote(String invalid) {
     delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
-    tx.executeWithoutResult(
-        s ->
-            routes.save(
-                TransferRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99")));
+    tx.executeWithoutResult(s -> saveRoute("BANK2", "Bank2"));
     var refreshed = quoteService().createOrCurrent(user, id, "recovery-quotes");
     var candidate =
         refreshed.quotes().stream()
@@ -656,11 +689,7 @@ class PayoutLifecycleIntegrationTest {
   void refreshedRecoveryQuotesSupersedePriorGenerationAndCannotChangeRetryRoute() {
     delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
-    tx.executeWithoutResult(
-        s ->
-            routes.save(
-                TransferRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99")));
+    tx.executeWithoutResult(s -> saveRoute("BANK2", "Bank2"));
     now.set(NOW.plusSeconds(901));
     var first = quoteService().createOrCurrent(user, id, "recovery-quotes-1");
     var firstOther =
@@ -1264,10 +1293,7 @@ class PayoutLifecycleIntegrationTest {
     UUID replacement = UUID.randomUUID();
     tx.executeWithoutResult(
         s -> {
-          if (routes.findByRouteCode("BANK2").isEmpty())
-            routes.save(
-                TransferRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99"));
+          if (routes.findByRouteCode("BANK2").isEmpty()) saveRoute("BANK2", "Bank2");
           quotes.save(
               new PaymentQuote(
                   replacement,
@@ -1428,9 +1454,7 @@ class PayoutLifecycleIntegrationTest {
             org.springframework.test.util.ReflectionTestUtils.setField(
                 quotes.findById(quoteId).orElseThrow(), "expiresAt", NOW);
           if (cause.equals("unavailable")) {
-            routes.save(
-                TransferRoute.seed(
-                    UUID.randomUUID(), "NONE", "None", "None", "STANDARD", "5", "0", 1, "99"));
+            saveRoute("NONE", "None");
             org.springframework.test.util.ReflectionTestUtils.setField(
                 quotes.findById(quoteId).orElseThrow(), "route", "NONE");
           }

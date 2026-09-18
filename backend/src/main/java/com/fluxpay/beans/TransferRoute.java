@@ -136,7 +136,12 @@ public class TransferRoute {
     return route;
   }
 
-  /** Compatibility fixture for existing catalogue callers; new code uses {@link #create}. */
+  /**
+   * Mock-only fixture for unit tests with mocked repositories. Never persist: the legacy provider
+   * name/route type are {@code @Transient} and lost on a JPA round-trip, and every seed synthesizes
+   * the same {@code LEGACY_PROVIDER} code. DB-backed callers must save a {@link TransferProvider}
+   * via {@code TransferProvider.create(...)} and use {@link #create}.
+   */
   public static TransferRoute seed(
       UUID id,
       String code,

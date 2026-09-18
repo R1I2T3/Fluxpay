@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.FluxPayApplication;
+import com.fluxpay.beans.TransferProvider;
 import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.beans.User;
 import com.fluxpay.beans.Wallet;
@@ -16,6 +17,8 @@ import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.FxSnapshotSource;
 import com.fluxpay.common.contracts.PayoutProvider;
 import com.fluxpay.common.security.JwtUtil;
+import com.fluxpay.domain.DestinationType;
+import com.fluxpay.domain.RailType;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.PayoutCmd;
 import com.fluxpay.dto.PayoutResult;
@@ -23,6 +26,7 @@ import com.fluxpay.messaging.EventTopics;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentEventRepository;
+import com.fluxpay.repository.TransferProviderRepository;
 import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletRepository;
@@ -75,6 +79,7 @@ class BackendAcceptanceIT {
   @Autowired private UserRepository users;
   @Autowired private WalletRepository wallets;
   @Autowired private TransferRouteRepository routes;
+  @Autowired private TransferProviderRepository providers;
   @Autowired private BCryptPasswordEncoder passwords;
   @Autowired private JwtUtil jwt;
   @Autowired private JdbcTemplate jdbc;
@@ -370,27 +375,49 @@ class BackendAcceptanceIT {
   }
 
   private void provisionRoutes() {
-    route("STANDARD_BANK", "STANDARD", 240);
-    route("INSTANT_PAYOUT", "INSTANT", 5);
-    route("LOCAL_PARTNER", "LOCAL_PARTNER", 60);
+    route("STANDARD_BANK", 240);
+    route("INSTANT_PAYOUT", 5);
+    route("LOCAL_PARTNER", 60);
   }
 
-  private void route(String code, String type, int minutes) {
+  private void route(String code, int minutes) {
+    TransferProvider provider =
+        providers
+            .findByProviderCode("ACCEPTANCE_PROVIDER")
+            .orElseGet(
+                () ->
+                    providers.saveAndFlush(
+                        TransferProvider.create(
+                            UUID.randomUUID(),
+                            "ACCEPTANCE_PROVIDER",
+                            "Acceptance provider",
+                            RailType.BANK_NETWORK,
+                            true,
+                            false,
+                            Instant.now())));
     TransferRoute route =
         routes
             .findByRouteCode(code)
             .orElseGet(
                 () ->
-                    TransferRoute.seed(
-                        UUID.nameUUIDFromBytes(("acceptance:" + code).getBytes()),
-                        code,
-                        code,
-                        "Acceptance provider",
-                        type,
-                        "5.0000",
-                        "0.500000",
-                        minutes,
-                        "99.00"));
+                    routes.saveAndFlush(
+                        TransferRoute.create(
+                            UUID.nameUUIDFromBytes(("acceptance:" + code).getBytes()),
+                            provider,
+                            code,
+                            code,
+                            DestinationType.EXTERNAL_ACCOUNT,
+                            "IN",
+                            "INR",
+                            new BigDecimal("5.0000"),
+                            new BigDecimal("0.500000"),
+                            minutes,
+                            new BigDecimal("99.00"),
+                            null,
+                            null,
+                            true,
+                            false,
+                            Instant.now())));
     route.update("5.0000", "0.500000", minutes, "99.00", true);
     routes.saveAndFlush(route);
   }
