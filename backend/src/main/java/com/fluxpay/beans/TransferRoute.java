@@ -186,6 +186,43 @@ public class TransferRoute {
   }
 
   public void update(
+      TransferProvider provider,
+      String name,
+      DestinationType destinationType,
+      String destinationCountry,
+      String payoutCurrency,
+      BigDecimal baseFee,
+      BigDecimal fxSpreadPercentage,
+      int estimatedMinutes,
+      BigDecimal configuredSuccessRate,
+      BigDecimal minimumRecipientAmount,
+      BigDecimal maximumRecipientAmount,
+      boolean active,
+      Instant now) {
+    this.provider = Objects.requireNonNull(provider, "provider must not be null");
+    this.name = requireText(name, "name");
+    this.destinationType =
+        Objects.requireNonNull(destinationType, "destinationType must not be null");
+    this.destinationCountry = normalizeCountry(destinationCountry, destinationType);
+    this.payoutCurrency = normalizeCurrency(payoutCurrency);
+    validateCommercials(
+        baseFee,
+        fxSpreadPercentage,
+        estimatedMinutes,
+        configuredSuccessRate,
+        minimumRecipientAmount,
+        maximumRecipientAmount);
+    this.baseFee = baseFee;
+    this.fxSpreadPercentage = fxSpreadPercentage;
+    this.estimatedMinutes = estimatedMinutes;
+    this.configuredSuccessRate = configuredSuccessRate;
+    this.minimumRecipientAmount = minimumRecipientAmount;
+    this.maximumRecipientAmount = maximumRecipientAmount;
+    this.active = active;
+    this.updatedAt = Objects.requireNonNull(now, "now must not be null");
+  }
+
+  public void update(
       BigDecimal baseFee,
       BigDecimal fxSpreadPercentage,
       int estimatedMinutes,

@@ -75,6 +75,13 @@ public class TransferProvider {
     return provider;
   }
 
+  public void update(String providerName, RailType railType, boolean active, Instant now) {
+    this.providerName = requireText(providerName, "providerName");
+    this.railType = Objects.requireNonNull(railType, "railType must not be null");
+    this.active = active;
+    this.updatedAt = Objects.requireNonNull(now, "now must not be null");
+  }
+
   public void archive(Instant now) {
     Instant archived = Objects.requireNonNull(now, "now must not be null");
     this.active = false;
@@ -82,7 +89,7 @@ public class TransferProvider {
     this.updatedAt = archived;
   }
 
-  static String normalizeCode(String value) {
+  public static String normalizeCode(String value) {
     String normalized = requireText(value, "code").toUpperCase(Locale.ROOT);
     if (!normalized.matches(CODE_PATTERN)) {
       throw new IllegalArgumentException("code must match " + CODE_PATTERN);
