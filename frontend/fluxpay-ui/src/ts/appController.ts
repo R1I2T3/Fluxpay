@@ -16,7 +16,8 @@ class RootViewModel {
     {path:'payments-new',label:'Send money',icon:'↗'}, {path:'payments-list',label:'Transactions',icon:'⇄'},
     {path:'recipients',label:'Recipients',icon:'◎'}, {path:'tracking',label:'Track a transfer',icon:'⌁'},
     {path:'kyc',label:'Verification',icon:'◇'}, {path:'account',label:'My account',icon:'○'},
-    {path:'admin',label:'Administration',icon:'⊞'}
+    {path:'admin',label:'Administration',icon:'⊞'},
+    {path:'tickets',label:'Support tickets',icon:'?'}
   ];
   router: CoreRouter<any>;
   moduleAdapter: ModuleRouterAdapter<any>;
