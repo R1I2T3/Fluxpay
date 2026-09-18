@@ -59,6 +59,13 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
           NOW.plusSeconds(900));
 
   PaymentConfirmationService service(Instant time) {
+    var compliance = mock(ComplianceAssessor.class);
+    when(compliance.assess(any(ComplianceScreeningInput.class)))
+        .thenReturn(ScreeningVerdict.APPROVE);
+    return service(time, compliance);
+  }
+
+  PaymentConfirmationService service(Instant time, ComplianceAssessor compliance) {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
@@ -66,9 +73,6 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     when(kyc.isVerified(user)).thenReturn(true);
-    var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assess(user, payment.sourceAmount(), "USD"))
-        .thenReturn(ScreeningVerdict.APPROVE);
     when(posting.postApprovedPayment(any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(
             new PostingAccounts(payment.sourceWalletId(), UUID.randomUUID(), UUID.randomUUID()));
@@ -99,8 +103,9 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
   void reviewConfirmationCreatesACaseBoundToThePaymentReviewReference() {
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assess(user, payment.sourceAmount(), "USD")).thenReturn(ScreeningVerdict.REVIEW);
-    when(compliance.assessDetailed(user, payment.sourceAmount(), "USD"))
+    when(compliance.assess(any(ComplianceScreeningInput.class)))
+        .thenReturn(ScreeningVerdict.REVIEW);
+    when(compliance.assessDetailed(any(ComplianceScreeningInput.class)))
         .thenReturn(
             new ComplianceAssessment(
                 ScreeningVerdict.REVIEW,
@@ -136,7 +141,8 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
             routes,
             complianceCases);
 
-    var response = reviewService.confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key");
+    var response =
+        reviewService.confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key");
 
     assertThat(response.status()).isEqualTo(PaymentStatus.UNDER_REVIEW);
     verify(complianceCases)
@@ -146,6 +152,38 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
             com.fluxpay.common.enums.ComplianceRisk.MEDIUM,
             List.of("AMOUNT_EXCEEDS_REVIEW_THRESHOLD"),
             "Hold payment for manual compliance review before payout.");
+  }
+
+  @Test
+  void confirmationScreensTheLockedRecipientName() {
+    var compliance = mock(ComplianceAssessor.class);
+    when(compliance.assess(any(ComplianceScreeningInput.class)))
+        .thenReturn(ScreeningVerdict.APPROVE);
+
+    service(NOW, compliance)
+        .confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key");
+
+    var input = org.mockito.ArgumentCaptor.forClass(ComplianceScreeningInput.class);
+    verify(compliance).assess(input.capture());
+    assertThat(input.getValue().userId()).isEqualTo(user);
+    assertThat(input.getValue().recipientName()).isEqualTo(recipient.name());
+    assertThat(input.getValue().amount()).isEqualByComparingTo(payment.sourceAmount());
+    assertThat(input.getValue().currency()).isEqualTo("USD");
+  }
+
+  @Test
+  void sanctionedRecipientIsRejectedBeforePosting() {
+    recipient.update("SANCTIONED_ACME", "acct", "Bank", "KE", "KES", RecipientStatus.ACTIVE, NOW);
+
+    assertThatThrownBy(
+            () ->
+                service(NOW, new com.fluxpay.development.SimulatedComplianceAssessor())
+                    .confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.PaymentBlockedException.class,
+            error -> assertThat(error.code()).isEqualTo("PAYMENT_BLOCKED"));
+    assertThat(payment.status()).isEqualTo(PaymentStatus.REJECTED);
+    verifyNoInteractions(posting);
   }
 
   @Test
