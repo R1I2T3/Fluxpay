@@ -1,10 +1,13 @@
 package com.fluxpay.dto;
 
-import com.fluxpay.beans.TransferRoute;
 import java.util.List;
 
-/**
- * Recommendation result. {@code quotes} holds every evaluated active route in ranked order (best
- * first); {@code recommended} is the top-ranked route.
- */
-public record RouteRecommendation(TransferRoute recommended, List<RouteQuote> quotes) {}
+public record RouteRecommendation(
+    RankedRouteQuote recommended, List<RankedRouteQuote> quotes, String reason) {
+  public RouteRecommendation {
+    quotes = List.copyOf(quotes);
+    if (quotes.isEmpty() || quotes.size() > 3 || !quotes.get(0).equals(recommended)) {
+      throw new IllegalArgumentException("recommendation requires one to three ranked quotes");
+    }
+  }
+}
