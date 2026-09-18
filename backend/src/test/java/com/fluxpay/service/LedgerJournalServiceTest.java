@@ -16,6 +16,13 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class LedgerJournalServiceTest {
@@ -434,7 +441,68 @@ class LedgerJournalServiceTest {
 
     assertEquals(new BigDecimal("90.0000"), db.balance(db.customer));
     assertEquals(new BigDecimal("5.0000"), db.held(db.customer));
-    assertEquals(List.of(db.clearing, db.customer), db.locks.subList(0, 2));
+    assertEquals(List.of(db.clearing, db.customer), db.bulkLocks.subList(0, 2));
+  }
+
+  @Test
+  void distinctReservedJournalsCannotOverspendTheSameAvailableFunds() throws Exception {
+    AccountingDatabase db = new AccountingDatabase();
+    db.setHeld(db.customer, "10.0000");
+    String firstReference = "JRN-HOLD-CONCURRENT-A";
+    String secondReference = differentJournalBucket(firstReference);
+    assertNotEquals(
+        Math.floorMod(firstReference.hashCode(), 64),
+        Math.floorMod(secondReference.hashCode(), 64));
+
+    CountDownLatch firstLocked = new CountDownLatch(1);
+    CountDownLatch secondAttemptedLocks = new CountDownLatch(1);
+    CountDownLatch releaseFirst = new CountDownLatch(1);
+    AtomicInteger lockAttempts = new AtomicInteger();
+    AtomicBoolean firstLockOwner = new AtomicBoolean(true);
+    db.beforeWalletLocks =
+        () -> {
+          if (lockAttempts.incrementAndGet() == 2) secondAttemptedLocks.countDown();
+        };
+    db.afterWalletLocks =
+        () -> {
+          if (firstLockOwner.getAndSet(false)) {
+            firstLocked.countDown();
+            try {
+              if (!releaseFirst.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out releasing first reserved journal");
+              }
+            } catch (InterruptedException interrupted) {
+              Thread.currentThread().interrupt();
+              throw new AssertionError(interrupted);
+            }
+          }
+        };
+
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      Future<Boolean> first =
+          executor.submit(() -> postReserved(db, firstReference, "concurrent-a", "60.0000"));
+      assertTrue(firstLocked.await(5, TimeUnit.SECONDS));
+      Future<Boolean> second =
+          executor.submit(() -> postReserved(db, secondReference, "concurrent-b", "60.0000"));
+      assertTrue(secondAttemptedLocks.await(5, TimeUnit.SECONDS));
+      releaseFirst.countDown();
+
+      boolean firstSucceeded = first.get(5, TimeUnit.SECONDS);
+      boolean secondSucceeded = second.get(5, TimeUnit.SECONDS);
+      assertNotEquals(firstSucceeded, secondSucceeded);
+      String losingReference = firstSucceeded ? secondReference : firstReference;
+      assertEquals(0, db.journalCount(losingReference));
+      assertEquals(0, db.entryCount(losingReference));
+    } finally {
+      releaseFirst.countDown();
+      executor.shutdownNow();
+    }
+
+    assertEquals(new BigDecimal("40.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("10.0000"), db.held(db.customer));
+    assertEquals(1, db.journalCount());
+    assertEquals(2, db.count());
   }
 
   @Test
@@ -549,14 +617,47 @@ class LedgerJournalServiceTest {
   }
 
   private static List<LedgerJournalLine> reservedLines(AccountingDatabase db, String key) {
+    return reservedLines(db, key, "10.0000");
+  }
+
+  private static List<LedgerJournalLine> reservedLines(
+      AccountingDatabase db, String key, String amount) {
     return List.of(
-        line(db.customer, "DEBIT", "10.0000", "USD", key + ":debit", "Debit"),
-        line(db.clearing, "CREDIT", "10.0000", "USD", key + ":credit", "Credit"));
+        line(db.customer, "DEBIT", amount, "USD", key + ":debit", "Debit"),
+        line(db.clearing, "CREDIT", amount, "USD", key + ":credit", "Credit"));
   }
 
   private static WalletReservation reservation(AccountingDatabase db, String key) {
-    return new WalletReservation(
-        db.customer, key + ":debit", "USD", new BigDecimal("10.0000"));
+    return reservation(db, key, "10.0000");
+  }
+
+  private static WalletReservation reservation(
+      AccountingDatabase db, String key, String amount) {
+    return new WalletReservation(db.customer, key + ":debit", "USD", new BigDecimal(amount));
+  }
+
+  private static boolean postReserved(
+      AccountingDatabase db, String journalReference, String key, String amount) {
+    try {
+      db.journals.postReserved(
+          journalReference,
+          LedgerTransactionCategory.SELF_TRANSFER,
+          reservedLines(db, key, amount),
+          reservation(db, key, amount),
+          () -> {});
+      return true;
+    } catch (com.fluxpay.exception.InsufficientWalletFundsException insufficient) {
+      return false;
+    }
+  }
+
+  private static String differentJournalBucket(String journalReference) {
+    int bucket = Math.floorMod(journalReference.hashCode(), 64);
+    for (int suffix = 1; suffix < 100; suffix++) {
+      String candidate = journalReference + "-" + suffix;
+      if (Math.floorMod(candidate.hashCode(), 64) != bucket) return candidate;
+    }
+    throw new AssertionError("Could not find a distinct journal bucket");
   }
 
   private static AccountingDatabase historicalJournalDatabase() {

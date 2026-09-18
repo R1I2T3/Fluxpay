@@ -37,7 +37,9 @@ final class AccountingDatabase {
   final UUID clearing = UUID.fromString("00000000-0000-0000-0000-000000000001");
   final UUID fee = UUID.fromString("00000000-0000-0000-0000-000000000002");
   final List<UUID> locks = Collections.synchronizedList(new ArrayList<>());
+  final List<UUID> bulkLocks = Collections.synchronizedList(new ArrayList<>());
   volatile java.util.function.Consumer<Integer> afterJournalLock = ignored -> {};
+  volatile Runnable beforeWalletLocks = () -> {};
   volatile Runnable afterWalletLocks = () -> {};
   volatile String failKey;
 
@@ -73,10 +75,19 @@ final class AccountingDatabase {
             call -> {
               Collection<UUID> requested = call.getArgument(0);
               List<Wallet> result = new ArrayList<>();
+              beforeWalletLocks.run();
               requested.stream()
                   .distinct()
                   .sorted(Comparator.comparing(UUID::toString))
-                  .forEach(id -> wallet(id, true).ifPresent(result::add));
+                  .forEach(
+                      id -> {
+                        wallet(id, true)
+                            .ifPresent(
+                                locked -> {
+                                  bulkLocks.add(id);
+                                  result.add(locked);
+                                });
+                      });
               afterWalletLocks.run();
               return result;
             });
@@ -276,6 +287,18 @@ final class AccountingDatabase {
 
   int journalCount() {
     return jdbc.queryForObject("select count(*) from journal_headers", Integer.class);
+  }
+
+  int journalCount(String journalReference) {
+    return jdbc.queryForObject(
+        "select count(*) from journal_headers where journal=?",
+        Integer.class,
+        journalReference);
+  }
+
+  int entryCount(String journalReference) {
+    return jdbc.queryForObject(
+        "select count(*) from entries where journal=?", Integer.class, journalReference);
   }
 
   LedgerEntry entry(String key) {
