@@ -27,6 +27,9 @@ public final class TransferRouteApi {
       BigDecimal fxSpreadPercentage,
       int estimatedMinutes,
       BigDecimal configuredSuccessRate,
+      BigDecimal effectiveSuccessRate,
+      long completedCount,
+      long failedCount,
       BigDecimal minimumRecipientAmount,
       BigDecimal maximumRecipientAmount,
       boolean active,
@@ -62,7 +65,8 @@ public final class TransferRouteApi {
       Boolean active,
       Long version) {}
 
-  public static RouteEntry toEntry(TransferRoute route) {
+  public static RouteEntry toEntry(
+      TransferRoute route, BigDecimal effectiveSuccessRate, long completedCount, long failedCount) {
     return new RouteEntry(
         route.getId().toString(),
         route.getProvider().getId().toString(),
@@ -75,6 +79,9 @@ public final class TransferRouteApi {
         route.getFxSpreadPercentage(),
         route.getEstimatedMinutes(),
         route.configuredSuccessRate(),
+        effectiveSuccessRate,
+        completedCount,
+        failedCount,
         route.minimumRecipientAmount(),
         route.maximumRecipientAmount(),
         route.isActive(),

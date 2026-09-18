@@ -33,7 +33,7 @@ class RouteCatalogServiceTest {
   @Mock private PaymentReader reader;
   @Mock private FxRateProvider fx;
   @Mock private TransferRouteRepository routes;
-  @Mock private RouteMetrics metrics;
+  @Mock private RouteReliabilityService reliability;
 
   private RouteCatalogService service;
   private PaymentSnapshot payment;
@@ -48,7 +48,7 @@ class RouteCatalogServiceTest {
             fx,
             new RouteRecommender(),
             routes,
-            metrics,
+            reliability,
             new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()));
     payment =
         new PaymentSnapshot(

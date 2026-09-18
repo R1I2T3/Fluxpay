@@ -84,7 +84,7 @@ class FrozenPaymentCurrencyTest {
             .createOrCurrent(f.user, f.payment.id(), "quote-next-generation");
     var recommendation =
         new RouteCatalogService(
-                f.reader, f.fx, f.ranking, f.routes, mock(RouteMetrics.class), f.pricing)
+                f.reader, f.fx, f.ranking, f.routes, mock(RouteReliabilityService.class), f.pricing)
             .recommend(f.payment.id().toString(), RoutePreference.CHEAPEST, "currency");
 
     assertThat(generated.quotes().get(0).offeredRate()).isEqualTo("80.000000");

@@ -27,7 +27,7 @@ public class RouteCatalogService {
   private final FxRateProvider fx;
   private final RouteRecommender recommender;
   private final TransferRouteRepository routes;
-  private final RouteMetrics metrics;
+  private final RouteReliabilityService reliability;
   private final RoutePricingService pricing;
 
   public RouteCatalogService(
@@ -35,13 +35,13 @@ public class RouteCatalogService {
       FxRateProvider fx,
       RouteRecommender recommender,
       TransferRouteRepository routes,
-      RouteMetrics metrics,
+      RouteReliabilityService reliability,
       RoutePricingService pricing) {
     this.reader = Objects.requireNonNull(reader, "reader must not be null");
     this.fx = Objects.requireNonNull(fx, "fx must not be null");
     this.recommender = Objects.requireNonNull(recommender, "recommender must not be null");
     this.routes = Objects.requireNonNull(routes, "routes must not be null");
-    this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
+    this.reliability = Objects.requireNonNull(reliability, "reliability must not be null");
     this.pricing = pricing;
   }
 
@@ -81,8 +81,12 @@ public class RouteCatalogService {
     return routes.save(route);
   }
 
-  public RouteMetrics.RouteMetric metricFor(UUID routeId) {
-    return metrics.byRoute(routeId);
+  public RouteReliabilityService.RouteReliability metricFor(UUID routeId) {
+    TransferRoute route =
+        routes
+            .findById(routeId)
+            .orElseThrow(() -> new NoSuchElementException("route " + routeId + " not found"));
+    return reliability.effectiveFor(List.of(route)).get(routeId);
   }
 
   private static UUID parseRouteId(String routeId) {

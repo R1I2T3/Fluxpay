@@ -24,12 +24,15 @@ import com.fluxpay.domain.DestinationType;
 import com.fluxpay.domain.RailType;
 import com.fluxpay.dto.DeletionResult;
 import com.fluxpay.exception.BusinessException;
+import com.fluxpay.service.RouteReliabilityService;
 import com.fluxpay.service.TransferRouteService;
 import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,6 +82,7 @@ class TransferRouteAdminControllerTest {
   @Autowired private MockMvc mvc;
 
   @MockBean private TransferRouteService service;
+  @MockBean private RouteReliabilityService reliability;
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private JwtUtil jwt;
 
@@ -88,6 +92,19 @@ class TransferRouteAdminControllerTest {
   @BeforeEach
   void setUp() {
     MockSecurity.stubJwt(jwt);
+    when(reliability.effectiveFor(any()))
+        .thenAnswer(
+            invocation -> {
+              List<TransferRoute> routes = invocation.getArgument(0);
+              Map<UUID, RouteReliabilityService.RouteReliability> stats = new HashMap<>();
+              for (TransferRoute entry : routes) {
+                stats.put(
+                    entry.getId(),
+                    new RouteReliabilityService.RouteReliability(
+                        entry.getId(), entry.configuredSuccessRate(), 0, 0));
+              }
+              return stats;
+            });
     Instant fixed = Instant.parse("2026-01-01T00:00:00Z");
     provider =
         TransferProvider.create(

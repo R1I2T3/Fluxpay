@@ -27,6 +27,7 @@ import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.PayoutExecutionService;
 import com.fluxpay.service.RecoveryService;
 import com.fluxpay.service.RouteCatalogService;
+import com.fluxpay.service.RouteReliabilityService;
 import com.fluxpay.service.TimelineService;
 import com.fluxpay.service.TransferRouteService;
 import com.fluxpay.web.advice.PayoutApiExceptionHandler;
@@ -85,6 +86,7 @@ class AuthorizationContractTest {
   @MockBean private com.fluxpay.service.PaymentOperationService operations;
   @MockBean private RouteCatalogService catalog;
   @MockBean private TransferRouteService routeAdmin;
+  @MockBean private RouteReliabilityService reliability;
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private TimelineService timeline;
   @MockBean private PaymentEligibilityGate gate;

@@ -10,7 +10,7 @@ import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.exception.ForbiddenException;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.RouteCatalogService;
-import com.fluxpay.service.RouteMetrics;
+import com.fluxpay.service.RouteReliabilityService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Objects;
@@ -60,11 +60,12 @@ public class RouteController {
   }
 
   private RouteApi.RouteEntry toEntry(TransferRoute route) {
-    RouteMetrics.RouteMetric metric = catalog.metricFor(route.getId());
+    RouteReliabilityService.RouteReliability metric = catalog.metricFor(route.getId());
     return toEntry(route, metric);
   }
 
-  static RouteApi.RouteEntry toEntry(TransferRoute route, RouteMetrics.RouteMetric metric) {
+  static RouteApi.RouteEntry toEntry(
+      TransferRoute route, RouteReliabilityService.RouteReliability metric) {
     return new RouteApi.RouteEntry(
         route.getId().toString(),
         route.getRouteCode(),
@@ -77,8 +78,8 @@ public class RouteController {
         route.getSuccessRate(),
         route.isActive(),
         route.getVersion() == null ? 0L : route.getVersion(),
-        metric == null ? 0L : metric.successCount(),
-        metric == null ? 0L : metric.totalCount());
+        metric == null ? 0L : metric.completedCount(),
+        metric == null ? 0L : metric.completedCount() + metric.failedCount());
   }
 
   private static RouteApi.RecommendResponse toResponse(

@@ -36,11 +36,11 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
             "STANDARD_BANK",
             "7600.0000",
             "INSTANT_PAYOUT",
-            "7120.0000",
+            "7320.0000",
             "LOCAL_PARTNER",
             "7840.0000");
     Map<String, String> fees =
-        Map.of("STANDARD_BANK", "5.0000", "INSTANT_PAYOUT", "11.0000", "LOCAL_PARTNER", "2.0000");
+        Map.of("STANDARD_BANK", "5.0000", "INSTANT_PAYOUT", "8.5000", "LOCAL_PARTNER", "2.0000");
     created
         .quotes()
         .forEach(
@@ -63,24 +63,26 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
     f.active.clear();
     assertThatThrownBy(() -> f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key"))
         .isInstanceOfSatisfying(
-            BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ACTIVE_ROUTES"));
+            BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ELIGIBLE_ROUTES"));
     assertThatThrownBy(() -> f.catalog.recommend(f.payment.id().toString(), null, "c"))
         .isInstanceOfSatisfying(
-            BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ACTIVE_ROUTES"));
+            BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ELIGIBLE_ROUTES"));
     assertThat(f.payment.currentQuoteGeneration()).isNull();
     assertThat(f.payment.nextQuoteGeneration()).isEqualTo(1);
   }
 
   @Test
-  void nonpositiveNetFailsBothEntryPoints() {
+  void nonpositiveNetOnEveryRouteFailsBothEntryPoints() {
     var f = new Fixture(RoutePreference.BALANCED);
     f.active.get(0).update("100", "0", 240, "99.5", true);
+    f.active.get(1).update("100", "0", 5, "98", true);
+    f.active.get(2).update("100", "0", 150, "96.5", true);
     assertThatThrownBy(() -> f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key"))
         .isInstanceOfSatisfying(
-            BusinessException.class, e -> assertThat(e.code()).isEqualTo("INVALID_AMOUNT"));
+            BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ELIGIBLE_ROUTES"));
     assertThatThrownBy(() -> f.catalog.recommend(f.payment.id().toString(), null, "c"))
         .isInstanceOfSatisfying(
-            BusinessException.class, e -> assertThat(e.code()).isEqualTo("INVALID_AMOUNT"));
+            BusinessException.class, e -> assertThat(e.code()).isEqualTo("NO_ELIGIBLE_ROUTES"));
   }
 
   @Test
@@ -248,7 +250,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
               (s, t) -> new BigDecimal("80"),
               ranking,
               routes,
-              mock(RouteMetrics.class),
+              mock(RouteReliabilityService.class),
               pricing);
     }
 

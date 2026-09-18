@@ -20,6 +20,7 @@ import com.fluxpay.service.ComplianceCaseService;
 import com.fluxpay.service.PolicyChunkService;
 import com.fluxpay.service.PolicyDeletionService;
 import com.fluxpay.service.PolicyDocumentService;
+import com.fluxpay.service.RouteReliabilityService;
 import com.fluxpay.service.TransferRouteService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,7 @@ class ComplianceCaseControllerSecurityContractTest {
   @MockBean private PolicyChunkService policyChunks;
   @MockBean private PolicyDeletionService policyDeletion;
   @MockBean private TransferRouteService routeAdmin;
+  @MockBean private RouteReliabilityService reliability;
   @MockBean private RouteAdminAuthorizer routeAdminAuthorizer;
   @MockBean private JwtUtil jwt;
 

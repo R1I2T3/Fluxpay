@@ -9,10 +9,13 @@ import com.fluxpay.dto.DeletionResult;
 import com.fluxpay.dto.TransferRouteApi;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.exception.ForbiddenException;
+import com.fluxpay.service.RouteReliabilityService;
 import com.fluxpay.service.TransferRouteService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -37,11 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransferRouteAdminController {
 
   private final TransferRouteService service;
+  private final RouteReliabilityService reliability;
   private final RouteAdminAuthorizer authorizer;
 
   public TransferRouteAdminController(
-      TransferRouteService service, RouteAdminAuthorizer authorizer) {
+      TransferRouteService service,
+      RouteReliabilityService reliability,
+      RouteAdminAuthorizer authorizer) {
     this.service = Objects.requireNonNull(service, "service must not be null");
+    this.reliability = Objects.requireNonNull(reliability, "reliability must not be null");
     this.authorizer = Objects.requireNonNull(authorizer, "authorizer must not be null");
   }
 
@@ -50,10 +57,12 @@ public class TransferRouteAdminController {
   public ApiResponse<TransferRouteApi.RouteListResponse> list(HttpServletRequest request) {
     String cid = ControllerSupport.correlationId(request);
     requireAdmin("list routes");
+    List<TransferRoute> routes = service.list();
+    Map<UUID, RouteReliabilityService.RouteReliability> stats = reliability.effectiveFor(routes);
     return new ApiResponse<>(
         cid,
         new TransferRouteApi.RouteListResponse(
-            service.list().stream().map(TransferRouteApi::toEntry).toList()));
+            routes.stream().map(route -> toEntry(route, stats)).toList()));
   }
 
   @GetMapping("/{id}")
@@ -62,7 +71,7 @@ public class TransferRouteAdminController {
       @PathVariable String id, HttpServletRequest request) {
     String cid = ControllerSupport.correlationId(request);
     requireAdmin("read route " + id);
-    return new ApiResponse<>(cid, TransferRouteApi.toEntry(service.get(parseId(id))));
+    return new ApiResponse<>(cid, toEntry(service.get(parseId(id))));
   }
 
   @PostMapping
@@ -98,7 +107,7 @@ public class TransferRouteAdminController {
                 minimum,
                 maximum,
                 requireActive(body.active())));
-    return new ApiResponse<>(cid, TransferRouteApi.toEntry(route));
+    return new ApiResponse<>(cid, toEntry(route));
   }
 
   @PutMapping("/{id}")
@@ -133,7 +142,7 @@ public class TransferRouteAdminController {
                 maximum,
                 requireActive(body.active()),
                 requireVersion(body.version())));
-    return new ApiResponse<>(cid, TransferRouteApi.toEntry(route));
+    return new ApiResponse<>(cid, toEntry(route));
   }
 
   @DeleteMapping("/{id}")
@@ -145,6 +154,20 @@ public class TransferRouteAdminController {
     String cid = ControllerSupport.correlationId(request);
     requireAdmin("delete route " + id);
     return new ApiResponse<>(cid, service.delete(parseId(id), requireVersion(version)));
+  }
+
+  private TransferRouteApi.RouteEntry toEntry(TransferRoute route) {
+    RouteReliabilityService.RouteReliability stat =
+        reliability.effectiveFor(List.of(route)).get(route.getId());
+    return TransferRouteApi.toEntry(
+        route, stat.effectiveReliability(), stat.completedCount(), stat.failedCount());
+  }
+
+  private static TransferRouteApi.RouteEntry toEntry(
+      TransferRoute route, Map<UUID, RouteReliabilityService.RouteReliability> stats) {
+    RouteReliabilityService.RouteReliability stat = stats.get(route.getId());
+    return TransferRouteApi.toEntry(
+        route, stat.effectiveReliability(), stat.completedCount(), stat.failedCount());
   }
 
   private void requireAdmin(String action) {
