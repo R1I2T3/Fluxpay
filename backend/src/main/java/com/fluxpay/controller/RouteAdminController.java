@@ -9,6 +9,7 @@ import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.RouteMetrics;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Objects;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +29,7 @@ public class RouteAdminController {
   }
 
   @PutMapping("/{routeId}")
+  @PreAuthorize("hasRole('ADMIN')")
   public ApiResponse<RouteApi.RouteEntry> update(
       @PathVariable String routeId,
       @RequestBody RouteApi.Update update,
