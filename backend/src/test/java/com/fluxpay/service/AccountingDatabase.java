@@ -38,6 +38,7 @@ final class AccountingDatabase {
   final UUID fee = UUID.fromString("00000000-0000-0000-0000-000000000002");
   final List<UUID> locks = Collections.synchronizedList(new ArrayList<>());
   volatile java.util.function.Consumer<Integer> afterJournalLock = ignored -> {};
+  volatile Runnable afterWalletLocks = () -> {};
   volatile String failKey;
 
   AccountingDatabase() {
@@ -47,7 +48,7 @@ final class AccountingDatabase {
     jdbc = new JdbcTemplate(source);
     transactions = new DataSourceTransactionManager(source);
     jdbc.execute(
-        "create table wallets (id uuid primary key, owner uuid, role varchar(30), currency varchar(3), balance decimal(19,4))");
+        "create table wallets (id uuid primary key, owner uuid, role varchar(30), currency varchar(3), balance decimal(19,4), held decimal(19,4))");
     jdbc.execute(
         "create table entries (entry_key varchar(255) primary key, wallet uuid, kind varchar(10), amount decimal(19,4), currency varchar(3), journal varchar(64), narration varchar(255), rate decimal(19,8), quote_id varchar(36))");
     jdbc.execute(
@@ -66,6 +67,18 @@ final class AccountingDatabase {
               UUID id = call.getArgument(0);
               locks.add(id);
               return wallet(id, true);
+            });
+    when(wallets.findAllByIdForUpdate(any()))
+        .thenAnswer(
+            call -> {
+              Collection<UUID> requested = call.getArgument(0);
+              List<Wallet> result = new ArrayList<>();
+              requested.stream()
+                  .distinct()
+                  .sorted(Comparator.comparing(UUID::toString))
+                  .forEach(id -> wallet(id, true).ifPresent(result::add));
+              afterWalletLocks.run();
+              return result;
             });
     when(wallets.findByUserIdAndCurrencyAndAccountRole(any(), any(), any()))
         .thenAnswer(
@@ -87,7 +100,10 @@ final class AccountingDatabase {
             call -> {
               Wallet wallet = call.getArgument(0);
               jdbc.update(
-                  "update wallets set balance=? where id=?", wallet.getBalance(), wallet.getId());
+                  "update wallets set balance=?, held=? where id=?",
+                  wallet.getBalance(),
+                  wallet.getHeldBalance(),
+                  wallet.getId());
               return wallet;
             });
     when(entries.findByIdempotencyKey(any()))
@@ -199,6 +215,7 @@ final class AccountingDatabase {
                 journalHeaders,
                 journalLocks,
                 entries,
+                wallets,
                 Clock.systemUTC()));
   }
 
@@ -212,12 +229,13 @@ final class AccountingDatabase {
 
   void seed(UUID id, UUID owner, WalletAccountRole role, String amount) {
     jdbc.update(
-        "insert into wallets values (?,?,?,?,?)",
+        "insert into wallets values (?,?,?,?,?,?)",
         id,
         owner,
         role.name(),
         "USD",
-        new BigDecimal(amount));
+        new BigDecimal(amount),
+        new BigDecimal("0.0000"));
   }
 
   Optional<Wallet> wallet(UUID id, boolean lock) {
@@ -232,6 +250,7 @@ final class AccountingDatabase {
                       WalletAccountRole.valueOf(rs.getString("role")));
               ReflectionTestUtils.setField(wallet, "id", rs.getObject("id", UUID.class));
               wallet.setBalance(rs.getBigDecimal("balance"));
+              wallet.setHeldBalance(rs.getBigDecimal("held"));
               return wallet;
             },
             id)
@@ -241,6 +260,14 @@ final class AccountingDatabase {
 
   BigDecimal balance(UUID id) {
     return jdbc.queryForObject("select balance from wallets where id=?", BigDecimal.class, id);
+  }
+
+  BigDecimal held(UUID id) {
+    return jdbc.queryForObject("select held from wallets where id=?", BigDecimal.class, id);
+  }
+
+  void setHeld(UUID id, String amount) {
+    jdbc.update("update wallets set held=? where id=?", new BigDecimal(amount), id);
   }
 
   int count() {

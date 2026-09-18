@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.beans.WalletOperation;
+import com.fluxpay.beans.LedgerTransactionCategory;
+import com.fluxpay.domain.ConversionCalculation;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletResponse;
@@ -28,18 +30,21 @@ public class WalletPostingService {
   private final WalletOperationRepository operations;
   private final LedgerJournalService journals;
   private final ObjectMapper objectMapper;
+  private final FxQuoteValidator quoteValidator;
 
   public WalletPostingService(
       SystemAccountService systemAccounts,
       WalletRepository wallets,
       WalletOperationRepository operations,
       LedgerJournalService journals,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      FxQuoteValidator quoteValidator) {
     this.systemAccounts = systemAccounts;
     this.wallets = wallets;
     this.operations = operations;
     this.journals = journals;
     this.objectMapper = objectMapper;
+    this.quoteValidator = quoteValidator;
   }
 
   @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
@@ -102,13 +107,18 @@ public class WalletPostingService {
       UUID userId,
       String from,
       String to,
-      BigDecimal sourceAmount,
-      BigDecimal fee,
-      BigDecimal netAmount,
-      BigDecimal creditedAmount,
+      ConversionCalculation calculation,
       FxSnapshot snapshot,
+      String quoteId,
       String normalizedRequest,
       String clientKey) {
+    BigDecimal sourceAmount = calculation.gross();
+    BigDecimal fee = calculation.fee();
+    BigDecimal netAmount = calculation.net();
+    BigDecimal creditedAmount = calculation.credit();
+    if (calculation.rate().compareTo(snapshot.rate()) != 0) {
+      throw new IllegalArgumentException("Calculated FX rate does not match the accepted quote");
+    }
     Wallet sourceClearing = systemAccounts.require(from, WalletAccountRole.FX_CLEARING);
     Wallet targetClearing = systemAccounts.require(to, WalletAccountRole.FX_CLEARING);
     Optional<Wallet> feeRevenue =
@@ -148,7 +158,9 @@ public class WalletPostingService {
             from,
             operationId,
             "source",
-            "FX conversion gross debit"));
+            "FX conversion gross debit",
+            calculation.rate(),
+            quoteId));
     lines.add(
         line(
             sourceClearing,
@@ -157,7 +169,9 @@ public class WalletPostingService {
             from,
             operationId,
             "source-clearing",
-            "FX source clearing credit"));
+            "FX source clearing credit",
+            calculation.rate(),
+            quoteId));
     if (fee.signum() > 0) {
       lines.add(
           line(
@@ -167,7 +181,9 @@ public class WalletPostingService {
               from,
               operationId,
               "fee",
-              "FX conversion fee"));
+              "FX conversion fee",
+              calculation.rate(),
+              quoteId));
     }
     lines.add(
         line(
@@ -177,10 +193,27 @@ public class WalletPostingService {
             to,
             operationId,
             "target-clearing",
-            "FX target clearing debit"));
+            "FX target clearing debit",
+            calculation.rate(),
+            quoteId));
     lines.add(
-        line(target, "CREDIT", creditedAmount, to, operationId, "target", "FX conversion credit"));
-    journals.post(journalReference, lines);
+        line(
+            target,
+            "CREDIT",
+            creditedAmount,
+            to,
+            operationId,
+            "target",
+            "FX conversion credit",
+            calculation.rate(),
+            quoteId));
+    String sourceKey = operationId + ":source";
+    journals.postReserved(
+        journalReference,
+        LedgerTransactionCategory.SELF_TRANSFER,
+        lines,
+        new WalletReservation(source.getId(), sourceKey, from, sourceAmount),
+        () -> quoteValidator.accept(snapshot, from, to));
 
     WalletConvertResponse response =
         new WalletConvertResponse(
@@ -211,6 +244,27 @@ public class WalletPostingService {
       String narration) {
     return new LedgerJournalLine(
         wallet.getId(), entryType, amount, currency, operationId + ":" + role, narration);
+  }
+
+  private static LedgerJournalLine line(
+      Wallet wallet,
+      String entryType,
+      BigDecimal amount,
+      String currency,
+      UUID operationId,
+      String role,
+      String narration,
+      BigDecimal rate,
+      String quoteId) {
+    return new LedgerJournalLine(
+        wallet.getId(),
+        entryType,
+        amount,
+        currency,
+        operationId + ":" + role,
+        narration,
+        rate,
+        quoteId);
   }
 
   private String snapshot(WalletResponse response) {

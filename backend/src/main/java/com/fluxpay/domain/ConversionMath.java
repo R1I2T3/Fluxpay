@@ -1,58 +1,80 @@
 package com.fluxpay.domain;
 
+import com.fluxpay.config.ConversionFeeSchedule;
+import com.fluxpay.service.CurrencyScaleService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import org.springframework.stereotype.Component;
 
 /** Money calculations shared by the wallet conversion services. */
+@Component
 public class ConversionMath {
-  private static final BigDecimal FEE_RATE = new BigDecimal("0.005");
-  private static final int MONEY_SCALE = 4;
-
   // Oracle NUMBER(19,4) permits 15 digits before the decimal point and 4 after it.
   private static final BigDecimal MAX_MONEY = new BigDecimal("999999999999999.9999");
+  private static final int STORAGE_SCALE = 4;
+  private static final int RATE_SCALE = 8;
 
-  /** Calculates the 0.5% source-currency fee. Very small amounts can have a zero fee. */
-  public BigDecimal fee(BigDecimal sourceAmount) {
-    validateSourceAmount(sourceAmount);
-    return sourceAmount.multiply(FEE_RATE).setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
+  private final ConversionFeeSchedule fees;
+  private final CurrencyScaleService currencies;
+
+  public ConversionMath(ConversionFeeSchedule fees, CurrencyScaleService currencies) {
+    this.fees = fees;
+    this.currencies = currencies;
   }
 
-  /** Deducts the fee before applying the rate; rounds only the resulting target amount. */
-  public BigDecimal convertedAmount(BigDecimal sourceAmount, BigDecimal rate) {
-    BigDecimal fee = fee(sourceAmount);
-    if (rate == null || rate.signum() <= 0) {
-      throw new IllegalArgumentException("Exchange rate must be present and greater than zero");
+  public ConversionCalculation calculate(
+      String sourceCurrency, String targetCurrency, BigDecimal sourceAmount, BigDecimal rate) {
+    int sourceScale = currencies.scale(sourceCurrency);
+    int targetScale = currencies.scale(targetCurrency);
+    validateSourceAmount(sourceAmount, sourceScale);
+    BigDecimal acceptedRate = acceptedRate(rate);
+    BigDecimal businessGross = sourceAmount.setScale(sourceScale, RoundingMode.UNNECESSARY);
+    BigDecimal fee =
+        businessGross
+            .multiply(fees.rateFor(sourceCurrency))
+            .setScale(sourceScale, RoundingMode.HALF_UP);
+    BigDecimal net = businessGross.subtract(fee).setScale(sourceScale, RoundingMode.HALF_UP);
+    if (net.signum() <= 0) {
+      throw new IllegalArgumentException("Amount remaining after the fee must be greater than zero");
     }
-
-    BigDecimal amountAfterFee = sourceAmount.subtract(fee);
-    if (amountAfterFee.signum() <= 0) {
-      throw new IllegalArgumentException(
-          "Amount remaining after the fee must be greater than zero");
+    BigDecimal credit = net.multiply(acceptedRate).setScale(targetScale, RoundingMode.HALF_UP);
+    if (credit.signum() <= 0) {
+      throw new IllegalArgumentException("Converted amount is below target currency precision");
     }
-
-    // Rates may have more than four decimal places; do not round the rate first.
-    BigDecimal convertedAmount =
-        amountAfterFee.multiply(rate).setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
-    if (convertedAmount.signum() <= 0) {
-      throw new IllegalArgumentException("Converted amount must be at least 0.0001");
-    }
-    if (convertedAmount.compareTo(MAX_MONEY) > 0) {
-      throw new IllegalArgumentException("Converted amount exceeds the NUMBER(19,4) money limit");
-    }
-    return convertedAmount;
+    validateStorageLimit(credit, "Converted amount");
+    return new ConversionCalculation(
+        storage(businessGross), storage(fee), storage(net), storage(credit), acceptedRate);
   }
 
-  private void validateSourceAmount(BigDecimal sourceAmount) {
+  private static void validateSourceAmount(BigDecimal sourceAmount, int currencyScale) {
     if (sourceAmount == null || sourceAmount.signum() <= 0) {
       throw new IllegalArgumentException("Source amount must be present and greater than zero");
     }
-    // Reject excess input decimal places, including trailing zeros, rather than round requests.
-    if (sourceAmount.scale() > MONEY_SCALE) {
+    if (sourceAmount.stripTrailingZeros().scale() > currencyScale) {
       throw new IllegalArgumentException(
-          "Source amount must have no more than four decimal places");
+          "Source amount exceeds " + currencyScale + " decimal places for the currency");
     }
-    if (sourceAmount.compareTo(MAX_MONEY) > 0) {
-      throw new IllegalArgumentException("Source amount exceeds the NUMBER(19,4) money limit");
+    validateStorageLimit(sourceAmount, "Source amount");
+  }
+
+  private static BigDecimal acceptedRate(BigDecimal rate) {
+    if (rate == null || rate.signum() <= 0) {
+      throw new IllegalArgumentException("Exchange rate must be present and greater than zero");
     }
+    BigDecimal accepted = rate.setScale(RATE_SCALE, RoundingMode.HALF_UP);
+    if (accepted.signum() <= 0 || accepted.precision() > 19) {
+      throw new IllegalArgumentException("Exchange rate cannot be persisted as NUMBER(19,8)");
+    }
+    return accepted;
+  }
+
+  private static void validateStorageLimit(BigDecimal amount, String label) {
+    if (amount.compareTo(MAX_MONEY) > 0 || amount.setScale(STORAGE_SCALE).precision() > 19) {
+      throw new IllegalArgumentException(label + " exceeds the NUMBER(19,4) money limit");
+    }
+  }
+
+  private static BigDecimal storage(BigDecimal amount) {
+    return amount.setScale(STORAGE_SCALE, RoundingMode.UNNECESSARY);
   }
 }

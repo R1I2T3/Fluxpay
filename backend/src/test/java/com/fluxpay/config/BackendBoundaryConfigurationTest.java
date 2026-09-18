@@ -60,7 +60,8 @@ class BackendBoundaryConfigurationTest {
             wallets,
             mock(WalletOperationRepository.class),
             mock(LedgerJournalService.class),
-            new ObjectMapper());
+            new ObjectMapper(),
+            mock(com.fluxpay.service.FxQuoteValidator.class));
 
     assertThatThrownBy(
             () ->

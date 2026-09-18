@@ -3,6 +3,8 @@ package com.fluxpay.service;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.math.BigDecimal;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /** Synchronous, transaction-scoped metadata used without changing the frozen LedgerWriter API. */
@@ -20,11 +22,38 @@ public class LedgerPostingContext {
   }
 
   Scope bind(Map<String, EntryMetadata> metadata) {
+    return bind(metadata, null);
+  }
+
+  Scope bind(Map<String, EntryMetadata> metadata, WalletReservation reservation) {
     if (current.get() != null) {
       throw new IllegalStateException("A ledger posting context is already active");
     }
-    current.set(new State(Collections.unmodifiableMap(new HashMap<>(metadata))));
+    current.set(new State(Collections.unmodifiableMap(new HashMap<>(metadata)), reservation));
     return new Scope();
+  }
+
+  boolean consumeReservation(
+      String idempotencyKey, UUID walletId, String currency, BigDecimal amount) {
+    State state = current.get();
+    if (state == null || state.reservation == null) return false;
+    WalletReservation reservation = state.reservation;
+    if (!reservation.idempotencyKey().equals(idempotencyKey)) return false;
+    if (state.reservationConsumed
+        || !reservation.walletId().equals(walletId)
+        || !reservation.currency().equals(currency)
+        || reservation.amount().compareTo(amount) != 0) {
+      throw new IllegalStateException("Reserved debit does not match the ledger posting");
+    }
+    state.reservationConsumed = true;
+    return true;
+  }
+
+  void requireReservationConsumed() {
+    State state = current.get();
+    if (state != null && state.reservation != null && !state.reservationConsumed) {
+      throw new IllegalStateException("Journal did not consume its wallet reservation");
+    }
   }
 
   void record(PostingResult result) {
@@ -53,10 +82,13 @@ public class LedgerPostingContext {
 
   private static final class State {
     private final Map<String, EntryMetadata> metadata;
+    private final WalletReservation reservation;
+    private boolean reservationConsumed;
     private PostingResult result;
 
-    private State(Map<String, EntryMetadata> metadata) {
+    private State(Map<String, EntryMetadata> metadata, WalletReservation reservation) {
       this.metadata = metadata;
+      this.reservation = reservation;
     }
   }
 

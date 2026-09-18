@@ -203,7 +203,7 @@ class PayoutLifecycleIntegrationTest {
     var journalService =
         proxy(
             new LedgerJournalService(
-                writer, context, journalHeaders, journalLocks, entries, clock));
+                writer, context, journalHeaders, journalLocks, entries, wallets, clock));
     outbox = proxy(spy(new PayoutOutboxService(events, deliveries, mapper, clock)));
     var reservationService =
         proxy(

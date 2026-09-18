@@ -23,6 +23,7 @@ import com.fluxpay.exception.DemoFundingDisabledException;
 import com.fluxpay.exception.FxSystemWalletNotFoundException;
 import com.fluxpay.exception.InsufficientWalletFundsException;
 import com.fluxpay.exception.OperationRetryException;
+import com.fluxpay.exception.RequoteRequiredException;
 import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.WalletConversionService;
 import com.fluxpay.service.WalletQueryService;
@@ -195,6 +196,21 @@ class WalletControllerTest {
                 .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"100.0000\"}"))
         .andExpect(status().isUnprocessableEntity())
         .andExpect(jsonPath("$.code").value("INSUFFICIENT_FUNDS"));
+  }
+
+  @Test
+  void staleConversionQuoteReturnsScopedRequoteRequiredConflict() throws Exception {
+    when(conversion.convert(eq(USER_ID), any(WalletConvertRequest.class), eq("fx-stale")))
+        .thenThrow(new RequoteRequiredException());
+
+    mvc.perform(
+            post("/api/wallets/convert")
+                .header("Authorization", "Bearer " + TOKEN)
+                .header("Idempotency-Key", "fx-stale")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"100.0000\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("REQUOTE_REQUIRED"));
   }
 
   @Test

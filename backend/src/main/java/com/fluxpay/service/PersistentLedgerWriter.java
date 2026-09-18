@@ -81,9 +81,18 @@ public class PersistentLedgerWriter implements LedgerWriter {
 
     BigDecimal updatedBalance;
     if ("DEBIT".equals(entryType)) {
-      if (wallet.getAccountRole() == WalletAccountRole.CUSTOMER
-          && wallet.getAvailableBalance().compareTo(postedAmount) < 0) {
-        throw new InsufficientWalletFundsException(walletId);
+      boolean reserved =
+          context.consumeReservation(idempotencyKey, walletId, currency, postedAmount);
+      if (reserved) {
+        if (wallet.getHeldBalance().compareTo(postedAmount) < 0) {
+          throw new IllegalStateException("Reserved wallet funds are no longer present");
+        }
+        wallet.setHeldBalance(wallet.getHeldBalance().subtract(postedAmount));
+      } else {
+        if (wallet.getAccountRole() == WalletAccountRole.CUSTOMER
+            && wallet.getAvailableBalance().compareTo(postedAmount) < 0) {
+          throw new InsufficientWalletFundsException(walletId);
+        }
       }
       updatedBalance = wallet.getBalance().subtract(postedAmount);
     } else {

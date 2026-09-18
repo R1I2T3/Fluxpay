@@ -11,6 +11,7 @@ import com.fluxpay.exception.FxUnavailableException;
 import com.fluxpay.exception.InsufficientWalletFundsException;
 import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.exception.OperationRetryException;
+import com.fluxpay.exception.RequoteRequiredException;
 import com.fluxpay.exception.WalletNotFoundException;
 import java.util.Map;
 import org.springframework.core.Ordered;
@@ -51,6 +52,11 @@ public class WalletFxApiExceptionHandler {
   @ExceptionHandler(OperationRetryException.class)
   public ResponseEntity<ApiError> retry(OperationRetryException exception) {
     return response(HttpStatus.CONFLICT, "RETRY", exception.getMessage());
+  }
+
+  @ExceptionHandler(RequoteRequiredException.class)
+  public ResponseEntity<ApiError> requoteRequired(RequoteRequiredException exception) {
+    return response(exception.status(), exception.code(), exception.getMessage());
   }
 
   @ExceptionHandler(InsufficientWalletFundsException.class)

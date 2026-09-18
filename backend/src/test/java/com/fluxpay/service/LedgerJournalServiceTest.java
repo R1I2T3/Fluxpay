@@ -419,6 +419,146 @@ class LedgerJournalServiceTest {
     assertEquals(2, db.count());
   }
 
+  @Test
+  void reservedDebitConsumesOnlyItsOwnHoldAndPreservesExistingHolds() {
+    AccountingDatabase db = new AccountingDatabase();
+    db.setHeld(db.customer, "5.0000");
+    List<LedgerJournalLine> lines = reservedLines(db, "hold");
+
+    db.journals.postReserved(
+        "JRN-HOLD",
+        LedgerTransactionCategory.SELF_TRANSFER,
+        lines,
+        reservation(db, "hold"),
+        () -> {});
+
+    assertEquals(new BigDecimal("90.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("5.0000"), db.held(db.customer));
+    assertEquals(List.of(db.clearing, db.customer), db.locks.subList(0, 2));
+  }
+
+  @Test
+  void reservationRejectsInsufficientAvailableFundsWithoutResidualHold() {
+    AccountingDatabase db = new AccountingDatabase();
+    db.setHeld(db.customer, "95.0000");
+
+    assertThrows(
+        com.fluxpay.exception.InsufficientWalletFundsException.class,
+        () ->
+            db.journals.postReserved(
+                "JRN-HOLD-INSUFFICIENT",
+                LedgerTransactionCategory.SELF_TRANSFER,
+                reservedLines(db, "insufficient"),
+                reservation(db, "insufficient"),
+                () -> {}));
+
+    assertEquals(new BigDecimal("100.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("95.0000"), db.held(db.customer));
+    assertEquals(0, db.count());
+  }
+
+  @Test
+  void quoteThatExpiresWhileWaitingForWalletLocksIsRejectedBeforeReservation() {
+    AccountingDatabase db = new AccountingDatabase();
+    java.time.Instant fetchedAt = java.time.Instant.parse("2026-09-18T05:00:00Z");
+    java.util.concurrent.atomic.AtomicReference<java.time.Instant> now =
+        new java.util.concurrent.atomic.AtomicReference<>(fetchedAt.plusSeconds(3599));
+    java.time.Clock clock =
+        new java.time.Clock() {
+          @Override
+          public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+          }
+
+          @Override
+          public java.time.Clock withZone(java.time.ZoneId zone) {
+            return this;
+          }
+
+          @Override
+          public java.time.Instant instant() {
+            return now.get();
+          }
+        };
+    FxQuoteValidator validator = new FxQuoteValidator(clock);
+    com.fluxpay.dto.FxSnapshot quote =
+        new com.fluxpay.dto.FxSnapshot(
+            "USD", "INR", new BigDecimal("83.50000000"), fetchedAt, false);
+    db.afterWalletLocks = () -> now.set(fetchedAt.plusSeconds(3600));
+
+    assertThrows(
+        com.fluxpay.exception.RequoteRequiredException.class,
+        () ->
+            db.journals.postReserved(
+                "JRN-HOLD-AGED-QUOTE",
+                LedgerTransactionCategory.SELF_TRANSFER,
+                reservedLines(db, "aged-quote"),
+                reservation(db, "aged-quote"),
+                () -> validator.accept(quote, "USD", "INR")));
+
+    assertEquals(new BigDecimal("100.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("0.0000"), db.held(db.customer));
+    assertEquals(0, db.count());
+  }
+
+  @Test
+  void postingFailureRollsBackTheReservationAndEveryBalanceChange() {
+    AccountingDatabase db = new AccountingDatabase();
+    db.setHeld(db.customer, "7.0000");
+    db.failKey = "rollback:debit";
+
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            db.journals.postReserved(
+                "JRN-HOLD-ROLLBACK",
+                LedgerTransactionCategory.SELF_TRANSFER,
+                reservedLines(db, "rollback"),
+                reservation(db, "rollback"),
+                () -> {}));
+
+    assertEquals(new BigDecimal("100.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("7.0000"), db.held(db.customer));
+    assertEquals(0, db.count());
+  }
+
+  @Test
+  void exactReservedReplayReturnsBeforeFreshnessCheckOrAnotherReservation() {
+    AccountingDatabase db = new AccountingDatabase();
+    List<LedgerJournalLine> lines = reservedLines(db, "reserved-replay");
+    WalletReservation reservation = reservation(db, "reserved-replay");
+    db.journals.postReserved(
+        "JRN-HOLD-REPLAY",
+        LedgerTransactionCategory.SELF_TRANSFER,
+        lines,
+        reservation,
+        () -> {});
+
+    db.journals.postReserved(
+        "JRN-HOLD-REPLAY",
+        LedgerTransactionCategory.SELF_TRANSFER,
+        lines,
+        reservation,
+        () -> {
+          throw new AssertionError("freshness callback must not run for replay");
+        });
+
+    assertEquals(new BigDecimal("90.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("0.0000"), db.held(db.customer));
+    assertEquals(2, db.count());
+  }
+
+  private static List<LedgerJournalLine> reservedLines(AccountingDatabase db, String key) {
+    return List.of(
+        line(db.customer, "DEBIT", "10.0000", "USD", key + ":debit", "Debit"),
+        line(db.clearing, "CREDIT", "10.0000", "USD", key + ":credit", "Credit"));
+  }
+
+  private static WalletReservation reservation(AccountingDatabase db, String key) {
+    return new WalletReservation(
+        db.customer, key + ":debit", "USD", new BigDecimal("10.0000"));
+  }
+
   private static AccountingDatabase historicalJournalDatabase() {
     AccountingDatabase db = new AccountingDatabase();
     db.jdbc.update("update wallets set balance=90 where id=?", db.customer);
@@ -465,7 +605,13 @@ class LedgerJournalServiceTest {
     when(locks.findByIdForUpdate(any())).thenReturn(java.util.Optional.of(mock(LedgerJournalLock.class)));
     when(journals.findByJournalReference(any())).thenReturn(java.util.Optional.empty());
     return new LedgerJournalService(
-        writer, context, journals, locks, mock(LedgerEntryRepository.class), Clock.systemUTC());
+        writer,
+        context,
+        journals,
+        locks,
+        mock(LedgerEntryRepository.class),
+        mock(com.fluxpay.repository.WalletRepository.class),
+        Clock.systemUTC());
   }
 
   private record RecordedCall(

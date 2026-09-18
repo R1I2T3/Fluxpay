@@ -2,87 +2,116 @@ package com.fluxpay.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.fluxpay.beans.CurrencyConfiguration;
+import com.fluxpay.config.ConversionFeeSchedule;
+import com.fluxpay.repository.CurrencyConfigurationRepository;
+import com.fluxpay.service.CurrencyScaleService;
 import java.math.BigDecimal;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ConversionMathTest {
-  private final ConversionMath calculator = new ConversionMath();
+  private ConversionFeeSchedule fees;
+  private ConversionMath calculator;
 
-  // Each row runs as a separate test. Equality also checks the four-decimal scale.
-  @ParameterizedTest
-  @CsvSource({
-    "100.0000, 0.5000",
-    "100, 0.5000",
-    "1.0100, 0.0050",
-    "1.0300, 0.0052",
-    "0.0001, 0.0000",
-    "999999999999999.9999, 5000000000000.0000"
-  })
-  void calculatesFeeWithFourDecimalHalfEvenRounding(String source, String expected) {
-    assertEquals(new BigDecimal(expected), calculator.fee(new BigDecimal(source)));
-  }
-
-  @ParameterizedTest
-  @CsvSource({
-    "100.0000, 83.50, 8308.2500",
-    "0.0001, 2.5, 0.0002",
-    "0.0001, 3.5, 0.0004",
-    "100.0000, 1.23456789, 122.8395",
-    "0.0001, 9999999999999999999, 999999999999999.9999"
-  })
-  void convertsNetAmountWithoutPrematurelyRoundingRate(
-      String source, String rate, String expected) {
-    BigDecimal actual = calculator.convertedAmount(new BigDecimal(source), new BigDecimal(rate));
-    assertEquals(new BigDecimal(expected), actual);
-  }
-
-  @ParameterizedTest
-  @NullSource
-  @ValueSource(strings = {"0", "-0.0001", "1.00001", "1.00000", "1000000000000000"})
-  void rejectsInvalidSourceAmountWhenCalculatingFee(String source) {
-    BigDecimal amount = source == null ? null : new BigDecimal(source);
-    assertThrows(IllegalArgumentException.class, () -> calculator.fee(amount));
-  }
-
-  @ParameterizedTest
-  @NullSource
-  @ValueSource(strings = {"0", "-0.0001", "1.00001", "1.00000", "1000000000000000"})
-  void rejectsInvalidSourceAmountWhenConverting(String source) {
-    BigDecimal amount = source == null ? null : new BigDecimal(source);
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> calculator.convertedAmount(amount, new BigDecimal("83.50")));
-  }
-
-  @ParameterizedTest
-  @NullSource
-  @ValueSource(strings = {"0", "-0.01"})
-  void rejectsMissingOrNonpositiveRate(String rateText) {
-    BigDecimal rate = rateText == null ? null : new BigDecimal(rateText);
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> calculator.convertedAmount(new BigDecimal("100.0000"), rate));
+  @BeforeEach
+  void setUp() {
+    CurrencyConfigurationRepository currencies = mock(CurrencyConfigurationRepository.class);
+    CurrencyConfiguration twoDecimals = mock(CurrencyConfiguration.class);
+    when(twoDecimals.getScale()).thenReturn(2);
+    when(currencies.findById("USD")).thenReturn(Optional.of(twoDecimals));
+    when(currencies.findById("EUR")).thenReturn(Optional.of(twoDecimals));
+    when(currencies.findById("INR")).thenReturn(Optional.of(twoDecimals));
+    fees = new ConversionFeeSchedule();
+    calculator = new ConversionMath(fees, new CurrencyScaleService(currencies));
   }
 
   @Test
-  void rejectsConversionThatRoundsBeyondOracleMoneyLimit() {
-    // The exact product ends in .99995, which rounds beyond NUMBER(19,4).
+  void calculatesOneDefaultFeeNetAndCreditResultWithCurrencyHalfUpRounding() {
+    ConversionCalculation result =
+        calculator.calculate(
+            "USD", "INR", new BigDecimal("101.00"), new BigDecimal("1.234567894"));
+
+    assertEquals(new BigDecimal("101.0000"), result.gross());
+    assertEquals(new BigDecimal("0.5100"), result.fee());
+    assertEquals(new BigDecimal("100.4900"), result.net());
+    assertEquals(new BigDecimal("124.0600"), result.credit());
+    assertEquals(new BigDecimal("1.23456789"), result.rate());
+  }
+
+  @Test
+  void usesConfiguredFeeForTheSourceCurrencyOnly() {
+    fees.setFeeRates(Map.of("USD", new BigDecimal("0.01")));
+
+    ConversionCalculation usd =
+        calculator.calculate("USD", "INR", new BigDecimal("100"), BigDecimal.ONE);
+    ConversionCalculation eur =
+        calculator.calculate("EUR", "INR", new BigDecimal("100"), BigDecimal.ONE);
+
+    assertEquals(new BigDecimal("1.0000"), usd.fee());
+    assertEquals(new BigDecimal("0.5000"), eur.fee());
+  }
+
+  @Test
+  void acceptsInsignificantTrailingZerosWithinCurrencyPrecision() {
+    ConversionCalculation result =
+        calculator.calculate("USD", "EUR", new BigDecimal("1.2300"), BigDecimal.ONE);
+
+    assertEquals(new BigDecimal("1.2300"), result.gross());
+  }
+
+  @Test
+  void rejectsExcessFractionalSourceValueInsteadOfRoundingIt() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> calculator.calculate("USD", "EUR", new BigDecimal("1.2340"), BigDecimal.ONE));
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = {"0", "-0.01", "1000000000000000"})
+  void rejectsMissingNonpositiveOrStorageOverflowSourceAmount(String source) {
+    BigDecimal amount = source == null ? null : new BigDecimal(source);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> calculator.calculate("USD", "EUR", amount, BigDecimal.ONE));
+  }
+
+  @Test
+  void rejectsConvertedCreditBeyondStorageLimit() {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            calculator.convertedAmount(
-                new BigDecimal("0.0001"), new BigDecimal("9999999999999999999.5")));
+            calculator.calculate(
+                "USD",
+                "EUR",
+                new BigDecimal("999999999999999.99"),
+                new BigDecimal("100.00000000")));
   }
 
   @Test
-  void rejectsConversionThatRoundsToZero() {
+  void rejectsRateThatCannotBePersistedAfterCanonicalRounding() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> calculator.convertedAmount(new BigDecimal("0.0001"), new BigDecimal("0.1")));
+        () ->
+            calculator.calculate(
+                "USD", "EUR", new BigDecimal("1.00"), new BigDecimal("999999999999.99999999")));
+  }
+
+  @Test
+  void rejectsCreditThatRoundsToZeroAtTargetCurrencyPrecision() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            calculator.calculate(
+                "USD", "EUR", new BigDecimal("0.01"), new BigDecimal("0.00000001")));
   }
 }
