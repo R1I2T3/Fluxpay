@@ -92,6 +92,23 @@ class FreshBaselineOracleTest {
   }
 
   @Test
+  void freshMigrationIncludesSyntheticSanctionsRecipient() throws Exception {
+    migrateIsolatedSchema();
+    try (Connection connection = connect();
+        var statement =
+            connection.prepareStatement(
+                "SELECT name, status, profile_complete, currency FROM recipients "
+                    + "WHERE id=HEXTORAW('00000000000000000000000000005C04')");
+        ResultSet result = statement.executeQuery()) {
+      assertEquals(true, result.next());
+      assertEquals("SANCTIONED_ACME", result.getString("name"));
+      assertEquals("ACTIVE", result.getString("status"));
+      assertEquals(1, result.getInt("profile_complete"));
+      assertEquals("USD", result.getString("currency"));
+    }
+  }
+
+  @Test
   void repeatStartupAppliesNoNewMigrations() throws Exception {
     migrateIsolatedSchema();
     var second =

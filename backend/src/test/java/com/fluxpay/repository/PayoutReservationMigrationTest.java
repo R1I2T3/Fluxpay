@@ -20,6 +20,7 @@ class PayoutReservationMigrationTest {
               .locations("classpath:db/migration")
               .baselineOnMigrate(true)
               .baselineVersion("605")
+              .target("606")
               .load()
               .migrate();
       assertThat(upgrade.migrationsExecuted)
