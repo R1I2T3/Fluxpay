@@ -32,8 +32,9 @@
         </label>
         <label>
           Related payment ID <small>(optional)</small>
-          <input placeholder="Payment UUID" data-bind="value:paymentId" />
+          <select data-bind="value:paymentId,valueAllowUnset:true,options:relatedPayments,optionsText:'label',optionsValue:'id',optionsCaption:'No related payment',disable:busy"></select>
         </label>
+        <p class="form-help">Only your submitted transactions are shown.</p>
         <label>
           Describe the issue
           <textarea required maxlength="4000" rows="7" placeholder="Include any useful details." data-bind="value:body"></textarea>
