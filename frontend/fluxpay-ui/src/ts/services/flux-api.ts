@@ -53,3 +53,9 @@ export interface PolicyChunk { id:string; policyDocumentId:string; chunkNumber:n
 export interface PolicyDocument { id:string; title:string; category:string; content:string; documentHash:string; createdAt:string; chunks:PolicyChunk[]; }
 export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
 export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }
+
+// PLAN1-ANCHOR-TICKETS-EOF: do not move; Plan 5 never edits below
+export const ticketApi = {
+  list: () => fluxApi.get<any>('/api/tickets'),
+  create: (body:{paymentId?:string;subject:string;body:string}) => fluxApi.post<any>('/api/tickets',body,true)
+};
