@@ -28,6 +28,7 @@ import com.fluxpay.service.PayoutExecutionService;
 import com.fluxpay.service.RecoveryService;
 import com.fluxpay.service.RouteCatalogService;
 import com.fluxpay.service.TimelineService;
+import com.fluxpay.service.TransferRouteService;
 import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +49,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @WebMvcTest({
   RouteController.class,
-  RouteAdminController.class,
+  TransferRouteAdminController.class,
   TimelineController.class,
   PayoutController.class
 })
@@ -67,15 +68,23 @@ class AuthorizationContractTest {
       UUID.nameUUIDFromBytes("fluxpay:test:other".getBytes(StandardCharsets.UTF_8));
   private static final UUID R_STANDARD =
       UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8));
+  private static final UUID P_STANDARD =
+      UUID.nameUUIDFromBytes("fluxpay:provider:STANDARD".getBytes(StandardCharsets.UTF_8));
   private static final String UPDATE_BODY =
-      "{\"baseFee\":6.00,\"fxSpreadPercentage\":1.0,"
-          + "\"estimatedMinutes\":120,\"successRate\":99.00,\"active\":true,\"version\":0}";
+      "{\"providerId\":\""
+          + P_STANDARD
+          + "\",\"name\":\"Standard Bank Rail\","
+          + "\"destinationType\":\"EXTERNAL_ACCOUNT\",\"destinationCountry\":\"ZZ\","
+          + "\"payoutCurrency\":\"USD\",\"baseFee\":6.00,\"fxSpreadPercentage\":1.0,"
+          + "\"estimatedMinutes\":120,\"configuredSuccessRate\":99.00,"
+          + "\"active\":true,\"version\":0}";
 
   @Autowired private MockMvc mvc;
 
   @MockBean private PaymentReader reader;
   @MockBean private com.fluxpay.service.PaymentOperationService operations;
   @MockBean private RouteCatalogService catalog;
+  @MockBean private TransferRouteService routeAdmin;
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private TimelineService timeline;
   @MockBean private PaymentEligibilityGate gate;
@@ -116,7 +125,7 @@ class AuthorizationContractTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("FORBIDDEN"))
         .andExpect(jsonPath("$.correlationId").value("cid-auth-1"));
-    verify(catalog, never()).updateRoute(anyString(), any());
+    verify(routeAdmin, never()).update(any(), any());
   }
 
   @Test
@@ -130,7 +139,7 @@ class AuthorizationContractTest {
                 .content(UPDATE_BODY))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
-    verify(catalog, never()).updateRoute(anyString(), any());
+    verify(routeAdmin, never()).update(any(), any());
   }
 
   @Test

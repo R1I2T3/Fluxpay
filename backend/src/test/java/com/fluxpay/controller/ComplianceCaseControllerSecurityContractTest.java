@@ -20,8 +20,7 @@ import com.fluxpay.service.ComplianceCaseService;
 import com.fluxpay.service.PolicyChunkService;
 import com.fluxpay.service.PolicyDeletionService;
 import com.fluxpay.service.PolicyDocumentService;
-import com.fluxpay.service.RouteCatalogService;
-import com.fluxpay.service.RouteMetrics;
+import com.fluxpay.service.TransferRouteService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +31,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest({ComplianceCaseController.class, PolicyController.class, RouteAdminController.class})
+@WebMvcTest({
+  ComplianceCaseController.class,
+  PolicyController.class,
+  TransferRouteAdminController.class
+})
 @Import({SecurityConfig.class, MethodSecurityConfig.class, JwtAuthFilter.class})
 class ComplianceCaseControllerSecurityContractTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -44,7 +47,7 @@ class ComplianceCaseControllerSecurityContractTest {
   @MockBean private PolicyDocumentService policyDocuments;
   @MockBean private PolicyChunkService policyChunks;
   @MockBean private PolicyDeletionService policyDeletion;
-  @MockBean private RouteCatalogService routes;
+  @MockBean private TransferRouteService routeAdmin;
   @MockBean private RouteAdminAuthorizer routeAdminAuthorizer;
   @MockBean private JwtUtil jwt;
 
@@ -152,9 +155,7 @@ class ComplianceCaseControllerSecurityContractTest {
             "0.8",
             240,
             "99.50");
-    when(routes.updateRoute(any(), any())).thenReturn(route);
-    when(routes.metricFor(RESOURCE_ID))
-        .thenReturn(new RouteMetrics.RouteMetric(RESOURCE_ID, 0L, 0L));
+    when(routeAdmin.update(any(), any())).thenReturn(route);
 
     mockMvc
         .perform(
@@ -162,11 +163,15 @@ class ComplianceCaseControllerSecurityContractTest {
                 .header("Authorization", "Bearer user-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    "{\"baseFee\":6.00,\"fxSpreadPercentage\":1.0,"
-                        + "\"estimatedMinutes\":120,\"successRate\":99.00,"
+                    "{\"providerId\":\""
+                        + RESOURCE_ID
+                        + "\",\"name\":\"Standard Bank Rail\","
+                        + "\"destinationType\":\"EXTERNAL_ACCOUNT\",\"destinationCountry\":\"ZZ\","
+                        + "\"payoutCurrency\":\"USD\",\"baseFee\":6.00,\"fxSpreadPercentage\":1.0,"
+                        + "\"estimatedMinutes\":120,\"configuredSuccessRate\":99.00,"
                         + "\"active\":true,\"version\":0}"))
         .andExpect(status().isForbidden());
 
-    verify(routes, never()).updateRoute(any(), any());
+    verify(routeAdmin, never()).update(any(), any());
   }
 }
