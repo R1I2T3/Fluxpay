@@ -38,6 +38,21 @@ public class PaymentOperation {
   @Column(name = "response_data")
   private String responseData;
 
+  @Lob
+  @Column(name = "payout_reservation")
+  private String payoutReservation;
+
+  public String payoutReservation() {
+    return payoutReservation;
+  }
+
+  public void capturePayoutReservation(String snapshot) {
+    if (!"IN_PROGRESS".equals(status) || payoutReservation != null)
+      throw new IllegalStateException("Payout reservation is immutable");
+    OperationJson.requireObject(snapshot);
+    payoutReservation = snapshot;
+  }
+
   @Column(name = "payment_id")
   private UUID paymentId;
 

@@ -9,6 +9,7 @@ import com.fluxpay.repository.PaymentOperationRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
@@ -158,6 +159,28 @@ public class PaymentOperationService {
           "INVALID_IDEMPOTENCY_KEY",
           "Idempotency-Key must be 1 to 255 characters.");
     return key;
+  }
+
+  @org.springframework.transaction.annotation.Transactional(
+      propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public void capturePayoutReservation(
+      UUID user, String key, PayoutReservationService.Reserved reserved) {
+    operations
+        .findByUserIdAndClientKey(user, key)
+        .orElseThrow()
+        .capturePayoutReservation(json(reserved));
+  }
+
+  @org.springframework.transaction.annotation.Transactional(
+      propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public <T> Optional<T> completedResponse(UUID id, Class<T> responseType) {
+    var operation = operations.findById(id).orElseThrow();
+    if (!"COMPLETED".equals(operation.status())) return Optional.empty();
+    try {
+      return Optional.of(mapper.readValue(operation.responseData(), responseType));
+    } catch (JsonProcessingException invalid) {
+      throw new IllegalStateException("Invalid stored operation response", invalid);
+    }
   }
 
   public void complete(UUID id, Object response, int httpStatus) {

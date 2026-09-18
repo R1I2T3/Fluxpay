@@ -34,6 +34,16 @@ public class PayoutOutboxService {
   @Transactional(propagation = Propagation.MANDATORY)
   public String enqueue(
       Payment payment, String topic, String correlationId, Map<String, Object> details) {
+    return enqueue(payment, topic, correlationId, details, clock.instant());
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public String enqueue(
+      Payment payment,
+      String topic,
+      String correlationId,
+      Map<String, Object> details,
+      java.time.Instant nextRun) {
     if (correlationId == null || correlationId.isBlank()) {
       throw new IllegalArgumentException("correlationId must not be blank");
     }
@@ -55,6 +65,6 @@ public class PayoutOutboxService {
             1,
             sequence,
             details == null ? Map.of() : details);
-    return outbox.enqueue(envelope, sequence);
+    return outbox.enqueue(envelope, sequence, nextRun);
   }
 }

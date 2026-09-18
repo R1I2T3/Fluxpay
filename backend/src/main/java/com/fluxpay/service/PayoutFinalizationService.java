@@ -38,7 +38,16 @@ public class PayoutFinalizationService {
     if (result == null || result.outcome() == PayoutResult.Outcome.UNCERTAIN)
       throw new IllegalStateException("Uncertain provider delivery requires reconciliation");
     var payment = payments.lockOwned(reserved.paymentId(), reserved.userId()).orElseThrow();
+    var completed = operations.completedResponse(operationId, PayoutApi.OutcomeResponse.class);
+    if (completed.isPresent()) return completed.get();
     var attempt = attempts.findById(reserved.attemptId()).orElseThrow();
+    var latest =
+        attempts
+            .findFirstByPaymentIdOrderByAttemptNumberDesc(payment.id().toString())
+            .orElseThrow();
+    if (!latest.id().equals(attempt.id())
+        || attempt.status() != com.fluxpay.beans.PayoutAttemptStatus.PROCESSING)
+      throw new IllegalStateException("Only the current pending attempt can be finalized");
     var details = new LinkedHashMap<String, Object>();
     details.put("attempt", attempt.attemptNumber());
     details.put("routeCode", reserved.routeCode());

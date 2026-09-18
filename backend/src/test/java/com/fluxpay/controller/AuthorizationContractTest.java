@@ -81,6 +81,7 @@ class AuthorizationContractTest {
   @MockBean private PaymentEligibilityGate gate;
   @MockBean private PayoutExecutionService execution;
   @MockBean private RecoveryService recovery;
+  @MockBean private com.fluxpay.service.PayoutReconciler reconciler;
   @MockBean private PayoutAttemptRepository attempts;
   @MockBean private PayoutRouteRepository routes;
   @MockBean private JwtUtil jwt;

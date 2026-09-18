@@ -230,15 +230,15 @@ class BackendAcceptanceIT {
     String refundKey = "acceptance-refund-" + UUID.randomUUID();
     JsonNode refund =
         request(
-            post("/api/payments/" + refunded.paymentId + "/refund"),
-            customerToken,
+            post("/api/admin/payments/" + refunded.paymentId + "/refund"),
+            adminToken,
             refundKey,
             Map.of(),
             200);
     JsonNode refundReplay =
         request(
-            post("/api/payments/" + refunded.paymentId + "/refund"),
-            customerToken,
+            post("/api/admin/payments/" + refunded.paymentId + "/refund"),
+            adminToken,
             refundKey,
             Map.of(),
             200);

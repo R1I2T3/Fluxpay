@@ -62,6 +62,37 @@ public class PayoutReservationService {
       UUID replacementQuote,
       String correlationId,
       Predicate<String> providerAvailable) {
+    return reserveChecked(
+        user,
+        paymentId,
+        action,
+        routeCode,
+        replacementQuote,
+        correlationId,
+        providerAvailable,
+        null);
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public Reserved reserveAutomatic(
+      UUID user,
+      UUID paymentId,
+      int failedAttempt,
+      String correlationId,
+      Predicate<String> providerAvailable) {
+    return reserveChecked(
+        user, paymentId, "RETRY", null, null, correlationId, providerAvailable, failedAttempt);
+  }
+
+  private Reserved reserveChecked(
+      UUID user,
+      UUID paymentId,
+      String action,
+      String routeCode,
+      UUID replacementQuote,
+      String correlationId,
+      Predicate<String> providerAvailable,
+      Integer failedAttempt) {
     var payment = payments.lockOwned(paymentId, user).orElseThrow();
     var snapshot = reader.get(paymentId.toString());
     if (payment.postedAt() == null || snapshot.posting() == null)
@@ -72,6 +103,15 @@ public class PayoutReservationService {
         || ledger.contains(refundReference + ":fee:debit"))
       throw new IllegalStateException("Original payment funding has already been reversed");
     var latest = attempts.findFirstByPaymentIdOrderByAttemptNumberDesc(paymentId.toString());
+    if (failedAttempt != null
+        && (payment.status() != PaymentStatus.FAILED
+            || latest.isEmpty()
+            || latest.get().status() != PayoutAttemptStatus.FAILED
+            || latest.get().attemptNumber() != failedAttempt))
+      throw new BusinessException(
+          HttpStatus.CONFLICT,
+          "STALE_RECOVERY",
+          "A later payout or refund superseded this recovery command.");
     int number;
     if ("SUBMIT".equals(action)) {
       if (payment.status() != PaymentStatus.PROCESSING || latest.isPresent())

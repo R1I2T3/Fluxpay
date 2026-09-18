@@ -72,6 +72,7 @@ class PayoutLifecycleIntegrationTest {
   java.util.function.Function<PayoutCmd, PayoutResult> delivery;
   Payment payment;
   PayoutCmd delivered;
+  List<PayoutProvider> payoutProviders;
 
   @BeforeEach
   void setup() throws Exception {
@@ -212,6 +213,7 @@ class PayoutLifecycleIntegrationTest {
             return delivery.apply(cmd);
           }
         };
+    payoutProviders = List.of(provider, provider2);
     execution =
         proxy(
             new PayoutExecutionService(
@@ -708,6 +710,388 @@ class PayoutLifecycleIntegrationTest {
         .isEqualTo(payment.postingSnapshot());
     assertThat(operations.findAll())
         .allSatisfy(op -> assertThat(op.status()).isEqualTo("COMPLETED"));
+  }
+
+  @Test
+  void reconciliationReplaysPersistedCommandAndCompletesOriginalOperation() {
+    delivery = cmd -> PayoutResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    var original = delivered;
+    now.set(NOW.plusSeconds(3600));
+    delivery = cmd -> PayoutResult.ok("reconciled", BigDecimal.ZERO);
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, payoutProviders, finalization);
+    var result = reconciler.reconcile(id, "reconcile-cid");
+    assertThat(result.status()).isEqualTo("COMPLETED");
+    assertThat(delivered).isEqualTo(original);
+    assertThat(attempts.findAll()).hasSize(1);
+    assertThat(submit()).isEqualTo(result);
+    assertThat(calls).hasValue(2);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .containsExactlyInAnyOrder(
+            "payment.route.selected", "payout.submitted", "payout.completed");
+  }
+
+  @Test
+  void failureSchedulesOneDurableRetryExactlyTwoMinutesLater() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var failure =
+        events.findAll().stream()
+            .filter(e -> e.topic().equals("payout.failed"))
+            .findFirst()
+            .orElseThrow();
+    var consumer = recoveryConsumer();
+    consumer.onEvent(failure.payload(), "payout.failed");
+    consumer.onEvent(failure.payload(), "payout.failed");
+    var commands = events.findAll().stream().filter(e -> e.topic().equals("payout.retry")).toList();
+    assertThat(commands).hasSize(1);
+    var command = commands.get(0);
+    var envelope = new com.fluxpay.messaging.EventEnvelopeCodec(mapper).read(command.payload());
+    assertThat(envelope.payload())
+        .containsEntry("attemptCount", 1)
+        .containsEntry("nextRun", "2026-09-13T10:02:00Z");
+    assertThat(deliveries.findById(command.id()).orElseThrow().nextAttemptAt())
+        .isEqualTo(Instant.parse("2026-09-13T10:02:00Z"));
+    tx.executeWithoutResult(
+        s -> {
+          for (var d : deliveries.findAll()) {
+            if (!d.eventId().equals(command.id())) {
+              d.claim("test", NOW.plusSeconds(30));
+              deliveries.saveAndFlush(d);
+              deliveries.markSentIfClaimed(d.eventId(), "test", NOW);
+            }
+          }
+        });
+    var early =
+        tx.execute(
+            s ->
+                deliveries.claimEligible(
+                    NOW.plusSeconds(119), org.springframework.data.domain.Pageable.unpaged()));
+    var due =
+        tx.execute(
+            s ->
+                deliveries.claimEligible(
+                    NOW.plusSeconds(120), org.springframework.data.domain.Pageable.unpaged()));
+    assertThat(early).isEmpty();
+    assertThat(due).extracting(OutboxDelivery::eventId).containsExactly(command.id());
+    assertThat(calls).hasValue(1);
+  }
+
+  com.fluxpay.messaging.PayoutRetryConsumer recoveryConsumer() {
+    return new com.fluxpay.messaging.PayoutRetryConsumer(
+        operationService,
+        operations,
+        payments,
+        attempts,
+        execution,
+        recovery,
+        outbox,
+        new com.fluxpay.messaging.EventEnvelopeCodec(mapper),
+        clock);
+  }
+
+  @Test
+  void delayedRecoveryDoesNotBlockManualOutcomeEvents() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    int commandSequence = deliveries.findById(command.id()).orElseThrow().aggregateSequence();
+    delivery = cmd -> PayoutResult.ok("manual-completed", BigDecimal.ZERO);
+    execution.perform(user, "manual", "RETRY", id, null, null, "cid");
+    tx.executeWithoutResult(
+        s -> {
+          for (var d : deliveries.findByPaymentIdOrderByAggregateSequenceAsc(id)) {
+            if (d.aggregateSequence() < commandSequence) {
+              d.claim("test", NOW.plusSeconds(30));
+              deliveries.saveAndFlush(d);
+              deliveries.markSentIfClaimed(d.eventId(), "test", NOW);
+            }
+          }
+        });
+    for (String topic : List.of("payment.route.selected", "payout.submitted", "payout.completed")) {
+      var eligible =
+          tx.execute(
+              s ->
+                  deliveries.claimEligible(
+                      NOW, org.springframework.data.domain.Pageable.unpaged()));
+      assertThat(eligible).hasSize(1);
+      assertThat(events.findById(eligible.get(0).eventId()).orElseThrow().topic()).isEqualTo(topic);
+      tx.executeWithoutResult(
+          s -> {
+            var d = deliveries.findById(eligible.get(0).eventId()).orElseThrow();
+            d.claim("test", NOW.plusSeconds(30));
+            deliveries.saveAndFlush(d);
+            deliveries.markSentIfClaimed(d.eventId(), "test", NOW);
+          });
+    }
+    assertThat(deliveries.findById(command.id()).orElseThrow().state()).isEqualTo("PENDING");
+    now.set(NOW.plusSeconds(120));
+    consumer.onEvent(command.payload(), command.topic());
+    assertThat(calls).hasValue(2);
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+  }
+
+  OutboxEvent recoveryEvent(String topic, String field, int value) {
+    var codec = new com.fluxpay.messaging.EventEnvelopeCodec(mapper);
+    return events.findAll().stream()
+        .filter(e -> e.topic().equals(topic))
+        .filter(e -> ((Number) codec.read(e.payload()).payload().get(field)).intValue() == value)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void fiveDelayedRetriesThenOneRefundDespiteDuplicateDeliveries() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    for (int retry = 1; retry <= 5; retry++) {
+      var failure = recoveryEvent("payout.failed", "attempt", retry);
+      consumer.onEvent(failure.payload(), failure.topic());
+      consumer.onEvent(failure.payload(), failure.topic());
+      var command = recoveryEvent("payout.retry", "attemptCount", retry);
+      assertThat(deliveries.findById(command.id()).orElseThrow().nextAttemptAt())
+          .isEqualTo(NOW.plusSeconds(120L * retry));
+      now.set(NOW.plusSeconds(120L * retry));
+      consumer.onEvent(command.payload(), command.topic());
+      consumer.onEvent(command.payload(), command.topic());
+      assertThat(calls.get()).isEqualTo(retry + 1);
+      assertThat(attempts.findAll()).hasSize(retry + 1);
+    }
+    var failure = recoveryEvent("payout.failed", "attempt", 6);
+    consumer.onEvent(failure.payload(), failure.topic());
+    consumer.onEvent(failure.payload(), failure.topic());
+    var refund = events.findAll().stream().filter(e -> e.topic().equals("payout.refund")).toList();
+    assertThat(refund).hasSize(1);
+    consumer.onEvent(refund.get(0).payload(), "payout.refund");
+    consumer.onEvent(refund.get(0).payload(), "payout.refund");
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.REFUNDED);
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("1000");
+    assertThat(wallets.findById(clearing).orElseThrow().getBalance()).isEqualByComparingTo("0");
+    assertThat(wallets.findById(feeWallet).orElseThrow().getBalance()).isEqualByComparingTo("0");
+    for (var account : List.of(wallet, clearing, feeWallet))
+      assertThat(
+              entries.findByWalletIdOrderByCreatedAtDescIdDesc(
+                  account, org.springframework.data.domain.Pageable.unpaged()))
+          .hasSize(2);
+    assertThat(events.findAll().stream().filter(e -> e.topic().equals("payout.retry"))).hasSize(5);
+    assertThat(events.findAll().stream().filter(e -> e.topic().equals("payment.refunded")))
+        .hasSize(1);
+    assertThat(calls).hasValue(6);
+  }
+
+  @Test
+  void uncertainAutomaticRetryStopsWithoutAnotherRetryOrRefund() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    now.set(NOW.plusSeconds(120));
+    delivery = cmd -> PayoutResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    consumer.onEvent(command.payload(), command.topic());
+    consumer.onEvent(command.payload(), command.topic());
+    consumer.onEvent(failure.payload(), failure.topic());
+    assertThat(calls).hasValue(2);
+    assertThat(attempts.findAll()).hasSize(2);
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.PROCESSING);
+    assertThat(events.findAll().stream().filter(e -> e.topic().equals("payout.retry"))).hasSize(1);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .doesNotContain("payout.refund", "payment.refunded");
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+  }
+
+  @Test
+  void recoveryCommandCannotExecuteBeforeItsDurableDueTime() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    now.set(NOW.plusSeconds(119));
+    assertThatThrownBy(() -> consumer.onEvent(command.payload(), command.topic()))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(calls).hasValue(1);
+    now.set(NOW.plusSeconds(120));
+    consumer.onEvent(command.payload(), command.topic());
+    assertThat(calls).hasValue(2);
+  }
+
+  @Test
+  void reconciledAutomaticFailureContinuesWithTheNextRetryOrdinal() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var firstRetry = recoveryEvent("payout.retry", "attemptCount", 1);
+    now.set(NOW.plusSeconds(120));
+    delivery = cmd -> PayoutResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    consumer.onEvent(firstRetry.payload(), firstRetry.topic());
+    var uncertainCommand = delivered;
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Definitive rejection", BigDecimal.ZERO);
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, payoutProviders, finalization);
+    assertThat(reconciler.reconcile(id, "reconcile").status()).isEqualTo("FAILED");
+    assertThat(delivered).isEqualTo(uncertainCommand);
+    assertThat(attempts.findAll()).hasSize(2);
+    var reconciledFailure = recoveryEvent("payout.failed", "attempt", 2);
+    consumer.onEvent(reconciledFailure.payload(), reconciledFailure.topic());
+    var secondRetry = recoveryEvent("payout.retry", "attemptCount", 2);
+    assertThat(deliveries.findById(secondRetry.id()).orElseThrow().nextAttemptAt())
+        .isEqualTo(NOW.plusSeconds(240));
+    consumer.onEvent(firstRetry.payload(), firstRetry.topic());
+    assertThat(calls).hasValue(3);
+    now.set(NOW.plusSeconds(240));
+    delivery = cmd -> PayoutResult.ok("recovered", BigDecimal.ZERO);
+    consumer.onEvent(secondRetry.payload(), secondRetry.topic());
+    assertThat(calls).hasValue(4);
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.COMPLETED);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .doesNotContain("payout.refund", "payment.refunded");
+  }
+
+  @Test
+  void staleRetryCannotRetryANewerManualFailure() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    execution.perform(user, "manual-retry", "RETRY", id, null, null, "cid");
+    now.set(NOW.plusSeconds(120));
+    consumer.onEvent(command.payload(), command.topic());
+    assertThat(calls).hasValue(2);
+    assertThat(attempts.findAll()).hasSize(2);
+    assertThat(operations.findAll().stream().filter(op -> op.operationType().equals("AUTO_RETRY")))
+        .isEmpty();
+    var latestFailure = recoveryEvent("payout.failed", "attempt", 2);
+    consumer.onEvent(latestFailure.payload(), latestFailure.topic());
+    var latestCommand =
+        events.findAll().stream()
+            .filter(e -> e.topic().equals("payout.retry") && !e.id().equals(command.id()))
+            .findFirst()
+            .orElseThrow();
+    consumer.onEvent(latestCommand.payload(), latestCommand.topic());
+    assertThat(calls).hasValue(3);
+    assertThatCode(() -> consumer.onEvent(command.payload(), command.topic()))
+        .doesNotThrowAnyException();
+    assertThat(calls).hasValue(3);
+  }
+
+  @Test
+  void staleRefundDoesNotConsumeTheTerminalRefundIdentity() {
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    for (int retry = 1; retry <= 5; retry++) {
+      var failure = recoveryEvent("payout.failed", "attempt", retry);
+      consumer.onEvent(failure.payload(), failure.topic());
+      now.set(NOW.plusSeconds(120L * retry));
+      var command = recoveryEvent("payout.retry", "attemptCount", retry);
+      consumer.onEvent(command.payload(), command.topic());
+    }
+    var fifthFailure = recoveryEvent("payout.failed", "attempt", 6);
+    consumer.onEvent(fifthFailure.payload(), fifthFailure.topic());
+    var oldRefund = recoveryEvent("payout.refund", "failedAttempt", 6);
+    execution.perform(user, "manual-after-five", "RETRY", id, null, null, "cid");
+    consumer.onEvent(oldRefund.payload(), oldRefund.topic());
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+    var latestFailure = recoveryEvent("payout.failed", "attempt", 7);
+    consumer.onEvent(latestFailure.payload(), latestFailure.topic());
+    var currentRefund = recoveryEvent("payout.refund", "failedAttempt", 7);
+    assertThatCode(() -> consumer.onEvent(currentRefund.payload(), currentRefund.topic()))
+        .doesNotThrowAnyException();
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("1000");
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"missing", "invalid", "wrong-payment"})
+  void invalidDurableReservationNeverContactsProvider(String kind) {
+    delivery = cmd -> PayoutResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    tx.executeWithoutResult(
+        s -> {
+          var operation = operations.findAll().get(0);
+          String snapshot =
+              kind.equals("missing")
+                  ? null
+                  : kind.equals("invalid")
+                      ? "{}"
+                      : operation
+                          .payoutReservation()
+                          .replace(id.toString(), UUID.randomUUID().toString());
+          org.springframework.test.util.ReflectionTestUtils.setField(
+              operation, "payoutReservation", snapshot);
+          operations.saveAndFlush(operation);
+        });
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, payoutProviders, finalization);
+    assertThatThrownBy(() -> reconciler.reconcile(id, "cid"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.BusinessException.class,
+            ex -> assertThat(ex.code()).isEqualTo("PAYOUT_RESERVATION_UNAVAILABLE"));
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void duplicateDefinitiveReconciliationFinalizesOnlyOnce() throws Exception {
+    delivery = cmd -> PayoutResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    var op = operations.findAll().get(0);
+    var reserved =
+        mapper.readValue(op.payoutReservation(), PayoutReservationService.Reserved.class);
+    var first =
+        finalization.finish(
+            reserved, op.id(), PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO), "cid");
+    assertThatCode(
+            () -> {
+              var repeated =
+                  finalization.finish(
+                      reserved,
+                      op.id(),
+                      PayoutResult.ok("late-conflicting-response", BigDecimal.ZERO),
+                      "cid");
+              assertThat(repeated).isEqualTo(first);
+            })
+        .doesNotThrowAnyException();
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.FAILED);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .containsExactlyInAnyOrder("payment.route.selected", "payout.submitted", "payout.failed");
+  }
+
+  @Test
+  void repeatedUncertainReconciliationKeepsMoneyAndOperationPending() {
+    delivery = cmd -> PayoutResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    var original = delivered;
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, payoutProviders, finalization);
+    assertThatThrownBy(() -> reconciler.reconcile(id, "cid"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.BusinessException.class,
+            ex -> assertThat(ex.code()).isEqualTo("PAYOUT_PENDING_RECONCILIATION"));
+    assertThat(delivered).isEqualTo(original);
+    assertThat(operations.findAll())
+        .singleElement()
+        .satisfies(op -> assertThat(op.status()).isEqualTo("IN_PROGRESS"));
+    assertThat(attempts.findAll()).hasSize(1);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .containsExactlyInAnyOrder("payment.route.selected", "payout.submitted");
+    assertThatThrownBy(() -> refund("refund")).isInstanceOf(IllegalStateException.class);
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
   }
 
   @Test

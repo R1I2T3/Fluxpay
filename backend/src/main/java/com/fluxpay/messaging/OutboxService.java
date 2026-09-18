@@ -36,6 +36,12 @@ public class OutboxService {
 
   @Transactional(propagation = Propagation.MANDATORY)
   public String enqueue(PaymentEventEnvelope envelope, int sequence) {
+    return enqueue(envelope, sequence, clock.instant());
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public String enqueue(PaymentEventEnvelope envelope, int sequence, java.time.Instant nextRun) {
+    Objects.requireNonNull(nextRun, "nextRun must not be null");
     PaymentEventEnvelope.validate(envelope);
     if (envelope.aggregateSequence() != sequence) {
       throw new IllegalArgumentException(
@@ -63,7 +69,7 @@ public class OutboxService {
             envelope.eventType(),
             json,
             envelope.occurredAt() != null ? envelope.occurredAt() : clock.instant()));
-    deliveries.save(new OutboxDelivery(eventId, paymentId, sequence, clock.instant()));
+    deliveries.save(new OutboxDelivery(eventId, paymentId, sequence, nextRun));
     return eventId.toString();
   }
 }
