@@ -44,7 +44,12 @@ public class LedgerPostingContext {
     REPLAY
   }
 
-  public record EntryMetadata(String journalReference, String narration) {}
+  public record EntryMetadata(
+      String journalReference, String narration, java.math.BigDecimal rate, String quoteId) {
+    public EntryMetadata(String journalReference, String narration) {
+      this(journalReference, narration, null, null);
+    }
+  }
 
   private static final class State {
     private final Map<String, EntryMetadata> metadata;

@@ -26,6 +26,8 @@ final class AccountingDatabase {
   final DataSourceTransactionManager transactions;
   final WalletRepository wallets = mock(WalletRepository.class);
   final LedgerEntryRepository entries = mock(LedgerEntryRepository.class);
+  final LedgerJournalRepository journalHeaders = mock(LedgerJournalRepository.class);
+  final LedgerJournalLockRepository journalLocks = mock(LedgerJournalLockRepository.class);
   final LedgerPostingContext context = new LedgerPostingContext();
   final PersistentLedgerWriter writer;
   final LedgerJournalService journals;
@@ -46,7 +48,13 @@ final class AccountingDatabase {
     jdbc.execute(
         "create table wallets (id uuid primary key, owner uuid, role varchar(30), currency varchar(3), balance decimal(19,4))");
     jdbc.execute(
-        "create table entries (entry_key varchar(255) primary key, wallet uuid, kind varchar(10), amount decimal(19,4), currency varchar(3), journal varchar(64), narration varchar(255))");
+        "create table entries (entry_key varchar(255) primary key, wallet uuid, kind varchar(10), amount decimal(19,4), currency varchar(3), journal varchar(64), narration varchar(255), rate decimal(19,8), quote_id varchar(36))");
+    jdbc.execute(
+        "create table journal_headers (journal varchar(64) primary key, category varchar(24), payload_hash char(64), created_at timestamp)");
+    jdbc.execute("create table journal_locks (lock_id int primary key)");
+    for (int lockId = 0; lockId < 64; lockId++) {
+      jdbc.update("insert into journal_locks values (?)", lockId);
+    }
     seed(customer, user, WalletAccountRole.CUSTOMER, "100.0000");
     seed(clearing, system, WalletAccountRole.PAYOUT_CLEARING, "0.0000");
     seed(fee, system, WalletAccountRole.FEE_REVENUE, "0.0000");
@@ -96,10 +104,30 @@ final class AccountingDatabase {
                               rs.getString("entry_key"),
                               rs.getString("journal"),
                               rs.getString("narration"),
+                              rs.getBigDecimal("rate"),
+                              rs.getString("quote_id"),
                               Instant.EPOCH),
                       (Object) call.getArgument(0));
               return found.stream().findFirst();
             });
+    when(entries.findByJournalReference(any()))
+        .thenAnswer(
+            call ->
+                jdbc.query(
+                    "select * from entries where journal=?",
+                    (rs, row) ->
+                        new LedgerEntry(
+                            rs.getObject("wallet", UUID.class),
+                            rs.getString("kind"),
+                            rs.getBigDecimal("amount"),
+                            rs.getString("currency"),
+                            rs.getString("entry_key"),
+                            rs.getString("journal"),
+                            rs.getString("narration"),
+                            rs.getBigDecimal("rate"),
+                            rs.getString("quote_id"),
+                            Instant.EPOCH),
+                    (Object) call.getArgument(0)));
     when(entries.save(any()))
         .thenAnswer(
             call -> {
@@ -107,19 +135,65 @@ final class AccountingDatabase {
               if (entry.getIdempotencyKey().equals(failKey))
                 throw new IllegalStateException("controlled persistence failure");
               jdbc.update(
-                  "insert into entries values (?,?,?,?,?,?,?)",
+                  "insert into entries values (?,?,?,?,?,?,?,?,?)",
                   entry.getIdempotencyKey(),
                   entry.getWalletId(),
                   entry.getEntryType(),
                   entry.getAmount(),
                   entry.getCurrency(),
                   entry.getJournalReference(),
-                  entry.getNarration());
+                  entry.getNarration(),
+                  entry.getRate(),
+                  entry.getQuoteId());
               return entry;
+            });
+    when(journalLocks.findByIdForUpdate(any()))
+        .thenAnswer(
+            call -> {
+              Integer lockId = call.getArgument(0);
+              jdbc.queryForObject(
+                  "select lock_id from journal_locks where lock_id=? for update",
+                  Integer.class,
+                  lockId);
+              return Optional.of(mock(LedgerJournalLock.class));
+            });
+    when(journalHeaders.findByJournalReference(any()))
+        .thenAnswer(
+            call ->
+                jdbc.query(
+                        "select * from journal_headers where journal=?",
+                        (rs, row) ->
+                            new LedgerJournal(
+                                rs.getString("journal"),
+                                LedgerTransactionCategory.valueOf(rs.getString("category")),
+                                rs.getString("payload_hash"),
+                                rs.getTimestamp("created_at").toInstant()),
+                        (Object) call.getArgument(0))
+                    .stream()
+                    .findFirst());
+    when(journalHeaders.saveAndFlush(any()))
+        .thenAnswer(
+            call -> {
+              LedgerJournal journal = call.getArgument(0);
+              jdbc.update(
+                  "insert into journal_headers values (?,?,?,?)",
+                  journal.getJournalReference(),
+                  journal.getTransactionCategory().name(),
+                  journal.getPayloadHash(),
+                  java.sql.Timestamp.from(journal.getCreatedAt()));
+              return journal;
             });
     writer =
         transactional(new PersistentLedgerWriter(wallets, entries, context, Clock.systemUTC()));
-    journals = transactional(new LedgerJournalService(writer, context));
+    journals =
+        transactional(
+            new LedgerJournalService(
+                writer,
+                context,
+                journalHeaders,
+                journalLocks,
+                entries,
+                Clock.systemUTC()));
   }
 
   <T> T transactional(T service) {
@@ -165,5 +239,13 @@ final class AccountingDatabase {
 
   int count() {
     return jdbc.queryForObject("select count(*) from entries", Integer.class);
+  }
+
+  int journalCount() {
+    return jdbc.queryForObject("select count(*) from journal_headers", Integer.class);
+  }
+
+  LedgerEntry entry(String key) {
+    return entries.findByIdempotencyKey(key).orElseThrow();
   }
 }

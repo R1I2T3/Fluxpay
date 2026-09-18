@@ -101,6 +101,8 @@ public class PersistentLedgerWriter implements LedgerWriter {
             idempotencyKey,
             metadata == null ? null : metadata.journalReference(),
             metadata == null ? null : metadata.narration(),
+            metadata == null ? null : metadata.rate(),
+            metadata == null ? null : metadata.quoteId(),
             clock.instant()));
     wallets.saveAndFlush(wallet);
   }
@@ -155,9 +157,15 @@ public class PersistentLedgerWriter implements LedgerWriter {
     boolean sameMetadata =
         metadata == null
             || (Objects.equals(existing.getJournalReference(), metadata.journalReference())
-                && Objects.equals(existing.getNarration(), metadata.narration()));
+                && Objects.equals(existing.getNarration(), metadata.narration())
+                && decimalEquals(existing.getRate(), metadata.rate())
+                && Objects.equals(existing.getQuoteId(), metadata.quoteId()));
     if (!samePayload || !sameMetadata) {
       throw new LedgerIdempotencyConflictException(existing.getIdempotencyKey());
     }
+  }
+
+  private static boolean decimalEquals(BigDecimal left, BigDecimal right) {
+    return left == null ? right == null : right != null && left.compareTo(right) == 0;
   }
 }
