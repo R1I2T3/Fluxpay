@@ -1,8 +1,8 @@
 # Member 3 ledger foundation: local upgrade notes
 
 Work branch: `member3-money-ledger`. Do not merge into `main` until the ledger
-changes have been reviewed. This note covers Task 1 only; fee/hold behavior and
-the new transfer, withdrawal, and top-up APIs belong to Tasks 2 and 3.
+changes have been reviewed. This note covers the Task 1 foundation upgrade and
+the system-wallet provisioning required by Task 3 transfers.
 
 ## Compatibility decisions
 
@@ -46,6 +46,35 @@ Remove-Item Env:SPRING_FLYWAY_OUT_OF_ORDER
 
 Do not edit previously applied migration scripts. If migration fails, inspect the
 specific error before retrying; Oracle DDL is not generally transactionally undone.
+
+## Task 3 system-wallet provisioning
+
+After V008 and the Task 3 V606 migration have been applied, the canonical system
+user needs `FX_CLEARING`, `FX_GAIN_LOSS`, `DEMO_CLEARING`, `PAYOUT_CLEARING`, and
+`FEE_REVENUE` wallets in each of USD, EUR, and INR (15 wallets in total).
+`FX_GAIN_LOSS` receives or supplies rounding differences; for example, a TARGET
+transfer of 100 INR at 83.50 credits 0.20 INR to this account. Without that wallet,
+the transfer returns the existing system-account-unavailable error.
+
+For local installations managed by `scripts/seed-local.py`, keep the same seed
+identity credentials and rerun the seeder against the matching running backend:
+
+```powershell
+python -B scripts/seed-local.py --env-file .env
+```
+
+The wallet MERGE is insert-only and matches system user, currency, and role.
+Rerunning adds the three missing FX_GAIN_LOSS wallets and preserves existing
+wallet IDs, balances, holds, and ledger history. Confirm `system-wallets=15` on a
+standard installation and that the reported system-user-id matches
+`FLUXPAY_SYSTEM_USER_ID` used by the backend. The seeder also performs its existing
+identity/role and demo-route setup; use the original local seed configuration.
+
+The local seeder deliberately accepts only the local `FLUXPAY` schema. It does
+not provision `FLUXPAY_INTEGRATED`; that installation's approved schema-specific
+provisioning must ensure the same 15 canonical system wallets. Do not bypass the
+seeder's schema guard or edit applied migrations to add these accounts. No seeder
+or migration command was executed against an application database during Task 3.
 
 ## Local data isolation
 

@@ -196,6 +196,19 @@ class WalletTransferTest {
     assertThat(result.creditedAmount()).isEqualTo("100.0000");
     assertThat(balance(UUID.fromString(result.targetWalletId()))).isEqualByComparingTo("100");
     assertThat(entries.findByJournalReference(result.journalReference())).hasSize(6);
+    UUID gainLossWallet = systemAccounts.require("INR", WalletAccountRole.FX_GAIN_LOSS).getId();
+    assertThat(entries.findByJournalReference(result.journalReference()))
+        .filteredOn(line -> line.getWalletId().equals(gainLossWallet))
+        .singleElement()
+        .satisfies(
+            line -> {
+              assertThat(line.getCurrency()).isEqualTo("INR");
+              assertThat(line.getEntryType()).isEqualTo("CREDIT");
+              assertThat(line.getAmount()).isEqualByComparingTo("0.2000");
+              assertThat(line.getRate()).isEqualByComparingTo("83.50000000");
+              assertThat(line.getRate()).isEqualByComparingTo(result.rate());
+              assertThat(line.getQuoteId()).isEqualTo(result.quoteId());
+            });
     assertBalanced(result.journalReference());
   }
 
