@@ -64,7 +64,7 @@ class OraclePolicyIndexStoreTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void clearsActiveGenerationThenDeletesChunksAndGenerationsForAPolicy() throws Exception {
+  void clearsVectorMetadataThenDeletesChunksAndGenerationsForAPolicy() throws Exception {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     Connection connection = mock(Connection.class);
     PreparedStatement clearDocument = mock(PreparedStatement.class);
@@ -84,7 +84,8 @@ class OraclePolicyIndexStoreTest {
     verify(connection, org.mockito.Mockito.times(3)).prepareStatement(sql.capture());
     assertThat(sql.getAllValues())
         .containsExactly(
-            "UPDATE policy_documents SET active_generation_id = NULL WHERE id = ?",
+            "UPDATE policy_documents SET active_generation_id = NULL, embedding_space_id = NULL, "
+                + "chunker_version = NULL, index_state = 'UNINDEXED', chunk_count = 0 WHERE id = ?",
             "DELETE FROM policy_chunks WHERE policy_document_id = ?",
             "DELETE FROM policy_generations WHERE policy_document_id = ?");
     InOrder deletion = inOrder(clearDocument, deleteChunks, deleteGenerations);
