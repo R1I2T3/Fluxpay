@@ -31,6 +31,7 @@
       <!-- /ko -->
       <!-- ko if: session.user() -->
       <a href="?ojr=dashboard" data-route="dashboard" class="pill header-signup" data-bind="attr:{href:'?ojr='+accountPath(),'data-route':accountPath},text:session.isAdmin()?'Administration ↗':'My account ↗'"></a>
+      <!-- ko if: session.isAdmin() --><a href="?ojr=admin-tickets" data-route="admin-tickets" class="pill soft">Support review</a><!-- /ko -->
       <button class="text-button" data-bind="click:logout">Log out</button>
       <!-- /ko -->
       <button type="button" class="menu-button" aria-label="Toggle navigation" aria-controls="mobile-navigation" data-bind="visible:!session.isAdmin()&&!isAdminWorkspace(),click:toggleMenu,attr:{'aria-expanded':menuOpen}">☰</button>

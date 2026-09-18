@@ -17,6 +17,7 @@ class RootViewModel {
     {path:'recipients',label:'Recipients',icon:'◎'}, {path:'tracking',label:'Track a transfer',icon:'⌁'},
     {path:'kyc',label:'Verification',icon:'◇'}, {path:'account',label:'My account',icon:'○'},
     {path:'admin',label:'Administration',icon:'⊞'},
+    {path:'admin-tickets',label:'Support review',icon:'?'},
     {path:'tickets',label:'Support tickets',icon:'?'}
   ];
   router: CoreRouter<any>;
@@ -26,7 +27,7 @@ class RootViewModel {
   isPublic: ko.PureComputed<boolean>;
   isAdminWorkspace: ko.PureComputed<boolean>;
   accountPath = ko.pureComputed(()=>session.isAdmin()?'admin':'dashboard');
-  visibleNav = ko.pureComputed(()=>this.nav.filter(n=>session.isAdmin()?n.path==='admin':n.path!=='admin'));
+  visibleNav = ko.pureComputed(()=>this.nav.filter(n=>session.isAdmin()?n.path.startsWith('admin'):!n.path.startsWith('admin')));
   constructor(){
     const routes = [{path:'',redirect:'home'}, ...['home','login','register',...this.nav.map(n=>n.path)].map(path=>({path,detail:{label:path}}))];
     this.router = new CoreRouter(routes,{urlAdapter:new UrlParamAdapter()});
@@ -34,7 +35,7 @@ class RootViewModel {
     this.selection = new KnockoutRouterAdapter(this.router);
     this.isHome = ko.pureComputed(()=>this.selection.path()==='home');
     this.isPublic = ko.pureComputed(()=>['home','login','register',''].includes(this.selection.path()||''));
-    this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||this.selection.path()==='admin'));
+    this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||['admin','admin-tickets'].includes(this.selection.path()||'')));
     this.selection.path.subscribe(()=>{this.menuOpen(false);window.scrollTo({top:0});});
     window.addEventListener('fluxpay:navigate', (event:any)=> {
       const {path,params} = event.detail;

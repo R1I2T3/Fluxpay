@@ -56,6 +56,8 @@ export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string
 
 // PLAN1-ANCHOR-TICKETS-EOF: do not move; Plan 5 never edits below
 export const ticketApi = {
-  list: () => fluxApi.get<any>('/api/tickets'),
-  create: (body:{paymentId?:string;subject:string;body:string}) => fluxApi.post<any>('/api/tickets',body,true)
+  list: (page = 0, size = 20) => fluxApi.get<any>(`/api/tickets?page=${page}&size=${size}`),
+  create: (body:{paymentId?:string;subject:string;body:string}) => fluxApi.post<any>('/api/tickets',body,true),
+  listForAdmin: (status = 'ALL', page = 0, size = 20) => fluxApi.get<any>(`/api/admin/tickets?status=${encodeURIComponent(status)}&page=${page}&size=${size}`),
+  updateForAdmin: (id:string, body:{status:string;assigneeAdminId?:string}) => fluxApi.put<any>(`/api/admin/tickets/${encodeURIComponent(id)}`,body)
 };
