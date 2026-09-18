@@ -7,14 +7,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.dto.RouteRecommendation;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -32,13 +32,13 @@ class RouteCatalogServiceTest {
 
   @Mock private PaymentReader reader;
   @Mock private FxRateProvider fx;
-  @Mock private PayoutRouteRepository routes;
+  @Mock private TransferRouteRepository routes;
   @Mock private RouteMetrics metrics;
 
   private RouteCatalogService service;
   private PaymentSnapshot payment;
-  private PayoutRoute standard;
-  private PayoutRoute instant;
+  private TransferRoute standard;
+  private TransferRoute instant;
 
   @BeforeEach
   void setUp() {
@@ -61,7 +61,7 @@ class RouteCatalogServiceTest {
             "KES",
             PaymentStatus.PROCESSING);
     standard =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8)),
             "STANDARD_BANK",
             "Standard Bank Rail",
@@ -72,7 +72,7 @@ class RouteCatalogServiceTest {
             240,
             "99.50");
     instant =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             UUID.nameUUIDFromBytes("fluxpay:route:INSTANT_PAYOUT".getBytes(StandardCharsets.UTF_8)),
             "INSTANT_PAYOUT",
             "Instant Payout",
@@ -140,7 +140,7 @@ class RouteCatalogServiceTest {
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 0L);
 
-    PayoutRoute updated = service.updateRoute(standard.getId().toString(), update);
+    TransferRoute updated = service.updateRoute(standard.getId().toString(), update);
 
     assertThat(updated.getBaseFee()).isEqualByComparingTo("6.00");
     assertThat(updated.getFxSpreadPercentage()).isEqualByComparingTo("1.0");
@@ -167,7 +167,7 @@ class RouteCatalogServiceTest {
     when(routes.save(any()))
         .thenThrow(
             new ObjectOptimisticLockingFailureException(
-                PayoutRoute.class, standard.getId().toString()));
+                TransferRoute.class, standard.getId().toString()));
     RouteApi.Update update =
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 0L);

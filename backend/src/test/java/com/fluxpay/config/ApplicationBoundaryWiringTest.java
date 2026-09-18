@@ -53,7 +53,7 @@ class ApplicationBoundaryWiringTest {
           WalletOperationRepository.class,
           UserRepository.class,
           RecipientRepository.class,
-          PayoutRouteRepository.class,
+          TransferRouteRepository.class,
           PayoutAttemptRepository.class,
           PaymentRepository.class,
           PaymentQuoteRepository.class,

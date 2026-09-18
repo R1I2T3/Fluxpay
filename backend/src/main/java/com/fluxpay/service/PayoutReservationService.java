@@ -19,7 +19,7 @@ public class PayoutReservationService {
   private final PaymentRepository payments;
   private final PaymentReader reader;
   private final PayoutAttemptRepository attempts;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
   private final SelectedQuoteService quotes;
   private final Clock clock;
   private final com.fluxpay.common.contracts.LedgerWriter ledger;
@@ -29,7 +29,7 @@ public class PayoutReservationService {
       PaymentRepository payments,
       PaymentReader reader,
       PayoutAttemptRepository attempts,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       SelectedQuoteService quotes,
       Clock clock,
       com.fluxpay.common.contracts.LedgerWriter ledger,
@@ -133,8 +133,8 @@ public class PayoutReservationService {
     final String resolvedRoute = routeCode;
     var route =
         routes
-            .findByCode(resolvedRoute)
-            .filter(PayoutRoute::isActive)
+            .findByRouteCode(resolvedRoute)
+            .filter(TransferRoute::isActive)
             .orElseThrow(
                 () ->
                     "SWITCH".equals(action)

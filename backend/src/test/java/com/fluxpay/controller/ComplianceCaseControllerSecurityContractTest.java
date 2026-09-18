@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.CurrentUser;
 import com.fluxpay.common.security.JwtAuthFilter;
@@ -141,8 +141,8 @@ class ComplianceCaseControllerSecurityContractTest {
   @Test
   void userCannotUpdateRouteEvenWhenLegacyAuthorizerAllowsIt() throws Exception {
     when(routeAdminAuthorizer.isAdmin(any())).thenReturn(true);
-    PayoutRoute route =
-        PayoutRoute.seed(
+    TransferRoute route =
+        TransferRoute.seed(
             RESOURCE_ID,
             "STANDARD_BANK",
             "Standard Bank Rail",

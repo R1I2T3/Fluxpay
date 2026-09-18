@@ -20,8 +20,8 @@ import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
@@ -44,7 +44,7 @@ public class PaymentConfirmationService {
   private final PaymentOperationService operations;
   private final PayoutOutboxService outbox;
   private final ObjectMapper objectMapper;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
   private final ComplianceCaseService complianceCases;
 
   public PaymentConfirmationService(
@@ -59,7 +59,7 @@ public class PaymentConfirmationService {
       OutboxEventRepository outboxEvents,
       OutboxDeliveryRepository deliveries,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes) {
+      TransferRouteRepository routes) {
     this(
         payments,
         quotes,
@@ -87,7 +87,7 @@ public class PaymentConfirmationService {
       PaymentOperationService operations,
       PayoutOutboxService outbox,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       ComplianceCaseService complianceCases) {
     this.payments = payments;
     this.quotes = quotes;
@@ -140,7 +140,7 @@ public class PaymentConfirmationService {
           HttpStatus.GONE, "QUOTE_EXPIRED", "The selected quote has expired.");
     }
     routes
-        .findByCode(quote.route())
+        .findByRouteCode(quote.route())
         .filter(r -> r.isActive())
         .orElseThrow(
             () -> conflict("ROUTE_UNAVAILABLE", "The selected quote route is unavailable."));

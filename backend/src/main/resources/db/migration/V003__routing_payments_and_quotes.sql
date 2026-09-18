@@ -1,32 +1,68 @@
--- Fresh baseline: payout routing, payments and quotes.
--- Dependency order: payout_routes first, then recipients, then payments without
+-- Fresh baseline: transfer routing, payments and quotes.
+-- Dependency order: transfer providers/routes first, then recipients, then payments without
 -- the selected-quote FK, then payment_quotes, then the selected-quote FK, then
 -- payout_attempts. No legacy route/attempt tables and no seed routes are created
 -- here; the route catalog is provisioned explicitly by local seeding.
--- Quotes persist the actual payout route code (not the customer preference), with
+-- Quotes persist the actual transfer route code (not the customer preference), with
 -- a foreign key to the referenced route. Money uses NUMBER(19,4); rates use
 -- NUMBER(19,6).
 
-CREATE TABLE payout_routes (
+CREATE TABLE transfer_providers (
   id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
-  route_code VARCHAR2(50) NOT NULL UNIQUE,
-  route_name VARCHAR2(100) NOT NULL,
+  provider_code VARCHAR2(50) NOT NULL UNIQUE,
   provider_name VARCHAR2(100) NOT NULL,
-  route_type VARCHAR2(30) NOT NULL,
-  base_fee NUMBER(19,4) NOT NULL,
-  fx_spread_percentage NUMBER(9,6) NOT NULL,
-  estimated_minutes NUMBER(10) NOT NULL,
-  success_rate NUMBER(5,2) NOT NULL,
+  rail_type VARCHAR2(30) NOT NULL,
   active NUMBER(1) NOT NULL,
+  system_protected NUMBER(1) NOT NULL,
   version NUMBER(10) DEFAULT 0 NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  CONSTRAINT chk_payout_route_type CHECK (route_type IN ('STANDARD', 'INSTANT', 'LOCAL_PARTNER')),
-  CONSTRAINT chk_payout_route_fee CHECK (base_fee >= 0),
-  CONSTRAINT chk_payout_route_spread CHECK (fx_spread_percentage >= 0),
-  CONSTRAINT chk_payout_route_eta CHECK (estimated_minutes > 0),
-  CONSTRAINT chk_payout_route_success CHECK (success_rate BETWEEN 0 AND 100),
-  CONSTRAINT chk_payout_route_active CHECK (active IN (0, 1))
+  archived_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT chk_transfer_provider_code CHECK (REGEXP_LIKE(provider_code, '^[A-Z][A-Z0-9_]{2,49}$')),
+  CONSTRAINT chk_transfer_provider_rail CHECK (rail_type IN ('INTERNAL_LEDGER', 'BANK_NETWORK', 'REAL_TIME_NETWORK', 'PARTNER_NETWORK')),
+  CONSTRAINT chk_transfer_provider_active CHECK (active IN (0, 1)),
+  CONSTRAINT chk_transfer_provider_protected CHECK (system_protected IN (0, 1))
+);
+
+CREATE TABLE transfer_routes (
+  id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
+  provider_id RAW(16) NOT NULL REFERENCES transfer_providers(id),
+  route_code VARCHAR2(50) NOT NULL UNIQUE,
+  route_name VARCHAR2(100) NOT NULL,
+  destination_type VARCHAR2(30) NOT NULL,
+  destination_country VARCHAR2(2),
+  payout_currency VARCHAR2(3) NOT NULL,
+  base_fee NUMBER(19,4) NOT NULL,
+  fx_spread_percentage NUMBER(9,6) NOT NULL,
+  estimated_minutes NUMBER(10) NOT NULL,
+  configured_success_rate NUMBER(5,2) NOT NULL,
+  minimum_recipient_amount NUMBER(19,4),
+  maximum_recipient_amount NUMBER(19,4),
+  active NUMBER(1) NOT NULL,
+  system_protected NUMBER(1) NOT NULL,
+  version NUMBER(10) DEFAULT 0 NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  archived_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT chk_transfer_route_code CHECK (REGEXP_LIKE(route_code, '^[A-Z][A-Z0-9_]{2,49}$')),
+  CONSTRAINT chk_transfer_route_destination CHECK (destination_type IN ('INTERNAL_WALLET', 'EXTERNAL_ACCOUNT')),
+  CONSTRAINT chk_transfer_route_country CHECK (destination_type = 'INTERNAL_WALLET' OR destination_country IS NOT NULL),
+  CONSTRAINT chk_transfer_route_fee CHECK (base_fee >= 0),
+  CONSTRAINT chk_transfer_route_spread CHECK (fx_spread_percentage >= 0),
+  CONSTRAINT chk_transfer_route_eta CHECK (estimated_minutes > 0),
+  CONSTRAINT chk_transfer_route_success CHECK (configured_success_rate BETWEEN 0 AND 100),
+  CONSTRAINT chk_transfer_route_limits CHECK ((minimum_recipient_amount IS NULL OR minimum_recipient_amount > 0) AND (maximum_recipient_amount IS NULL OR maximum_recipient_amount > 0) AND (minimum_recipient_amount IS NULL OR maximum_recipient_amount IS NULL OR maximum_recipient_amount >= minimum_recipient_amount)),
+  CONSTRAINT chk_transfer_route_active CHECK (active IN (0, 1)),
+  CONSTRAINT chk_transfer_route_protected CHECK (system_protected IN (0, 1))
+);
+
+CREATE TABLE transfer_route_outcomes (
+  id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
+  transfer_route_id RAW(16) NOT NULL REFERENCES transfer_routes(id),
+  execution_reference VARCHAR2(100) NOT NULL UNIQUE,
+  outcome VARCHAR2(20) NOT NULL,
+  occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  CONSTRAINT chk_transfer_route_outcome CHECK (outcome IN ('COMPLETED', 'FAILED'))
 );
 
 CREATE TABLE recipients (
@@ -100,7 +136,7 @@ CREATE TABLE payment_quotes (
   CONSTRAINT chk_payment_quote_positive CHECK (market_rate > 0 AND offered_rate > 0 AND fee_amount >= 0 AND recipient_amount > 0),
   CONSTRAINT chk_payment_quote_recommended CHECK (recommended IN (0, 1)),
   CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route),
-  CONSTRAINT fk_payment_quote_route FOREIGN KEY (route) REFERENCES payout_routes (route_code)
+  CONSTRAINT fk_payment_quote_route FOREIGN KEY (route) REFERENCES transfer_routes (route_code)
 );
 
 ALTER TABLE payments ADD CONSTRAINT fk_payment_selected_quote FOREIGN KEY (selected_quote_id) REFERENCES payment_quotes (id);
@@ -110,7 +146,7 @@ CREATE INDEX idx_payment_quotes_generation ON payment_quotes (payment_id, genera
 CREATE TABLE payout_attempts (
   id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
   payment_id VARCHAR2(50) NOT NULL,
-  payout_route_id RAW(16) NOT NULL REFERENCES payout_routes(id),
+  transfer_route_id RAW(16) NOT NULL REFERENCES transfer_routes(id),
   attempt_number NUMBER(10) NOT NULL,
   status VARCHAR2(30) NOT NULL,
   failure_reason VARCHAR2(1000),

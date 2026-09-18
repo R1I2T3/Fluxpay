@@ -1,12 +1,12 @@
 package com.fluxpay.service;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.dto.RouteRecommendation;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -26,7 +26,7 @@ public class RouteCatalogService {
   private final PaymentReader reader;
   private final FxRateProvider fx;
   private final RouteRecommender recommender;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
   private final RouteMetrics metrics;
   private final RoutePricingService pricing;
 
@@ -34,7 +34,7 @@ public class RouteCatalogService {
       PaymentReader reader,
       FxRateProvider fx,
       RouteRecommender recommender,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       RouteMetrics metrics,
       RoutePricingService pricing) {
     this.reader = Objects.requireNonNull(reader, "reader must not be null");
@@ -46,7 +46,7 @@ public class RouteCatalogService {
   }
 
   @Transactional(readOnly = true)
-  public List<PayoutRoute> listRoutes() {
+  public List<TransferRoute> listRoutes() {
     return routes.findAllByOrderByRouteCodeAsc();
   }
 
@@ -56,21 +56,21 @@ public class RouteCatalogService {
     PaymentSnapshot payment = reader.get(paymentId);
     RoutePreference effective = preference == null ? RoutePreference.BALANCED : preference;
     BigDecimal marketRate = fx.rate(payment.sourceCurrency(), payment.targetCurrency());
-    List<PayoutRoute> active = routes.findByActiveTrueOrderByRouteCodeAsc();
+    List<TransferRoute> active = routes.findByActiveTrueOrderByRouteCodeAsc();
     return recommender.recommend(effective, pricing.price(payment.amount(), marketRate, active));
   }
 
   @Transactional
-  public PayoutRoute updateRoute(String routeId, RouteApi.Update update) {
+  public TransferRoute updateRoute(String routeId, RouteApi.Update update) {
     Objects.requireNonNull(update, "update must not be null");
     requireValid(update);
     UUID id = parseRouteId(routeId);
-    PayoutRoute route =
+    TransferRoute route =
         routes
             .findById(id)
             .orElseThrow(() -> new NoSuchElementException("route " + routeId + " not found"));
     if (!Objects.equals(route.getVersion(), update.version())) {
-      throw new ObjectOptimisticLockingFailureException(PayoutRoute.class, routeId);
+      throw new ObjectOptimisticLockingFailureException(TransferRoute.class, routeId);
     }
     route.update(
         update.baseFee(),

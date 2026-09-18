@@ -13,9 +13,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentPurpose;
 import com.fluxpay.beans.PaymentQuote;
-import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.LedgerWriter;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
@@ -23,8 +23,8 @@ import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutAttemptRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -95,7 +95,7 @@ class PayoutProviderUnavailableTest {
   @Test
   void missingRouteFailsWith503RouteUnavailable() {
     Fixture fixture = new Fixture();
-    when(fixture.routes.findByCode("STANDARD_BANK")).thenReturn(Optional.empty());
+    when(fixture.routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.empty());
     PayoutAttemptRepository attempts = mock(PayoutAttemptRepository.class);
     PayoutReservationService reservations = fixture.reservations(attempts);
 
@@ -207,10 +207,10 @@ class PayoutProviderUnavailableTest {
             NOW);
     final PaymentRepository payments = mock(PaymentRepository.class);
     final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-    final PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
+    final TransferRouteRepository routes = mock(TransferRouteRepository.class);
     final RecipientRepository recipients = mock(RecipientRepository.class);
-    final PayoutRoute route =
-        PayoutRoute.seed(
+    final TransferRoute route =
+        TransferRoute.seed(
             UUID.randomUUID(), "STANDARD_BANK", "Bank", "Bank", "STANDARD", "5", "0", 240, "99.5");
     final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
@@ -229,7 +229,7 @@ class PayoutProviderUnavailableTest {
       when(payments.findById(payment.id())).thenReturn(Optional.of(payment));
       when(recipients.findByIdAndUserId(recipient.id(), user)).thenReturn(Optional.of(recipient));
       DbPaymentReader reader = new DbPaymentReader(payments, recipients, new ObjectMapper());
-      when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+      when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
       when(quotes.findByPaymentIdAndGenerationOrderByRouteAsc(payment.id(), 1))
           .thenReturn(
               List.of(

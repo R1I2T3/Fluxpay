@@ -1,6 +1,6 @@
 package com.fluxpay.controller;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
@@ -59,12 +59,12 @@ public class RouteController {
     return new ApiResponse<>(cid, toResponse(paymentId, preference, recommendation));
   }
 
-  private RouteApi.RouteEntry toEntry(PayoutRoute route) {
+  private RouteApi.RouteEntry toEntry(TransferRoute route) {
     RouteMetrics.RouteMetric metric = catalog.metricFor(route.getId());
     return toEntry(route, metric);
   }
 
-  static RouteApi.RouteEntry toEntry(PayoutRoute route, RouteMetrics.RouteMetric metric) {
+  static RouteApi.RouteEntry toEntry(TransferRoute route, RouteMetrics.RouteMetric metric) {
     return new RouteApi.RouteEntry(
         route.getId().toString(),
         route.getRouteCode(),

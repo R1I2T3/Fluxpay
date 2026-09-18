@@ -9,9 +9,9 @@ import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentEvent;
 import com.fluxpay.beans.PaymentPurpose;
 import com.fluxpay.beans.PaymentQuote;
-import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.beans.User;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
@@ -60,7 +60,7 @@ class PaymentEventPersistenceIT {
   @Autowired PaymentRepository payments;
   @Autowired PaymentQuoteRepository quotes;
   @Autowired RecipientRepository recipients;
-  @Autowired PayoutRouteRepository routes;
+  @Autowired TransferRouteRepository routes;
   @Autowired UserRepository users;
   @Autowired WalletRepository wallets;
   @Autowired JdbcTemplate jdbc;
@@ -159,7 +159,7 @@ class PaymentEventPersistenceIT {
                   RecipientStatus.ACTIVE,
                   now));
       routes.saveAndFlush(
-          PayoutRoute.seed(
+          TransferRoute.seed(
               routeId,
               routeCode,
               "Timeline route",
@@ -304,7 +304,7 @@ class PaymentEventPersistenceIT {
     jdbc.update("DELETE FROM payments WHERE id=HEXTORAW(?)", paymentHex);
     jdbc.update("DELETE FROM recipients WHERE id=HEXTORAW(?)", hex(recipientId));
     jdbc.update("DELETE FROM wallets WHERE user_id=HEXTORAW(?)", hex(userId));
-    jdbc.update("DELETE FROM payout_routes WHERE id=HEXTORAW(?)", hex(routeId));
+    jdbc.update("DELETE FROM transfer_routes WHERE id=HEXTORAW(?)", hex(routeId));
     jdbc.update("DELETE FROM users WHERE id=HEXTORAW(?)", hex(userId));
   }
 

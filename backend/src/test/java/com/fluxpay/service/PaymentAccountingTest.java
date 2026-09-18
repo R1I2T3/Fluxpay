@@ -329,7 +329,7 @@ class PaymentAccountingTest {
     var payments = org.mockito.Mockito.mock(com.fluxpay.repository.PaymentRepository.class);
     var recipients = org.mockito.Mockito.mock(com.fluxpay.repository.RecipientRepository.class);
     var quotes = org.mockito.Mockito.mock(com.fluxpay.repository.PaymentQuoteRepository.class);
-    var routes = org.mockito.Mockito.mock(com.fluxpay.repository.PayoutRouteRepository.class);
+    var routes = org.mockito.Mockito.mock(com.fluxpay.repository.TransferRouteRepository.class);
     org.mockito.Mockito.when(payments.lockOwned(paymentId, db.user))
         .thenReturn(Optional.of(payment));
     org.mockito.Mockito.when(payments.findById(paymentId)).thenReturn(Optional.of(payment));
@@ -339,10 +339,10 @@ class PaymentAccountingTest {
         .thenReturn(Optional.of(recipient));
     org.mockito.Mockito.when(quotes.findByIdAndPaymentId(quote.id(), paymentId))
         .thenReturn(Optional.of(quote));
-    org.mockito.Mockito.when(routes.findByCode("BANK"))
+    org.mockito.Mockito.when(routes.findByRouteCode("BANK"))
         .thenReturn(
             Optional.of(
-                com.fluxpay.beans.PayoutRoute.seed(
+                com.fluxpay.beans.TransferRoute.seed(
                     UUID.randomUUID(), "BANK", "Bank", "Bank", "STANDARD", "0", "5", 5, "90")));
     var adapter = db.transactional(new PersistentWalletAdapter(db.wallets, accounts));
     var posting =

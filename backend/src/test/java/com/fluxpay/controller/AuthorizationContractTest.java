@@ -22,7 +22,7 @@ import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.repository.PayoutAttemptRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.PayoutExecutionService;
 import com.fluxpay.service.RecoveryService;
@@ -83,7 +83,7 @@ class AuthorizationContractTest {
   @MockBean private RecoveryService recovery;
   @MockBean private com.fluxpay.service.PayoutReconciler reconciler;
   @MockBean private PayoutAttemptRepository attempts;
-  @MockBean private PayoutRouteRepository routes;
+  @MockBean private TransferRouteRepository routes;
   @MockBean private JwtUtil jwt;
 
   private PaymentSnapshot payment;

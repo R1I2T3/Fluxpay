@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.FluxPayApplication;
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.beans.User;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
@@ -23,7 +23,7 @@ import com.fluxpay.messaging.EventTopics;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentEventRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
@@ -74,7 +74,7 @@ class BackendAcceptanceIT {
   @Autowired private ObjectMapper json;
   @Autowired private UserRepository users;
   @Autowired private WalletRepository wallets;
-  @Autowired private PayoutRouteRepository routes;
+  @Autowired private TransferRouteRepository routes;
   @Autowired private BCryptPasswordEncoder passwords;
   @Autowired private JwtUtil jwt;
   @Autowired private JdbcTemplate jdbc;
@@ -376,12 +376,12 @@ class BackendAcceptanceIT {
   }
 
   private void route(String code, String type, int minutes) {
-    PayoutRoute route =
+    TransferRoute route =
         routes
-            .findByCode(code)
+            .findByRouteCode(code)
             .orElseGet(
                 () ->
-                    PayoutRoute.seed(
+                    TransferRoute.seed(
                         UUID.nameUUIDFromBytes(("acceptance:" + code).getBytes()),
                         code,
                         code,

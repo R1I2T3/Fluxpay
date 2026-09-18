@@ -5,7 +5,7 @@ import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.util.Objects;
@@ -18,13 +18,13 @@ public class SelectedQuoteService {
   private final PaymentRepository payments;
   private final PaymentQuoteRepository quotes;
   private final Clock clock;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
 
   public SelectedQuoteService(
       PaymentRepository payments,
       PaymentQuoteRepository quotes,
       Clock clock,
-      PayoutRouteRepository routes) {
+      TransferRouteRepository routes) {
     this.payments = payments;
     this.quotes = quotes;
     this.clock = clock;
@@ -64,7 +64,7 @@ public class SelectedQuoteService {
       throw new QuoteExpiredException("selected quote has expired");
     }
     routes
-        .findByCode(selected.route())
+        .findByRouteCode(selected.route())
         .filter(r -> r.isActive())
         .orElseThrow(() -> new QuoteMismatchException("selected quote route is unavailable"));
     return new AcceptedQuote(

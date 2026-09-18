@@ -28,10 +28,10 @@ import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutAttemptRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.PolicyChunkRepository;
 import com.fluxpay.repository.PolicyDocumentRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
@@ -97,7 +97,7 @@ class DevelopmentDefaultsTest {
           WalletOperationRepository.class,
           UserRepository.class,
           RecipientRepository.class,
-          PayoutRouteRepository.class,
+          TransferRouteRepository.class,
           PayoutAttemptRepository.class,
           PaymentRepository.class,
           PaymentQuoteRepository.class,
@@ -190,8 +190,8 @@ class DevelopmentDefaultsTest {
               assertThat(reservations).isNotNull();
               // Wiring only: the reservation service is present while no provider is discovered.
               // The honest 503-before-reserve behavior is proven in PayoutProviderUnavailableTest.
-              com.fluxpay.repository.PayoutRouteRepository routes =
-                  context.getBean(com.fluxpay.repository.PayoutRouteRepository.class);
+              com.fluxpay.repository.TransferRouteRepository routes =
+                  context.getBean(com.fluxpay.repository.TransferRouteRepository.class);
               assertThat(routes).isNotNull();
             });
   }

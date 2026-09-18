@@ -1,6 +1,6 @@
 package com.fluxpay.controller;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.dto.RouteApi;
@@ -38,7 +38,7 @@ public class RouteAdminController {
     if (!authorizer.isAdmin(ControllerSupport.currentUser())) {
       throw new ForbiddenException("admin role required to update route " + routeId);
     }
-    PayoutRoute route = catalog.updateRoute(routeId, update);
+    TransferRoute route = catalog.updateRoute(routeId, update);
     RouteMetrics.RouteMetric metric = catalog.metricFor(route.getId());
     return new ApiResponse<>(cid, RouteController.toEntry(route, metric));
   }

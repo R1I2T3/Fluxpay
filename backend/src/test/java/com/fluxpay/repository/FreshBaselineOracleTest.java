@@ -63,7 +63,9 @@ class FreshBaselineOracleTest {
       "WALLETS",
       "LEDGER_ENTRIES",
       "WALLET_OPERATIONS",
-      "PAYOUT_ROUTES",
+      "TRANSFER_PROVIDERS",
+      "TRANSFER_ROUTES",
+      "TRANSFER_ROUTE_OUTCOMES",
       "RECIPIENTS",
       "PAYMENTS",
       "PAYMENT_QUOTES",
@@ -87,6 +89,12 @@ class FreshBaselineOracleTest {
           result.next();
           assertEquals(1, result.getInt(1), table);
         }
+      }
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT COUNT(*) FROM user_tables WHERE table_name = 'PAYOUT_ROUTES'")) {
+        result.next();
+        assertEquals(0, result.getInt(1), "PAYOUT_ROUTES");
       }
     }
   }
@@ -233,8 +241,9 @@ class FreshBaselineOracleTest {
     String payment = UUID.randomUUID().toString().replace("-", "");
     String wallet = UUID.randomUUID().toString().replace("-", "");
     String recipient = UUID.randomUUID().toString().replace("-", "");
+    String provider = UUID.randomUUID().toString().replace("-", "");
     String route = UUID.randomUUID().toString().replace("-", "");
-    String routeCode = "RT-" + UUID.randomUUID().toString().substring(0, 8);
+    String routeCode = "RT_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     jdbc.update(
         "INSERT INTO users(id,email,password_hash,full_name) VALUES (HEXTORAW(?),"
             + "?,'!ORACLE_TEST_NO_LOGIN!','Quote fixture')",
@@ -257,11 +266,18 @@ class FreshBaselineOracleTest {
         wallet,
         recipient);
     jdbc.update(
-        "INSERT INTO payout_routes(id,route_code,route_name,provider_name,route_type,base_fee,"
-            + "fx_spread_percentage,estimated_minutes,success_rate,active,created_at,updated_at) "
-            + "VALUES (HEXTORAW(?),?,'Route','Provider','STANDARD',0,0,60,99,1,SYSTIMESTAMP,"
-            + "SYSTIMESTAMP)",
+        "INSERT INTO transfer_providers(id,provider_code,provider_name,rail_type,active,"
+            + "system_protected,created_at,updated_at) VALUES (HEXTORAW(?),'QUOTE_PROVIDER',"
+            + "'Provider','BANK_NETWORK',1,0,SYSTIMESTAMP,SYSTIMESTAMP)",
+        provider);
+    jdbc.update(
+        "INSERT INTO transfer_routes(id,provider_id,route_code,route_name,destination_type,"
+            + "destination_country,payout_currency,base_fee,fx_spread_percentage,estimated_minutes,"
+            + "configured_success_rate,active,system_protected,created_at,updated_at) VALUES "
+            + "(HEXTORAW(?),HEXTORAW(?),?,'Route','EXTERNAL_ACCOUNT','US','USD',0,0,60,99,1,0,"
+            + "SYSTIMESTAMP,SYSTIMESTAMP)",
         route,
+        provider,
         routeCode);
     jdbc.update(
         "INSERT INTO payment_quotes(id,payment_id,generation,route,market_rate,spread_percent,"

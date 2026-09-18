@@ -167,13 +167,13 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
     final Payment payment;
     final PaymentRepository payments = mock(PaymentRepository.class);
     final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-    final PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
+    final TransferRouteRepository routes = mock(TransferRouteRepository.class);
     final RoutePricingService pricing = new RoutePricingService(new QuotePricingPolicy());
     final RouteRecommender ranking = new RouteRecommender();
-    final List<PayoutRoute> active =
+    final List<TransferRoute> active =
         new ArrayList<>(
             List.of(
-                PayoutRoute.seed(
+                TransferRoute.seed(
                     UUID.randomUUID(),
                     "STANDARD_BANK",
                     "Bank",
@@ -183,7 +183,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
                     "0",
                     240,
                     "99.5"),
-                PayoutRoute.seed(
+                TransferRoute.seed(
                     UUID.randomUUID(),
                     "INSTANT_PAYOUT",
                     "Instant",
@@ -193,7 +193,7 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
                     "0",
                     5,
                     "98"),
-                PayoutRoute.seed(
+                TransferRoute.seed(
                     UUID.randomUUID(),
                     "LOCAL_PARTNER",
                     "Local",

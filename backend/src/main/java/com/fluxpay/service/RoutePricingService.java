@@ -1,6 +1,6 @@
 package com.fluxpay.service;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.domain.QuotePricingPolicy;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.exception.BusinessException;
@@ -18,8 +18,9 @@ public class RoutePricingService {
     this.pricing = pricing;
   }
 
-  public List<RouteQuote> price(BigDecimal gross, BigDecimal marketRate, List<PayoutRoute> routes) {
-    List<PayoutRoute> active = routes.stream().filter(PayoutRoute::isActive).toList();
+  public List<RouteQuote> price(
+      BigDecimal gross, BigDecimal marketRate, List<TransferRoute> routes) {
+    List<TransferRoute> active = routes.stream().filter(TransferRoute::isActive).toList();
     if (active.isEmpty()) {
       throw new BusinessException(
           HttpStatus.UNPROCESSABLE_ENTITY,

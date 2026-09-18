@@ -19,7 +19,7 @@ public class QuoteService {
   private final PaymentQuoteRepository quotes;
   private final FxRateProvider fx;
   private final Clock clock;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
   private final RoutePricingService pricing;
   private final RouteRecommender recommender;
   private final PaymentOperationService operations;
@@ -30,7 +30,7 @@ public class QuoteService {
       PaymentQuoteRepository quotes,
       FxRateProvider fx,
       Clock clock,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       RoutePricingService pricing,
       RouteRecommender recommender,
       PaymentOperationService operations,
@@ -92,7 +92,7 @@ public class QuoteService {
     var recommendation = recommender.recommend(p.preference(), pricedRoutes);
     int generation = p.nextQuoteGeneration();
     for (var priced : recommendation.quotes()) {
-      PayoutRoute route = priced.route();
+      TransferRoute route = priced.route();
       generated.add(
           new PaymentQuote(
               UUID.randomUUID(),

@@ -33,12 +33,12 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
           RoutePreference.CHEAPEST,
           "{}",
           NOW);
-  final PayoutRoute route =
-      PayoutRoute.seed(
+  final TransferRoute route =
+      TransferRoute.seed(
           UUID.randomUUID(), "STANDARD_BANK", "Bank", "Bank", "STANDARD", "20", "5", 5, "90");
   final PaymentRepository payments = mock(PaymentRepository.class);
   final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-  final PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
+  final TransferRouteRepository routes = mock(TransferRouteRepository.class);
   final PostingPort posting = mock(PostingPort.class);
   final KycGate kyc = mock(KycGate.class);
   final ComplianceCaseService complianceCases = mock(ComplianceCaseService.class);
@@ -69,7 +69,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     when(kyc.isVerified(user)).thenReturn(true);
@@ -115,7 +115,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     var reviewService =
@@ -240,7 +240,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     var kyc = mock(KycGate.class);

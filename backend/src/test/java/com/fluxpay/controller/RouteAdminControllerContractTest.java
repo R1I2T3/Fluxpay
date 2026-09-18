@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
@@ -55,13 +55,13 @@ class RouteAdminControllerContractTest {
   @MockBean private RouteAdminAuthorizer authorizer;
   @MockBean private JwtUtil jwt;
 
-  private PayoutRoute standard;
+  private TransferRoute standard;
 
   @BeforeEach
   void setUp() {
     MockSecurity.stubJwt(jwt);
     standard =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             R_STANDARD,
             "STANDARD_BANK",
             "Standard Bank Rail",
@@ -121,7 +121,7 @@ class RouteAdminControllerContractTest {
     when(catalog.updateRoute(anyString(), any()))
         .thenThrow(
             new ObjectOptimisticLockingFailureException(
-                PayoutRoute.class, standard.getId().toString()));
+                TransferRoute.class, standard.getId().toString()));
 
     mvc.perform(
             put("/api/admin/routes/" + standard.getId().toString())

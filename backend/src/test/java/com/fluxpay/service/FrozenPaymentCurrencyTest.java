@@ -126,7 +126,7 @@ class FrozenPaymentCurrencyTest {
             NOW);
     final PaymentRepository payments = mock(PaymentRepository.class);
     final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-    final PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
+    final TransferRouteRepository routes = mock(TransferRouteRepository.class);
     final RoutePricingService pricing = new RoutePricingService(new QuotePricingPolicy());
     final RouteRecommender ranking = new RouteRecommender();
     final List<String> fxPairs = new ArrayList<>();
@@ -148,7 +148,7 @@ class FrozenPaymentCurrencyTest {
           new DbPaymentReader(
               payments, recipients, new com.fasterxml.jackson.databind.ObjectMapper());
       var route =
-          PayoutRoute.seed(
+          TransferRoute.seed(
               UUID.randomUUID(),
               "STANDARD_BANK",
               "Bank",
@@ -158,7 +158,7 @@ class FrozenPaymentCurrencyTest {
               "0",
               240,
               "99.5");
-      when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+      when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
       when(routes.findByActiveTrueOrderByRouteCodeAsc()).thenReturn(List.of(route));
       when(quotes.saveAll(any()))
           .thenAnswer(

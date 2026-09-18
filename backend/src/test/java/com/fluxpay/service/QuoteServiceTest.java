@@ -31,9 +31,9 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
             NOW);
     PaymentRepository payments = mock(PaymentRepository.class);
     PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-    PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
-    PayoutRoute route =
-        PayoutRoute.seed(
+    TransferRouteRepository routes = mock(TransferRouteRepository.class);
+    TransferRoute route =
+        TransferRoute.seed(
             UUID.randomUUID(), "STANDARD_BANK", "Bank", "Bank", "STANDARD", "5", "0", 240, "99.5");
     when(routes.findByActiveTrueOrderByRouteCodeAsc()).thenReturn(List.of(route));
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
@@ -71,7 +71,7 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
   @Test
   void instantSurchargeIsIncludedBeforeConversion() {
     var instant =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             UUID.randomUUID(),
             "INSTANT_PAYOUT",
             "Instant",
@@ -110,11 +110,11 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
     FxRateProvider fx = (source, target) -> new BigDecimal("80.000000");
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-    PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
+    TransferRouteRepository routes = mock(TransferRouteRepository.class);
     when(routes.findByActiveTrueOrderByRouteCodeAsc())
         .thenReturn(
             List.of(
-                PayoutRoute.seed(
+                TransferRoute.seed(
                     UUID.randomUUID(),
                     "STANDARD_BANK",
                     "Bank",

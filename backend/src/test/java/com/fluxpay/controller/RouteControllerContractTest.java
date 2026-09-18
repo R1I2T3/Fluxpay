@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
@@ -70,8 +70,8 @@ class RouteControllerContractTest {
   @MockBean private JwtUtil jwt;
 
   private PaymentSnapshot payment;
-  private PayoutRoute standard;
-  private PayoutRoute instant;
+  private TransferRoute standard;
+  private TransferRoute instant;
 
   @BeforeEach
   void setUp() {
@@ -87,7 +87,7 @@ class RouteControllerContractTest {
             "KES",
             PaymentStatus.PROCESSING);
     standard =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             R_STANDARD,
             "STANDARD_BANK",
             "Standard Bank Rail",
@@ -98,7 +98,7 @@ class RouteControllerContractTest {
             240,
             "99.50");
     instant =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             R_INSTANT,
             "INSTANT_PAYOUT",
             "Instant Payout",
