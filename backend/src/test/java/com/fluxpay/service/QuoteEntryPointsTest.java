@@ -23,7 +23,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
     var f = new Fixture(preference);
     var created = f.service(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key");
     var catalog = f.catalog.recommend(f.payment.id().toString(), preference, "c");
-    assertThat(catalog.recommended().code()).isEqualTo(winner);
+    // Task 7 owns this path — compile-restoration only
+    assertThat(catalog.recommended().quote().route().code()).isEqualTo(winner);
     assertThat(
             created.quotes().stream()
                 .filter(q -> q.recommended())
@@ -50,10 +51,13 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
             });
     catalog
         .quotes()
+        // Task 7 owns this path — compile-restoration only
         .forEach(
             q -> {
-              assertThat(q.recipientAmount()).isEqualByComparingTo(amounts.get(q.route().code()));
-              assertThat(q.feeAmount()).isEqualByComparingTo(fees.get(q.route().code()));
+              assertThat(q.quote().recipientAmount())
+                  .isEqualByComparingTo(amounts.get(q.quote().route().code()));
+              assertThat(q.quote().feeAmount())
+                  .isEqualByComparingTo(fees.get(q.quote().route().code()));
             });
   }
 

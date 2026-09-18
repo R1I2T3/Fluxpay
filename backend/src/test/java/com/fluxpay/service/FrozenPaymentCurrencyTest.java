@@ -89,8 +89,11 @@ class FrozenPaymentCurrencyTest {
 
     assertThat(generated.quotes().get(0).offeredRate()).isEqualTo("80.000000");
     assertThat(generated.quotes().get(0).recipientAmount()).isEqualTo("7600.0000");
-    assertThat(recommendation.quotes().get(0).offeredRate()).isEqualByComparingTo("80.000000");
-    assertThat(recommendation.quotes().get(0).recipientAmount()).isEqualByComparingTo("7600.0000");
+    assertThat(recommendation.quotes().get(0).quote().offeredRate())
+        .isEqualByComparingTo("80.000000");
+    // Task 7 owns this path — compile-restoration only
+    assertThat(recommendation.quotes().get(0).quote().recipientAmount())
+        .isEqualByComparingTo("7600.0000");
     assertThat(f.fxPairs).containsExactly("USD/INR", "USD/INR", "USD/INR");
     PaymentSnapshot snapshot = f.reader.get(f.payment.id().toString());
     assertThat(snapshot.sourceCurrency()).isEqualTo("USD");

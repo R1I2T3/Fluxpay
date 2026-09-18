@@ -105,6 +105,8 @@ class RouteCatalogServiceTest {
                 .recommend("P-001", RoutePreference.CHEAPEST, "c")
                 .quotes()
                 .get(0)
+                // Task 7 owns this path — compile-restoration only
+                .quote()
                 .recipientAmount())
         .isEqualByComparingTo("7600.0000");
   }
@@ -120,9 +122,11 @@ class RouteCatalogServiceTest {
 
     verify(fx).rate("USD", "KES");
     assertThat(recommendation.quotes()).hasSize(2);
-    assertThat(recommendation.quotes().get(0).marketRate()).isEqualByComparingTo("148.0000");
+    // Task 7 owns this path — compile-restoration only
+    assertThat(recommendation.quotes().get(0).quote().marketRate())
+        .isEqualByComparingTo("148.0000");
     assertThat(recommendation.quotes())
-        .allMatch(q -> q.marketRate().compareTo(new BigDecimal("148.0000")) == 0);
+        .allMatch(q -> q.quote().marketRate().compareTo(new BigDecimal("148.0000")) == 0);
   }
 
   @Test

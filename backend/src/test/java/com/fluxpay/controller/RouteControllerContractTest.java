@@ -23,6 +23,7 @@ import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
+import com.fluxpay.dto.RankedRouteQuote;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.service.PaymentSnapshot;
@@ -181,7 +182,14 @@ class RouteControllerContractTest {
             new BigDecimal("989.0000"),
             new BigDecimal("98.00"));
     when(catalog.recommend(eq("P-001"), eq(RoutePreference.BALANCED), anyString()))
-        .thenReturn(new RouteRecommendation(standard, List.of(standardQuote, instantQuote)));
+        // Task 7 owns this path — compile-restoration only
+        .thenReturn(
+            new RouteRecommendation(
+                new RankedRouteQuote(standardQuote, standardQuote.recipientAmount(), 1),
+                List.of(
+                    new RankedRouteQuote(standardQuote, standardQuote.recipientAmount(), 1),
+                    new RankedRouteQuote(instantQuote, instantQuote.recipientAmount(), 2)),
+                "test recommendation"));
 
     mvc.perform(
             post("/api/payments/P-001/recommend-route")

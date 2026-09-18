@@ -84,20 +84,24 @@ public class RouteController {
 
   private static RouteApi.RecommendResponse toResponse(
       String paymentId, RoutePreference preference, RouteRecommendation recommendation) {
-    String recommendedId = recommendation.recommended().getId().toString();
+    // Task 7 owns this path — compile-restoration only
+    String recommendedId = recommendation.recommended().quote().route().getId().toString();
     List<RouteApi.Quote> quotes =
         recommendation.quotes().stream()
             .map(
-                quote ->
-                    new RouteApi.Quote(
-                        quote.route().getId().toString(),
-                        quote.route().getName(),
-                        quote.marketRate(),
-                        quote.offeredRate(),
-                        quote.feeAmount(),
-                        quote.recipientAmount(),
-                        quote.route().getEstimatedMinutes(),
-                        quote.route().getId().toString().equals(recommendedId)))
+                ranked -> {
+                  // Task 7 owns this path — compile-restoration only
+                  var quote = ranked.quote();
+                  return new RouteApi.Quote(
+                      quote.route().getId().toString(),
+                      quote.route().getName(),
+                      quote.marketRate(),
+                      quote.offeredRate(),
+                      quote.feeAmount(),
+                      quote.recipientAmount(),
+                      quote.route().getEstimatedMinutes(),
+                      quote.route().getId().toString().equals(recommendedId));
+                })
             .toList();
     String reason = "preference " + preference + " over " + quotes.size() + " active routes";
     return new RouteApi.RecommendResponse(paymentId, recommendedId, reason, quotes);

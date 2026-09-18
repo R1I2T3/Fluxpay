@@ -92,20 +92,23 @@ public class QuoteService {
     var recommendation = recommender.recommend(p.preference(), pricedRoutes);
     int generation = p.nextQuoteGeneration();
     for (var priced : recommendation.quotes()) {
-      TransferRoute route = priced.route();
+      // Task 7 owns this path — compile-restoration only
+      var inner = priced.quote();
+      TransferRoute route = inner.route();
       generated.add(
           new PaymentQuote(
               UUID.randomUUID(),
               p.id(),
               generation,
               route.code(),
-              priced.marketRate(),
+              inner.marketRate(),
               route.fxSpreadPercentage(),
-              priced.offeredRate(),
-              priced.feeAmount(),
-              priced.recipientAmount(),
+              inner.offeredRate(),
+              inner.feeAmount(),
+              inner.recipientAmount(),
               route.estimatedMinutes(),
-              route.code().equals(recommendation.recommended().code()),
+              // Task 7 owns this path — compile-restoration only
+              route.code().equals(recommendation.recommended().quote().route().code()),
               now,
               expires));
     }
