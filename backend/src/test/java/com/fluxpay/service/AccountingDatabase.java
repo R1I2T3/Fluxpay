@@ -37,6 +37,7 @@ final class AccountingDatabase {
   final UUID clearing = UUID.fromString("00000000-0000-0000-0000-000000000001");
   final UUID fee = UUID.fromString("00000000-0000-0000-0000-000000000002");
   final List<UUID> locks = Collections.synchronizedList(new ArrayList<>());
+  volatile java.util.function.Consumer<Integer> afterJournalLock = ignored -> {};
   volatile String failKey;
 
   AccountingDatabase() {
@@ -155,6 +156,7 @@ final class AccountingDatabase {
                   "select lock_id from journal_locks where lock_id=? for update",
                   Integer.class,
                   lockId);
+              afterJournalLock.accept(lockId);
               return Optional.of(mock(LedgerJournalLock.class));
             });
     when(journalHeaders.findByJournalReference(any()))
@@ -162,12 +164,16 @@ final class AccountingDatabase {
             call ->
                 jdbc.query(
                         "select * from journal_headers where journal=?",
-                        (rs, row) ->
-                            new LedgerJournal(
-                                rs.getString("journal"),
-                                LedgerTransactionCategory.valueOf(rs.getString("category")),
-                                rs.getString("payload_hash"),
-                                rs.getTimestamp("created_at").toInstant()),
+                        (rs, row) -> {
+                          String payloadHash = rs.getString("payload_hash");
+                          LedgerTransactionCategory category =
+                              LedgerTransactionCategory.valueOf(rs.getString("category"));
+                          Instant createdAt = rs.getTimestamp("created_at").toInstant();
+                          return payloadHash == null
+                              ? LedgerJournal.historical(rs.getString("journal"), category, createdAt)
+                              : new LedgerJournal(
+                                  rs.getString("journal"), category, payloadHash, createdAt);
+                        },
                         (Object) call.getArgument(0))
                     .stream()
                     .findFirst());

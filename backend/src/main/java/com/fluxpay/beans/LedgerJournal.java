@@ -44,6 +44,17 @@ public class LedgerJournal {
     this.createdAt = Objects.requireNonNull(createdAt);
   }
 
+  public static LedgerJournal historical(
+      String journalReference,
+      LedgerTransactionCategory transactionCategory,
+      Instant createdAt) {
+    LedgerJournal journal = new LedgerJournal();
+    journal.journalReference = Objects.requireNonNull(journalReference);
+    journal.transactionCategory = Objects.requireNonNull(transactionCategory);
+    journal.createdAt = Objects.requireNonNull(createdAt);
+    return journal;
+  }
+
   public String getJournalReference() {
     return journalReference;
   }

@@ -375,6 +375,85 @@ class LedgerJournalServiceTest {
     assertEquals(2, db.count());
   }
 
+  @Test
+  void exactHistoricalNullHashReplayIsANoOp() {
+    AccountingDatabase db = historicalJournalDatabase();
+    List<LedgerJournalLine> lines =
+        List.of(
+            line(db.customer, "DEBIT", "10.0000", "USD", "historical:debit", "Debit"),
+            line(db.clearing, "CREDIT", "10.0000", "USD", "historical:credit", "Credit"));
+
+    db.journals.post("JRN-HISTORICAL", lines);
+
+    assertEquals(new BigDecimal("90.0000"), db.balance(db.customer));
+    assertEquals(new BigDecimal("10.0000"), db.balance(db.clearing));
+    assertEquals(2, db.count());
+  }
+
+  @Test
+  void changedHistoricalNullHashReplayConflicts() {
+    AccountingDatabase db = historicalJournalDatabase();
+
+    assertThrows(
+        com.fluxpay.exception.LedgerIdempotencyConflictException.class,
+        () ->
+            db.journals.post(
+                "JRN-HISTORICAL",
+                List.of(
+                    line(
+                        db.customer,
+                        "DEBIT",
+                        "11.0000",
+                        "USD",
+                        "historical:changed:debit",
+                        "Debit"),
+                    line(
+                        db.clearing,
+                        "CREDIT",
+                        "11.0000",
+                        "USD",
+                        "historical:changed:credit",
+                        "Credit"))));
+
+    assertEquals(new BigDecimal("90.0000"), db.balance(db.customer));
+    assertEquals(2, db.count());
+  }
+
+  private static AccountingDatabase historicalJournalDatabase() {
+    AccountingDatabase db = new AccountingDatabase();
+    db.jdbc.update("update wallets set balance=90 where id=?", db.customer);
+    db.jdbc.update("update wallets set balance=10 where id=?", db.clearing);
+    db.jdbc.update(
+        "insert into journal_headers values (?,?,?,?)",
+        "JRN-HISTORICAL",
+        "LEGACY",
+        null,
+        java.sql.Timestamp.from(java.time.Instant.EPOCH));
+    db.jdbc.update(
+        "insert into entries values (?,?,?,?,?,?,?,?,?)",
+        "historical:debit",
+        db.customer,
+        "DEBIT",
+        new BigDecimal("10.0000"),
+        "USD",
+        "JRN-HISTORICAL",
+        "Debit",
+        null,
+        null);
+    db.jdbc.update(
+        "insert into entries values (?,?,?,?,?,?,?,?,?)",
+        "historical:credit",
+        db.clearing,
+        "CREDIT",
+        new BigDecimal("10.0000"),
+        "USD",
+        "JRN-HISTORICAL",
+        "Credit",
+        null,
+        null);
+    return db;
+  }
+
   private static LedgerJournalLine line(
       UUID walletId, String type, String amount, String currency, String key, String narration) {
     return new LedgerJournalLine(walletId, type, new BigDecimal(amount), currency, key, narration);

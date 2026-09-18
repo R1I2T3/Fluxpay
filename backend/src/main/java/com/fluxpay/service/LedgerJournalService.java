@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Validates and posts one complete journal inside a single database transaction. */
@@ -106,10 +107,7 @@ public class LedgerJournalService {
         });
 
     String payloadHash = payloadHash(transactionCategory, lines);
-    int lockId = Math.floorMod(journalReference.hashCode(), 64);
-    journalLocks
-        .findByIdForUpdate(lockId)
-        .orElseThrow(() -> new IllegalStateException("Missing ledger journal lock " + lockId));
+    lockReference(journalReference);
     LedgerJournal existing = journals.findByJournalReference(journalReference).orElse(null);
     if (existing != null) {
       if (existing.getTransactionCategory() != transactionCategory
@@ -170,6 +168,15 @@ public class LedgerJournalService {
       }
       validateText(line.quoteId(), "quoteId", 36);
     }
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void lockReference(String journalReference) {
+    validateText(journalReference, "journalReference", 64);
+    int lockId = Math.floorMod(journalReference.hashCode(), 64);
+    journalLocks
+        .findByIdForUpdate(lockId)
+        .orElseThrow(() -> new IllegalStateException("Missing ledger journal lock " + lockId));
   }
 
   private boolean historicalPayloadMatches(
