@@ -37,6 +37,7 @@ export const fluxApi = {
   policies:()=>request<PolicyDocument[]>('/api/policies'),
   policy:(id:string)=>request<PolicyDocument>(`/api/policies/${encodeURIComponent(id)}`),
   createPolicy:(body:{title:string;category:string;content:string})=>request<PolicyDocument>('/api/policies','POST',body),
+  updatePolicy:(id:string,body:{title:string;category:string;content:string})=>request<PolicyDocument>(`/api/policies/${encodeURIComponent(id)}`,'PUT',body),
   policyChunks:(id:string)=>request<PolicyChunk[]>(`/api/policies/${encodeURIComponent(id)}/chunks`),
   addPolicyChunk:(id:string,content:string)=>request<PolicyChunk>(`/api/policies/${encodeURIComponent(id)}/chunks`,'POST',{content}),
   indexPolicy:(id:string)=>request<{policyDocumentId:string;chunkCount:number}>(`/api/policies/${encodeURIComponent(id)}/index`,'POST'),
