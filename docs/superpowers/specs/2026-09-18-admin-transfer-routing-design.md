@@ -22,14 +22,15 @@ This design replaces that coupling with a shared transfer-routing catalogue:
   ranks them deterministically, and persists only the top three quotes.
 
 No runtime business logic will depend on route codes such as `STANDARD_BANK`, `INSTANT_PAYOUT`, or
-`LOCAL_PARTNER`. Those strings may appear only in the data migration that preserves existing rows.
+`LOCAL_PARTNER`. The target schema and fresh local seed remove those legacy codes rather than
+mapping them forward.
 
 ## Goals
 
 1. Give administrators full CRUD control over transfer providers and routes from the dashboard.
 2. Allow one code-shipped rail type to serve many providers, and one provider to own many routes.
 3. Support both internal-wallet and external-recipient destinations through a shared route model.
-4. Preserve existing quote, attempt, and route history during migration.
+4. Introduce the new schema through a clean local reset without legacy data migration.
 5. Remove route-code-specific pricing and execution behavior.
 6. Improve smart routing with contextual eligibility, observed reliability, deterministic ranking,
    and a maximum of three returned quotes.
@@ -43,6 +44,7 @@ No runtime business logic will depend on route codes such as `STANDARD_BANK`, `I
 - Machine-learning ranking or administrator-configurable scoring weights.
 - Enforcing provider diversity in the top three results.
 - Reimplementing the wallet-to-wallet transfer feature that is already in progress.
+- Migrating local provider, route, quote, or attempt data created before this feature.
 
 ## Dependency on the Wallet-Transfer Work
 
@@ -149,14 +151,14 @@ execution attempt.
 
 ### `transfer_routes`
 
-The migration evolves the current `payout_routes` catalogue into `transfer_routes` after the
-wallet-transfer work has landed.
+After the wallet-transfer work has landed, the fresh development schema creates `transfer_routes`
+directly. It does not retain or rename local `payout_routes` data.
 
 | Column | Meaning |
 | --- | --- |
-| `id` | Existing UUID primary key |
+| `id` | UUID primary key |
 | `provider_id` | Required foreign key to `transfer_providers` |
-| `route_code` | Existing unique uppercase code; immutable |
+| `route_code` | Unique uppercase code; immutable |
 | `route_name` | Administrator-editable display name |
 | `destination_type` | `INTERNAL_WALLET` or `EXTERNAL_ACCOUNT` |
 | `destination_country` | ISO-3166 alpha-2 country; required externally, optional internally |
@@ -178,8 +180,9 @@ before the route has been referenced by a quote or execution attempt. Country co
 are normalized to uppercase. Amount limits must be positive when present, and the maximum must be
 greater than or equal to the minimum.
 
-The current `route_type` column and its `STANDARD`/`INSTANT`/`LOCAL_PARTNER` constraint are removed;
-rail behavior belongs to the provider, and destination behavior belongs to the route.
+The fresh schema does not create the old `route_type` column or its
+`STANDARD`/`INSTANT`/`LOCAL_PARTNER` constraint; rail behavior belongs to the provider, and
+destination behavior belongs to the route.
 
 ### `transfer_route_outcomes`
 
@@ -196,8 +199,8 @@ ranking service to two different attempt schemas. A small append-only projection
 
 The internal wallet workflow and external payout finalization record one row transactionally when
 an execution reaches a terminal state. The unique execution reference makes recording idempotent.
-Uncertain, processing, and initiated operations do not enter this projection. Existing terminal
-payout attempts are backfilled during migration.
+Uncertain, processing, and initiated operations do not enter this projection. The projection starts
+empty after the local reset and requires no history backfill.
 
 ### Quote ranking snapshot
 
@@ -210,7 +213,8 @@ Each newly generated payment quote persists enough information to reproduce its 
 - ranking position
 - already-frozen rate, spread, fee, recipient amount, and ETA
 
-Older quote rows remain readable. Newly generated quote sets contain at most three rows.
+Every quote created after the reset uses this ranking snapshot. Newly generated quote sets contain
+at most three rows.
 
 ## Administration API
 
@@ -396,26 +400,29 @@ Representative error behavior is:
 Provider and route activation is rejected when the rail/destination combination is incompatible.
 Execution repeats critical compatibility checks so a malformed database row cannot move funds.
 
-## Migration and Compatibility
+## Schema Reset and Local Seed
 
-Implementation begins only after integrating the wallet-transfer branch and selecting the next
-available Flyway migration number. The migration will:
+FluxPay is not deployed, so this feature uses a clean schema cutover rather than transitional
+migrations or dual-read compatibility. Implementation begins after integrating the wallet-transfer
+branch and then updates the affected Flyway baseline and dependent migrations as one coherent fresh
+schema. Developers recreate their local schema before running the updated application.
 
-1. Create `transfer_providers` and `transfer_route_outcomes`.
-2. Evolve/rename `payout_routes` to `transfer_routes` without changing existing route UUIDs or
-   codes.
-3. Add provider, destination, corridor, limit, archive, and protection fields.
-4. Backfill the three existing rows to providers using `BANK_NETWORK`, `REAL_TIME_NETWORK`, and
-   `PARTNER_NETWORK`.
-5. Attach the wallet-transfer implementation's internal route records to a system-protected FluxPay
+The schema work will:
+
+1. Create `transfer_providers`, `transfer_routes`, and `transfer_route_outcomes` directly.
+2. Define quote and execution-attempt foreign keys against `transfer_routes` from the start.
+3. Include the provider, destination, corridor, limit, archive, protection, and ranking-snapshot
+   fields in their final forms.
+4. Omit `payout_routes`, the obsolete route-type constraint, compatibility columns, legacy-code
+   mappings, and history-backfill logic.
+5. Attach the wallet-transfer implementation's internal routes to a system-protected FluxPay
    provider using `INTERNAL_LEDGER`.
-6. Backfill terminal external attempts into `transfer_route_outcomes` idempotently.
-7. Add quote ranking snapshot columns while keeping older quote rows readable.
-8. Remove the obsolete route-type constraint after all rows have been mapped.
-9. Preserve foreign keys from quotes and attempts to the renamed/evolved route table.
+6. Seed representative development providers and routes for each shipped rail without making those
+   records the complete set of possible business routes.
+7. Update local setup documentation with the required schema-reset command.
 
-Runtime seed logic will seed only baseline demonstration data. It will no longer define the complete
-set of possible business routes, and rerunning it will not overwrite administrator-created records.
+Runtime seed logic is idempotent for its named demonstration records and never overwrites
+administrator-created providers or routes.
 
 ## Component Boundaries
 
@@ -435,12 +442,16 @@ testable.
 
 ## Testing Strategy
 
-### Migration tests
+### Fresh-schema tests
 
-- Existing route UUIDs/codes, quotes, attempts, and foreign keys survive.
-- Existing rows receive the correct provider and rail mapping.
-- Historical terminal attempts are backfilled exactly once.
-- Internal routes from the wallet-transfer work map to the protected FluxPay provider.
+- An empty database migrates directly to the final provider, route, quote, attempt, and outcome
+  schema.
+- Quote and attempt foreign keys reference `transfer_routes`.
+- The obsolete route table, route-type constraint, compatibility columns, and legacy-code mappings
+  are absent.
+- Development seeding creates the protected FluxPay provider and representative rail-backed routes
+  without overwriting administrator-created records.
+- Recreating and reseeding the local schema is deterministic.
 
 ### Provider and route tests
 
@@ -493,7 +504,6 @@ testable.
 4. Internal and external transfers select only context-compatible routes.
 5. Runtime pricing and execution contain no business logic keyed to route-code literals.
 6. Smart routing blends configured and observed reliability and returns no more than three quotes.
-7. Existing historical quotes and attempts remain readable and correctly linked.
-8. Idempotency and uncertain-delivery reconciliation remain intact.
-9. The full backend and frontend verification suites pass after integration with the wallet-transfer
+7. Idempotency and uncertain-delivery reconciliation remain intact.
+8. The full backend and frontend verification suites pass after integration with the wallet-transfer
    work.
