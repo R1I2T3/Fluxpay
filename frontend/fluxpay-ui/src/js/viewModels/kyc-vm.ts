@@ -1,6 +1,3 @@
-import { api } from '../services/api-client';
-export class KycViewModel {
-  constructor() {
-    void api;
-  }
-}
+import * as ko from 'knockout'; import { flux } from '../services/api-client';
+export class KycViewModel { status=ko.observable<any>(); docType=ko.observable('PAN');docNumber=ko.observable(''); fileName=ko.observable('identity-document.png'); error=ko.observable('');busy=ko.observable(false);constructor(){void this.load();}async load(){try{this.status(await flux.kycStatus());}catch(e:any){if(!String(e.message).includes('NOT_FOUND'))this.error(e.message);}}async submit(){if(!this.docNumber()){this.error('Document number is required.');return;}this.busy(true);try{this.status(await flux.submitKyc({docType:this.docType(),docNumber:this.docNumber(),documents:[{fileName:this.fileName(),fileType:'image/png',fileSize:125000}]}));}catch(e:any){this.error(e.message);}finally{this.busy(false);}} }
+export default new KycViewModel();

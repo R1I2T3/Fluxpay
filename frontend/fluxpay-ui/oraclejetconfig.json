@@ -9,8 +9,8 @@
       "themes": "themes"
     },
     "staging": {
-      "web": "web",
-      "themes": "staged-themes"
+      "web": "web-dev",
+      "themes": "staged-themes-dev"
     }
   },
   "defaultBrowser": "chrome",

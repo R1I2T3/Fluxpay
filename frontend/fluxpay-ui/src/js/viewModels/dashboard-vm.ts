@@ -1,6 +1,3 @@
-import { api } from '../services/api-client';
-export class DashboardViewModel {
-  constructor() {
-    void api;
-  }
-}
+import * as ko from 'knockout'; import { flux } from '../services/api-client';
+export class DashboardViewModel { wallets=ko.observableArray<any>([]); payments=ko.observableArray<any>([]); routes=ko.observableArray<any>([]); busy=ko.observable(true); error=ko.observable(''); totalAvailable=ko.pureComputed(()=>this.wallets().reduce((n,w)=>n+Number(w.availableBalance||0),0)); constructor(){void this.load();} async load(){this.busy(true);try{const [wallets,payments,routes]=await Promise.all([flux.wallets(),flux.payments(),flux.routes()]);this.wallets(wallets);this.payments(payments.items||[]);this.routes(routes.routes||[]);}catch(e:any){this.error(e.message);}finally{this.busy(false);}} }
+export default new DashboardViewModel();

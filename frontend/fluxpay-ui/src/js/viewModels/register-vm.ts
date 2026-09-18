@@ -1,6 +1,1 @@
-import { api } from '../services/api-client';
-export class RegisterViewModel {
-  constructor() {
-    void api;
-  }
-}
+import { AuthViewModel } from './auth-vm'; export default new AuthViewModel('register');

@@ -1,0 +1,139 @@
+<section class="fp-auth fp-auth-register" aria-labelledby="auth-title">
+  <aside class="fa-story" aria-label="Money without borders">
+    <video
+      class="fa-film"
+      data-src="css/media/wallet-journey-loop.mp4"
+      poster="css/media/wallet-journey-loop.jpg"
+      muted
+      loop
+      playsinline
+      preload="none"
+      aria-hidden="true"
+    ></video>
+    <div class="fa-story-shade"></div>
+    <div class="fa-story-copy">
+      <span class="fa-kicker"
+        ><span class="fa-spark" aria-hidden="true">✦</span> MAKE ROOM FOR MORE</span
+      >
+      <h2>Your next<br />chapter.<br />Without borders.</h2>
+      <p>One account. Three currencies.<br />A world of possibilities.</p>
+    </div>
+    <div class="fa-wallet-preview" aria-hidden="true">
+      <div class="fa-preview-top"><span>A world of money. Made yours.</span><span>↗</span></div>
+      <div class="fa-currencies">
+        <span><i>$</i>USD</span><b>⇄</b><span><i>€</i>EUR</span><b>⇄</b><span><i>₹</i>INR</span>
+      </div>
+      <div class="fa-preview-bottom">
+        <span>Ready for your next move.</span><small>Wallet illustration</small>
+      </div>
+    </div>
+    <div class="fa-story-footer">
+      <span>YOUR MONEY. WITHOUT BORDERS.</span
+      ><button
+        class="fa-motion"
+        type="button"
+        data-bind="click:toggleMotion,attr:{'aria-label':motionPaused() ? 'Play background animation' : 'Pause background animation','aria-pressed':motionPaused}"
+      >
+        <span aria-hidden="true" data-bind="text:motionPaused() ? '▷' : 'Ⅱ'"></span
+        ><span data-bind="text:motionPaused() ? 'Play' : 'Pause'"></span>
+      </button>
+    </div>
+  </aside>
+  <div class="fa-form-side">
+    <div class="fa-form-inner">
+      <nav class="fa-switcher" aria-label="Account access">
+        <a href="?ojr=login" data-route="login">Log in</a
+        ><a href="?ojr=register" data-route="register" aria-current="page">Sign up</a>
+      </nav>
+      <div class="fa-intro">
+        <span class="fa-eyebrow">A FRESH START</span>
+        <h1 id="auth-title">Make it yours.</h1>
+        <p>Start with your account details.<br />Your next chapter is just ahead.</p>
+      </div>
+      <ol class="fa-steps" aria-label="Getting started">
+        <li aria-current="step"><span>1</span>Account</li>
+        <li><span>2</span>Verify identity</li>
+        <li><span>3</span>Explore</li>
+      </ol>
+      <div class="alert error fa-alert" role="alert" data-bind="visible:error">
+        <span aria-hidden="true">!</span>
+        <p data-bind="text:error"></p>
+      </div>
+      <div class="alert success fa-alert" role="status" data-bind="visible:notice">
+        <span aria-hidden="true">✓</span>
+        <p data-bind="text:notice"></p>
+      </div>
+      <form class="fa-form" data-bind="submit:signUp,attr:{'aria-busy':busy}">
+        <fieldset data-bind="disable:busy">
+          <legend class="fa-sr-only">Create your FluxPay account</legend>
+          <div class="fa-field">
+            <label for="signup-name">Full name</label
+            ><input
+              id="signup-name"
+              name="fullName"
+              autocomplete="name"
+              required
+              maxlength="255"
+              placeholder="Your full name"
+              data-bind="textInput:fullName"
+            />
+          </div>
+          <div class="fa-field">
+            <label for="signup-email">Email address</label
+            ><input
+              id="signup-email"
+              type="email"
+              name="email"
+              autocomplete="username"
+              inputmode="email"
+              autocapitalize="none"
+              spellcheck="false"
+              required
+              maxlength="255"
+              placeholder="you@example.com"
+              data-bind="textInput:email"
+            />
+          </div>
+          <div class="fa-field">
+            <label for="signup-password">Create a password</label>
+            <div class="fa-password">
+              <input
+                id="signup-password"
+                type="password"
+                name="password"
+                autocomplete="new-password"
+                required
+                minlength="8"
+                maxlength="72"
+                aria-describedby="signup-password-help"
+                placeholder="Choose a password"
+                data-bind="textInput:password,attr:{type:passwordVisible() ? 'text' : 'password'}"
+              /><button
+                class="fa-password-toggle"
+                type="button"
+                aria-controls="signup-password"
+                data-bind="click:togglePassword,attr:{'aria-label':passwordVisible() ? 'Hide password' : 'Show password','aria-pressed':passwordVisible},text:passwordVisible() ? 'Hide' : 'Show'"
+              ></button>
+            </div>
+            <p id="signup-password-help" class="fa-field-help">
+              Use 8–72 characters. Choose a unique password.
+            </p>
+          </div>
+          <button class="fa-submit" type="submit" data-bind="disable:busy">
+            <span class="fa-spinner" aria-hidden="true" data-bind="visible:busy"></span
+            ><span data-bind="text:busy() ? 'Creating your account…' : 'Create account'"></span
+            ><span class="fa-submit-arrow" aria-hidden="true" data-bind="visible:!busy()">↗</span>
+          </button>
+        </fieldset>
+      </form>
+      <p class="fa-next-step">Next up: verify your identity to get ready for transfers.</p>
+      <p class="fa-other">
+        Already part of FluxPay?
+        <a href="?ojr=login" data-route="login">Log in <span aria-hidden="true">→</span></a>
+      </p>
+      <a class="fa-back" href="?ojr=home" data-route="home"
+        ><span aria-hidden="true">←</span> Back to FluxPay</a
+      >
+    </div>
+  </div>
+</section>
