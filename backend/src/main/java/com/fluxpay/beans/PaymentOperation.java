@@ -11,9 +11,18 @@ import java.util.UUID;
     uniqueConstraints =
         @UniqueConstraint(
             name = "uq_payment_operation_key",
-            columnNames = {"user_id", "client_key"}))
+            columnNames = {"user_id", "identity_namespace", "client_key"}))
 public class PaymentOperation {
+  public enum Namespace {
+    PUBLIC,
+    INTERNAL
+  }
+
   @Id private UUID id;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "identity_namespace", nullable = false, length = 10)
+  private Namespace namespace;
 
   @Column(name = "user_id", nullable = false)
   private UUID userId;
@@ -71,6 +80,30 @@ public class PaymentOperation {
       String responseData,
       UUID paymentId,
       Instant createdAt) {
+    this(
+        id,
+        userId,
+        Namespace.PUBLIC,
+        operationType,
+        clientKey,
+        normalizedRequest,
+        outcomeStatus,
+        responseData,
+        paymentId,
+        createdAt);
+  }
+
+  public PaymentOperation(
+      UUID id,
+      UUID userId,
+      Namespace namespace,
+      String operationType,
+      String clientKey,
+      String normalizedRequest,
+      Integer outcomeStatus,
+      String responseData,
+      UUID paymentId,
+      Instant createdAt) {
     OperationJson.requireObject(normalizedRequest);
     if ((outcomeStatus == null) != (responseData == null))
       throw new IllegalArgumentException(
@@ -78,6 +111,7 @@ public class PaymentOperation {
     if (outcomeStatus != null) validateCompletion(outcomeStatus, responseData);
     this.id = id;
     this.userId = userId;
+    this.namespace = java.util.Objects.requireNonNull(namespace);
     this.operationType = operationType;
     this.clientKey = clientKey;
     this.normalizedRequest = normalizedRequest;
@@ -98,6 +132,10 @@ public class PaymentOperation {
 
   public String operationType() {
     return operationType;
+  }
+
+  public Namespace namespace() {
+    return namespace;
   }
 
   public String clientKey() {

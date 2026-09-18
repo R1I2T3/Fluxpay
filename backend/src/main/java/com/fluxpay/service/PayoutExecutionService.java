@@ -1,5 +1,6 @@
 package com.fluxpay.service;
 
+import com.fluxpay.beans.PaymentOperation.Namespace;
 import com.fluxpay.common.contracts.PayoutProvider;
 import com.fluxpay.dto.PayoutApi;
 import com.fluxpay.dto.PayoutResult;
@@ -79,29 +80,29 @@ public class PayoutExecutionService {
     // The automatic ordinal identifies the operation. The expected failed attempt is only
     // a lock-checked precondition for a new reservation; old messages replay a spent ordinal.
     var held = new AtomicReference<PayoutReservationService.Reserved>();
+    Runnable validate =
+        () -> {
+          held.set(
+              failedAttempt == null
+                  ? reservations.reserve(
+                      user,
+                      payment,
+                      action,
+                      route,
+                      replacementQuote,
+                      correlationId,
+                      providers::containsKey)
+                  : reservations.reserveAutomatic(
+                      user, payment, failedAttempt, correlationId, providers::containsKey));
+          operations.capturePayoutReservation(
+              user, failedAttempt == null ? Namespace.PUBLIC : Namespace.INTERNAL, key, held.get());
+        };
     var operation =
-        operations.reserve(
-            user,
-            key,
-            action,
-            payment,
-            request,
-            PayoutApi.OutcomeResponse.class,
-            () -> {
-              held.set(
-                  failedAttempt == null
-                      ? reservations.reserve(
-                          user,
-                          payment,
-                          action,
-                          route,
-                          replacementQuote,
-                          correlationId,
-                          providers::containsKey)
-                      : reservations.reserveAutomatic(
-                          user, payment, failedAttempt, correlationId, providers::containsKey));
-              operations.capturePayoutReservation(user, key, held.get());
-            });
+        failedAttempt == null
+            ? operations.reserve(
+                user, key, action, payment, request, PayoutApi.OutcomeResponse.class, validate)
+            : operations.reserveInternal(
+                user, key, action, payment, request, PayoutApi.OutcomeResponse.class, validate);
     if (operation.replayed()) return operation.response();
     var reserved = held.get();
     // Validate capability before claiming a completed external action: the reservation already

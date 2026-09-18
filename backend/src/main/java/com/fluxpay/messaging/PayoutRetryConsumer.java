@@ -1,5 +1,6 @@
 package com.fluxpay.messaging;
 
+import com.fluxpay.beans.PaymentOperation.Namespace;
 import com.fluxpay.beans.PayoutAttemptStatus;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.repository.*;
@@ -62,7 +63,7 @@ public class PayoutRetryConsumer {
     UUID id = UUID.fromString(event.paymentId());
     UUID sender = payments.findById(id).orElseThrow().senderId();
     int failedAttempt = ((Number) event.payload().get("attempt")).intValue();
-    operations.execute(
+    operations.executeInternal(
         sender,
         "auto:schedule:" + id + ":" + failedAttempt,
         "AUTO_SCHEDULE",
@@ -78,7 +79,8 @@ public class PayoutRetryConsumer {
               || latest.attemptNumber() != failedAttempt)
             return new PaymentOperationService.Result<>(200, Map.of("skipped", true), id);
           long completedRetries =
-              operationRepository.countByPaymentIdAndOperationType(id, "AUTO_RETRY");
+              operationRepository.countByPaymentIdAndNamespaceAndOperationType(
+                  id, Namespace.INTERNAL, "AUTO_RETRY");
           boolean terminal = completedRetries >= 5;
           int ordinal = terminal ? 5 : (int) completedRetries + 1;
           var nextRun = terminal ? latest.completedAt() : latest.completedAt().plusSeconds(120);
@@ -121,7 +123,7 @@ public class PayoutRetryConsumer {
       if (ordinal != 5)
         throw new IllegalArgumentException("Refund requires all five automated retries");
       try {
-        operations.execute(
+        operations.executeInternal(
             sender,
             "auto:refund:" + id + ":5",
             "AUTO_REFUND",
@@ -141,7 +143,9 @@ public class PayoutRetryConsumer {
                     org.springframework.http.HttpStatus.CONFLICT,
                     "STALE_RECOVERY",
                     "A later payout or refund superseded this recovery command.");
-              if (operationRepository.countByPaymentIdAndOperationType(id, "AUTO_RETRY") != 5)
+              if (operationRepository.countByPaymentIdAndNamespaceAndOperationType(
+                      id, Namespace.INTERNAL, "AUTO_RETRY")
+                  != 5)
                 throw new IllegalStateException("Refund requires all five automated retries");
               var result = recovery.refundFunded(sender, id, event.correlationId());
               return new PaymentOperationService.Result<>(

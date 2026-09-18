@@ -849,6 +849,29 @@ class PayoutLifecycleIntegrationTest {
   void fiveDelayedRetriesThenOneRefundDespiteDuplicateDeliveries() {
     delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
     submit();
+    completeAutomaticRecovery();
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"schedule", "retry", "refund"})
+  void publicRecoveryLookingKeysCannotBlockAutomaticRecovery(String kind) {
+    String key = "auto:" + kind + ":" + id + (kind.equals("refund") ? ":5" : ":1");
+    delivery = cmd -> PayoutResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    var initial = execution.perform(user, key, "SUBMIT", id, "BANK", null, "cid");
+    var publicOperation = operations.findAll().get(0);
+    assertThatCode(this::completeAutomaticRecovery).doesNotThrowAnyException();
+    assertThat(execution.perform(user, key, "SUBMIT", id, "BANK", null, "cid")).isEqualTo(initial);
+    assertThat(operations.findById(publicOperation.id()).orElseThrow().responseData())
+        .isEqualTo(publicOperation.responseData());
+    assertThat(operations.findAll().stream().filter(op -> key.equals(op.clientKey()))).hasSize(2);
+    assertThatThrownBy(() -> execution.perform(user, key, "RETRY", id, null, null, "cid"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.BusinessException.class,
+            ex -> assertThat(ex.code()).isEqualTo("IDEMPOTENCY_CONFLICT"));
+    assertThat(calls).hasValue(6);
+  }
+
+  void completeAutomaticRecovery() {
     var consumer = recoveryConsumer();
     for (int retry = 1; retry <= 5; retry++) {
       var failure = recoveryEvent("payout.failed", "attempt", retry);
