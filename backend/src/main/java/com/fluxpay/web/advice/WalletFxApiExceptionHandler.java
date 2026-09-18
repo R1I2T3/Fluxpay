@@ -22,8 +22,24 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = {WalletController.class, FxController.class})
+@RestControllerAdvice(
+    assignableTypes = {
+      WalletController.class,
+      FxController.class,
+      com.fluxpay.controller.BankAccountController.class
+    })
 public class WalletFxApiExceptionHandler {
+  @ExceptionHandler(com.fluxpay.exception.BusinessException.class)
+  public ResponseEntity<ApiError> business(com.fluxpay.exception.BusinessException exception) {
+    return response(exception.status(), exception.code(), exception.getMessage());
+  }
+
+  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  public ResponseEntity<ApiError> invalidBody(
+      org.springframework.http.converter.HttpMessageNotReadableException exception) {
+    return response(HttpStatus.BAD_REQUEST, "VALIDATION", "Request body is invalid");
+  }
+
   @ExceptionHandler(com.fluxpay.exception.SystemAccountUnavailableException.class)
   public ResponseEntity<ApiError> systemAccountUnavailable(
       com.fluxpay.exception.SystemAccountUnavailableException exception) {

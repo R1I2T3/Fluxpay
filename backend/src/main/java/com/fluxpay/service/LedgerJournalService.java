@@ -6,12 +6,12 @@ import com.fluxpay.beans.LedgerTransactionCategory;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.LedgerWriter;
+import com.fluxpay.exception.InsufficientWalletFundsException;
 import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.repository.LedgerEntryRepository;
 import com.fluxpay.repository.LedgerJournalLockRepository;
 import com.fluxpay.repository.LedgerJournalRepository;
 import com.fluxpay.repository.WalletRepository;
-import com.fluxpay.exception.InsufficientWalletFundsException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -70,7 +70,17 @@ public class LedgerJournalService {
       String journalReference,
       LedgerTransactionCategory transactionCategory,
       List<LedgerJournalLine> lines) {
-    postInternal(journalReference, transactionCategory, lines, null, () -> {});
+    postInternal(journalReference, transactionCategory, lines, null, () -> {}, false);
+  }
+
+  /** Runs a posting guard after the journal lock and canonical wallet locks are held. */
+  @Transactional
+  public void postLocked(
+      String reference,
+      LedgerTransactionCategory category,
+      List<LedgerJournalLine> lines,
+      Runnable guard) {
+    postInternal(reference, category, lines, null, Objects.requireNonNull(guard), true);
   }
 
   @Transactional
@@ -85,7 +95,8 @@ public class LedgerJournalService {
         transactionCategory,
         lines,
         Objects.requireNonNull(reservation, "reservation"),
-        Objects.requireNonNull(beforeReservation, "beforeReservation"));
+        Objects.requireNonNull(beforeReservation, "beforeReservation"),
+        false);
   }
 
   private void postInternal(
@@ -93,7 +104,8 @@ public class LedgerJournalService {
       LedgerTransactionCategory transactionCategory,
       List<LedgerJournalLine> lines,
       WalletReservation reservation,
-      Runnable beforeReservation) {
+      Runnable beforeReservation,
+      boolean lockWallets) {
     validateText(journalReference, "journalReference", 64);
     Objects.requireNonNull(transactionCategory, "transactionCategory");
     if (lines == null || lines.isEmpty()) {
@@ -143,8 +155,7 @@ public class LedgerJournalService {
     LedgerJournal existing = journals.findByJournalReference(journalReference).orElse(null);
     if (existing != null) {
       if (existing.getTransactionCategory() != transactionCategory
-          || (existing.getPayloadHash() != null
-              && !existing.getPayloadHash().equals(payloadHash))
+          || (existing.getPayloadHash() != null && !existing.getPayloadHash().equals(payloadHash))
           || (existing.getPayloadHash() == null
               && !historicalPayloadMatches(journalReference, transactionCategory, lines))) {
         throw new LedgerIdempotencyConflictException(journalReference);
@@ -154,6 +165,12 @@ public class LedgerJournalService {
     if (reservation != null) {
       reserve(lines, reservation, beforeReservation);
     } else {
+      if (lockWallets) {
+        Set<java.util.UUID> ids = new HashSet<>();
+        lines.forEach(line -> ids.add(line.walletId()));
+        if (wallets.findAllByIdForUpdate(ids).size() != ids.size())
+          throw new IllegalArgumentException("Journal contains a wallet that does not exist");
+      }
       beforeReservation.run();
     }
     journals.saveAndFlush(
@@ -211,7 +228,8 @@ public class LedgerJournalService {
         locked.stream()
             .filter(wallet -> wallet.getId().equals(reservation.walletId()))
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Reservation wallet is not in journal"));
+            .orElseThrow(
+                () -> new IllegalArgumentException("Reservation wallet is not in journal"));
     if (source.getAccountRole() != WalletAccountRole.CUSTOMER
         || !source.getCurrency().equals(reservation.currency())) {
       throw new IllegalArgumentException("Reservation must target the source customer wallet");
@@ -248,7 +266,8 @@ public class LedgerJournalService {
     }
     if (line.rate() != null) {
       if (line.rate().signum() <= 0 || line.rate().scale() > 8) {
-        throw new IllegalArgumentException("rate must be positive with at most eight decimal places");
+        throw new IllegalArgumentException(
+            "rate must be positive with at most eight decimal places");
       }
       if (line.rate().setScale(8).precision() > 19) {
         throw new IllegalArgumentException("rate exceeds NUMBER(19,8)");
@@ -278,7 +297,8 @@ public class LedgerJournalService {
             .map(LedgerJournalService::canonicalLine)
             .sorted()
             .toList();
-    List<String> replayed = requested.stream().map(LedgerJournalService::canonicalLine).sorted().toList();
+    List<String> replayed =
+        requested.stream().map(LedgerJournalService::canonicalLine).sorted().toList();
     return stored.equals(replayed);
   }
 
@@ -331,7 +351,10 @@ public class LedgerJournalService {
     StringBuilder encoded = new StringBuilder();
     for (String field : fields) {
       byte[] bytes = field.getBytes(StandardCharsets.UTF_8);
-      encoded.append(bytes.length).append(':').append(java.util.Base64.getEncoder().encodeToString(bytes));
+      encoded
+          .append(bytes.length)
+          .append(':')
+          .append(java.util.Base64.getEncoder().encodeToString(bytes));
     }
     return encoded.toString();
   }

@@ -53,6 +53,8 @@ class WalletControllerTest {
   @MockBean DemoFundingService funding;
   @MockBean WalletConversionService conversion;
   @MockBean WalletQueryService queries;
+  @MockBean com.fluxpay.service.WalletTransferService transfers;
+  @MockBean com.fluxpay.service.BankAccountService banks;
   @MockBean JwtUtil jwt;
 
   @BeforeEach
@@ -196,6 +198,57 @@ class WalletControllerTest {
                 .content("{\"from\":\"USD\",\"to\":\"INR\",\"amount\":\"100.0000\"}"))
         .andExpect(status().isUnprocessableEntity())
         .andExpect(jsonPath("$.code").value("INSUFFICIENT_FUNDS"));
+  }
+
+  @Test
+  void transferEndpointUsesAuthenticatedOwnerAndCorrelationEnvelope() throws Exception {
+    var request =
+        new com.fluxpay.dto.WalletTransferRequest(
+            UUID.randomUUID(), null, "USD", "EUR", "10", "SOURCE", "gift");
+    var response =
+        new com.fluxpay.dto.WalletTransferResponse(
+            "source",
+            "target",
+            "USD",
+            "EUR",
+            "10.0000",
+            "0.0500",
+            "9.9500",
+            "9.1500",
+            "0.92000000",
+            "quote",
+            "wallet:p2p:test");
+    when(transfers.transfer(eq(USER_ID), eq(request), eq("transfer-key"))).thenReturn(response);
+    mvc.perform(
+            post("/api/wallets/transfer")
+                .header("Authorization", "Bearer " + TOKEN)
+                .header("Idempotency-Key", "transfer-key")
+                .header("X-Correlation-ID", "transfer-cid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.correlationId").value("transfer-cid"))
+        .andExpect(jsonPath("$.data.creditedAmount").value("9.1500"));
+  }
+
+  @Test
+  void withdrawEndpointPreservesBusinessErrorCode() throws Exception {
+    when(banks.withdraw(eq(USER_ID), any(), eq("withdraw-key")))
+        .thenThrow(
+            new com.fluxpay.exception.BusinessException(
+                org.springframework.http.HttpStatus.CONFLICT,
+                "BANK_ACCOUNT_NOT_VERIFIED",
+                "Bank account must be verified"));
+    mvc.perform(
+            post("/api/wallets/withdraw")
+                .header("Authorization", "Bearer " + TOKEN)
+                .header("Idempotency-Key", "withdraw-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"bankAccountId\":\"11111111-1111-1111-1111-111111111111\",\"currency\":\"USD\",\"amount\":\"1\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("BANK_ACCOUNT_NOT_VERIFIED"));
   }
 
   @Test

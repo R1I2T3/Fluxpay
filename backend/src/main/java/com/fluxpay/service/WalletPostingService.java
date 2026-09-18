@@ -2,10 +2,10 @@ package com.fluxpay.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fluxpay.beans.LedgerTransactionCategory;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.beans.WalletOperation;
-import com.fluxpay.beans.LedgerTransactionCategory;
 import com.fluxpay.domain.ConversionCalculation;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertResponse;
@@ -230,6 +230,129 @@ public class WalletPostingService {
             snapshot.stale(),
             journalReference);
     operation.complete(snapshot(response));
+    operations.saveAndFlush(operation);
+    return response;
+  }
+
+  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+  public com.fluxpay.dto.WalletTransferResponse transfer(
+      UUID userId,
+      UUID recipientId,
+      String from,
+      String to,
+      ConversionCalculation calculation,
+      BigDecimal targetCredit,
+      FxSnapshot quote,
+      String note,
+      String normalizedRequest,
+      String clientKey) {
+    if (operations
+        .findByUserIdAndOperationTypeAndClientKey(userId, "TRANSFER", clientKey)
+        .isPresent()) throw new OperationRaceException();
+    UUID id = UUID.randomUUID();
+    String reference = "wallet:p2p:" + id;
+    WalletOperation operation =
+        new WalletOperation(id, userId, "TRANSFER", clientKey, normalizedRequest, reference);
+    operations.saveAndFlush(operation);
+    Wallet source =
+        wallets
+            .findByUserIdAndCurrencyAndAccountRole(userId, from, WalletAccountRole.CUSTOMER)
+            .orElseThrow(
+                () -> new IllegalArgumentException("Source customer wallet not found for " + from));
+    Wallet target =
+        wallets
+            .findByUserIdAndCurrencyAndAccountRole(recipientId, to, WalletAccountRole.CUSTOMER)
+            .orElseGet(
+                () ->
+                    wallets.saveAndFlush(new Wallet(recipientId, to, WalletAccountRole.CUSTOMER)));
+    List<LedgerJournalLine> lines = new ArrayList<>();
+    BigDecimal rate = quote == null ? null : calculation.rate();
+    String quoteId = quote == null ? null : FxQuoteValidator.quoteId(quote);
+    lines.add(line(source, "DEBIT", calculation.gross(), from, id, "source", note, rate, quoteId));
+    if (quote != null) {
+      if (calculation.rate().compareTo(quote.rate()) != 0)
+        throw new IllegalArgumentException("Calculated FX rate does not match accepted quote");
+      lines.add(
+          line(
+              systemAccounts.require(from, WalletAccountRole.FX_CLEARING),
+              "CREDIT",
+              calculation.net(),
+              from,
+              id,
+              "source-clearing",
+              note,
+              rate,
+              quoteId));
+      if (calculation.fee().signum() > 0)
+        lines.add(
+            line(
+                systemAccounts.require(from, WalletAccountRole.FEE_REVENUE),
+                "CREDIT",
+                calculation.fee(),
+                from,
+                id,
+                "fee",
+                note,
+                rate,
+                quoteId));
+      BigDecimal clearing =
+          calculation.net().multiply(rate).setScale(4, java.math.RoundingMode.HALF_UP);
+      lines.add(
+          line(
+              systemAccounts.require(to, WalletAccountRole.FX_CLEARING),
+              "DEBIT",
+              clearing,
+              to,
+              id,
+              "target-clearing",
+              note,
+              rate,
+              quoteId));
+      BigDecimal difference = clearing.subtract(targetCredit);
+      if (difference.signum() != 0)
+        lines.add(
+            line(
+                systemAccounts.require(to, WalletAccountRole.FX_GAIN_LOSS),
+                difference.signum() > 0 ? "CREDIT" : "DEBIT",
+                difference.abs(),
+                to,
+                id,
+                "rounding",
+                note,
+                rate,
+                quoteId));
+    }
+    lines.add(line(target, "CREDIT", targetCredit, to, id, "target", note, rate, quoteId));
+    LedgerTransactionCategory category =
+        userId.equals(recipientId)
+            ? LedgerTransactionCategory.SELF_TRANSFER
+            : LedgerTransactionCategory.WALLET_TO_WALLET;
+    journals.postReserved(
+        reference,
+        category,
+        lines,
+        new WalletReservation(source.getId(), id + ":source", from, calculation.gross()),
+        () -> {
+          if (quote != null) quoteValidator.accept(quote, from, to);
+        });
+    var response =
+        new com.fluxpay.dto.WalletTransferResponse(
+            source.getId().toString(),
+            target.getId().toString(),
+            from,
+            to,
+            calculation.gross().toPlainString(),
+            calculation.fee().toPlainString(),
+            calculation.net().toPlainString(),
+            targetCredit.toPlainString(),
+            rate == null ? null : rate.toPlainString(),
+            quoteId,
+            reference);
+    try {
+      operation.complete(objectMapper.writeValueAsString(response));
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Could not store transfer response", e);
+    }
     operations.saveAndFlush(operation);
     return response;
   }

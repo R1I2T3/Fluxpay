@@ -37,8 +37,7 @@ class ConversionMathTest {
   @Test
   void calculatesOneDefaultFeeNetAndCreditResultWithCurrencyHalfUpRounding() {
     ConversionCalculation result =
-        calculator.calculate(
-            "USD", "INR", new BigDecimal("101.00"), new BigDecimal("1.234567894"));
+        calculator.calculate("USD", "INR", new BigDecimal("101.00"), new BigDecimal("1.234567894"));
 
     assertEquals(new BigDecimal("101.0000"), result.gross());
     assertEquals(new BigDecimal("0.5100"), result.fee());
@@ -113,5 +112,29 @@ class ConversionMathTest {
         () ->
             calculator.calculate(
                 "USD", "EUR", new BigDecimal("0.01"), new BigDecimal("0.00000001")));
+  }
+
+  @Test
+  void targetGrossUpReusesConfiguredSourceCurrencyFee() {
+    fees.setFeeRates(Map.of("USD", new BigDecimal("0.01")));
+    ConversionCalculation result =
+        calculator.calculateTarget("USD", "INR", new BigDecimal("99"), BigDecimal.ONE);
+    assertEquals(new BigDecimal("100.0000"), result.gross());
+    assertEquals(new BigDecimal("1.0000"), result.fee());
+    assertEquals(new BigDecimal("99.0000"), result.net());
+  }
+
+  @Test
+  void targetGrossUpHandlesNearOneFeeAndRejectsUnfundableTarget() {
+    fees.setFeeRates(Map.of("USD", new BigDecimal("0.999")));
+    ConversionCalculation result =
+        calculator.calculateTarget("USD", "EUR", new BigDecimal("0.01"), BigDecimal.ONE);
+    assertEquals(new BigDecimal("5.0100"), result.gross());
+    assertEquals(new BigDecimal("5.0000"), result.fee());
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            calculator.calculateTarget(
+                "USD", "EUR", new BigDecimal("999999999999999.99"), BigDecimal.ONE));
   }
 }

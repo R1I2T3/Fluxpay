@@ -35,7 +35,8 @@ public class ConversionMath {
             .setScale(sourceScale, RoundingMode.HALF_UP);
     BigDecimal net = businessGross.subtract(fee).setScale(sourceScale, RoundingMode.HALF_UP);
     if (net.signum() <= 0) {
-      throw new IllegalArgumentException("Amount remaining after the fee must be greater than zero");
+      throw new IllegalArgumentException(
+          "Amount remaining after the fee must be greater than zero");
     }
     BigDecimal credit = net.multiply(acceptedRate).setScale(targetScale, RoundingMode.HALF_UP);
     if (credit.signum() <= 0) {
@@ -44,6 +45,31 @@ public class ConversionMath {
     validateStorageLimit(credit, "Converted amount");
     return new ConversionCalculation(
         storage(businessGross), storage(fee), storage(net), storage(credit), acceptedRate);
+  }
+
+  /** Smallest source minor-unit gross whose post-fee net funds the requested target. */
+  public ConversionCalculation calculateTarget(
+      String from, String to, BigDecimal target, BigDecimal rate) {
+    validateSourceAmount(target, currencies.scale(to));
+    int scale = currencies.scale(from);
+    BigDecimal accepted = acceptedRate(rate);
+    BigDecimal requiredNet = target.divide(accepted, scale, RoundingMode.CEILING);
+    java.math.BigInteger low = requiredNet.movePointRight(scale).toBigIntegerExact();
+    java.math.BigInteger high =
+        MAX_MONEY.setScale(scale, RoundingMode.DOWN).movePointRight(scale).toBigIntegerExact();
+    BigDecimal feeRate = fees.rateFor(from);
+    while (low.compareTo(high) < 0) {
+      java.math.BigInteger middle = low.add(high).shiftRight(1);
+      BigDecimal gross = new BigDecimal(middle, scale);
+      BigDecimal net =
+          gross.subtract(gross.multiply(feeRate).setScale(scale, RoundingMode.HALF_UP));
+      if (net.compareTo(requiredNet) >= 0) high = middle;
+      else low = middle.add(java.math.BigInteger.ONE);
+    }
+    ConversionCalculation calculation = calculate(from, to, new BigDecimal(low, scale), accepted);
+    if (calculation.net().compareTo(requiredNet) < 0 || calculation.credit().compareTo(target) < 0)
+      throw new IllegalArgumentException("Target amount cannot be funded within the money limit");
+    return calculation;
   }
 
   private static void validateSourceAmount(BigDecimal sourceAmount, int currencyScale) {

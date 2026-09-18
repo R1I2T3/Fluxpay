@@ -8,5 +8,7 @@ import org.springframework.data.repository.Repository;
 public interface BankAccountRepository extends Repository<BankAccount, UUID> {
   BankAccount save(BankAccount account);
 
+  java.util.Optional<BankAccount> findById(UUID id);
+
   List<BankAccount> findByUserId(UUID userId);
 }
