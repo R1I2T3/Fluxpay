@@ -1,2 +1,7 @@
 logging.level.com.fluxpay: DEBUG
 springdoc.swagger-ui.path: /swagger-ui.html
+spring:
+  flyway:
+    # V006 was introduced after the independently owned V601–V605 migrations. This lets the
+    # shared local schema apply it safely while production migration ordering is coordinated.
+    out-of-order: true

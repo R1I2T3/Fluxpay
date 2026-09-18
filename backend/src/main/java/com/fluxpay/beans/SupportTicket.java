@@ -7,9 +7,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "support_tickets")
@@ -18,12 +20,15 @@ public class SupportTicket {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
+  @JdbcTypeCode(Types.BINARY)
   @Column(name = "id", columnDefinition = "RAW(16)")
   private UUID id;
 
+  @JdbcTypeCode(Types.BINARY)
   @Column(name = "user_id", nullable = false, columnDefinition = "RAW(16)")
   private UUID userId;
 
+  @JdbcTypeCode(Types.BINARY)
   @Column(name = "payment_id", columnDefinition = "RAW(16)")
   private UUID paymentId;
 
@@ -36,22 +41,32 @@ public class SupportTicket {
   @Column(name = "status", nullable = false, length = 20)
   private String status = "OPEN";
 
+  @JdbcTypeCode(Types.BINARY)
   @Column(name = "assignee_admin_id", columnDefinition = "RAW(16)")
   private UUID assigneeAdminId;
 
+  @JdbcTypeCode(Types.TIMESTAMP)
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
+  @JdbcTypeCode(Types.TIMESTAMP)
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
   protected SupportTicket() {}
 
   public SupportTicket(UUID userId, UUID paymentId, String subject, String body) {
+    this(userId, paymentId, subject, body, Instant.now());
+  }
+
+  public SupportTicket(
+      UUID userId, UUID paymentId, String subject, String body, Instant createdAt) {
     this.userId = userId;
     this.paymentId = paymentId;
     this.subject = subject;
     this.body = body;
+    this.createdAt = createdAt;
+    this.updatedAt = createdAt;
   }
 
   @PrePersist
@@ -105,7 +120,7 @@ public class SupportTicket {
   }
 
   public void moveTo(String nextStatus, Instant now) {
-    if (!STATUSES.contains(nextStatus)) {
+    if (!isSupportedStatus(nextStatus)) {
       throw new IllegalArgumentException("INVALID_STATUS_TRANSITION");
     }
     if ("CLOSED".equals(status) && !"OPEN".equals(nextStatus)) {
@@ -113,6 +128,10 @@ public class SupportTicket {
     }
     status = nextStatus;
     updatedAt = now;
+  }
+
+  public static boolean isSupportedStatus(String status) {
+    return STATUSES.contains(status);
   }
 
   public void assignTo(UUID adminId, Instant now) {

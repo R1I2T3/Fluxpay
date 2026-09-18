@@ -97,7 +97,11 @@ class BackendAcceptanceIT {
   @Test
   void fullPaymentRecoveryAndMessagingLifecycleUsesDedicatedInfrastructure() throws Exception {
     assertThat(flyway.info().pending()).isEmpty();
-    assertThat(flyway.info().applied()).hasSize(5);
+    assertThat(flyway.info().applied())
+        .anyMatch(
+            migration ->
+                migration.getVersion() != null
+                    && "006".equals(migration.getVersion().getVersion()));
 
     mvc.perform(get("/api/wallets").header("X-Local-User-Id", UUID.randomUUID()))
         .andExpect(status().isUnauthorized());

@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 /**
- * Fresh V001..V005 baseline gate. Runs only against the isolated FLUXPAY_TEST schema; it never
+ * Fresh migration baseline gate. Runs only against the isolated FLUXPAY_TEST schema; it never
  * migrates or resets the application development schema.
  */
 @EnabledIfEnvironmentVariable(named = "ORACLE_TESTS_ACTIVE", matches = "true")
@@ -76,7 +76,9 @@ class FreshBaselineOracleTest {
       "SCREENING_CASES",
       "POLICIES",
       "POLICY_DECISIONS",
-      "DOCUMENT_EMBEDDINGS"
+      "DOCUMENT_EMBEDDINGS",
+      "SUPPORT_TICKETS",
+      "SUPPORT_TICKET_MESSAGES"
     };
     try (Connection connection = connect();
         Statement statement = connection.createStatement()) {
