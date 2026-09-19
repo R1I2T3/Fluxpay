@@ -308,7 +308,7 @@ class PaymentAccountingTest {
             "INR",
             com.fluxpay.beans.PaymentPurpose.FAMILY_SUPPORT,
             com.fluxpay.domain.RoutePreference.CHEAPEST,
-            "{}",
+            "{\"name\":\"Recipient\",\"account\":\"account\",\"bankName\":\"Bank\",\"country\":\"IN\",\"currency\":\"INR\"}",
             now);
     payment.quoted(1, now);
     var quote =

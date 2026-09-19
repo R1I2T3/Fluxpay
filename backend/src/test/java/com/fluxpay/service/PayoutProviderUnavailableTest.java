@@ -203,7 +203,7 @@ class PayoutProviderUnavailableTest {
             "INR",
             PaymentPurpose.FAMILY_SUPPORT,
             RoutePreference.CHEAPEST,
-            "{}",
+            QuoteEntryPointsTest.snapshot("IN", "INR"),
             NOW);
     final PaymentRepository payments = mock(PaymentRepository.class);
     final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);

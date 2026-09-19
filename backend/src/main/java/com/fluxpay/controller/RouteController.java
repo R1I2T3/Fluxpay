@@ -60,7 +60,7 @@ public class RouteController {
   }
 
   private RouteApi.RouteEntry toEntry(TransferRoute route) {
-    RouteReliabilityService.RouteReliability metric = catalog.metricFor(route.getId());
+    RouteReliabilityService.RouteReliability metric = catalog.metricFor(route);
     return toEntry(route, metric);
   }
 
@@ -84,26 +84,31 @@ public class RouteController {
 
   private static RouteApi.RecommendResponse toResponse(
       String paymentId, RoutePreference preference, RouteRecommendation recommendation) {
-    // Task 7 owns this path — compile-restoration only
     String recommendedId = recommendation.recommended().quote().route().getId().toString();
     List<RouteApi.Quote> quotes =
         recommendation.quotes().stream()
             .map(
                 ranked -> {
-                  // Task 7 owns this path — compile-restoration only
                   var quote = ranked.quote();
+                  TransferRoute route = quote.route();
                   return new RouteApi.Quote(
-                      quote.route().getId().toString(),
-                      quote.route().getName(),
+                      route.getId().toString(),
+                      route.getRouteCode(),
+                      route.getName(),
+                      route.getProvider().getId().toString(),
+                      route.getProviderName(),
                       quote.marketRate(),
                       quote.offeredRate(),
                       quote.feeAmount(),
                       quote.recipientAmount(),
-                      quote.route().getEstimatedMinutes(),
-                      quote.route().getId().toString().equals(recommendedId));
+                      route.getEstimatedMinutes(),
+                      quote.effectiveReliability(),
+                      ranked.score(),
+                      ranked.position(),
+                      route.getId().toString().equals(recommendedId));
                 })
             .toList();
-    String reason = "preference " + preference + " over " + quotes.size() + " active routes";
-    return new RouteApi.RecommendResponse(paymentId, recommendedId, reason, quotes);
+    return new RouteApi.RecommendResponse(
+        paymentId, recommendedId, recommendation.reason(), quotes);
   }
 }

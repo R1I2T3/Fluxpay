@@ -51,9 +51,13 @@ class MigrationContractTest {
     String sql = resource("V003__routing_payments_and_quotes.sql");
     assertThat(sql)
         .doesNotContain("REFERENCES payout_routes (route_code)")
+        .contains("route_id RAW(16) NOT NULL REFERENCES transfer_routes(id)")
+        .contains("route_code VARCHAR2(50) NOT NULL")
+        .contains("provider_id RAW(16) NOT NULL REFERENCES transfer_providers(id)")
+        .contains("effective_reliability NUMBER(9,6) NOT NULL")
+        .contains("ranking_score NUMBER(19,12) NOT NULL")
         .contains(
-            "CONSTRAINT fk_payment_quote_route FOREIGN KEY (route) REFERENCES transfer_routes (route_code)")
-        .contains("CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route)")
+            "CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route_id)")
         .contains(
             "ALTER TABLE payments ADD CONSTRAINT fk_payment_selected_quote FOREIGN KEY"
                 + " (selected_quote_id) REFERENCES payment_quotes (id)");

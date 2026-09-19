@@ -22,26 +22,17 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
   @Test
   void currentQuoteStaysFrozenAfterRouteEditsWithOnlyOneActiveRoute() {
     UUID user = UUID.randomUUID();
-    Payment payment =
-        new Payment(
-            UUID.randomUUID(),
-            user,
-            UUID.randomUUID(),
-            recipient(user),
-            new BigDecimal("100.0000"),
-            "USD",
-            "KES",
-            PaymentPurpose.FAMILY_SUPPORT,
-            RoutePreference.CHEAPEST,
-            "{}",
-            NOW);
+    TransferProvider provider =
+        TransferProvider.create(
+            UUID.randomUUID(), "TEST_BANK", "Test Bank", RailType.BANK_NETWORK, true, false, NOW);
+    Payment payment = payment(user, RoutePreference.CHEAPEST, provider);
     PaymentRepository payments = mock(PaymentRepository.class);
     PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
     TransferRouteRepository routes = mock(TransferRouteRepository.class);
     TransferRoute route =
-        TransferRoute.seed(
-            UUID.randomUUID(), "STANDARD_BANK", "Bank", "Bank", "STANDARD", "5", "0", 240, "99.5");
-    when(routes.findByActiveTrueOrderByRouteCodeAsc()).thenReturn(List.of(route));
+        QuoteEntryPointsTest.external(
+            "STANDARD_BANK", "KE", "KES", "5", "0", 240, "99.5", provider);
+    when(routes.findAllByOrderByRouteCodeAsc()).thenReturn(List.of(route));
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.saveAll(any()))
         .thenAnswer(
@@ -52,21 +43,7 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
                   .thenReturn(saved);
               return saved;
             });
-    var service =
-        new QuoteService(
-            payments,
-            quotes,
-            (s, t) -> new BigDecimal("80"),
-            Clock.fixed(NOW, ZoneOffset.UTC),
-            routes,
-            new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()),
-            new RouteRecommender(),
-            new PaymentOperationService(
-                mock(PaymentOperationRepository.class),
-                new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
-                Clock.systemUTC(),
-                mock(org.springframework.transaction.PlatformTransactionManager.class)),
-            mock(PaymentRecoveryEligibility.class));
+    var service = service(payments, quotes, routes, provider);
     var first = service.createOrCurrent(user, payment.id(), "quote-key");
     route.update("20", "5", 5, "90", true);
     var second = service.createOrCurrent(user, payment.id(), "quote-key");
@@ -172,55 +149,72 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
   @Test
   void quoteUsesActiveProviderIdentityAndSourceCurrencyFee() {
     UUID user = UUID.randomUUID();
-    Payment payment =
-        new Payment(
-            UUID.randomUUID(),
-            user,
-            UUID.randomUUID(),
-            recipient(user),
-            new BigDecimal("100.0000"),
-            "USD",
-            "KES",
-            PaymentPurpose.FAMILY_SUPPORT,
-            RoutePreference.CHEAPEST,
-            "{}",
-            NOW);
+    TransferProvider provider =
+        TransferProvider.create(
+            UUID.randomUUID(), "TEST_BANK", "Test Bank", RailType.BANK_NETWORK, true, false, NOW);
+    Payment payment = payment(user, RoutePreference.CHEAPEST, provider);
     PaymentRepository payments = mock(PaymentRepository.class);
     PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-    FxRateProvider fx = (source, target) -> new BigDecimal("80.000000");
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.saveAll(any())).thenAnswer(i -> i.getArgument(0));
     TransferRouteRepository routes = mock(TransferRouteRepository.class);
-    when(routes.findByActiveTrueOrderByRouteCodeAsc())
+    when(routes.findAllByOrderByRouteCodeAsc())
         .thenReturn(
             List.of(
-                TransferRoute.seed(
-                    UUID.randomUUID(),
-                    "STANDARD_BANK",
-                    "Bank",
-                    "Bank",
-                    "STANDARD",
-                    "5",
-                    "0",
-                    240,
-                    "99.5")));
+                QuoteEntryPointsTest.external(
+                    "STANDARD_BANK", "KE", "KES", "5", "0", 240, "99.5", provider)));
     var result =
-        new QuoteService(
-                payments,
-                quotes,
-                fx,
-                Clock.fixed(NOW, ZoneOffset.UTC),
-                routes,
-                new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()),
-                new RouteRecommender(),
-                new PaymentOperationService(
-                    mock(PaymentOperationRepository.class),
-                    new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
-                    Clock.systemUTC(),
-                    mock(org.springframework.transaction.PlatformTransactionManager.class)),
-                mock(PaymentRecoveryEligibility.class))
+        service(payments, quotes, routes, provider)
             .createOrCurrent(user, payment.id(), "quote-key");
-    assertThat(result.quotes()).extracting(q -> q.route()).containsExactly("STANDARD_BANK");
+    assertThat(result.quotes()).extracting(q -> q.routeCode()).containsExactly("STANDARD_BANK");
     assertThat(result.quotes().get(0).recipientAmount()).isEqualTo("7600.0000");
+    assertThat(result.quotes().get(0).routeId())
+        .isEqualTo(routes.findAllByOrderByRouteCodeAsc().get(0).getId());
+    assertThat(result.quotes().get(0).providerId()).isEqualTo(provider.getId());
+    assertThat(result.quotes().get(0).rankingPosition()).isEqualTo(1);
+  }
+
+  private static Payment payment(UUID user, RoutePreference preference, TransferProvider provider) {
+    return new Payment(
+        UUID.randomUUID(),
+        user,
+        UUID.randomUUID(),
+        recipient(user),
+        new BigDecimal("100.0000"),
+        "USD",
+        "KES",
+        PaymentPurpose.FAMILY_SUPPORT,
+        preference,
+        QuoteEntryPointsTest.snapshot("KE", "KES"),
+        NOW);
+  }
+
+  private static QuoteService service(
+      PaymentRepository payments,
+      PaymentQuoteRepository quotes,
+      TransferRouteRepository routes,
+      TransferProvider provider) {
+    TransferRouteOutcomeRepository outcomes = mock(TransferRouteOutcomeRepository.class);
+    when(outcomes.countByRouteIds(any())).thenReturn(List.of());
+    SmartRoutingService smart =
+        new SmartRoutingService(
+            routes,
+            new RouteEligibilityService(new RailRegistry(List.of(QuoteEntryPointsTest.fakeRail()))),
+            new RouteReliabilityService(outcomes),
+            new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()),
+            new RouteRecommender());
+    FxRateProvider fx = (source, target) -> new BigDecimal("80.000000");
+    return new QuoteService(
+        payments,
+        quotes,
+        fx,
+        Clock.fixed(NOW, ZoneOffset.UTC),
+        smart,
+        new PaymentOperationService(
+            mock(PaymentOperationRepository.class),
+            new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules(),
+            Clock.systemUTC(),
+            mock(org.springframework.transaction.PlatformTransactionManager.class)),
+        mock(PaymentRecoveryEligibility.class));
   }
 }

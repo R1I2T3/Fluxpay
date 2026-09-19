@@ -136,7 +136,7 @@ class PayoutLifecycleIntegrationTest {
             "INR",
             PaymentPurpose.FAMILY_SUPPORT,
             RoutePreference.BALANCED,
-            "{}",
+            "{\"name\":\"A\",\"account\":\"acct\",\"bankName\":\"Bank\",\"country\":\"IN\",\"currency\":\"INR\"}",
             NOW);
     payment.quoted(payment.nextQuoteGeneration(), NOW);
     payment.selectAndProcess(quoteId, NOW);
@@ -286,8 +286,8 @@ class PayoutLifecycleIntegrationTest {
             code,
             name,
             DestinationType.EXTERNAL_ACCOUNT,
-            "ZZ",
-            "USD",
+            "IN",
+            "INR",
             new BigDecimal(fee),
             new BigDecimal("0.000000"),
             1,
@@ -428,6 +428,17 @@ class PayoutLifecycleIntegrationTest {
   }
 
   QuoteService quoteService() {
+    var repositories =
+        new JpaRepositoryFactory(
+            SharedEntityManagerCreator.createSharedEntityManager(factory.getObject()));
+    var outcomes = repositories.getRepository(TransferRouteOutcomeRepository.class);
+    var smart =
+        new SmartRoutingService(
+            routes,
+            new RouteEligibilityService(new RailRegistry(List.of(bankRail()))),
+            new RouteReliabilityService(outcomes),
+            new RoutePricingService(new QuotePricingPolicy()),
+            new RouteRecommender());
     return new QuoteService(
         payments,
         quotes,
@@ -437,15 +448,33 @@ class PayoutLifecycleIntegrationTest {
           return new BigDecimal("82.000000");
         },
         clock,
-        routes,
-        new RoutePricingService(new QuotePricingPolicy()),
-        new RouteRecommender(),
+        smart,
         operationService,
         new PaymentRecoveryEligibility(
             new DbPaymentReader(payments, repositoriesRecipients(), mapper),
             attempts,
             proxy(
                 new PersistentLedgerWriter(wallets, entries, new LedgerPostingContext(), clock))));
+  }
+
+  static com.fluxpay.common.contracts.TransferRail bankRail() {
+    return new com.fluxpay.common.contracts.TransferRail() {
+      @Override
+      public RailType type() {
+        return RailType.BANK_NETWORK;
+      }
+
+      @Override
+      public java.util.Set<DestinationType> supportedDestinations() {
+        return java.util.Set.of(DestinationType.EXTERNAL_ACCOUNT);
+      }
+
+      @Override
+      public com.fluxpay.dto.TransferRailResult execute(
+          com.fluxpay.dto.TransferRailCommand command) {
+        throw new UnsupportedOperationException();
+      }
+    };
   }
 
   @ParameterizedTest

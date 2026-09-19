@@ -114,11 +114,11 @@ class RouteControllerContractTest {
   @Test
   void listRoutesReturnsCatalogEntriesWithMetrics() throws Exception {
     when(catalog.listRoutes()).thenReturn(List.of(instant, standard));
-    when(catalog.metricFor(R_STANDARD))
+    when(catalog.metricFor(standard))
         .thenReturn(
             new RouteReliabilityService.RouteReliability(
                 R_STANDARD, new BigDecimal("99.50"), 3L, 1L));
-    when(catalog.metricFor(R_INSTANT))
+    when(catalog.metricFor(instant))
         .thenReturn(
             new RouteReliabilityService.RouteReliability(
                 R_INSTANT, new BigDecimal("98.00"), 1L, 1L));
@@ -182,7 +182,6 @@ class RouteControllerContractTest {
             new BigDecimal("989.0000"),
             new BigDecimal("98.00"));
     when(catalog.recommend(eq("P-001"), eq(RoutePreference.BALANCED), anyString()))
-        // Task 7 owns this path — compile-restoration only
         .thenReturn(
             new RouteRecommendation(
                 new RankedRouteQuote(standardQuote, standardQuote.recipientAmount(), 1),

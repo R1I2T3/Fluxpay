@@ -13,8 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Answers whether catalogue records have been referenced by quotes or execution attempts.
  *
- * <p>Route codes are immutable, so the interim quote foreign key on {@code route_code} (replaced
- * with {@code route_id} in a later task) is safe to query by code.
+ * <p>Quotes carry the route identity, so usage is queried by route id.
  */
 @Service
 public class RoutingUsageService {
@@ -36,22 +35,22 @@ public class RoutingUsageService {
 
   @Transactional(readOnly = true)
   public boolean routeUsed(UUID routeId) {
-    return routes.findById(routeId).map(route -> isUsed(routeId, route.code())).orElse(false);
+    return routes.findById(routeId).map(route -> isUsed(routeId)).orElse(false);
   }
 
   @Transactional(readOnly = true)
   public boolean providerUsed(UUID providerId) {
     List<TransferRoute> children = routes.findByProviderIdOrderByRouteCodeAsc(providerId);
     for (TransferRoute child : children) {
-      if (isUsed(child.id(), child.code())) {
+      if (isUsed(child.id())) {
         return true;
       }
     }
     return false;
   }
 
-  private boolean isUsed(UUID routeId, String routeCode) {
-    return quotes.existsByRoute(routeCode)
+  private boolean isUsed(UUID routeId) {
+    return quotes.existsByRouteId(routeId)
         || attempts.existsByRouteId(routeId)
         || outcomes.existsByRouteId(routeId);
   }

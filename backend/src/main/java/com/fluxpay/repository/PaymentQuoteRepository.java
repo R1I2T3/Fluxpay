@@ -9,5 +9,5 @@ public interface PaymentQuoteRepository extends JpaRepository<PaymentQuote, UUID
 
   Optional<PaymentQuote> findByIdAndPaymentId(UUID id, UUID paymentId);
 
-  boolean existsByRoute(String routeCode);
+  boolean existsByRouteId(UUID routeId);
 }

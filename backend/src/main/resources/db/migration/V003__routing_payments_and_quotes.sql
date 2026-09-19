@@ -3,9 +3,10 @@
 -- the selected-quote FK, then payment_quotes, then the selected-quote FK, then
 -- payout_attempts. No legacy route/attempt tables and no seed routes are created
 -- here; the route catalog is provisioned explicitly by local seeding.
--- Quotes persist the actual transfer route code (not the customer preference), with
--- a foreign key to the referenced route. Money uses NUMBER(19,4); rates use
--- NUMBER(19,6).
+-- Quotes persist the top-ranked transfer routes for one payment generation: the route
+-- identity plus frozen snapshots of the route code, provider, effective reliability, ranking
+-- score, and ranking position. At most three rows exist per generation. Money uses
+-- NUMBER(19,4); rates use NUMBER(19,6); ranking scores use NUMBER(19,12).
 
 CREATE TABLE transfer_providers (
   id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
@@ -122,21 +123,27 @@ CREATE TABLE payment_quotes (
   id RAW(16) PRIMARY KEY,
   payment_id RAW(16) NOT NULL REFERENCES payments(id),
   generation NUMBER(10) NOT NULL,
-  route VARCHAR2(50) NOT NULL,
+  route_id RAW(16) NOT NULL REFERENCES transfer_routes(id),
+  route_code VARCHAR2(50) NOT NULL,
+  provider_id RAW(16) NOT NULL REFERENCES transfer_providers(id),
   market_rate NUMBER(19,6) NOT NULL,
   spread_percent NUMBER(9,6) NOT NULL,
   offered_rate NUMBER(19,6) NOT NULL,
   fee_amount NUMBER(19,4) NOT NULL,
   recipient_amount NUMBER(19,4) NOT NULL,
   estimated_minutes NUMBER(10) NOT NULL,
+  effective_reliability NUMBER(9,6) NOT NULL,
+  ranking_score NUMBER(19,12) NOT NULL,
+  ranking_position NUMBER(2) NOT NULL,
   recommended NUMBER(1) NOT NULL,
   policy_version VARCHAR2(30) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL,
   expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
   CONSTRAINT chk_payment_quote_positive CHECK (market_rate > 0 AND offered_rate > 0 AND fee_amount >= 0 AND recipient_amount > 0),
   CONSTRAINT chk_payment_quote_recommended CHECK (recommended IN (0, 1)),
-  CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route),
-  CONSTRAINT fk_payment_quote_route FOREIGN KEY (route) REFERENCES transfer_routes (route_code)
+  CONSTRAINT chk_payment_quote_position CHECK (ranking_position BETWEEN 1 AND 3),
+  CONSTRAINT chk_payment_quote_reliability CHECK (effective_reliability >= 0),
+  CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route_id)
 );
 
 ALTER TABLE payments ADD CONSTRAINT fk_payment_selected_quote FOREIGN KEY (selected_quote_id) REFERENCES payment_quotes (id);

@@ -44,7 +44,7 @@ class RoutingUsageServiceTest {
   @Test
   void unusedRouteHasNoReferences() {
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
-    when(quotes.existsByRoute("HDFC_INR_STANDARD")).thenReturn(false);
+    when(quotes.existsByRouteId(ROUTE_ID)).thenReturn(false);
     when(attempts.existsByRouteId(ROUTE_ID)).thenReturn(false);
     when(outcomes.existsByRouteId(ROUTE_ID)).thenReturn(false);
 
@@ -54,7 +54,7 @@ class RoutingUsageServiceTest {
   @Test
   void quoteReferenceMarksRouteUsed() {
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
-    when(quotes.existsByRoute("HDFC_INR_STANDARD")).thenReturn(true);
+    when(quotes.existsByRouteId(ROUTE_ID)).thenReturn(true);
 
     assertThat(usage.routeUsed(ROUTE_ID)).isTrue();
   }
@@ -62,7 +62,7 @@ class RoutingUsageServiceTest {
   @Test
   void attemptReferenceMarksRouteUsed() {
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
-    when(quotes.existsByRoute("HDFC_INR_STANDARD")).thenReturn(false);
+    when(quotes.existsByRouteId(ROUTE_ID)).thenReturn(false);
     when(attempts.existsByRouteId(ROUTE_ID)).thenReturn(true);
 
     assertThat(usage.routeUsed(ROUTE_ID)).isTrue();
@@ -71,7 +71,7 @@ class RoutingUsageServiceTest {
   @Test
   void outcomeReferenceMarksRouteUsed() {
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
-    when(quotes.existsByRoute("HDFC_INR_STANDARD")).thenReturn(false);
+    when(quotes.existsByRouteId(ROUTE_ID)).thenReturn(false);
     when(attempts.existsByRouteId(ROUTE_ID)).thenReturn(false);
     when(outcomes.existsByRouteId(ROUTE_ID)).thenReturn(true);
 
@@ -81,7 +81,7 @@ class RoutingUsageServiceTest {
   @Test
   void providerUsedWhenAnyChildRouteUsed() {
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(route));
-    when(quotes.existsByRoute("HDFC_INR_STANDARD")).thenReturn(false);
+    when(quotes.existsByRouteId(ROUTE_ID)).thenReturn(false);
     when(attempts.existsByRouteId(ROUTE_ID)).thenReturn(true);
 
     assertThat(usage.providerUsed(PROVIDER_ID)).isTrue();
