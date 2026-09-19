@@ -7,10 +7,15 @@ import com.fluxpay.service.CopilotService;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.io.UncheckedIOException;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /** HTTP entry point for cited Compliance Copilot answers. */
 @RestController
@@ -28,5 +33,30 @@ public class CopilotController {
     String correlationId = MDC.get("correlationId");
     return new ApiResponse<>(
         correlationId == null ? "none" : correlationId, copilotService.ask(request));
+  }
+
+  @PostMapping(value = "/ask/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  @PreAuthorize("hasRole('ADMIN')")
+  public SseEmitter stream(@Valid @RequestBody CopilotRequest request) {
+    SseEmitter emitter = new SseEmitter(90_000L);
+    CompletableFuture.runAsync(
+        () -> {
+          try {
+            copilotService.stream(
+                request,
+                delta -> {
+                  try {
+                    emitter.send(SseEmitter.event().data(Map.of("delta", delta)));
+                  } catch (java.io.IOException exception) {
+                    throw new UncheckedIOException(exception);
+                  }
+                });
+            emitter.send(SseEmitter.event().name("done").data(Map.of("done", true)));
+            emitter.complete();
+          } catch (Exception exception) {
+            emitter.completeWithError(exception);
+          }
+        });
+    return emitter;
   }
 }

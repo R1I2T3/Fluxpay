@@ -35,7 +35,7 @@ import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
-import com.fluxpay.service.AmountComplianceAssessor;
+import com.fluxpay.service.PaymentRiskComplianceAssessor;
 import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.KycService;
 import java.util.List;
@@ -142,7 +142,7 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
               assertThat(context.getBeansOfType(ComplianceAssessor.class)).hasSize(1);
               assertThat(context.getBean(ComplianceAssessor.class))
-                  .isInstanceOf(AmountComplianceAssessor.class);
+                  .isInstanceOf(PaymentRiskComplianceAssessor.class);
 
               // Missing KYC storage fails honestly with 503 before claiming an upload.
               KycService kyc = context.getBean(KycService.class);

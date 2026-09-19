@@ -67,8 +67,13 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assess(user, payment.sourceAmount(), "USD"))
-        .thenReturn(ScreeningVerdict.APPROVE);
+    when(compliance.assessDetailed(any(ComplianceScreeningContext.class)))
+        .thenReturn(
+            new ComplianceAssessment(
+                ScreeningVerdict.APPROVE,
+                com.fluxpay.common.enums.ComplianceRisk.LOW,
+                List.of(),
+                "Proceed with payment processing."));
     when(posting.postApprovedPayment(any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(
             new PostingAccounts(payment.sourceWalletId(), UUID.randomUUID(), UUID.randomUUID()));
@@ -99,8 +104,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
   void reviewConfirmationCreatesACaseBoundToThePaymentReviewReference() {
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assess(user, payment.sourceAmount(), "USD")).thenReturn(ScreeningVerdict.REVIEW);
-    when(compliance.assessDetailed(user, payment.sourceAmount(), "USD"))
+    when(compliance.assessDetailed(any(ComplianceScreeningContext.class)))
         .thenReturn(
             new ComplianceAssessment(
                 ScreeningVerdict.REVIEW,

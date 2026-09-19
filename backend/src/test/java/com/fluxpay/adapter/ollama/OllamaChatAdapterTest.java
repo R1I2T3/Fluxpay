@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,9 +67,11 @@ class OllamaChatAdapterTest {
     JsonNode request = objectMapper.readTree(requestBody.get());
     assertThat(request.path("model").asText()).isEqualTo("qwen3:4b");
     assertThat(request.path("stream").asBoolean()).isFalse();
-    assertThat(request.toString())
-        .contains("Payments require review.")
-        .contains("Can we release it?");
+    assertThat(request.path("think").asBoolean()).isTrue();
+    assertThat(request.path("keep_alive").asText()).isEqualTo("30m");
+    assertThat(request.path("options").path("num_predict").asInt()).isEqualTo(512);
+    assertThat(request.path("options").path("num_ctx").asInt()).isEqualTo(2048);
+    assertThat(request.toString()).contains("Payments require review.").contains("Can we release it?");
   }
 
   @Test
@@ -100,5 +103,38 @@ class OllamaChatAdapterTest {
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () -> adapter.answer("Can we release it?", List.of()))
         .isInstanceOf(com.fluxpay.exception.ChatException.class);
+  }
+
+  @Test
+  void streamsOllamaDeltasWithoutChangingTheGroundedPrompt() throws Exception {
+    server.stop(0);
+    server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/api/chat",
+        exchange -> {
+          requestBody.set(
+              new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+          byte[] body =
+              ("{\"message\":{\"content\":\"Review \"},\"done\":false}\n"
+                      + "{\"message\":{\"content\":\"the payment.\"},\"done\":true}\n")
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("Content-Type", "application/x-ndjson");
+          exchange.sendResponseHeaders(200, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    server.start();
+    adapter =
+        new OllamaChatAdapter(
+            HttpClient.newHttpClient(),
+            objectMapper,
+            "http://127.0.0.1:" + server.getAddress().getPort(),
+            "qwen3:4b", 0.2d);
+    List<String> deltas = new ArrayList<>();
+
+    adapter.stream("Can we release it?", List.of(), deltas::add);
+
+    assertThat(deltas).containsExactly("Review ", "the payment.");
+    assertThat(objectMapper.readTree(requestBody.get()).path("stream").asBoolean()).isTrue();
   }
 }

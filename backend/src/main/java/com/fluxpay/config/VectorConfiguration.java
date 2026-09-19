@@ -43,6 +43,10 @@ public class VectorConfiguration {
         vectorProperties.ollamaBaseUrl(),
         copilotProperties.chatModel(),
         copilotProperties.chatTemperature(),
-        Duration.ofSeconds(copilotProperties.chatTimeoutSeconds()));
+        Duration.ofSeconds(copilotProperties.chatTimeoutSeconds()),
+        copilotProperties.reasoningEnabled(),
+        copilotProperties.chatKeepAlive(),
+        copilotProperties.chatMaxTokens(),
+        copilotProperties.chatContextTokens());
   }
 }

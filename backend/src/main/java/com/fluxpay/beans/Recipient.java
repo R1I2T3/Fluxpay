@@ -100,6 +100,10 @@ public class Recipient {
     return version;
   }
 
+  public Instant createdAt() {
+    return createdAt;
+  }
+
   public void update(
       String name,
       String account,

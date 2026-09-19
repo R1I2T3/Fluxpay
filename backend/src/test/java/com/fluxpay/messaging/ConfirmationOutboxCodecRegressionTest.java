@@ -32,6 +32,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -91,8 +92,13 @@ class ConfirmationOutboxCodecRegressionTest {
     var kyc = mock(KycGate.class);
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assess(user, payment.sourceAmount(), "USD"))
-        .thenReturn(ScreeningVerdict.APPROVE);
+    when(compliance.assessDetailed(any(com.fluxpay.common.contracts.ComplianceScreeningContext.class)))
+        .thenReturn(
+            new com.fluxpay.common.contracts.ComplianceAssessment(
+                ScreeningVerdict.APPROVE,
+                com.fluxpay.common.enums.ComplianceRisk.LOW,
+                List.of(),
+                "Proceed with payment processing."));
     var posting = mock(PostingPort.class);
     when(posting.postApprovedPayment(any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(new PostingAccounts(wallet, UUID.randomUUID(), UUID.randomUUID()));

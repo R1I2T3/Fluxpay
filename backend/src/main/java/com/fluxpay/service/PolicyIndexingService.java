@@ -7,10 +7,12 @@ import com.fluxpay.config.VectorProperties;
 import com.fluxpay.dto.IndexedPolicyChunk;
 import com.fluxpay.dto.PolicyIndexResult;
 import com.fluxpay.repository.PolicyDocumentRepository;
+import com.fluxpay.repository.PolicyGuidanceRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Rebuilds a policy's chunks and publishes a new active Qwen vector generation. */
@@ -21,6 +23,7 @@ public class PolicyIndexingService {
   private final EmbeddingPort embeddings;
   private final PolicyIndexStore indexStore;
   private final VectorProperties vectorProperties;
+  private final PolicyGuidanceRepository guidance;
 
   public PolicyIndexingService(
       PolicyDocumentRepository policyDocuments,
@@ -28,11 +31,23 @@ public class PolicyIndexingService {
       EmbeddingPort embeddings,
       PolicyIndexStore indexStore,
       VectorProperties vectorProperties) {
+    this(policyDocuments, chunker, embeddings, indexStore, vectorProperties, null);
+  }
+
+  @Autowired
+  public PolicyIndexingService(
+      PolicyDocumentRepository policyDocuments,
+      PolicyChunker chunker,
+      EmbeddingPort embeddings,
+      PolicyIndexStore indexStore,
+      VectorProperties vectorProperties,
+      PolicyGuidanceRepository guidance) {
     this.policyDocuments = policyDocuments;
     this.chunker = chunker;
     this.embeddings = embeddings;
     this.indexStore = indexStore;
     this.vectorProperties = vectorProperties;
+    this.guidance = guidance;
   }
 
   @Transactional
@@ -42,7 +57,14 @@ public class PolicyIndexingService {
             .findById(policyDocumentId)
             .orElseThrow(
                 () -> new NoSuchElementException("Policy document not found: " + policyDocumentId));
-    List<String> contentChunks = chunker.chunk(document.getContent());
+    List<String> contentChunks = new java.util.ArrayList<>(chunker.chunk(document.getContent()));
+    if (guidance != null) {
+      guidance.findByPolicyDocumentIdOrderByCreatedAtDesc(policyDocumentId).forEach(item ->
+          contentChunks.add("Policy guidance / precedent:\n" + item.getContent()));
+    }
+    if (contentChunks.size() > 16) {
+      throw new IllegalStateException("Policy and its guidance produce more than 16 searchable chunks");
+    }
     List<IndexedPolicyChunk> chunks =
         java.util.stream.IntStream.range(0, contentChunks.size())
             .mapToObj(

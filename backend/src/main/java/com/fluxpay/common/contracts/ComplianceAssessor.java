@@ -10,4 +10,8 @@ public interface ComplianceAssessor {
   default ComplianceAssessment assessDetailed(UUID userId, BigDecimal amount, String currency) {
     return ComplianceAssessment.fromVerdict(assess(userId, amount, currency));
   }
+
+  default ComplianceAssessment assessDetailed(ComplianceScreeningContext context) {
+    return assessDetailed(context.userId(), context.amount(), context.currency());
+  }
 }

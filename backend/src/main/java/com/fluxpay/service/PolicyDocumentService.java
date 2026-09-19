@@ -1,6 +1,7 @@
 package com.fluxpay.service;
 
 import com.fluxpay.beans.PolicyDocument;
+import com.fluxpay.common.enums.PolicyChunkSource;
 import com.fluxpay.common.contracts.PolicyIndexStore;
 import com.fluxpay.dto.PolicyChunkResponse;
 import com.fluxpay.dto.PolicyDocumentRequest;
@@ -62,7 +63,9 @@ public class PolicyDocumentService {
               throw new IllegalStateException(
                   "Duplicate policy content, existing id: " + existing.getId());
             });
-    indexStore.delete(id);
+    if (request.clearExistingChunks()) {
+      indexStore.delete(id);
+    }
     document.setTitle(request.title());
     document.setCategory(request.category());
     document.setContent(request.content());
@@ -88,7 +91,12 @@ public class PolicyDocumentService {
         .map(
             c ->
                 new PolicyChunkResponse(
-                    c.getId(), documentId, c.getChunkNumber(), c.getContent(), c.getCreatedAt()))
+                    c.getId(),
+                    documentId,
+                    c.getChunkNumber(),
+                    c.getContent(),
+                    c.getSource() == PolicyChunkSource.MANUAL,
+                    c.getCreatedAt()))
         .toList();
   }
 

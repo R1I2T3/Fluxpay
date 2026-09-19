@@ -1,6 +1,9 @@
 package com.fluxpay.beans;
 
+import com.fluxpay.common.enums.PolicyChunkSource;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -44,6 +47,10 @@ public class PolicyChunk {
   @Column(name = "content", nullable = false)
   private String content;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "chunk_source", nullable = false)
+  private PolicyChunkSource source = PolicyChunkSource.GENERATED;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
@@ -80,6 +87,14 @@ public class PolicyChunk {
 
   public void setContent(String content) {
     this.content = content;
+  }
+
+  public PolicyChunkSource getSource() {
+    return source;
+  }
+
+  public void setSource(PolicyChunkSource source) {
+    this.source = source;
   }
 
   public Instant getCreatedAt() {

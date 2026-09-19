@@ -154,15 +154,15 @@ public class PaymentConfirmationService {
       throw new BusinessException(
           HttpStatus.FORBIDDEN, "KYC_NOT_VERIFIED", "KYC verification is required.");
     }
-    ScreeningVerdict verdict = assessWithTimeout(userId, payment);
     Instant now = Instant.now(clock);
+    ComplianceAssessment assessment = assessDetailedWithTimeout(userId, payment, recipient, now);
+    ScreeningVerdict verdict = assessment.verdict();
     if (verdict == ScreeningVerdict.BLOCK) {
       payment.reject(now);
       PaymentResponse blocked = response(payment);
       return new PaymentOperationService.Result<>(422, blocked, payment.id());
     }
     if (verdict == ScreeningVerdict.REVIEW) {
-      ComplianceAssessment assessment = assessDetailedWithTimeout(userId, payment);
       String reviewReference = UUID.randomUUID().toString();
       payment.underReview(quote.id(), reviewReference, now);
       if (complianceCases == null) {
@@ -287,12 +287,20 @@ public class PaymentConfirmationService {
     }
   }
 
-  private ComplianceAssessment assessDetailedWithTimeout(UUID userId, Payment payment) {
+  private ComplianceAssessment assessDetailedWithTimeout(
+      UUID userId, Payment payment, Recipient recipient, Instant assessedAt) {
     try {
       return CompletableFuture.supplyAsync(
               () ->
                   compliance.assessDetailed(
-                      userId, payment.sourceAmount(), payment.sourceCurrency()))
+                      new com.fluxpay.common.contracts.ComplianceScreeningContext(
+                          payment.id(),
+                          userId,
+                          payment.sourceAmount(),
+                          payment.sourceCurrency(),
+                          recipient.id(),
+                          recipient.createdAt(),
+                          assessedAt)))
           .get(3, TimeUnit.SECONDS);
     } catch (TimeoutException e) {
       throw new BusinessException(

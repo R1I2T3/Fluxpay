@@ -32,14 +32,14 @@ class PolicyDocumentServiceTest {
       new PolicyDocumentService(repository, chunkRepository, indexStore);
 
   @Test
-  void updateClearsTheActiveIndexBeforeSavingTheChangedPolicy() {
+  void updateClearsTheActiveIndexByDefaultBeforeSavingTheChangedPolicy() {
     UUID id = UUID.randomUUID();
     PolicyDocument document = document(id, "Original", PolicyCategory.KYC, "Original text");
     when(repository.findById(id)).thenReturn(Optional.of(document));
     when(repository.findByDocumentHash(any(String.class))).thenReturn(Optional.empty());
     when(repository.save(document)).thenReturn(document);
 
-    service.update(id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Changed text"));
+    service.update(id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Changed text", null));
 
     InOrder order = inOrder(indexStore, repository);
     order.verify(indexStore).delete(id);
@@ -49,6 +49,22 @@ class PolicyDocumentServiceTest {
     assertThat(document.getContent()).isEqualTo("Changed text");
     assertThat(document.getDocumentHash())
         .isEqualTo("58b2322b2c19615c4020c63dee25d2506ec694b8efd2c54173ea461509dada2b");
+  }
+
+  @Test
+  void updateRetainsExistingChunksAndIndexWhenRequested() {
+    UUID id = UUID.randomUUID();
+    PolicyDocument document = document(id, "Original", PolicyCategory.KYC, "Original text");
+    when(repository.findById(id)).thenReturn(Optional.of(document));
+    when(repository.findByDocumentHash(any(String.class))).thenReturn(Optional.empty());
+    when(repository.save(document)).thenReturn(document);
+
+    service.update(
+        id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Changed text", false));
+
+    verifyNoInteractions(indexStore);
+    verify(repository).save(document);
+    assertThat(document.getTitle()).isEqualTo("Changed");
   }
 
   @Test
