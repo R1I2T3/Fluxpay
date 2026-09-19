@@ -66,6 +66,10 @@ public class SelectedQuoteService {
     routes
         .findByRouteCode(selected.route())
         .filter(r -> r.isActive())
+        .filter(r -> r.getArchivedAt() == null)
+        .filter(r -> r.provider() != null)
+        .filter(r -> r.provider().isActive())
+        .filter(r -> r.provider().getArchivedAt() == null)
         .orElseThrow(() -> new QuoteMismatchException("selected quote route is unavailable"));
     return new AcceptedQuote(
         selected.id(),

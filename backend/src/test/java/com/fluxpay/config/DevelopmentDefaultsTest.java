@@ -8,11 +8,11 @@ import com.fluxpay.adapter.fx.FrankfurterFxProvider;
 import com.fluxpay.beans.KycDocumentType;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.FxSnapshotSource;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
+import com.fluxpay.development.SimulatedBankNetworkRail;
 import com.fluxpay.development.SimulatedComplianceAssessor;
-import com.fluxpay.development.SimulatedInstantPayoutProvider;
-import com.fluxpay.development.SimulatedLocalPartnerProvider;
-import com.fluxpay.development.SimulatedStandardBankProvider;
+import com.fluxpay.development.SimulatedPartnerNetworkRail;
+import com.fluxpay.development.SimulatedRealTimeNetworkRail;
 import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycSubmitRequest;
 import com.fluxpay.exception.DemoFundingDisabledException;
@@ -133,14 +133,11 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBean(FxSnapshotSource.class))
                   .isInstanceOf(FrankfurterFxProvider.class);
 
-              // Normal provider discovery excludes simulators unless explicitly enabled.
-              assertThat(context.getBeansOfType(PayoutProvider.class)).isEmpty();
-              assertThat(context.getBeanNamesForType(SimulatedStandardBankProvider.class))
-                  .isEmpty();
-              assertThat(context.getBeanNamesForType(SimulatedInstantPayoutProvider.class))
-                  .isEmpty();
-              assertThat(context.getBeanNamesForType(SimulatedLocalPartnerProvider.class))
-                  .isEmpty();
+              // Normal rail discovery excludes simulators unless explicitly enabled.
+              assertThat(context.getBeansOfType(TransferRail.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedBankNetworkRail.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedRealTimeNetworkRail.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedPartnerNetworkRail.class)).isEmpty();
 
               // No default always-approve assessor is active.
               assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
@@ -209,7 +206,7 @@ class DevelopmentDefaultsTest {
         .run(
             context -> {
               assertThat(context).hasNotFailed();
-              assertThat(context.getBeansOfType(PayoutProvider.class)).hasSize(3);
+              assertThat(context.getBeansOfType(TransferRail.class)).hasSize(3);
               assertThat(context.getBean(ComplianceAssessor.class))
                   .isInstanceOf(SimulatedComplianceAssessor.class);
             });

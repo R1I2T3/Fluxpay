@@ -3,10 +3,16 @@ package com.fluxpay.development;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fluxpay.common.contracts.ComplianceScreeningInput;
+import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.common.enums.ComplianceRisk;
 import com.fluxpay.common.enums.ScreeningVerdict;
-import com.fluxpay.dto.PayoutCmd;
-import com.fluxpay.dto.PayoutResult;
+import com.fluxpay.domain.DestinationType;
+import com.fluxpay.domain.ExternalAccountDestination;
+import com.fluxpay.domain.RailType;
+import com.fluxpay.dto.TransferProviderSnapshot;
+import com.fluxpay.dto.TransferRailCommand;
+import com.fluxpay.dto.TransferRailResult;
+import com.fluxpay.dto.TransferRouteSnapshot;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -44,31 +50,74 @@ class SimSimulationTest {
   }
 
   @Test
-  void payoutSimulatorsExposeLimitAndUncertainTriggers() {
-    var local = new SimulatedLocalPartnerProvider().submit(command("LOCAL_PARTNER", "50000.01"));
-    var uncertain =
-        new SimulatedStandardBankProvider(() -> "STANDARD_BANK")
-            .submit(command("STANDARD_BANK", "100.00"));
+  void railSimulatorsExposeDeterministicAndUncertainTriggers() {
+    var partner = new SimulatedPartnerNetworkRail().execute(command("50000.01"));
+    var uncertain = new SimulatedBankNetworkRail(() -> "BANK_NETWORK").execute(command("100.00"));
 
-    assertThat(local.outcome()).isEqualTo(PayoutResult.Outcome.FAILED);
-    assertThat(local.errorCode()).isEqualTo("LIMIT_EXCEEDED");
-    assertThat(uncertain.outcome()).isEqualTo(PayoutResult.Outcome.UNCERTAIN);
+    assertThat(partner.outcome()).isEqualTo(TransferRailResult.Outcome.COMPLETED);
+    assertThat(partner.providerRef()).startsWith("PARTNER-");
+    assertThat(uncertain.outcome()).isEqualTo(TransferRailResult.Outcome.UNCERTAIN);
     assertThat(uncertain.errorCode()).isEqualTo("PROVIDER_TIMEOUT");
   }
 
-  private PayoutCmd command(String route, String amount) {
+  @Test
+  void bankRailFailCountThenSucceeds() {
+    SimulatedBankNetworkRail rail = new SimulatedBankNetworkRail(() -> "BANK_NETWORK:2");
+    UUID transfer = UUID.randomUUID();
+    assertThat(rail.execute(command("100.00", transfer)).success()).isFalse();
+    assertThat(rail.execute(command("100.00", transfer)).success()).isFalse();
+    assertThat(rail.execute(command("100.00", transfer)).success()).isTrue();
+  }
+
+  @Test
+  void repeatedRailKeyReplaysTheSameOutcomeForEveryRail() {
+    for (TransferRail rail :
+        java.util.List.<TransferRail>of(
+            new SimulatedBankNetworkRail(() -> null),
+            new SimulatedRealTimeNetworkRail(),
+            new SimulatedPartnerNetworkRail())) {
+      var cmd = command("100");
+      var first = rail.execute(cmd);
+      assertThat(rail.execute(cmd)).isEqualTo(first);
+    }
+  }
+
+  @Test
+  void repeatedFailedAttemptDoesNotConsumeAnotherSimulatedAttempt() {
+    var rail = new SimulatedBankNetworkRail(() -> "BANK_NETWORK:1");
+    UUID transfer = UUID.randomUUID();
+    var cmd = command("100", transfer);
+    var first = rail.execute(cmd);
+    assertThat(first.success()).isFalse();
+    assertThat(rail.execute(cmd)).isEqualTo(first);
+    assertThat(rail.execute(command("100", transfer)).success()).isTrue();
+  }
+
+  private TransferRailCommand command(String amount) {
+    return command(amount, UUID.randomUUID());
+  }
+
+  private TransferRailCommand command(String amount, UUID transfer) {
     UUID attempt = UUID.randomUUID();
-    return new PayoutCmd(
-        "P-001",
+    UUID providerId = UUID.randomUUID();
+    var provider = new TransferProviderSnapshot(providerId, "SIM_BANK", RailType.BANK_NETWORK);
+    var route =
+        new TransferRouteSnapshot(
+            UUID.randomUUID(), "SIM_ROUTE", DestinationType.EXTERNAL_ACCOUNT, providerId);
+    return new TransferRailCommand(
+        transfer,
+        attempt,
+        UUID.randomUUID(),
         new BigDecimal(amount),
         "USD",
-        "KES",
-        route,
-        BigDecimal.ZERO,
-        1,
-        new BigDecimal("80"),
         new BigDecimal("8000"),
-        attempt,
+        "KES",
+        provider,
+        route,
+        new ExternalAccountDestination("acct", "Bank", "KE", "KES"),
+        1,
+        BigDecimal.ZERO,
+        new BigDecimal("80"),
         "payout:" + attempt);
   }
 }

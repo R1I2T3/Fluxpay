@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fluxpay.adapter.fx.FrankfurterFxProvider;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.FxSnapshotSource;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.messaging.OutboxDispatchJob;
 import com.fluxpay.messaging.PaymentEventConsumer;
@@ -56,6 +56,6 @@ class ProductionBootTest {
     assertThat(context.getBean(FxSnapshotSource.class)).isInstanceOf(FrankfurterFxProvider.class);
     assertThat(context.getBean(ComplianceAssessor.class))
         .isInstanceOf(AmountComplianceAssessor.class);
-    assertThat(context.getBeansOfType(PayoutProvider.class)).isEmpty();
+    assertThat(context.getBeansOfType(TransferRail.class)).isEmpty();
   }
 }

@@ -2,10 +2,10 @@ package com.fluxpay.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PayoutAttemptStatus;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.PayoutApi;
-import com.fluxpay.dto.PayoutResult;
+import com.fluxpay.dto.TransferRailResult;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.*;
 import java.util.*;
@@ -13,14 +13,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 
-/** Replays a reserved payout after an uncertain provider response. */
+/** Replays a reserved payout after an uncertain rail response. */
 @Service
 public class PayoutReconciler {
   private final PaymentOperationRepository operations;
   private final PayoutAttemptRepository attempts;
   private final PaymentRepository payments;
   private final ObjectMapper mapper;
-  private final Map<String, PayoutProvider> providers;
+  private final RailRegistry rails;
   private final PayoutFinalizationService finalization;
 
   public PayoutReconciler(
@@ -28,17 +28,13 @@ public class PayoutReconciler {
       PayoutAttemptRepository attempts,
       PaymentRepository payments,
       ObjectMapper mapper,
-      List<PayoutProvider> providers,
+      RailRegistry rails,
       PayoutFinalizationService finalization) {
     this.operations = operations;
     this.attempts = attempts;
     this.payments = payments;
     this.mapper = mapper;
-    this.providers =
-        providers.stream()
-            .collect(
-                java.util.stream.Collectors.toUnmodifiableMap(
-                    PayoutProvider::code, java.util.function.Function.identity()));
+    this.rails = Objects.requireNonNull(rails, "rails must not be null");
     this.finalization = finalization;
   }
 
@@ -59,6 +55,8 @@ public class PayoutReconciler {
             .toList();
     if (candidates.size() != 1) throw invalidReservation();
     var operation = candidates.get(0);
+    // Reconciliation replays the serialized snapshot verbatim. Catalogue active flags are never
+    // reapplied: an archived route or provider still reconciles the reserved command exactly once.
     PayoutReservationService.Reserved reserved;
     try {
       reserved =
@@ -69,27 +67,28 @@ public class PayoutReconciler {
           || !operation.userId().equals(reserved.userId())
           || !latest.id().equals(reserved.attemptId())
           || latest.attemptNumber() != reserved.attemptNumber()
+          || !latest.routeId().equals(reserved.route().id())
           || !latest.id().equals(command.attemptId())
-          || !paymentId.toString().equals(command.paymentId())
+          || !paymentId.equals(command.transferId())
           || command.attemptNumber() != latest.attemptNumber()
-          || !reserved.routeCode().equals(command.routeCode())
+          || !latest.routeId().equals(command.route().id())
+          || !reserved.route().id().equals(command.route().id())
+          || !reserved.provider().id().equals(command.provider().id())
+          || !reserved.provider().id().equals(reserved.route().providerId())
+          || !("payout:" + reserved.attemptId()).equals(command.idempotencyKey())
           || reserved.quote() == null) throw invalidReservation();
     } catch (Exception invalid) {
       throw invalidReservation();
     }
-    var provider = providers.get(reserved.routeCode());
-    if (provider == null)
-      throw new BusinessException(
-          HttpStatus.SERVICE_UNAVAILABLE,
-          "PAYOUT_PROVIDER_UNAVAILABLE",
-          "The original payout provider is unavailable.");
-    PayoutResult result;
+    TransferRail rail =
+        rails.requireCompatible(reserved.provider().railType(), reserved.route().destinationType());
+    TransferRailResult result;
     try {
-      result = provider.submit(reserved.command());
+      result = rail.execute(reserved.command());
     } catch (RuntimeException uncertain) {
       throw PayoutExecutionService.pendingReconciliation();
     }
-    if (result == null || result.outcome() == PayoutResult.Outcome.UNCERTAIN)
+    if (result == null || result.outcome() == TransferRailResult.Outcome.UNCERTAIN)
       throw PayoutExecutionService.pendingReconciliation();
     return finalization.finish(reserved, operation.id(), result, correlationId);
   }

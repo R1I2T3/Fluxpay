@@ -5,12 +5,13 @@ import static org.mockito.Mockito.*;
 
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.FxRateProvider;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
+import com.fluxpay.domain.DestinationType;
 import com.fluxpay.domain.QuotePricingPolicy;
 import com.fluxpay.domain.RailType;
 import com.fluxpay.domain.RoutePreference;
-import com.fluxpay.dto.PayoutCmd;
-import com.fluxpay.dto.PayoutResult;
+import com.fluxpay.dto.TransferRailCommand;
+import com.fluxpay.dto.TransferRailResult;
 import com.fluxpay.repository.*;
 import java.math.BigDecimal;
 import java.time.*;
@@ -27,16 +28,20 @@ class FrozenPaymentCurrencyTest {
     var quoted = f.quotesAt(NOW).createOrCurrent(f.user, f.payment.id(), "quote-key");
     f.payment.selectAndProcess(quoted.recommendedQuoteId(), NOW);
     f.editRecipientCurrency();
-    List<PayoutCmd> submitted = new ArrayList<>();
-    PayoutProvider provider =
-        new PayoutProvider() {
-          public String code() {
-            return "STANDARD_BANK";
+    List<TransferRailCommand> submitted = new ArrayList<>();
+    TransferRail rail =
+        new TransferRail() {
+          public RailType type() {
+            return RailType.BANK_NETWORK;
           }
 
-          public PayoutResult submit(PayoutCmd command) {
+          public java.util.Set<DestinationType> supportedDestinations() {
+            return java.util.Set.of(DestinationType.EXTERNAL_ACCOUNT);
+          }
+
+          public TransferRailResult execute(TransferRailCommand command) {
             submitted.add(command);
-            return PayoutResult.ok("bank-reference", command.customerFee());
+            return TransferRailResult.completed("bank-reference", command.customerFee());
           }
         };
     Clock clock = Clock.fixed(NOW.plusSeconds(1), ZoneOffset.UTC);
@@ -56,17 +61,17 @@ class FrozenPaymentCurrencyTest {
             new SelectedQuoteService(f.payments, f.quotes, clock, f.routes),
             clock,
             mock(com.fluxpay.common.contracts.LedgerWriter.class),
-            mock(PayoutOutboxService.class));
+            mock(PayoutOutboxService.class),
+            new RailRegistry(List.of(rail)));
     var reserved =
-        reservations.reserve(
-            f.user, f.payment.id(), "SUBMIT", "STANDARD_BANK", null, "frozen", code -> true);
-    provider.submit(reserved.command());
+        reservations.reserve(f.user, f.payment.id(), "SUBMIT", "STANDARD_BANK", null, "frozen");
+    rail.execute(reserved.command());
 
     assertThat(submitted).hasSize(1);
-    PayoutCmd command = submitted.get(0);
+    TransferRailCommand command = submitted.get(0);
     assertThat(command.sourceCurrency()).isEqualTo("USD");
     assertThat(command.targetCurrency()).isEqualTo("INR");
-    assertThat(command.amount()).isEqualByComparingTo("100.0000");
+    assertThat(command.sourceAmount()).isEqualByComparingTo("100.0000");
     assertThat(command.customerFee()).isEqualByComparingTo("5.0000");
     assertThat(command.offeredRate()).isEqualByComparingTo("80.000000");
     assertThat(command.recipientAmount()).isEqualByComparingTo("7600.0000");

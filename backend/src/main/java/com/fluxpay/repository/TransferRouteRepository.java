@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TransferRouteRepository extends JpaRepository<TransferRoute, UUID> {
 
+  @EntityGraph(attributePaths = "provider")
   Optional<TransferRoute> findByRouteCode(String routeCode);
 
   @EntityGraph(attributePaths = "provider")
