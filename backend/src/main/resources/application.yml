@@ -24,6 +24,12 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 fluxpay:
+  wallet:
+    conversion:
+      fee-rates:
+        USD: ${FLUXPAY_WALLET_CONVERSION_FEE_RATE_USD:0.005}
+        EUR: ${FLUXPAY_WALLET_CONVERSION_FEE_RATE_EUR:0.005}
+        INR: ${FLUXPAY_WALLET_CONVERSION_FEE_RATE_INR:0.005}
   # Documented Frankfurter v1 /latest endpoint (see https://frankfurter.dev/v1/).
   # fluxpay.fx-mode/FLUXPAY_FX_MODE was retired: any value fails startup explicitly.
   fx-provider-url: ${FX_PROVIDER_URL:}

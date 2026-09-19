@@ -94,6 +94,11 @@ class DevelopmentDefaultsTest {
     for (Class repository :
         new Class<?>[] {
           WalletRepository.class,
+          com.fluxpay.repository.BankAccountRepository.class,
+          com.fluxpay.repository.WalletTopupRepository.class,
+          com.fluxpay.repository.CurrencyConfigurationRepository.class,
+          com.fluxpay.repository.LedgerJournalRepository.class,
+          com.fluxpay.repository.LedgerJournalLockRepository.class,
           WalletOperationRepository.class,
           UserRepository.class,
           RecipientRepository.class,
