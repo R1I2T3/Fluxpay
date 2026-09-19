@@ -8,4 +8,6 @@ public interface PaymentQuoteRepository extends JpaRepository<PaymentQuote, UUID
   List<PaymentQuote> findByPaymentIdAndGenerationOrderByRouteAsc(UUID paymentId, int generation);
 
   Optional<PaymentQuote> findByIdAndPaymentId(UUID id, UUID paymentId);
+
+  boolean existsByRouteId(UUID routeId);
 }

@@ -27,19 +27,19 @@ class DbPaymentEligibilityGateTest extends DbPaymentEligibilityGateFixture {
   private UUID paymentId;
   private UUID userId;
   private PaymentSnapshot snapshot;
-  private com.fluxpay.repository.PayoutRouteRepository routes;
-  private com.fluxpay.beans.PayoutRoute standard;
+  private com.fluxpay.repository.TransferRouteRepository routes;
+  private com.fluxpay.beans.TransferRoute standard;
 
   @BeforeEach
   void setUp() {
     payments = mock(PaymentRepository.class);
     quotes = mock(PaymentQuoteRepository.class);
     operations = mock(PaymentOperationRepository.class);
-    routes = mock(com.fluxpay.repository.PayoutRouteRepository.class);
+    routes = mock(com.fluxpay.repository.TransferRouteRepository.class);
     standard =
-        com.fluxpay.beans.PayoutRoute.seed(
+        com.fluxpay.beans.TransferRoute.seed(
             UUID.randomUUID(), "STANDARD_BANK", "Bank", "Bank", "STANDARD", "5", "0", 240, "99.5");
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(standard));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(standard));
     gate =
         new DbPaymentEligibilityGate(
             new SelectedQuoteService(payments, quotes, Clock.fixed(NOW, ZoneOffset.UTC), routes));

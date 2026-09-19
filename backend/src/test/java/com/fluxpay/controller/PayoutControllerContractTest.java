@@ -41,6 +41,7 @@ class PayoutControllerContractTest {
   @MockBean RouteAdminAuthorizer authorizer;
   @MockBean PayoutExecutionService execution;
   @MockBean RecoveryService recovery;
+  @MockBean PayoutReconciler reconciler;
   @MockBean JwtUtil jwt;
 
   @BeforeEach
@@ -70,7 +71,7 @@ class PayoutControllerContractTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"submit-payout", "retry-payout", "switch-route", "refund"})
+  @ValueSource(strings = {"submit-payout", "retry-payout", "switch-route"})
   void everyMutationRequiresCallerKey(String action) throws Exception {
     mvc.perform(request(action, "{\"routeCode\":\"BANK\"}"))
         .andExpect(status().isBadRequest())

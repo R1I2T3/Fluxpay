@@ -8,11 +8,11 @@ import com.fluxpay.adapter.fx.FrankfurterFxProvider;
 import com.fluxpay.beans.KycDocumentType;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.FxSnapshotSource;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
+import com.fluxpay.development.SimulatedBankNetworkRail;
 import com.fluxpay.development.SimulatedComplianceAssessor;
-import com.fluxpay.development.SimulatedInstantPayoutProvider;
-import com.fluxpay.development.SimulatedLocalPartnerProvider;
-import com.fluxpay.development.SimulatedStandardBankProvider;
+import com.fluxpay.development.SimulatedPartnerNetworkRail;
+import com.fluxpay.development.SimulatedRealTimeNetworkRail;
 import com.fluxpay.dto.KycFileMeta;
 import com.fluxpay.dto.KycSubmitRequest;
 import com.fluxpay.exception.DemoFundingDisabledException;
@@ -28,10 +28,12 @@ import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutAttemptRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.PolicyChunkRepository;
 import com.fluxpay.repository.PolicyDocumentRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.TransferProviderRepository;
+import com.fluxpay.repository.TransferRouteOutcomeRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
@@ -97,7 +99,7 @@ class DevelopmentDefaultsTest {
           WalletOperationRepository.class,
           UserRepository.class,
           RecipientRepository.class,
-          PayoutRouteRepository.class,
+          TransferRouteRepository.class,
           PayoutAttemptRepository.class,
           PaymentRepository.class,
           PaymentQuoteRepository.class,
@@ -110,7 +112,9 @@ class DevelopmentDefaultsTest {
           KycCaseRepository.class,
           ComplianceCaseRepository.class,
           PolicyDocumentRepository.class,
-          PolicyChunkRepository.class
+          PolicyChunkRepository.class,
+          TransferProviderRepository.class,
+          TransferRouteOutcomeRepository.class
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }
@@ -129,14 +133,11 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBean(FxSnapshotSource.class))
                   .isInstanceOf(FrankfurterFxProvider.class);
 
-              // Normal provider discovery excludes simulators unless explicitly enabled.
-              assertThat(context.getBeansOfType(PayoutProvider.class)).isEmpty();
-              assertThat(context.getBeanNamesForType(SimulatedStandardBankProvider.class))
-                  .isEmpty();
-              assertThat(context.getBeanNamesForType(SimulatedInstantPayoutProvider.class))
-                  .isEmpty();
-              assertThat(context.getBeanNamesForType(SimulatedLocalPartnerProvider.class))
-                  .isEmpty();
+              // Normal rail discovery excludes simulators unless explicitly enabled.
+              assertThat(context.getBeansOfType(TransferRail.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedBankNetworkRail.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedRealTimeNetworkRail.class)).isEmpty();
+              assertThat(context.getBeanNamesForType(SimulatedPartnerNetworkRail.class)).isEmpty();
 
               // No default always-approve assessor is active.
               assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
@@ -190,8 +191,8 @@ class DevelopmentDefaultsTest {
               assertThat(reservations).isNotNull();
               // Wiring only: the reservation service is present while no provider is discovered.
               // The honest 503-before-reserve behavior is proven in PayoutProviderUnavailableTest.
-              com.fluxpay.repository.PayoutRouteRepository routes =
-                  context.getBean(com.fluxpay.repository.PayoutRouteRepository.class);
+              com.fluxpay.repository.TransferRouteRepository routes =
+                  context.getBean(com.fluxpay.repository.TransferRouteRepository.class);
               assertThat(routes).isNotNull();
             });
   }
@@ -205,7 +206,7 @@ class DevelopmentDefaultsTest {
         .run(
             context -> {
               assertThat(context).hasNotFailed();
-              assertThat(context.getBeansOfType(PayoutProvider.class)).hasSize(3);
+              assertThat(context.getBeansOfType(TransferRail.class)).hasSize(3);
               assertThat(context.getBean(ComplianceAssessor.class))
                   .isInstanceOf(SimulatedComplianceAssessor.class);
             });

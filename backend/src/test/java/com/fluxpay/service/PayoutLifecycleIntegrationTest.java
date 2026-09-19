@@ -5,7 +5,7 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.*;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.domain.*;
 import com.fluxpay.dto.*;
 import com.fluxpay.repository.*;
@@ -56,7 +56,8 @@ class PayoutLifecycleIntegrationTest {
   TransactionTemplate tx;
   PaymentRepository payments;
   PaymentQuoteRepository quotes;
-  PayoutRouteRepository routes;
+  TransferRouteRepository routes;
+  TransferProviderRepository providers;
   PayoutAttemptRepository attempts;
   PaymentOperationRepository operations;
   OutboxEventRepository events;
@@ -69,9 +70,11 @@ class PayoutLifecycleIntegrationTest {
   RefundJournalService refunds;
   PayoutOutboxService outbox;
   PayoutFinalizationService finalization;
-  java.util.function.Function<PayoutCmd, PayoutResult> delivery;
+  java.util.function.Function<TransferRailCommand, TransferRailResult> delivery;
   Payment payment;
-  PayoutCmd delivered;
+  TransferRailCommand delivered;
+  TransferRail rail;
+  RailRegistry rails;
 
   @BeforeEach
   void setup() throws Exception {
@@ -87,7 +90,9 @@ class PayoutLifecycleIntegrationTest {
             Payment.class.getName(),
             Recipient.class.getName(),
             PaymentQuote.class.getName(),
-            PayoutRoute.class.getName(),
+            TransferProvider.class.getName(),
+            TransferRoute.class.getName(),
+            TransferRouteOutcome.class.getName(),
             PayoutAttempt.class.getName(),
             PaymentOperation.class.getName(),
             OutboxEvent.class.getName(),
@@ -103,7 +108,8 @@ class PayoutLifecycleIntegrationTest {
             SharedEntityManagerCreator.createSharedEntityManager(factory.getObject()));
     payments = repositories.getRepository(PaymentRepository.class);
     quotes = repositories.getRepository(PaymentQuoteRepository.class);
-    routes = repositories.getRepository(PayoutRouteRepository.class);
+    routes = repositories.getRepository(TransferRouteRepository.class);
+    providers = repositories.getRepository(TransferProviderRepository.class);
     attempts = repositories.getRepository(PayoutAttemptRepository.class);
     operations = repositories.getRepository(PaymentOperationRepository.class);
     events = repositories.getRepository(OutboxEventRepository.class);
@@ -131,7 +137,7 @@ class PayoutLifecycleIntegrationTest {
             "INR",
             PaymentPurpose.FAMILY_SUPPORT,
             RoutePreference.BALANCED,
-            "{}",
+            "{\"name\":\"A\",\"account\":\"acct\",\"bankName\":\"Bank\",\"country\":\"IN\",\"currency\":\"INR\"}",
             NOW);
     payment.quoted(payment.nextQuoteGeneration(), NOW);
     payment.selectAndProcess(quoteId, NOW);
@@ -151,9 +157,7 @@ class PayoutLifecycleIntegrationTest {
         s -> {
           recipients.save(recipient);
           payments.save(payment);
-          routes.save(
-              PayoutRoute.seed(
-                  UUID.randomUUID(), "BANK", "Bank", "Bank", "STANDARD", "5", "0", 1, "99"));
+          saveRoute("BANK", "Bank");
           quotes.save(
               new PaymentQuote(
                   quoteId,
@@ -170,14 +174,18 @@ class PayoutLifecycleIntegrationTest {
                   NOW,
                   NOW.plusSeconds(300)));
         });
-    delivery = cmd -> PayoutResult.ok("ref-" + cmd.attemptNumber(), BigDecimal.ZERO);
-    var provider =
-        new PayoutProvider() {
-          public String code() {
-            return "BANK";
+    delivery = cmd -> TransferRailResult.completed("ref-" + cmd.attemptNumber(), BigDecimal.ZERO);
+    rail =
+        new TransferRail() {
+          public RailType type() {
+            return RailType.BANK_NETWORK;
           }
 
-          public PayoutResult submit(PayoutCmd cmd) {
+          public java.util.Set<DestinationType> supportedDestinations() {
+            return java.util.Set.of(DestinationType.EXTERNAL_ACCOUNT);
+          }
+
+          public TransferRailResult execute(TransferRailCommand cmd) {
             calls.incrementAndGet();
             delivered = cmd;
             return delivery.apply(cmd);
@@ -197,25 +205,23 @@ class PayoutLifecycleIntegrationTest {
                 new SelectedQuoteService(payments, quotes, clock, routes),
                 clock,
                 writer,
-                outbox));
+                outbox,
+                rails()));
+    TransferRouteOutcomeRepository outcomes =
+        repositories.getRepository(TransferRouteOutcomeRepository.class);
     finalization =
-        proxy(new PayoutFinalizationService(payments, attempts, operationService, outbox, clock));
-    var provider2 =
-        new PayoutProvider() {
-          public String code() {
-            return "BANK2";
-          }
-
-          public PayoutResult submit(PayoutCmd cmd) {
-            calls.incrementAndGet();
-            delivered = cmd;
-            return delivery.apply(cmd);
-          }
-        };
+        proxy(
+            new PayoutFinalizationService(
+                payments,
+                attempts,
+                operationService,
+                outbox,
+                clock,
+                new RouteOutcomeRecorder(outcomes, clock)));
     execution =
         proxy(
             new PayoutExecutionService(
-                operationService, reservationService, finalization, List.of(provider, provider2)));
+                operationService, reservationService, finalization, rails()));
     refunds =
         proxy(new RefundJournalService(proxy(new LedgerJournalService(writer, context)), writer));
     proxy(new LedgerJournalService(writer, context))
@@ -252,6 +258,52 @@ class PayoutLifecycleIntegrationTest {
                 refunds,
                 outbox,
                 clock));
+  }
+
+  RailRegistry rails() {
+    if (rails == null) rails = new RailRegistry(List.of(rail));
+    return rails;
+  }
+
+  TransferProvider routeProvider() {
+    return providers
+        .findByProviderCode("TEST_PROVIDER")
+        .orElseGet(
+            () ->
+                providers.saveAndFlush(
+                    TransferProvider.create(
+                        UUID.randomUUID(),
+                        "TEST_PROVIDER",
+                        "Test Provider",
+                        RailType.BANK_NETWORK,
+                        true,
+                        false,
+                        NOW)));
+  }
+
+  void saveRoute(String code, String name) {
+    saveRoute(code, name, "5.0000");
+  }
+
+  void saveRoute(String code, String name, String fee) {
+    routes.save(
+        TransferRoute.create(
+            UUID.randomUUID(),
+            routeProvider(),
+            code,
+            name,
+            DestinationType.EXTERNAL_ACCOUNT,
+            "IN",
+            "INR",
+            new BigDecimal(fee),
+            new BigDecimal("0.000000"),
+            1,
+            new BigDecimal("99.00"),
+            null,
+            null,
+            true,
+            false,
+            NOW));
   }
 
   @SuppressWarnings("unchecked")
@@ -308,7 +360,7 @@ class PayoutLifecycleIntegrationTest {
           } finally {
             observer.shutdownNow();
           }
-          return PayoutResult.ok("paid", BigDecimal.ZERO);
+          return TransferRailResult.completed("paid", BigDecimal.ZERO);
         };
     submit();
     assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.COMPLETED);
@@ -373,7 +425,7 @@ class PayoutLifecycleIntegrationTest {
   @Test
   void routePricingEditsCannotChangeAcceptedSubmissionEconomics() {
     tx.executeWithoutResult(
-        s -> routes.findByCode("BANK").orElseThrow().update("25", "10", 10, "90", true));
+        s -> routes.findByRouteCode("BANK").orElseThrow().update("25", "10", 10, "90", true));
     var result = submit();
     assertThat(result.selectedQuote().feeAmount()).isEqualByComparingTo("5.0000");
     assertThat(result.selectedQuote().netSourceAmount()).isEqualByComparingTo("95.0000");
@@ -383,6 +435,17 @@ class PayoutLifecycleIntegrationTest {
   }
 
   QuoteService quoteService() {
+    var repositories =
+        new JpaRepositoryFactory(
+            SharedEntityManagerCreator.createSharedEntityManager(factory.getObject()));
+    var outcomes = repositories.getRepository(TransferRouteOutcomeRepository.class);
+    var smart =
+        new SmartRoutingService(
+            routes,
+            new RouteEligibilityService(new RailRegistry(List.of(bankRail()))),
+            new RouteReliabilityService(outcomes),
+            new RoutePricingService(new QuotePricingPolicy()),
+            new RouteRecommender());
     return new QuoteService(
         payments,
         quotes,
@@ -392,15 +455,33 @@ class PayoutLifecycleIntegrationTest {
           return new BigDecimal("82.000000");
         },
         clock,
-        routes,
-        new RoutePricingService(new QuotePricingPolicy()),
-        new RouteRecommender(),
+        smart,
         operationService,
         new PaymentRecoveryEligibility(
             new DbPaymentReader(payments, repositoriesRecipients(), mapper),
             attempts,
             proxy(
                 new PersistentLedgerWriter(wallets, entries, new LedgerPostingContext(), clock))));
+  }
+
+  static com.fluxpay.common.contracts.TransferRail bankRail() {
+    return new com.fluxpay.common.contracts.TransferRail() {
+      @Override
+      public RailType type() {
+        return RailType.BANK_NETWORK;
+      }
+
+      @Override
+      public java.util.Set<DestinationType> supportedDestinations() {
+        return java.util.Set.of(DestinationType.EXTERNAL_ACCOUNT);
+      }
+
+      @Override
+      public com.fluxpay.dto.TransferRailResult execute(
+          com.fluxpay.dto.TransferRailCommand command) {
+        throw new UnsupportedOperationException();
+      }
+    };
   }
 
   @ParameterizedTest
@@ -410,14 +491,10 @@ class PayoutLifecycleIntegrationTest {
     delivery =
         cmd ->
             cmd.attemptNumber() == 1
-                ? PayoutResult.failed("declined", "Known final rejection", BigDecimal.ZERO)
-                : PayoutResult.ok("recovered", BigDecimal.ZERO);
+                ? TransferRailResult.failed("declined", "Known final rejection", BigDecimal.ZERO)
+                : TransferRailResult.completed("recovered", BigDecimal.ZERO);
     submit();
-    tx.executeWithoutResult(
-        s ->
-            routes.save(
-                PayoutRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99")));
+    tx.executeWithoutResult(s -> saveRoute("BANK2", "Bank2"));
     now.set(NOW.plusSeconds(901));
     var refreshed =
         org.junit.jupiter.api.Assertions.assertDoesNotThrow(
@@ -468,13 +545,13 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void expiredAcceptedRetryKeepsFrozenEconomicsEvenAfterNewQuoteGeneration() {
-    delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
     now.set(NOW.plusSeconds(901));
     tx.executeWithoutResult(
-        s -> routes.findByCode("BANK").orElseThrow().update("25", "10", 1, "99", true));
+        s -> routes.findByRouteCode("BANK").orElseThrow().update("25", "10", 1, "99", true));
     quoteService().createOrCurrent(user, id, "new-quotes");
-    delivery = cmd -> PayoutResult.ok("recovered", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.completed("recovered", BigDecimal.ZERO);
     var result = execution.perform(user, "retry", "RETRY", id, null, null, "cid");
     assertThat(result.status()).isEqualTo("COMPLETED");
     assertThat(result.selectedQuote().quoteId()).isEqualTo(quoteId);
@@ -489,14 +566,12 @@ class PayoutLifecycleIntegrationTest {
   @ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"RETRY", "SWITCH"})
   void freshRecoveryQuotesUseCurrentRouteFeeAndRejectChangedFundingAllocation(String action) {
-    delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
     tx.executeWithoutResult(
         s -> {
-          routes.findByCode("BANK").orElseThrow().update("6", "0", 1, "99", true);
-          routes.save(
-              PayoutRoute.seed(
-                  UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "6", "0", 1, "99"));
+          routes.findByRouteCode("BANK").orElseThrow().update("6", "0", 1, "99", true);
+          saveRoute("BANK2", "Bank2", "6.0000");
         });
     now.set(NOW.plusSeconds(901));
     var fresh = quoteService().createOrCurrent(user, id, "current-fees");
@@ -531,7 +606,7 @@ class PayoutLifecycleIntegrationTest {
       strings = {"provider_timeout", "wire_error_17", "connection reset"})
   void uncertainOutcomeClassificationBlocksRecoveryRegardlessOfDiagnosticCode(String code) {
     delivery =
-        cmd -> PayoutResult.uncertain(code, "Delivery could have succeeded", BigDecimal.ZERO);
+        cmd -> TransferRailResult.uncertain(code, "Delivery could have succeeded", BigDecimal.ZERO);
     assertThatThrownBy(this::submit)
         .isInstanceOfSatisfying(
             com.fluxpay.exception.BusinessException.class,
@@ -548,7 +623,7 @@ class PayoutLifecycleIntegrationTest {
   void confirmedFinalFailureDoesNotInferUncertaintyFromDiagnosticWords() {
     delivery =
         cmd ->
-            PayoutResult.failed(
+            TransferRailResult.failed(
                 "TIMEOUT_CONFIRMED_NO_DELIVERY",
                 "Provider definitively rejected delivery",
                 BigDecimal.ZERO);
@@ -560,13 +635,9 @@ class PayoutLifecycleIntegrationTest {
   @ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"missing", "inactive", "same", "blank"})
   void invalidSwitchRoutesConsistentlyRequireRequote(String invalid) {
-    delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
-    tx.executeWithoutResult(
-        s ->
-            routes.save(
-                PayoutRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99")));
+    tx.executeWithoutResult(s -> saveRoute("BANK2", "Bank2"));
     var refreshed = quoteService().createOrCurrent(user, id, "recovery-quotes");
     var candidate =
         refreshed.quotes().stream()
@@ -575,7 +646,7 @@ class PayoutLifecycleIntegrationTest {
             .orElseThrow();
     if (invalid.equals("inactive"))
       tx.executeWithoutResult(
-          s -> routes.findByCode("BANK2").orElseThrow().update("5", "0", 1, "99", false));
+          s -> routes.findByRouteCode("BANK2").orElseThrow().update("5", "0", 1, "99", false));
     String route =
         switch (invalid) {
           case "missing" -> "ABSENT";
@@ -594,19 +665,15 @@ class PayoutLifecycleIntegrationTest {
   }
 
   @Test
-  void finalizationItselfCannotTurnUncertainDeliveryIntoARefundableFailure() {
+  void finalizationItselfCannotTurnUncertainDeliveryIntoARefundableFailure() throws Exception {
     var uncertain =
-        PayoutResult.uncertain("wire_error", "No final acknowledgment", BigDecimal.ZERO);
+        TransferRailResult.uncertain("wire_error", "No final acknowledgment", BigDecimal.ZERO);
     delivery = cmd -> uncertain;
     assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
-    var accepted =
-        new SelectedQuoteService(payments, quotes, clock, routes)
-            .require(
-                new DbPaymentReader(payments, repositoriesRecipients(), mapper).get(id.toString()),
-                "BANK");
     var reserved =
-        new PayoutReservationService.Reserved(
-            user, id, delivered.attemptId(), "BANK", 1, accepted, delivered);
+        mapper.readValue(
+            operations.findAll().get(0).payoutReservation(),
+            PayoutReservationService.Reserved.class);
     var operation = operations.findAll().get(0);
     assertThatThrownBy(() -> finalization.finish(reserved, operation.id(), uncertain, "cid"))
         .isInstanceOf(IllegalStateException.class);
@@ -620,7 +687,7 @@ class PayoutLifecycleIntegrationTest {
   @org.junit.jupiter.params.provider.ValueSource(
       strings = {"refunded", "processing", "unfunded", "attempt-processing", "reversed"})
   void recoveryQuotesRejectAnyNonRecoverableFundingState(String invalid) {
-    delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
     if (invalid.equals("refunded")) refund("refund");
     tx.executeWithoutResult(
@@ -652,13 +719,9 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void refreshedRecoveryQuotesSupersedePriorGenerationAndCannotChangeRetryRoute() {
-    delivery = cmd -> PayoutResult.failed("declined", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("declined", "Known rejection", BigDecimal.ZERO);
     submit();
-    tx.executeWithoutResult(
-        s ->
-            routes.save(
-                PayoutRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99")));
+    tx.executeWithoutResult(s -> saveRoute("BANK2", "Bank2"));
     now.set(NOW.plusSeconds(901));
     var first = quoteService().createOrCurrent(user, id, "recovery-quotes-1");
     var firstOther =
@@ -693,8 +756,8 @@ class PayoutLifecycleIntegrationTest {
     delivery =
         cmd ->
             cmd.attemptNumber() == 1
-                ? PayoutResult.failed("DECLINED", "Known final rejection", BigDecimal.ZERO)
-                : PayoutResult.ok("paid", BigDecimal.ZERO);
+                ? TransferRailResult.failed("DECLINED", "Known final rejection", BigDecimal.ZERO)
+                : TransferRailResult.completed("paid", BigDecimal.ZERO);
     var first = submit();
     assertThat(first.status()).isEqualTo("FAILED");
     assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.FAILED);
@@ -711,9 +774,419 @@ class PayoutLifecycleIntegrationTest {
   }
 
   @Test
+  void reconciliationReplaysPersistedCommandAndCompletesOriginalOperation() {
+    delivery = cmd -> TransferRailResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    var original = delivered;
+    now.set(NOW.plusSeconds(3600));
+    delivery = cmd -> TransferRailResult.completed("reconciled", BigDecimal.ZERO);
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, rails(), finalization);
+    var result = reconciler.reconcile(id, "reconcile-cid");
+    assertThat(result.status()).isEqualTo("COMPLETED");
+    assertThat(delivered).isEqualTo(original);
+    assertThat(attempts.findAll()).hasSize(1);
+    assertThat(submit()).isEqualTo(result);
+    assertThat(calls).hasValue(2);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .containsExactlyInAnyOrder(
+            "payment.route.selected", "payout.submitted", "payout.completed");
+  }
+
+  @Test
+  void failureSchedulesOneDurableRetryExactlyTwoMinutesLater() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var failure =
+        events.findAll().stream()
+            .filter(e -> e.topic().equals("payout.failed"))
+            .findFirst()
+            .orElseThrow();
+    var consumer = recoveryConsumer();
+    consumer.onEvent(failure.payload(), "payout.failed");
+    consumer.onEvent(failure.payload(), "payout.failed");
+    var commands = events.findAll().stream().filter(e -> e.topic().equals("payout.retry")).toList();
+    assertThat(commands).hasSize(1);
+    var command = commands.get(0);
+    var envelope = new com.fluxpay.messaging.EventEnvelopeCodec(mapper).read(command.payload());
+    assertThat(envelope.payload())
+        .containsEntry("attemptCount", 1)
+        .containsEntry("nextRun", "2026-09-13T10:02:00Z");
+    assertThat(deliveries.findById(command.id()).orElseThrow().nextAttemptAt())
+        .isEqualTo(Instant.parse("2026-09-13T10:02:00Z"));
+    tx.executeWithoutResult(
+        s -> {
+          for (var d : deliveries.findAll()) {
+            if (!d.eventId().equals(command.id())) {
+              d.claim("test", NOW.plusSeconds(30));
+              deliveries.saveAndFlush(d);
+              deliveries.markSentIfClaimed(d.eventId(), "test", NOW);
+            }
+          }
+        });
+    var early =
+        tx.execute(
+            s ->
+                deliveries.claimEligible(
+                    NOW.plusSeconds(119), org.springframework.data.domain.Pageable.unpaged()));
+    var due =
+        tx.execute(
+            s ->
+                deliveries.claimEligible(
+                    NOW.plusSeconds(120), org.springframework.data.domain.Pageable.unpaged()));
+    assertThat(early).isEmpty();
+    assertThat(due).extracting(OutboxDelivery::eventId).containsExactly(command.id());
+    assertThat(calls).hasValue(1);
+  }
+
+  com.fluxpay.messaging.PayoutRetryConsumer recoveryConsumer() {
+    return new com.fluxpay.messaging.PayoutRetryConsumer(
+        operationService,
+        operations,
+        payments,
+        attempts,
+        execution,
+        recovery,
+        outbox,
+        new com.fluxpay.messaging.EventEnvelopeCodec(mapper),
+        clock);
+  }
+
+  @Test
+  void delayedRecoveryDoesNotBlockManualOutcomeEvents() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    int commandSequence = deliveries.findById(command.id()).orElseThrow().aggregateSequence();
+    delivery = cmd -> TransferRailResult.completed("manual-completed", BigDecimal.ZERO);
+    execution.perform(user, "manual", "RETRY", id, null, null, "cid");
+    tx.executeWithoutResult(
+        s -> {
+          for (var d : deliveries.findByPaymentIdOrderByAggregateSequenceAsc(id)) {
+            if (d.aggregateSequence() < commandSequence) {
+              d.claim("test", NOW.plusSeconds(30));
+              deliveries.saveAndFlush(d);
+              deliveries.markSentIfClaimed(d.eventId(), "test", NOW);
+            }
+          }
+        });
+    for (String topic : List.of("payment.route.selected", "payout.submitted", "payout.completed")) {
+      var eligible =
+          tx.execute(
+              s ->
+                  deliveries.claimEligible(
+                      NOW, org.springframework.data.domain.Pageable.unpaged()));
+      assertThat(eligible).hasSize(1);
+      assertThat(events.findById(eligible.get(0).eventId()).orElseThrow().topic()).isEqualTo(topic);
+      tx.executeWithoutResult(
+          s -> {
+            var d = deliveries.findById(eligible.get(0).eventId()).orElseThrow();
+            d.claim("test", NOW.plusSeconds(30));
+            deliveries.saveAndFlush(d);
+            deliveries.markSentIfClaimed(d.eventId(), "test", NOW);
+          });
+    }
+    assertThat(deliveries.findById(command.id()).orElseThrow().state()).isEqualTo("PENDING");
+    now.set(NOW.plusSeconds(120));
+    consumer.onEvent(command.payload(), command.topic());
+    assertThat(calls).hasValue(2);
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+  }
+
+  OutboxEvent recoveryEvent(String topic, String field, int value) {
+    var codec = new com.fluxpay.messaging.EventEnvelopeCodec(mapper);
+    return events.findAll().stream()
+        .filter(e -> e.topic().equals(topic))
+        .filter(e -> ((Number) codec.read(e.payload()).payload().get(field)).intValue() == value)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void fiveDelayedRetriesThenOneRefundDespiteDuplicateDeliveries() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    completeAutomaticRecovery();
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"schedule", "retry", "refund"})
+  void publicRecoveryLookingKeysCannotBlockAutomaticRecovery(String kind) {
+    String key = "auto:" + kind + ":" + id + (kind.equals("refund") ? ":5" : ":1");
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    var initial = execution.perform(user, key, "SUBMIT", id, "BANK", null, "cid");
+    var publicOperation = operations.findAll().get(0);
+    assertThatCode(this::completeAutomaticRecovery).doesNotThrowAnyException();
+    assertThat(execution.perform(user, key, "SUBMIT", id, "BANK", null, "cid")).isEqualTo(initial);
+    assertThat(operations.findById(publicOperation.id()).orElseThrow().responseData())
+        .isEqualTo(publicOperation.responseData());
+    assertThat(operations.findAll().stream().filter(op -> key.equals(op.clientKey()))).hasSize(2);
+    assertThatThrownBy(() -> execution.perform(user, key, "RETRY", id, null, null, "cid"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.BusinessException.class,
+            ex -> assertThat(ex.code()).isEqualTo("IDEMPOTENCY_CONFLICT"));
+    assertThat(calls).hasValue(6);
+  }
+
+  void completeAutomaticRecovery() {
+    var consumer = recoveryConsumer();
+    for (int retry = 1; retry <= 5; retry++) {
+      var failure = recoveryEvent("payout.failed", "attempt", retry);
+      consumer.onEvent(failure.payload(), failure.topic());
+      consumer.onEvent(failure.payload(), failure.topic());
+      var command = recoveryEvent("payout.retry", "attemptCount", retry);
+      assertThat(deliveries.findById(command.id()).orElseThrow().nextAttemptAt())
+          .isEqualTo(NOW.plusSeconds(120L * retry));
+      now.set(NOW.plusSeconds(120L * retry));
+      consumer.onEvent(command.payload(), command.topic());
+      consumer.onEvent(command.payload(), command.topic());
+      assertThat(calls.get()).isEqualTo(retry + 1);
+      assertThat(attempts.findAll()).hasSize(retry + 1);
+    }
+    var failure = recoveryEvent("payout.failed", "attempt", 6);
+    consumer.onEvent(failure.payload(), failure.topic());
+    consumer.onEvent(failure.payload(), failure.topic());
+    var refund = events.findAll().stream().filter(e -> e.topic().equals("payout.refund")).toList();
+    assertThat(refund).hasSize(1);
+    consumer.onEvent(refund.get(0).payload(), "payout.refund");
+    consumer.onEvent(refund.get(0).payload(), "payout.refund");
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.REFUNDED);
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("1000");
+    assertThat(wallets.findById(clearing).orElseThrow().getBalance()).isEqualByComparingTo("0");
+    assertThat(wallets.findById(feeWallet).orElseThrow().getBalance()).isEqualByComparingTo("0");
+    for (var account : List.of(wallet, clearing, feeWallet))
+      assertThat(
+              entries.findByWalletIdOrderByCreatedAtDescIdDesc(
+                  account, org.springframework.data.domain.Pageable.unpaged()))
+          .hasSize(2);
+    assertThat(events.findAll().stream().filter(e -> e.topic().equals("payout.retry"))).hasSize(5);
+    assertThat(events.findAll().stream().filter(e -> e.topic().equals("payment.refunded")))
+        .hasSize(1);
+    assertThat(calls).hasValue(6);
+  }
+
+  @Test
+  void uncertainAutomaticRetryStopsWithoutAnotherRetryOrRefund() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    now.set(NOW.plusSeconds(120));
+    delivery = cmd -> TransferRailResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    consumer.onEvent(command.payload(), command.topic());
+    consumer.onEvent(command.payload(), command.topic());
+    consumer.onEvent(failure.payload(), failure.topic());
+    assertThat(calls).hasValue(2);
+    assertThat(attempts.findAll()).hasSize(2);
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.PROCESSING);
+    assertThat(events.findAll().stream().filter(e -> e.topic().equals("payout.retry"))).hasSize(1);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .doesNotContain("payout.refund", "payment.refunded");
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+  }
+
+  @Test
+  void recoveryCommandCannotExecuteBeforeItsDurableDueTime() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    now.set(NOW.plusSeconds(119));
+    assertThatThrownBy(() -> consumer.onEvent(command.payload(), command.topic()))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(calls).hasValue(1);
+    now.set(NOW.plusSeconds(120));
+    consumer.onEvent(command.payload(), command.topic());
+    assertThat(calls).hasValue(2);
+  }
+
+  @Test
+  void reconciledAutomaticFailureContinuesWithTheNextRetryOrdinal() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var firstRetry = recoveryEvent("payout.retry", "attemptCount", 1);
+    now.set(NOW.plusSeconds(120));
+    delivery = cmd -> TransferRailResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    consumer.onEvent(firstRetry.payload(), firstRetry.topic());
+    var uncertainCommand = delivered;
+    delivery =
+        cmd -> TransferRailResult.failed("DECLINED", "Definitive rejection", BigDecimal.ZERO);
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, rails(), finalization);
+    assertThat(reconciler.reconcile(id, "reconcile").status()).isEqualTo("FAILED");
+    assertThat(delivered).isEqualTo(uncertainCommand);
+    assertThat(attempts.findAll()).hasSize(2);
+    var reconciledFailure = recoveryEvent("payout.failed", "attempt", 2);
+    consumer.onEvent(reconciledFailure.payload(), reconciledFailure.topic());
+    var secondRetry = recoveryEvent("payout.retry", "attemptCount", 2);
+    assertThat(deliveries.findById(secondRetry.id()).orElseThrow().nextAttemptAt())
+        .isEqualTo(NOW.plusSeconds(240));
+    consumer.onEvent(firstRetry.payload(), firstRetry.topic());
+    assertThat(calls).hasValue(3);
+    now.set(NOW.plusSeconds(240));
+    delivery = cmd -> TransferRailResult.completed("recovered", BigDecimal.ZERO);
+    consumer.onEvent(secondRetry.payload(), secondRetry.topic());
+    assertThat(calls).hasValue(4);
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.COMPLETED);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .doesNotContain("payout.refund", "payment.refunded");
+  }
+
+  @Test
+  void staleRetryCannotRetryANewerManualFailure() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    var failure = recoveryEvent("payout.failed", "attempt", 1);
+    consumer.onEvent(failure.payload(), failure.topic());
+    var command = recoveryEvent("payout.retry", "attemptCount", 1);
+    execution.perform(user, "manual-retry", "RETRY", id, null, null, "cid");
+    now.set(NOW.plusSeconds(120));
+    consumer.onEvent(command.payload(), command.topic());
+    assertThat(calls).hasValue(2);
+    assertThat(attempts.findAll()).hasSize(2);
+    assertThat(operations.findAll().stream().filter(op -> op.operationType().equals("AUTO_RETRY")))
+        .isEmpty();
+    var latestFailure = recoveryEvent("payout.failed", "attempt", 2);
+    consumer.onEvent(latestFailure.payload(), latestFailure.topic());
+    var latestCommand =
+        events.findAll().stream()
+            .filter(e -> e.topic().equals("payout.retry") && !e.id().equals(command.id()))
+            .findFirst()
+            .orElseThrow();
+    consumer.onEvent(latestCommand.payload(), latestCommand.topic());
+    assertThat(calls).hasValue(3);
+    assertThatCode(() -> consumer.onEvent(command.payload(), command.topic()))
+        .doesNotThrowAnyException();
+    assertThat(calls).hasValue(3);
+  }
+
+  @Test
+  void staleRefundDoesNotConsumeTheTerminalRefundIdentity() {
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO);
+    submit();
+    var consumer = recoveryConsumer();
+    for (int retry = 1; retry <= 5; retry++) {
+      var failure = recoveryEvent("payout.failed", "attempt", retry);
+      consumer.onEvent(failure.payload(), failure.topic());
+      now.set(NOW.plusSeconds(120L * retry));
+      var command = recoveryEvent("payout.retry", "attemptCount", retry);
+      consumer.onEvent(command.payload(), command.topic());
+    }
+    var fifthFailure = recoveryEvent("payout.failed", "attempt", 6);
+    consumer.onEvent(fifthFailure.payload(), fifthFailure.topic());
+    var oldRefund = recoveryEvent("payout.refund", "failedAttempt", 6);
+    execution.perform(user, "manual-after-five", "RETRY", id, null, null, "cid");
+    consumer.onEvent(oldRefund.payload(), oldRefund.topic());
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+    var latestFailure = recoveryEvent("payout.failed", "attempt", 7);
+    consumer.onEvent(latestFailure.payload(), latestFailure.topic());
+    var currentRefund = recoveryEvent("payout.refund", "failedAttempt", 7);
+    assertThatCode(() -> consumer.onEvent(currentRefund.payload(), currentRefund.topic()))
+        .doesNotThrowAnyException();
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("1000");
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"missing", "invalid", "wrong-payment"})
+  void invalidDurableReservationNeverContactsProvider(String kind) {
+    delivery = cmd -> TransferRailResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    tx.executeWithoutResult(
+        s -> {
+          var operation = operations.findAll().get(0);
+          String snapshot =
+              kind.equals("missing")
+                  ? null
+                  : kind.equals("invalid")
+                      ? "{}"
+                      : operation
+                          .payoutReservation()
+                          .replace(id.toString(), UUID.randomUUID().toString());
+          org.springframework.test.util.ReflectionTestUtils.setField(
+              operation, "payoutReservation", snapshot);
+          operations.saveAndFlush(operation);
+        });
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, rails(), finalization);
+    assertThatThrownBy(() -> reconciler.reconcile(id, "cid"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.BusinessException.class,
+            ex -> assertThat(ex.code()).isEqualTo("PAYOUT_RESERVATION_UNAVAILABLE"));
+    assertThat(calls).hasValue(1);
+  }
+
+  @Test
+  void duplicateDefinitiveReconciliationFinalizesOnlyOnce() throws Exception {
+    delivery = cmd -> TransferRailResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    var op = operations.findAll().get(0);
+    var reserved =
+        mapper.readValue(op.payoutReservation(), PayoutReservationService.Reserved.class);
+    var first =
+        finalization.finish(
+            reserved,
+            op.id(),
+            TransferRailResult.failed("DECLINED", "Rejected", BigDecimal.ZERO),
+            "cid");
+    assertThatCode(
+            () -> {
+              var repeated =
+                  finalization.finish(
+                      reserved,
+                      op.id(),
+                      TransferRailResult.completed("late-conflicting-response", BigDecimal.ZERO),
+                      "cid");
+              assertThat(repeated).isEqualTo(first);
+            })
+        .doesNotThrowAnyException();
+    assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.FAILED);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .containsExactlyInAnyOrder("payment.route.selected", "payout.submitted", "payout.failed");
+  }
+
+  @Test
+  void repeatedUncertainReconciliationKeepsMoneyAndOperationPending() {
+    delivery = cmd -> TransferRailResult.uncertain("TIMEOUT", "Unknown", BigDecimal.ZERO);
+    assertThatThrownBy(this::submit).isInstanceOf(com.fluxpay.exception.BusinessException.class);
+    var original = delivered;
+    var reconciler =
+        new PayoutReconciler(operations, attempts, payments, mapper, rails(), finalization);
+    assertThatThrownBy(() -> reconciler.reconcile(id, "cid"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.BusinessException.class,
+            ex -> assertThat(ex.code()).isEqualTo("PAYOUT_PENDING_RECONCILIATION"));
+    assertThat(delivered).isEqualTo(original);
+    assertThat(operations.findAll())
+        .singleElement()
+        .satisfies(op -> assertThat(op.status()).isEqualTo("IN_PROGRESS"));
+    assertThat(attempts.findAll()).hasSize(1);
+    assertThat(events.findAll())
+        .extracting(OutboxEvent::topic)
+        .containsExactlyInAnyOrder("payment.route.selected", "payout.submitted");
+    assertThatThrownBy(() -> refund("refund")).isInstanceOf(IllegalStateException.class);
+    assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("900");
+  }
+
+  @Test
   void timeoutResultRemainsPendingAndBlocksRetry() {
     delivery =
-        cmd -> PayoutResult.uncertain("PROVIDER_TIMEOUT", "Unknown delivery", BigDecimal.ZERO);
+        cmd ->
+            TransferRailResult.uncertain("PROVIDER_TIMEOUT", "Unknown delivery", BigDecimal.ZERO);
     assertThatThrownBy(this::submit)
         .isInstanceOfSatisfying(
             com.fluxpay.exception.BusinessException.class,
@@ -748,7 +1221,7 @@ class PayoutLifecycleIntegrationTest {
           } catch (InterruptedException ex) {
             throw new AssertionError(ex);
           }
-          return PayoutResult.ok("paid", BigDecimal.ZERO);
+          return TransferRailResult.completed("paid", BigDecimal.ZERO);
         };
     try {
       var first = workers.submit(this::submit);
@@ -778,7 +1251,7 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void refundUpdatesPaymentAndReversesExactOriginalFundingOnce() {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     var first = refund("refund");
     assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.REFUNDED);
@@ -809,7 +1282,7 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void switchRequiresReplacementQuoteWithSameFrozenFunding() {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     UUID replacement = addReplacement("BANK2", "5", id, 1, NOW.plusSeconds(300));
     assertThatCode(
@@ -826,7 +1299,7 @@ class PayoutLifecycleIntegrationTest {
   @org.junit.jupiter.params.provider.ValueSource(
       strings = {"missing", "fee", "payment", "generation", "expiry", "route"})
   void rejectsInvalidReplacementQuoteWithoutAttemptOrOperation(String invalid) {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     UUID replacement =
         addReplacement(
@@ -857,10 +1330,7 @@ class PayoutLifecycleIntegrationTest {
     UUID replacement = UUID.randomUUID();
     tx.executeWithoutResult(
         s -> {
-          if (routes.findByCode("BANK2").isEmpty())
-            routes.save(
-                PayoutRoute.seed(
-                    UUID.randomUUID(), "BANK2", "Bank2", "Bank2", "STANDARD", "5", "0", 1, "99"));
+          if (routes.findByRouteCode("BANK2").isEmpty()) saveRoute("BANK2", "Bank2");
           quotes.save(
               new PaymentQuote(
                   replacement,
@@ -882,7 +1352,7 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void retryCannotSpendAnAlreadyReversedPostingEvenIfPaymentStateIsStale() {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     tx.executeWithoutResult(
         s ->
@@ -941,7 +1411,7 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void refundOutboxFailureRollsBackEveryJournalLegAndOperation() {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     var target =
         org.springframework.test.util.AopTestUtils.<PayoutOutboxService>getUltimateTargetObject(
@@ -964,7 +1434,7 @@ class PayoutLifecycleIntegrationTest {
 
   @Test
   void concurrentRefundsWithDifferentKeysPostOneReversal() throws Exception {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     var workers = Executors.newFixedThreadPool(2);
     var start = new CountDownLatch(1);
@@ -1016,16 +1486,17 @@ class PayoutLifecycleIntegrationTest {
     tx.executeWithoutResult(
         s -> {
           if (cause.equals("inactive"))
-            routes.findByCode("BANK").orElseThrow().update("5", "0", 1, "99", false);
+            routes.findByRouteCode("BANK").orElseThrow().update("5", "0", 1, "99", false);
           if (cause.equals("expired"))
             org.springframework.test.util.ReflectionTestUtils.setField(
                 quotes.findById(quoteId).orElseThrow(), "expiresAt", NOW);
           if (cause.equals("unavailable")) {
-            routes.save(
-                PayoutRoute.seed(
-                    UUID.randomUUID(), "NONE", "None", "None", "STANDARD", "5", "0", 1, "99"));
+            saveRoute("NONE", "None");
             org.springframework.test.util.ReflectionTestUtils.setField(
                 quotes.findById(quoteId).orElseThrow(), "route", "NONE");
+            var none = routes.findByRouteCode("NONE").orElseThrow();
+            var catalogProvider = none.provider();
+            catalogProvider.update(catalogProvider.name(), catalogProvider.railType(), false, NOW);
           }
         });
     assertThatThrownBy(
@@ -1061,7 +1532,7 @@ class PayoutLifecycleIntegrationTest {
   @ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"RETRY", "SWITCH"})
   void reservedRecoveryRejectsRefundWhileProviderRunsWithoutLocks(String action) throws Exception {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     var replacement = addReplacement("BANK2", "5", id, 1, NOW.plusSeconds(300));
     var entered = new CountDownLatch(1);
@@ -1076,7 +1547,7 @@ class PayoutLifecycleIntegrationTest {
           } catch (InterruptedException ex) {
             throw new AssertionError(ex);
           }
-          return PayoutResult.ok("paid", BigDecimal.ZERO);
+          return TransferRailResult.completed("paid", BigDecimal.ZERO);
         };
     try {
       var payout =
@@ -1109,7 +1580,7 @@ class PayoutLifecycleIntegrationTest {
   @ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"RETRY", "SWITCH"})
   void refundSerializesRecoveryUntilTheRefundCommits(String action) throws Exception {
-    delivery = cmd -> PayoutResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
+    delivery = cmd -> TransferRailResult.failed("DECLINED", "Known rejection", BigDecimal.ZERO);
     submit();
     var replacement = addReplacement("BANK2", "5", id, 1, NOW.plusSeconds(300));
     var entered = new CountDownLatch(1);

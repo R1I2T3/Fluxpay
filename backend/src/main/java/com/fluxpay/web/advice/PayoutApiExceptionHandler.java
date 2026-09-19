@@ -24,7 +24,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
     assignableTypes = {
       com.fluxpay.controller.PayoutController.class,
       com.fluxpay.controller.RouteController.class,
-      com.fluxpay.controller.RouteAdminController.class,
+      com.fluxpay.controller.TransferProviderAdminController.class,
+      com.fluxpay.controller.TransferRouteAdminController.class,
+      com.fluxpay.controller.TransferRailAdminController.class,
       com.fluxpay.controller.TimelineController.class
     })
 public class PayoutApiExceptionHandler {

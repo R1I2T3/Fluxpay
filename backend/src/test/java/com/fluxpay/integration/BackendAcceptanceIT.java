@@ -9,21 +9,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.FluxPayApplication;
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferProvider;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.beans.User;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.FxSnapshotSource;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.common.security.JwtUtil;
+import com.fluxpay.domain.DestinationType;
+import com.fluxpay.domain.RailType;
 import com.fluxpay.dto.FxSnapshot;
-import com.fluxpay.dto.PayoutCmd;
-import com.fluxpay.dto.PayoutResult;
+import com.fluxpay.dto.TransferRailCommand;
+import com.fluxpay.dto.TransferRailResult;
 import com.fluxpay.messaging.EventTopics;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentEventRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferProviderRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
@@ -74,7 +78,8 @@ class BackendAcceptanceIT {
   @Autowired private ObjectMapper json;
   @Autowired private UserRepository users;
   @Autowired private WalletRepository wallets;
-  @Autowired private PayoutRouteRepository routes;
+  @Autowired private TransferRouteRepository routes;
+  @Autowired private TransferProviderRepository providers;
   @Autowired private BCryptPasswordEncoder passwords;
   @Autowired private JwtUtil jwt;
   @Autowired private JdbcTemplate jdbc;
@@ -230,15 +235,15 @@ class BackendAcceptanceIT {
     String refundKey = "acceptance-refund-" + UUID.randomUUID();
     JsonNode refund =
         request(
-            post("/api/payments/" + refunded.paymentId + "/refund"),
-            customerToken,
+            post("/api/admin/payments/" + refunded.paymentId + "/refund"),
+            adminToken,
             refundKey,
             Map.of(),
             200);
     JsonNode refundReplay =
         request(
-            post("/api/payments/" + refunded.paymentId + "/refund"),
-            customerToken,
+            post("/api/admin/payments/" + refunded.paymentId + "/refund"),
+            adminToken,
             refundKey,
             Map.of(),
             200);
@@ -370,27 +375,49 @@ class BackendAcceptanceIT {
   }
 
   private void provisionRoutes() {
-    route("STANDARD_BANK", "STANDARD", 240);
-    route("INSTANT_PAYOUT", "INSTANT", 5);
-    route("LOCAL_PARTNER", "LOCAL_PARTNER", 60);
+    route("STANDARD_BANK", 240);
+    route("INSTANT_PAYOUT", 5);
+    route("LOCAL_PARTNER", 60);
   }
 
-  private void route(String code, String type, int minutes) {
-    PayoutRoute route =
-        routes
-            .findByCode(code)
+  private void route(String code, int minutes) {
+    TransferProvider provider =
+        providers
+            .findByProviderCode("ACCEPTANCE_PROVIDER")
             .orElseGet(
                 () ->
-                    PayoutRoute.seed(
-                        UUID.nameUUIDFromBytes(("acceptance:" + code).getBytes()),
-                        code,
-                        code,
-                        "Acceptance provider",
-                        type,
-                        "5.0000",
-                        "0.500000",
-                        minutes,
-                        "99.00"));
+                    providers.saveAndFlush(
+                        TransferProvider.create(
+                            UUID.randomUUID(),
+                            "ACCEPTANCE_PROVIDER",
+                            "Acceptance provider",
+                            RailType.BANK_NETWORK,
+                            true,
+                            false,
+                            Instant.now())));
+    TransferRoute route =
+        routes
+            .findByRouteCode(code)
+            .orElseGet(
+                () ->
+                    routes.saveAndFlush(
+                        TransferRoute.create(
+                            UUID.nameUUIDFromBytes(("acceptance:" + code).getBytes()),
+                            provider,
+                            code,
+                            code,
+                            DestinationType.EXTERNAL_ACCOUNT,
+                            "IN",
+                            "INR",
+                            new BigDecimal("5.0000"),
+                            new BigDecimal("0.500000"),
+                            minutes,
+                            new BigDecimal("99.00"),
+                            null,
+                            null,
+                            true,
+                            false,
+                            Instant.now())));
     route.update("5.0000", "0.500000", minutes, "99.00", true);
     routes.saveAndFlush(route);
   }
@@ -479,55 +506,41 @@ class BackendAcceptanceIT {
     }
 
     @Bean
-    PayoutProvider acceptanceStandardProvider() {
-      return new PayoutProvider() {
+    TransferRail acceptanceBankRail() {
+      return new TransferRail() {
         private final Map<String, AtomicInteger> attempts = new ConcurrentHashMap<>();
 
         @Override
-        public String code() {
-          return "STANDARD_BANK";
+        public RailType type() {
+          return RailType.BANK_NETWORK;
         }
 
         @Override
-        public PayoutResult submit(PayoutCmd command) {
+        public java.util.Set<DestinationType> supportedDestinations() {
+          return java.util.Set.of(DestinationType.EXTERNAL_ACCOUNT);
+        }
+
+        @Override
+        public TransferRailResult execute(TransferRailCommand command) {
           int attempt =
               attempts
-                  .computeIfAbsent(command.paymentId(), ignored -> new AtomicInteger())
+                  .computeIfAbsent(command.transferId().toString(), ignored -> new AtomicInteger())
                   .incrementAndGet();
-          BigDecimal amount = command.amount();
-          boolean failsOnce = amount.compareTo(new BigDecimal("210.0000")) == 0 && attempt == 1;
-          boolean alwaysFails = amount.compareTo(new BigDecimal("220.0000")) >= 0;
+          BigDecimal amount = command.sourceAmount();
+          // Only the STANDARD_BANK route rejects; the other acceptance routes share this
+          // bank rail and always complete, mirroring the previous per-provider simulators.
+          boolean standard = "STANDARD_BANK".equals(command.route().code());
+          boolean failsOnce =
+              standard && amount.compareTo(new BigDecimal("210.0000")) == 0 && attempt == 1;
+          boolean alwaysFails = standard && amount.compareTo(new BigDecimal("220.0000")) >= 0;
           if (failsOnce || alwaysFails) {
-            return PayoutResult.failed(
+            return TransferRailResult.failed(
                 "TEST_PROVIDER_REJECTED",
                 "Acceptance provider rejected payout",
                 command.customerFee());
           }
-          return PayoutResult.ok("ACCEPTANCE-" + command.attemptId(), command.customerFee());
-        }
-      };
-    }
-
-    @Bean
-    PayoutProvider acceptanceInstantProvider() {
-      return provider("INSTANT_PAYOUT");
-    }
-
-    @Bean
-    PayoutProvider acceptanceLocalPartnerProvider() {
-      return provider("LOCAL_PARTNER");
-    }
-
-    private static PayoutProvider provider(String code) {
-      return new PayoutProvider() {
-        @Override
-        public String code() {
-          return code;
-        }
-
-        @Override
-        public PayoutResult submit(PayoutCmd command) {
-          return PayoutResult.ok(code + "-" + command.attemptId(), command.customerFee());
+          return TransferRailResult.completed(
+              "ACCEPTANCE-" + command.attemptId(), command.customerFee());
         }
       };
     }

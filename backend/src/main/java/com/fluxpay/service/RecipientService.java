@@ -43,7 +43,7 @@ public class RecipientService {
             request.bankName().trim(),
             country,
             currency,
-            request.status() == null ? RecipientStatus.ACTIVE : request.status(),
+            RecipientStatus.ACTIVE,
             Instant.now(clock));
     try {
       return response(recipients.saveAndFlush(r));
@@ -82,7 +82,7 @@ public class RecipientService {
         request.bankName().trim(),
         country,
         currency,
-        request.status() == null ? r.status() : request.status(),
+        RecipientStatus.ACTIVE,
         Instant.now(clock));
     try {
       recipients.flush();

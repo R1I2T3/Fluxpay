@@ -41,6 +41,7 @@ public class PolicyController {
   }
 
   @PostMapping
+  @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<ApiResponse<PolicyDocumentResponse>> create(
       @Valid @RequestBody PolicyDocumentRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(wrap(documentService.create(request)));
@@ -57,6 +58,7 @@ public class PolicyController {
   }
 
   @PostMapping("/{id}/chunks")
+  @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<ApiResponse<PolicyChunkResponse>> addChunk(
       @PathVariable UUID id, @Valid @RequestBody PolicyChunkRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(wrap(chunkService.addChunk(id, request)));
