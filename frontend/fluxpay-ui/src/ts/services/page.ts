@@ -92,9 +92,11 @@ export class Page {
   overviewWallet = ko.pureComputed(()=>this.wallets().find(w=>w.currency===this.overviewCurrency()) || this.wallets()[0]);
   completedCount = ko.pureComputed(()=>this.payments().filter(p=>p.status==='COMPLETED').length);
   pendingCount = ko.pureComputed(()=>this.payments().filter(p=>['PROCESSING','UNDER_REVIEW'].includes(p.status)).length);
-  onHold = ko.pureComputed(()=>this.payments().filter(p=>p.status==='PROCESSING'));
+  onHold = ko.pureComputed(()=>this.payments().filter(p=>['PROCESSING','QUOTED'].includes(p.status)));
   processingForWallet=(wallet:any)=>this.onHold().filter(p=>p.sourceWalletId===wallet.walletId&&p.sourceCurrency===wallet.currency);
   processingAmount=(wallet:any)=>this.processingForWallet(wallet).reduce((sum,p)=>sum+Math.round(Number(p.sourceAmount||0)*10000),0)/10000;
+  quotedForWallet=(wallet:any)=>this.processingForWallet(wallet).filter(p=>p.status==='QUOTED');
+  holdCaption=(wallet:any)=>this.quotedForWallet(wallet).length?'On hold · processing / quoted':'On hold · processing';
   movementDescription=movementDescription;
   private timer?: number;
   private polling?: number;

@@ -9,6 +9,7 @@ class ViewModel extends Page {
   reasonLabel=ko.pureComputed(()=>this.purpose()==='OTHERS'?this.purposeReason().trim():this.label(this.purpose()));
   paymentReason=ko.pureComputed(()=>this.payment()?.purpose==='OTHERS'?this.payment()?.purposeReason:this.payment()?.purpose?this.label(this.payment().purpose):this.reasonLabel());
   recipientSearch=ko.observable('');
+  otherBankName=ko.observable('');
   matchingRecipients=ko.pureComputed(()=>this.activeRecipients().filter(r=>(r.name+' '+r.currency+' '+r.bankName).toLowerCase().includes(this.recipientSearch().trim().toLowerCase())));
   payoutSubmitted=ko.observable(false);
   private requestedRecipient='';
@@ -16,7 +17,7 @@ class ViewModel extends Page {
   private statusTimer:number;
   private closed=false;
   canSubmitPayout=ko.pureComputed(()=>this.payment()?.status==='PROCESSING'&&!this.payoutSubmitted());
-  receiptStatus=ko.pureComputed(()=>this.payment()?.status==='PROCESSING'?(this.payoutSubmitted()?'Sending — checking delivery':'Ready to send'):this.payment()?.status==='UNDER_REVIEW'?'Review in progress':this.label(this.payment()?.status));
+  receiptStatus=ko.pureComputed(()=>this.payment()?.status==='PROCESSING'?'Processing':this.payment()?.status==='UNDER_REVIEW'?'Review in progress':this.label(this.payment()?.status));
   receiptTitle=ko.pureComputed(()=>({COMPLETED:'Money sent.',PROCESSING:this.payoutSubmitted()?'Your money is on its way.':'Ready to send.',UNDER_REVIEW:'A quick review before we move.',REJECTED:'This transfer could not proceed.',FAILED:'Your transfer needs attention.',REFUNDED:'Your payment was refunded.',CANCELLED:'Transfer cancelled.'}[this.payment()?.status as string]||'Your transfer'));
   receiptMessage=ko.pureComputed(()=>({COMPLETED:'Your transfer is complete. Keep this receipt for your records.',PROCESSING:this.payoutSubmitted()?'We’re checking the final result. Please do not create another payment while this transfer is processing.':'Your payment is confirmed. Send it below without leaving this page.',UNDER_REVIEW:'Your transfer is awaiting compliance review. The status updates here automatically; you can send it here once approved.',REJECTED:'Compliance rejected this transfer. No payout will be submitted.',FAILED:'The payout was not completed. Open transfer details for available retry or refund options.',REFUNDED:'Check your wallet for the returned funds.',CANCELLED:'No further payout will be submitted.'}[this.payment()?.status as string]||'The latest payment status is shown below.'));
   private draftFingerprint='';
@@ -44,10 +45,10 @@ class ViewModel extends Page {
   dismissAction=()=>{if(!this.busy())this.confirmAction('');};
   closeRecipient=()=>{if(!this.busy())this.recipientFormOpen(false);};
   saveRecipient=()=>this.run(async()=>{
-    const body={name:this.recipientName().trim(),account:this.account().trim(),bankName:this.bankName().trim(),country:this.country().trim().toUpperCase(),currency:this.recipientCurrency()};
+    const body={name:this.recipientName().trim(),account:this.account().trim(),bankName:(this.bankName()==='OTHER'?this.otherBankName():this.bankName()).trim(),country:this.country().trim().toUpperCase(),currency:this.recipientCurrency()};
     if(!body.name||!body.account||!body.bankName||!/^[A-Z]{2}$/.test(body.country))throw new Error('Complete the recipient details and use a two-letter country code.');
     const recipient=await fluxApi.recipient(body);
-    this.recipients.push(recipient);this.recipientId(recipient.id);this.recipientSearch('');this.recipientFormOpen(false);
+    this.recipients.push(recipient);this.recipientId(recipient.id);this.recipientSearch('');this.recipientFormOpen(false);this.otherBankName('');
   },'Recipient added and selected. Continue with your payment below.');
   private async readTransfer(){
     const id=this.paymentId();
@@ -97,7 +98,17 @@ class ViewModel extends Page {
     }
   }
   createDraft=()=>this.run(async()=>{await this.persistDraft();this.savedDraft(false);this.step(2);await this.loadQuotes(true);});
-  saveDraft=()=>this.run(async()=>{await this.persistDraft();this.savedDraft(true);this.step(4);},'Draft saved. No funds have been sent.');
+  saveDraft=()=>this.run(async()=>{
+    if(this.step()===3){
+      if(!this.selectedQuote()||!this.quoteValid())throw new Error('This quote has expired. Go back to delivery options and refresh it before saving.');
+      try{await this.acceptQuote();}
+      catch(error){if(this.payment()&&!['DRAFT','QUOTED'].includes(this.payment().status)){this.savedDraft(false);this.step(4);}throw error;}
+      this.savedDraft(false);this.step(4);
+      if(this.payment()?.status==='PROCESSING')this.notice('Saved as Processing. Funds are committed to this transfer; submit the payout here or from its activity receipt.');
+    }else if(this.step()===1){
+      await this.persistDraft();this.savedDraft(true);this.step(4);this.notice('Draft saved. No funds have been sent.');
+    }
+  });
   backToDetails=()=>{if(this.busy()||this.payment()&&!['DRAFT','QUOTED'].includes(this.payment().status))return;this.confirmAction('');this.step(1);this.notice('');this.error('');};
 }
 export = ViewModel;

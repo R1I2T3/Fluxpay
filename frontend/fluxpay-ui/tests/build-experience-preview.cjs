@@ -51,7 +51,7 @@ const fixture=String.raw`
      else if(parts[4]==='timeline'){
        const steps=[['payment.initiated',0,'Payment request recorded'],['payment.screening.completed',8,'Screening result recorded'],['payment.route.selected',11,'Bank transfer route selected']];
        if(payment?.status==='UNDER_REVIEW')steps.push(['payment.review.requested',14,'A compliance review is required']);
-       if(['PROCESSING','COMPLETED'].includes(payment?.status))steps.push(['payout.submitted',18,'Submitted to the payout provider']);
+       if(payment?.status==='COMPLETED')steps.push(['payout.submitted',18,'Submitted to the payout provider']);
        if(payment?.status==='COMPLETED')steps.push(['payout.completed',95,'Provider confirmed delivery']);
        data=steps.map(([eventType,seconds,summary],index)=>({eventId:'qa-event-'+index,paymentId:payment.id,eventType,occurredAt:new Date(Date.parse(createdAt)+seconds*1000).toISOString(),correlationId:'qa-correlation',kafkaTopic:eventType,payload:{summary,providerRef:eventType==='payout.completed'?'QA-RECEIPT-ONLY':null}}));
      }

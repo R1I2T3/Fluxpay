@@ -32,6 +32,16 @@ class ViewModel extends Page {
   detailBusy=ko.observable(false);
   detailWarning=ko.observable('');
   detailUpdated=ko.observable('');
+  detailPayBusy=ko.observable(false);
+  detailPayError=ko.observable('');
+  detailPayNotice=ko.observable('');
+  detailPayReview=ko.observable(false);
+  detailPayQuote=ko.observable<any>();
+  private dispatchedPayouts=new Set<string>();
+  detailPayoutStarted=ko.pureComputed(()=>this.dispatchedPayouts.has(this.detailRecord()?.id)||this.detailEvents().some(e=>['payout.submitted','payout.completed','payout.failed'].includes(e.eventType)));
+  canPayDetail=ko.pureComputed(()=>!!this.detailPayment()&&!this.detailRow()?.isLedger&&!this.detailPayoutStarted()&&['DRAFT','QUOTED','PROCESSING'].includes(this.detailRecord()?.status));
+  detailPayQuoteValid=ko.pureComputed(()=>!!this.detailPayQuote()&&Date.parse(this.detailQuotes()?.expiresAt)>this.now());
+  detailQuoteLabel=(q:any)=>this.label(q.route)+' · '+this.money(q.feeAmount,this.detailRecord()?.sourceCurrency)+' fee · receives '+this.money(q.recipientAmount,this.detailRecord()?.payoutCurrency);
   detailRecord=ko.pureComputed(()=>this.detailPayment()||this.detailRow());
   detailRecipient=ko.pureComputed(()=>this.recipients().find(r=>r.id===this.detailRecord()?.recipientId));
   detailWallet=ko.pureComputed(()=>this.wallets().find(w=>w.walletId===(this.detailRecord()?.sourceWalletId||this.detailRow()?.walletId)));
@@ -59,7 +69,7 @@ class ViewModel extends Page {
     super('home',params);this.screen='payments-list';this.requestedDetail=params?.params?.id||'';
     this.subscriptions=[this.filter,this.search,this.typeFilter,this.fromDate,this.toDate].map(value=>value.subscribe(()=>this.page(0)));
     void this.load();
-    this.detailTimer=window.setInterval(()=>{if(this.detailRow()&&!this.detailRow().isLedger&&!this.detailBusy()&&['PROCESSING','UNDER_REVIEW'].includes(this.detailRecord()?.status)&&document.visibilityState==='visible')void this.refreshDetail();},10000);
+    this.detailTimer=window.setInterval(()=>{if(this.detailRow()&&!this.detailRow().isLedger&&!this.detailBusy()&&!this.detailPayBusy()&&['PROCESSING','UNDER_REVIEW'].includes(this.detailRecord()?.status)&&document.visibilityState==='visible')void this.refreshDetail();},10000);
   }
   async load(){
     if(this.screen!=='payments-list')return;
@@ -78,10 +88,12 @@ class ViewModel extends Page {
     }
   }
   openDetail=async(row:any)=>{
+    if(this.detailPayBusy())return;
+    this.detailPayError('');this.detailPayNotice('');this.detailPayReview(false);this.detailPayQuote(undefined);
     this.detailGeneration++;this.detailRow(row);this.detailPayment(undefined);this.detailEvents([]);this.detailQuotes(undefined);this.detailWarning('');this.detailUpdated('');this.detailBusy(false);
     if(!row.isLedger)await this.refreshDetail();
   };
-  closeDetail=()=>{this.detailGeneration++;this.detailRow(undefined);this.detailBusy(false);};
+  closeDetail=()=>{if(this.detailPayBusy()&&!this.stopped&&this.session.user())return;this.detailGeneration++;this.detailRow(undefined);this.detailBusy(false);};
   refreshDetail=async()=>{
     const row=this.detailRow();if(!row||row.isLedger||this.detailBusy())return;
     const generation=++this.detailGeneration;this.detailBusy(true);this.detailWarning('');
@@ -95,6 +107,46 @@ class ViewModel extends Page {
     this.detailWarning(warnings.join(' '));this.detailUpdated(new Date().toISOString());this.detailBusy(false);
   };
   manageTransfer=()=>{const row=this.detailRecord();if(row&&!this.detailRow()?.isLedger)this.openPayment(row);};
+  prepareDetailPay=async()=>{
+    if(this.detailPayBusy()||this.detailBusy()||!this.canPayDetail())return;
+    if(this.detailRecord().status==='PROCESSING'){await this.submitDetailPay();return;}
+    this.detailPayBusy(true);this.detailPayError('');
+    const id=this.detailRecord().id,generation=this.detailGeneration;
+    try{
+      const quotes=await fluxApi.quotes(id);
+      const latest=await fluxApi.payment(id);
+      if(this.stopped||generation!==this.detailGeneration||!this.session.user())return;
+      this.detailQuotes(quotes);this.detailPayment(latest);this.detailPayQuote(undefined);this.detailPayReview(true);this.now(Date.now());
+    }catch(e:any){if(generation===this.detailGeneration)this.detailPayError(e.message||'Unable to load delivery options.');}
+    finally{this.detailPayBusy(false);}
+  };
+  submitDetailPay=async()=>{
+    if(this.detailPayBusy()||this.detailBusy()||!this.canPayDetail())return;
+    const id=this.detailRecord().id,generation=this.detailGeneration;
+    const active=()=>!this.stopped&&generation===this.detailGeneration&&!!this.session.user();
+    this.detailPayBusy(true);this.detailPayError('');this.detailPayNotice('');
+    try{
+      const latest=await fluxApi.payment(id);if(!active())return;
+      this.detailPayment(latest);
+      if(['DRAFT','QUOTED'].includes(latest.status)){
+        this.now(Date.now());
+        if(!this.detailPayReview()||!this.detailPayQuoteValid())throw new Error('Choose a current delivery option before submitting. Refresh options if the quote has expired.');
+        this.detailPayment(await fluxApi.confirm(id,this.detailPayQuote().id));if(!active())return;
+      }
+      if(this.detailRecord().status!=='PROCESSING'){
+        this.detailPayNotice(this.detailRecord().status==='UNDER_REVIEW'?'This payment needs compliance approval before it can be submitted.':'This payment is not ready for payout. Its latest status is shown above.');return;
+      }
+      const quote=this.acceptedQuote();if(!quote)throw new Error('The confirmed delivery option is unavailable. Refresh transaction details.');
+      const events=await fluxApi.timeline(id);if(!active())return;this.detailEvents(events);
+      if(this.detailPayoutStarted())throw new Error('This payout has already been submitted. Refresh to see its latest status.');
+      this.dispatchedPayouts.add(id);this.detailEvents.valueHasMutated();
+      await fluxApi.payout(id,quote.route);
+      if(active()){this.detailPayReview(false);this.detailPayNotice('Payment submitted. The latest result is shown above.');}
+    }catch(e:any){if(active())this.detailPayError(e.message||'Unable to submit payment. Refresh its status before taking further action.');}
+    finally{
+      if(active()){await this.refreshDetail();this.detailPayBusy(false);}else this.detailPayBusy(false);
+    }
+  };
   nextPage=()=>this.page(Math.min(this.activityPageCount()-1,this.page()+1));
   previousPage=()=>this.page(Math.max(0,this.page()-1));
   clearFilters=()=>{this.search('');this.filter('ALL');this.typeFilter('');this.fromDate('');this.toDate('');};

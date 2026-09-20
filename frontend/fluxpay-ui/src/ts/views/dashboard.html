@@ -16,7 +16,7 @@
         <div class="account-overview-top"><span class="eyebrow">PERSONAL ACCOUNT</span><span class="live-label"><i></i>Live balances</span></div>
         <div class="overview-balance-row">
           <div><label class="currency-picker"><span class="sr-only">Balance currency</span><select data-bind="options:wallets,optionsText:'currency',optionsValue:'currency',value:overviewCurrency"></select></label>
-            <!-- ko with: overviewWallet --><strong class="overview-amount" data-bind="text:$parent.money(availableBalance,currency)"></strong><p class="balance-caption">Available to spend <!-- ko if:$parent.processingForWallet($data).length --><span>·</span> <span data-bind="text:$parent.money($parent.processingAmount($data),currency)+' on hold · processing'"></span><!-- /ko --></p><!-- /ko -->
+            <!-- ko with: overviewWallet --><strong class="overview-amount" data-bind="text:$parent.money(availableBalance,currency)"></strong><p class="balance-caption">Available to spend <!-- ko if:$parent.processingForWallet($data).length --><span>·</span> <span data-bind="text:$parent.money($parent.processingAmount($data),currency)+' '+$parent.holdCaption($data).toLowerCase()"></span><!-- /ko --></p><!-- ko if:$parent.quotedForWallet($data).length --><p class="balance-caption">Quoted amounts await confirmation and are not deducted from your balance.</p><!-- /ko --><!-- /ko -->
             <p data-bind="visible:!busy()&&!wallets().length">Your wallets will appear here once provisioned.</p>
           </div>
           <div class="overview-card-art" aria-hidden="true"><span>FluxPay<span class="card-chip">▥</span></span><b>✦</b><small>YOUR WORLD. CONNECTED.</small></div>

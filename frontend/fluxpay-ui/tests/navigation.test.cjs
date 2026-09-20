@@ -18,5 +18,6 @@ test('Send offers an inline recipient form beside the existing dropdown',()=>{
   const html=read('ts/views/payments-new.html');
   assert.match(html,/click:addRecipient/);assert.match(html,/options:activeRecipients/);assert.match(html,/submit:saveRecipient/);assert.match(html,/Save &amp; use this recipient/);
   assert.doesNotMatch(html,/data-route="recipients"/);
-  for(const field of ['amount','recipientName','bankName','account','country'])assert.ok(html.includes('textInput:'+field),'input event binding for '+field);
+  for(const field of ['amount','recipientName','otherBankName','account','country'])assert.ok(html.includes('textInput:'+field),'input event binding for '+field);
+  assert.match(html,/select required data-bind="value:bankName"/);
 });

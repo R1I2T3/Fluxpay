@@ -37,7 +37,7 @@
 
   <!-- ko if:detailRow -->
   <div class="history-backdrop"><section class="history-receipt" role="dialog" aria-modal="true" aria-labelledby="history-receipt-title" data-bind="experienceDialog:closeDetail,attr:{'aria-busy':detailBusy}">
-    <div class="history-receipt-top"><span class="eyebrow">FLUXPAY · TRANSACTION RECEIPT</span><button class="close-button" aria-label="Close transaction details" data-bind="click:closeDetail">×</button></div>
+    <div class="history-receipt-top"><span class="eyebrow">FLUXPAY · TRANSACTION RECEIPT</span><button class="close-button" aria-label="Close transaction details" data-bind="click:closeDetail,disable:detailPayBusy">×</button></div>
     <div class="history-receipt-content">
       <div class="history-receipt-main">
         <div class="history-receipt-hero"><span class="history-symbol" aria-hidden="true" data-bind="text:historyIcon(detailRow())"></span><h2 id="history-receipt-title" data-bind="text:historyTitle(detailRow())"></h2><p data-bind="text:movementLabel(detailRow())"></p><strong class="history-receipt-amount" data-bind="text:signedAmount(detailRecord())"></strong><span class="status" data-bind="text:statusText(detailRecord()?.status),attr:{'data-status':detailRecord()?.status}"></span><p data-bind="text:detailRow().isLedger?'This wallet movement is recorded in your ledger.':statusDescription(detailRecord()?.status)"></p></div>
@@ -48,9 +48,27 @@
         <!-- ko if:detailRecipient --><div class="history-section"><h3>Recipient</h3><div class="history-facts" data-bind="foreach:recipientFields"><div><span data-bind="text:label"></span><strong data-bind="text:value"></strong></div></div><p class="history-note">Recipient details reflect the current saved profile.</p></div><!-- /ko -->
         <!-- ko if:acceptedQuote --><div class="history-section"><h3>Transfer breakdown</h3><div class="history-facts" data-bind="foreach:quoteFields"><div><span data-bind="text:label"></span><strong data-bind="text:value"></strong></div></div></div><!-- /ko -->
         <!-- ko if:!detailRow().isLedger&&!acceptedQuote()&&!detailBusy() --><p class="history-note">Fee and exchange-rate details are not available for this payment yet.</p><!-- /ko -->
-        <!-- ko if:!detailRow().isLedger --><button class="pill soft" data-bind="click:manageTransfer,disable:detailBusy">Manage this payment ↗</button><!-- /ko -->
+        <!-- ko if:!detailRow().isLedger -->
+        <div class="history-section history-pay-actions">
+          <p class="error-text" role="alert" data-bind="visible:detailPayError,text:detailPayError"></p>
+          <p class="history-note" role="status" data-bind="visible:detailPayNotice,text:detailPayNotice"></p>
+          <!-- ko if:canPayDetail -->
+            <!-- ko if:detailPayReview()&&['DRAFT','QUOTED'].includes(detailRecord()?.status) -->
+            <h3>Review and pay</h3><label>Delivery option<select required data-bind="options:detailQuotes()?.quotes||[],optionsText:detailQuoteLabel,optionsCaption:'Choose a delivery option',value:detailPayQuote,disable:detailPayBusy"></select></label>
+            <!-- ko if:detailPayQuote --><div class="history-facts"><div><span>Exchange rate</span><strong data-bind="text:detailPayQuote().offeredRate"></strong></div><div><span>Estimated arrival</span><strong data-bind="text:detailPayQuote().estimatedMinutes+' minutes'"></strong></div></div><!-- /ko -->
+            <p class="history-note">Submitting confirms the displayed quote and sends this payment, subject to compliance approval.</p>
+            <button class="pill dark" data-bind="click:submitDetailPay,disable:detailPayBusy()||detailBusy()||!detailPayQuoteValid()">Confirm &amp; submit pay ↗</button>
+            <button class="text-button" data-bind="click:prepareDetailPay,disable:detailPayBusy()||detailBusy()">Refresh delivery options</button>
+            <!-- /ko -->
+            <!-- ko if:!detailPayReview()||detailRecord()?.status==='PROCESSING' -->
+            <button class="pill dark" data-bind="click:prepareDetailPay,disable:detailBusy()||detailPayBusy(),text:detailPayBusy()?'Submitting…':'Submit pay ↗'"></button>
+            <p class="history-note" data-bind="text:detailRecord()?.status==='PROCESSING'?'Submit the payout using the confirmed delivery option above.':'Review a current delivery option before confirming payment.'"></p>
+            <!-- /ko -->
+          <!-- /ko -->
+          <button class="pill soft" data-bind="click:manageTransfer,disable:detailBusy()||detailPayBusy()">Manage this payment ↗</button>
+        </div><!-- /ko -->
       </div>
-      <div class="history-receipt-journey"><div class="history-journey-heading"><div><span class="eyebrow">THE FULL PICTURE</span><h3>Transaction journey</h3></div><!-- ko if:!detailRow().isLedger --><button class="text-button" data-bind="click:refreshDetail,disable:detailBusy" aria-label="Refresh transaction details">↻ Refresh</button><!-- /ko --></div>
+      <div class="history-receipt-journey"><div class="history-journey-heading"><div><span class="eyebrow">THE FULL PICTURE</span><h3>Transaction journey</h3></div><!-- ko if:!detailRow().isLedger --><button class="text-button" data-bind="click:refreshDetail,disable:detailBusy()||detailPayBusy()" aria-label="Refresh transaction details">↻ Refresh</button><!-- /ko --></div>
         <p class="history-note" data-bind="text:detailRow().isLedger?'Your recorded wallet movements, with their exact times.':'Your payment updates in order. All times are in your local time zone.'"></p>
         <ol class="history-timeline" data-bind="foreach:detailSteps"><li data-bind="attr:{'data-tone':tone}"><span class="history-event-dot" aria-hidden="true"></span><div><h4 data-bind="text:title"></h4><time data-bind="text:$parent.preciseTime(timestamp),attr:{datetime:timestamp,title:timestamp}"></time><p data-bind="text:description"></p></div></li></ol>
         <div class="history-no-events" data-bind="visible:!detailBusy()&&!detailSteps().length"><span aria-hidden="true">◷</span><h4>No recorded events yet</h4><p>The transaction status is available, but the service has not supplied a step-by-step timeline. Refresh to check again.</p></div>
