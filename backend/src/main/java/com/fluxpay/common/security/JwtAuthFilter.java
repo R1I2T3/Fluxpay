@@ -4,6 +4,8 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -13,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
+  private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
   private final JwtUtil jwt;
 
   public JwtAuthFilter(JwtUtil jwt) {
@@ -33,7 +36,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
         SecurityContextHolder.setContext(context);
-      } catch (Exception ignored) {
+      } catch (Exception exception) {
+        // Do not log the bearer token. The exception type and request path are enough to diagnose
+        // why Spring Security treated this request as anonymous.
+        log.warn(
+            "JWT authentication failed for {}: {}",
+            req.getRequestURI(),
+            exception.getClass().getSimpleName());
         SecurityContextHolder.clearContext();
       }
     }

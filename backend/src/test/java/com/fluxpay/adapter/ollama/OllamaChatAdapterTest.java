@@ -69,9 +69,12 @@ class OllamaChatAdapterTest {
     assertThat(request.path("stream").asBoolean()).isFalse();
     assertThat(request.path("think").asBoolean()).isTrue();
     assertThat(request.path("keep_alive").asText()).isEqualTo("30m");
-    assertThat(request.path("options").path("num_predict").asInt()).isEqualTo(512);
-    assertThat(request.path("options").path("num_ctx").asInt()).isEqualTo(2048);
-    assertThat(request.toString()).contains("Payments require review.").contains("Can we release it?");
+    assertThat(request.path("options").path("num_predict").asInt()).isEqualTo(1536);
+    assertThat(request.path("options").path("num_ctx").asInt()).isEqualTo(4096);
+    assertThat(request.toString())
+        .contains("Payments require review.")
+        .contains("Can we release it?")
+        .contains("Do not repeat or restate the question");
   }
 
   @Test

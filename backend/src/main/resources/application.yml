@@ -33,6 +33,7 @@ fluxpay:
       USD: ${FLUXPAY_COMPLIANCE_REVIEW_THRESHOLD_USD:${fluxpay.m5.compliance.review-thresholds.USD:${M5_COMPLIANCE_REVIEW_THRESHOLD_USD:10000}}}
       INR: ${FLUXPAY_COMPLIANCE_REVIEW_THRESHOLD_INR:${fluxpay.m5.compliance.review-thresholds.INR:${M5_COMPLIANCE_REVIEW_THRESHOLD_INR:500000}}}
     recipient-recent-hours: ${FLUXPAY_COMPLIANCE_RECIPIENT_RECENT_HOURS:${M5_COMPLIANCE_RECIPIENT_RECENT_HOURS:24}}
+    review-hold-hours: ${FLUXPAY_COMPLIANCE_REVIEW_HOLD_HOURS:24}
   vector:
     ollama-base-url: ${FLUXPAY_OLLAMA_BASE_URL:${fluxpay.m5.vector.ollama-base-url:${M5_OLLAMA_BASE_URL:http://127.0.0.1:11434}}}
     embedding-model: ${FLUXPAY_OLLAMA_EMBEDDING_MODEL:${fluxpay.m5.vector.embedding-model:${M5_OLLAMA_EMBEDDING_MODEL:qwen3-embedding:4b}}}

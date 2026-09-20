@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
+import com.fluxpay.config.ComplianceReviewWindowProperties;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.ComplianceAssessment;
 import com.fluxpay.common.contracts.KycGate;
@@ -22,6 +23,7 @@ import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.RecipientRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -45,6 +47,7 @@ public class PaymentConfirmationService {
   private final ObjectMapper objectMapper;
   private final PayoutRouteRepository routes;
   private final ComplianceCaseService complianceCases;
+  private final Duration reviewHold;
 
   public PaymentConfirmationService(
       PaymentRepository payments,
@@ -74,7 +77,6 @@ public class PaymentConfirmationService {
         null);
   }
 
-  @org.springframework.beans.factory.annotation.Autowired
   public PaymentConfirmationService(
       PaymentRepository payments,
       PaymentQuoteRepository quotes,
@@ -88,6 +90,67 @@ public class PaymentConfirmationService {
       ObjectMapper objectMapper,
       PayoutRouteRepository routes,
       ComplianceCaseService complianceCases) {
+    this(
+        payments,
+        quotes,
+        recipients,
+        kyc,
+        compliance,
+        posting,
+        clock,
+        operations,
+        outbox,
+        objectMapper,
+        routes,
+        complianceCases,
+        Duration.ofHours(24));
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public PaymentConfirmationService(
+      PaymentRepository payments,
+      PaymentQuoteRepository quotes,
+      RecipientRepository recipients,
+      KycGate kyc,
+      ComplianceAssessor compliance,
+      PostingPort posting,
+      Clock clock,
+      PaymentOperationService operations,
+      PayoutOutboxService outbox,
+      ObjectMapper objectMapper,
+      PayoutRouteRepository routes,
+      ComplianceCaseService complianceCases,
+      ComplianceReviewWindowProperties reviewWindowProperties) {
+    this(
+        payments,
+        quotes,
+        recipients,
+        kyc,
+        compliance,
+        posting,
+        clock,
+        operations,
+        outbox,
+        objectMapper,
+        routes,
+        complianceCases,
+        Duration.ofHours(reviewWindowProperties.reviewHoldHours()));
+  }
+
+  private PaymentConfirmationService(
+      PaymentRepository payments,
+      PaymentQuoteRepository quotes,
+      RecipientRepository recipients,
+      KycGate kyc,
+      ComplianceAssessor compliance,
+      PostingPort posting,
+      Clock clock,
+      PaymentOperationService operations,
+      PayoutOutboxService outbox,
+      ObjectMapper objectMapper,
+      PayoutRouteRepository routes,
+      ComplianceCaseService complianceCases,
+      Duration reviewHold) {
     this.payments = payments;
     this.quotes = quotes;
     this.recipients = recipients;
@@ -100,6 +163,7 @@ public class PaymentConfirmationService {
     this.objectMapper = objectMapper;
     this.routes = routes;
     this.complianceCases = complianceCases;
+    this.reviewHold = reviewHold;
   }
 
   public PaymentResponse confirm(
@@ -164,7 +228,7 @@ public class PaymentConfirmationService {
     }
     if (verdict == ScreeningVerdict.REVIEW) {
       String reviewReference = UUID.randomUUID().toString();
-      payment.underReview(quote.id(), reviewReference, now);
+      payment.underReview(quote.id(), reviewReference, now.plus(reviewHold), now);
       if (complianceCases == null) {
         throw new IllegalStateException("Compliance review case workflow is not configured");
       }
@@ -231,6 +295,7 @@ public class PaymentConfirmationService {
     java.util.Map<String, Object> details = new java.util.LinkedHashMap<>();
     details.put("status", PaymentStatus.UNDER_REVIEW.name());
     details.put("reviewReference", reviewReference);
+    details.put("reviewExpiresAt", payment.approvalExpiresAt().toString());
     details.put("senderId", payment.senderId().toString());
     details.put("walletId", payment.sourceWalletId().toString());
     details.put("sourceAmount", payment.sourceAmount().toPlainString());

@@ -59,5 +59,5 @@ export const fluxApi = {
 export interface PolicyChunk { id:string; policyDocumentId:string; chunkNumber:number; content:string; manual:boolean; createdAt:string; }
 export interface PolicyGuidance { id:string; policyDocumentId:string; complianceCaseId:string; content:string; createdAt:string; updatedAt:string; }
 export interface PolicyDocument { id:string; title:string; category:string; content:string; documentHash:string; createdAt:string; chunks:PolicyChunk[]; }
-export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
+export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; reviewExpiresAt:string|null; requoteRequired:boolean; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
 export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }

@@ -143,6 +143,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     var response = reviewService.confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key");
 
     assertThat(response.status()).isEqualTo(PaymentStatus.UNDER_REVIEW);
+    assertThat(payment.approvalExpiresAt()).isEqualTo(NOW.plus(Duration.ofHours(24)));
     verify(complianceCases)
         .openReview(
             payment.id(),

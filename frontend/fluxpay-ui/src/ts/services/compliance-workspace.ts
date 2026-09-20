@@ -73,6 +73,25 @@ ko.bindingHandlers.adminReveal = {
   }
 };
 
+// The model output is untrusted. This intentionally supports only **bold** and constructs every
+// node as text, rather than rendering model-provided HTML.
+ko.bindingHandlers.policyAnswer = {
+  update(element:HTMLElement,valueAccessor:()=>unknown){
+    const value=String(ko.unwrap(valueAccessor())??'');
+    element.replaceChildren();
+    const bold=/\*\*([^*\n]+)\*\*/g;
+    let cursor=0,match:RegExpExecArray|null;
+    while((match=bold.exec(value))!==null){
+      element.append(document.createTextNode(value.slice(cursor,match.index)));
+      const strong=document.createElement('strong');
+      strong.textContent=match[1];
+      element.append(strong);
+      cursor=match.index+match[0].length;
+    }
+    element.append(document.createTextNode(value.slice(cursor)));
+  }
+};
+
 /** Administrative UI only: the case catalogue is global, not customer-scoped. */
 export class ComplianceWorkspace {
   session = session;
@@ -176,8 +195,8 @@ export class ComplianceWorkspace {
   openPolicy = (p:{id:string})=>this.run(()=>this.readPolicy(p.id));
   private async readPolicy(id:string){const [p,c,g,allCases]=await Promise.all([api.policy(id),api.policyChunks(id),api.policyGuidance(id),api.complianceCases('ALL')]);this.policy(p);this.chunks(c);this.guidance(g);this.cases(allCases);this.chunkContent('');}
   closePolicy = ()=>{if(!this.busy()){this.policy(undefined);this.confirmation('');}};
-  loadPolicyJson = (event:Event)=>{
-    const input=event.target as HTMLInputElement;
+  loadPolicyJson = (contextOrEvent:unknown,event?:Event)=>{
+    const input=(event??contextOrEvent as Event).target as HTMLInputElement;
     const files=Array.from(input.files??[]);
     this.policyImportError('');
     if(!files.length){this.policyImportError('Choose one or more JSON policy files.');return;}

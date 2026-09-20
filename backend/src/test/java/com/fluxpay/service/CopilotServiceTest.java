@@ -27,6 +27,7 @@ class CopilotServiceTest {
     PolicySearchPort search = mock(PolicySearchPort.class);
     float[] query = new float[] {0.1f, 0.2f};
     UUID documentId = UUID.fromString("e363b7a8-6830-48d4-889a-a8543f6285b5");
+    String fullEvidence = "Verify the customer before releasing a payment. ".repeat(8).trim();
     when(embeddings.embedQuery("When is KYC required?")).thenReturn(query);
     when(search.search(any(float[].class), eq("ollama/qwen3-embedding:4b/1536"), eq(3)))
         .thenReturn(
@@ -36,7 +37,7 @@ class CopilotServiceTest {
                     documentId,
                     "KYC policy",
                     2,
-                    "Verify the customer before releasing a payment.",
+                    fullEvidence,
                     0.08)));
     when(chat.answer(eq("When is KYC required?"), any()))
         .thenReturn("KYC must be verified before release.");
@@ -63,6 +64,7 @@ class CopilotServiceTest {
               assertThat(source.policyDocumentId()).isEqualTo(documentId);
               assertThat(source.title()).isEqualTo("KYC policy");
               assertThat(source.chunkNumber()).isEqualTo(2);
+              assertThat(source.excerpt()).isEqualTo(fullEvidence);
             });
     verify(search).search(query, "ollama/qwen3-embedding:4b/1536", 3);
     verify(chat).answer(eq("When is KYC required?"), any());

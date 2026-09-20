@@ -10,11 +10,11 @@ const compile=file=>ts.transpileModule(read(file),{compilerOptions:{module:ts.Mo
 const id='11111111-1111-4111-8111-111111111111';
 const policy={id,title:'QA policy',category:'PAYMENT_REVIEW',content:'Review source of funds.',documentHash:'test-hash',createdAt:'2026-09-17T10:00:00Z',chunks:[]};
 const manual={id,paymentId:id,reviewReference:null,risk:'HIGH',status:'OPEN',riskReasons:['QA reason'],suggestedAction:'Review records',decidedBy:null,decidedAt:null,decisionReason:null,createdAt:policy.createdAt};
-function workspace(overrides={},admin=true){
+function workspace(overrides={},admin=true,runtime={}){
   const calls=[];
   const api=new Proxy(overrides,{get:(obj,name)=>async(...args)=>{calls.push([name,...args]);if(name in obj)return obj[name](...args);if(name==='policies')return [policy];if(name==='policy'||name==='createPolicy')return {...policy};if(name==='policyChunks')return [];if(name==='complianceCases')return [manual];if(name==='complianceCase'||name==='createComplianceCase')return {...manual};if(name==='decideComplianceCase')return {...manual,status:args[1]==='approve'?'APPROVED':'REJECTED'};if(name==='indexPolicy')return {policyDocumentId:id,chunkCount:2};if(name==='askCopilot')return {answer:'A sourced answer',sources:[]};}});
   const session={user:ko.observable({role:admin?'ADMIN':'USER'})};session.isAdmin=ko.pureComputed(()=>session.user()?.role==='ADMIN');
-  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api}};
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api},...runtime};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'),context);
   return {page:new context.exports.ComplianceWorkspace(),calls,session};
 }
@@ -41,6 +41,24 @@ test('policy import parser accepts a single object or array and rejects invalid 
   const many=parse([{title:'KYC review',category:'KYC',content:'Collect evidence.'},{title:'Country rules',category:'COUNTRY_RULE',content:'Apply corridor rules.'}]);
   assert.equal(many.length,2);assert.notEqual(many[0].id,many[1].id);
   for(const value of ['{',{title:'',category:'AML',content:'Text'},{title:'Valid',category:'INVALID',content:'Text'},[{title:'Same',category:'AML',content:'Text'},{title:' same ',category:'AML',content:' text '}],null])assert.throws(()=>parse(value));
+});
+test('selecting the provided policy JSON appends all three policies to the visible draft list',async()=>{
+  class Reader { readAsText(file){this.result=file.text;Promise.resolve().then(()=>this.onload());} }
+  const {page}=workspace({},true,{FileReader:Reader});
+  const input={files:[{name:'policy.json',type:'application/json',text:JSON.stringify([
+    {title:'High-value transfer review1',category:'PAYMENT_REVIEW',content:'ABCD'},
+    {title:'High-value transfer review2',category:'PAYMENT_REVIEW',content:'EFGH'},
+    {title:'High-value transfer review3',category:'PAYMENT_REVIEW',content:'IJKL'}
+  ])}],value:'selected'};
+  page.loadPolicyJson(page,{target:input});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(input.value,'');
+  assert.equal(JSON.stringify(page.policyDrafts().map(draft=>[draft.title(),draft.category(),draft.content()])),JSON.stringify([
+    ['High-value transfer review1','PAYMENT_REVIEW','ABCD'],
+    ['High-value transfer review2','PAYMENT_REVIEW','EFGH'],
+    ['High-value transfer review3','PAYMENT_REVIEW','IJKL']
+  ]));
+  page.dispose();
 });
 test('batch policy creation preserves failed drafts in display order with server errors',async()=>{
   const {page,calls}=workspace({createPolicy:async body=>{if(body.title==='Rejected')throw Error('Duplicate policy title');return {...policy,title:body.title};}});
@@ -102,6 +120,16 @@ test('only open manual cases can be deleted',async()=>{for(const value of [{...m
 test('Copilot handles citations, optional UUID, no-source fallback and provider errors',async()=>{const {page,calls}=workspace({askCopilot:async()=>({answer:'Review is required.',sources:[{policyDocumentId:id,title:'Policy',chunkNumber:1,excerpt:'Review clause'}]})});page.question(' What requires review? ');await page.ask();assert.equal(calls[0][2],undefined);assert.equal(page.answer().sources[0].policyDocumentId,id);page.copilotPaymentId('invalid');await page.ask();assert.match(page.error(),/UUID/);assert.equal(calls.length,1);page.dispose();const second=workspace({askCopilot:async()=>{throw Error('Compliance Copilot is temporarily unavailable.');}});second.page.question('Question');await second.page.ask();assert.equal(second.page.answer(),undefined);assert.match(second.page.error(),/unavailable/);second.page.dispose();});
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
 test('admin template renders untrusted policy and AI text with text bindings, never HTML',()=>{const html=read('ts/views/admin.html');assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));for(const action of ['savePolicy','addChunk','saveCase','ask','confirm'])assert.ok(html.includes(action));assert.ok(html.includes('role="alertdialog"'));assert.ok(html.includes('maxlength="500"'));assert.ok(html.includes('maxlength="400"'));assert.ok(html.includes('maxlength="200"'));});
+test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
+  const html=read('ts/views/admin.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
+  assert.match(html,/policyAnswer:answer\(\)\.answer/);
+  assert.ok(!html.includes('<h3 data-bind="text:answeredQuestion"></h3>'));
+  assert.match(source,/ko\.bindingHandlers\.policyAnswer/);
+  assert.match(source,/document\.createTextNode/);
+  assert.match(source,/document\.createElement\('strong'\)/);
+  assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:15px;/);
+  assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:13px;/);
+});
 test('policy library template provides draft creation and compact accessible detail dialogs',()=>{
   const html=read('ts/views/admin.html');
   for(const binding of ['policyDrafts','loadPolicyJson','addManualPolicyDraft','removePolicyDraft','createPolicyDrafts','openPolicyEdit','savePolicyEdit','closePolicyEdit'])assert.ok(html.includes(binding),`missing ${binding}`);
@@ -136,10 +164,18 @@ test('policy drafts use one compact table and policy editing provides direct adv
   assert.match(html,/class="modal-back"[\s\S]*← Policy/);
   assert.match(html,/class="manual-chunk-form"/);
 });
+test('policy-draft preview truncates before the fixed action column',()=>{
+  const css=read('css/workspace.css');
+  assert.match(css,/\.policy-draft-table td\.draft-preview\s*\{[^}]*overflow:hidden;[^}]*white-space:nowrap;[^}]*text-overflow:ellipsis;/s);
+  assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:118px;/);
+});
 test('opening a compliance case uses a modal rather than an inline panel below the list',()=>{
-  const html=read('ts/views/admin.html');
+  const html=read('ts/views/admin.html'),css=read('css/workspace.css');
   assert.match(html,/<!-- ko if:selectedCase -->\s*<div class="admin-confirmation[^"]*" role="dialog" aria-modal="true" aria-labelledby="compliance-case-title"/);
   assert.match(html,/aria-label="Close case details"/);
+  assert.match(html,/compliance-case-dialog"><div class="compliance-case-scroll">/);
+  assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:hidden;[^}]*padding:0;/);
+  assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:auto;[^}]*border-radius:inherit;/);
 });
 test('case-to-Copilot handoff includes the risk, reasons, and suggested action',()=>{
   const source=read('ts/viewModels/admin.ts');

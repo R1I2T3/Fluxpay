@@ -55,7 +55,7 @@ public class CopilotService {
                         match.policyDocumentId(),
                         match.title(),
                         match.chunkNumber(),
-                        excerpt(match.content(), 200)))
+                        match.content().trim()))
             .toList();
     return new CopilotAnswerResponse(chatPort.answer(request.question(), sources), sources);
   }
@@ -79,13 +79,9 @@ public class CopilotService {
                         match.policyDocumentId(),
                         match.title(),
                         match.chunkNumber(),
-                        excerpt(match.content(), 200)))
+                        match.content().trim()))
             .toList();
     chatPort.stream(request.question(), sources, onDelta);
   }
 
-  private static String excerpt(String content, int maxLength) {
-    String trimmed = content.trim();
-    return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength).trim() + "...";
-  }
 }

@@ -13,5 +13,5 @@ public interface PostingPort {
       String currency,
       BigDecimal gross,
       BigDecimal fee,
-      Instant quoteExpiry);
+      Instant approvalExpiry);
 }

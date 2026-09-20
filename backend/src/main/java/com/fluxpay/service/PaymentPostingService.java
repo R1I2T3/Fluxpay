@@ -34,11 +34,11 @@ public class PaymentPostingService implements PostingPort {
       String currency,
       BigDecimal gross,
       BigDecimal fee,
-      Instant quoteExpiry) {
+      Instant approvalExpiry) {
     PostingAccounts accounts = wallets.lockPostingAccounts(userId, walletId, currency, gross);
-    if (!Instant.now(clock).isBefore(quoteExpiry))
+    if (!Instant.now(clock).isBefore(approvalExpiry))
       throw new BusinessException(
-          HttpStatus.GONE, "QUOTE_EXPIRED", "The selected quote has expired.");
+          HttpStatus.GONE, "QUOTE_EXPIRED", "The payment approval has expired.");
     BigDecimal net = gross.subtract(fee);
     String reference = "payment:" + paymentId;
     var lines = new ArrayList<LedgerJournalLine>();
