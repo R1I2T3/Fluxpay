@@ -56,6 +56,8 @@ class ProductionBootTest {
     assertThat(context.getBean(FxSnapshotSource.class)).isInstanceOf(FrankfurterFxProvider.class);
     assertThat(context.getBean(ComplianceAssessor.class))
         .isInstanceOf(PaymentRiskComplianceAssessor.class);
-    assertThat(context.getBeansOfType(TransferRail.class)).isEmpty();
+    assertThat(context.getBeansOfType(TransferRail.class)).hasSize(1);
+    assertThat(context.getBean(TransferRail.class))
+        .isInstanceOf(com.fluxpay.adapter.transfer.InternalLedgerTransferRail.class);
   }
 }

@@ -104,10 +104,14 @@ class ApplicationBoundaryWiringTest {
           // Durable outbox path owns delivery; no logging fallback publisher remains.
           assertThat(context.getBeansOfType(TransportPort.class)).hasSize(1);
           // External execution runs through rail bindings: one finite registry and one
-          // terminal outcome recorder; no per-provider executable beans remain.
+          // terminal outcome recorder. The internal ledger rail is the only installed
+          // TransferRail; external rails stay uninstalled unless explicitly enabled and no
+          // per-provider executable beans remain.
           assertThat(context.getBeansOfType(RailRegistry.class)).hasSize(1);
           assertThat(context.getBeansOfType(RouteOutcomeRecorder.class)).hasSize(1);
-          assertThat(context.getBeansOfType(TransferRail.class)).isEmpty();
+          assertThat(context.getBeansOfType(TransferRail.class)).hasSize(1);
+          assertThat(context.getBean(TransferRail.class))
+              .isInstanceOf(com.fluxpay.adapter.transfer.InternalLedgerTransferRail.class);
           assertThat(context.getBeanNamesForType(com.fluxpay.messaging.OutboxService.class))
               .hasSize(1);
           assertThat(context.getBeanNamesForType(com.fluxpay.messaging.OutboxRelay.class))

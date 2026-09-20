@@ -30,14 +30,14 @@ public class WalletController {
   private final DemoFundingService funding;
   private final WalletConversionService conversion;
   private final WalletQueryService queries;
-  private final com.fluxpay.service.WalletTransferService transfers;
+  private final com.fluxpay.service.WalletTransferRoutingService transfers;
   private final com.fluxpay.service.BankAccountService banks;
 
   public WalletController(
       DemoFundingService funding,
       WalletConversionService conversion,
       WalletQueryService queries,
-      com.fluxpay.service.WalletTransferService transfers,
+      com.fluxpay.service.WalletTransferRoutingService transfers,
       com.fluxpay.service.BankAccountService banks) {
     this.funding = funding;
     this.conversion = conversion;

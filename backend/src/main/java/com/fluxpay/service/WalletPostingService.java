@@ -7,6 +7,7 @@ import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.beans.WalletOperation;
 import com.fluxpay.domain.ConversionCalculation;
+import com.fluxpay.domain.RailType;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertResponse;
 import com.fluxpay.dto.WalletResponse;
@@ -24,6 +25,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WalletPostingService {
   private static final String OPERATION_TYPE = "RECEIVE_DEMO";
+
+  /**
+   * Routing decision persisted alongside the transfer response. The direct posting path passes
+   * {@code null}; the routed internal-ledger path passes the winning route so replay returns the
+   * original decision.
+   */
+  public record TransferRouting(
+      String providerCode, String routeCode, RailType railType, BigDecimal effectiveReliability) {}
 
   private final SystemAccountService systemAccounts;
   private final WalletRepository wallets;
@@ -245,7 +254,8 @@ public class WalletPostingService {
       FxSnapshot quote,
       String note,
       String normalizedRequest,
-      String clientKey) {
+      String clientKey,
+      TransferRouting routing) {
     if (operations
         .findByUserIdAndOperationTypeAndClientKey(userId, "TRANSFER", clientKey)
         .isPresent()) throw new OperationRaceException();
@@ -347,7 +357,11 @@ public class WalletPostingService {
             targetCredit.toPlainString(),
             rate == null ? null : rate.toPlainString(),
             quoteId,
-            reference);
+            reference,
+            routing == null ? null : routing.providerCode(),
+            routing == null ? null : routing.routeCode(),
+            routing == null ? null : routing.railType(),
+            routing == null ? null : routing.effectiveReliability());
     try {
       operation.complete(objectMapper.writeValueAsString(response));
     } catch (JsonProcessingException e) {

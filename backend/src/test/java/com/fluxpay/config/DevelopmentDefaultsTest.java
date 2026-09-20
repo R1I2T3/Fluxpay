@@ -140,8 +140,11 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBean(FxSnapshotSource.class))
                   .isInstanceOf(FrankfurterFxProvider.class);
 
-              // Normal rail discovery excludes simulators unless explicitly enabled.
-              assertThat(context.getBeansOfType(TransferRail.class)).isEmpty();
+              // Normal rail discovery installs only the internal ledger rail; simulators
+              // join only when explicitly enabled.
+              assertThat(context.getBeansOfType(TransferRail.class)).hasSize(1);
+              assertThat(context.getBean(TransferRail.class))
+                  .isInstanceOf(com.fluxpay.adapter.transfer.InternalLedgerTransferRail.class);
               assertThat(context.getBeanNamesForType(SimulatedBankNetworkRail.class)).isEmpty();
               assertThat(context.getBeanNamesForType(SimulatedRealTimeNetworkRail.class)).isEmpty();
               assertThat(context.getBeanNamesForType(SimulatedPartnerNetworkRail.class)).isEmpty();
@@ -213,7 +216,7 @@ class DevelopmentDefaultsTest {
         .run(
             context -> {
               assertThat(context).hasNotFailed();
-              assertThat(context.getBeansOfType(TransferRail.class)).hasSize(3);
+              assertThat(context.getBeansOfType(TransferRail.class)).hasSize(4);
               assertThat(context.getBean(ComplianceAssessor.class))
                   .isInstanceOf(SimulatedComplianceAssessor.class);
             });
