@@ -7,8 +7,10 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
+import com.fluxpay.config.ConversionFeeSchedule;
 import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.config.FxConfig;
+import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
@@ -20,7 +22,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -77,7 +81,11 @@ import org.springframework.transaction.support.TransactionTemplate;
   WalletPostingService.class,
   LedgerJournalService.class,
   PersistentLedgerWriter.class,
-  LedgerPostingContext.class
+  LedgerPostingContext.class,
+  ConversionMath.class,
+  ConversionFeeSchedule.class,
+  CurrencyScaleService.class,
+  FxQuoteValidator.class
 })
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class WalletConversionPostingOracleTest {
@@ -91,6 +99,12 @@ class WalletConversionPostingOracleTest {
     @Bean
     ObjectMapper objectMapper() {
       return new ObjectMapper();
+    }
+
+    @Bean
+    @org.springframework.context.annotation.Primary
+    Clock conversionTestClock() {
+      return Clock.fixed(FETCHED_AT.plusSeconds(1800), ZoneOffset.UTC);
     }
   }
 
@@ -126,11 +140,15 @@ class WalletConversionPostingOracleTest {
     assertEquals("99.5000", result.netAmount());
     assertEquals("8308.2500", result.creditedAmount());
     assertEquals(money("400.0000"), databaseBalance(source.getId()));
+    assertEquals(money("0.0000"), databaseHeldBalance(source.getId()));
     assertEquals(money("8308.2500"), databaseBalance(UUID.fromString(result.targetWalletId())));
     assertEquals(5, ledgerCount(result.journalReference()));
     assertEquals(money("0.0000"), journalImbalance(result.journalReference(), "USD"));
     assertEquals(money("0.0000"), journalImbalance(result.journalReference(), "INR"));
     assertEquals(1, completedOperationCount(userId, key));
+    assertEquals("SELF_TRANSFER", journalCategory(result.journalReference()));
+    assertEquals(5, conversionMetadataCount(result.journalReference()));
+    assertEquals(1, distinctQuoteCount(result.journalReference()));
   }
 
   @ParameterizedTest
@@ -169,6 +187,7 @@ class WalletConversionPostingOracleTest {
 
     assertEquals(first, replay);
     assertEquals(money("40.0000"), databaseBalance(source.getId()));
+    assertEquals(money("0.0000"), databaseHeldBalance(source.getId()));
     assertEquals(targetAfterFirst, databaseBalance(UUID.fromString(first.targetWalletId())));
     assertEquals(5, ledgerCount(first.journalReference()));
   }
@@ -189,6 +208,7 @@ class WalletConversionPostingOracleTest {
         () -> conversion.convert(userId, new WalletConvertRequest("USD", "INR", "10"), key));
 
     assertEquals(money("50.0000"), databaseBalance(source.getId()));
+    assertEquals(money("0.0000"), databaseHeldBalance(source.getId()));
     assertEquals(0, customerWalletCount(userId, "INR"));
     assertEquals(0, operationCount(userId, key));
     assertEquals(ledgerBefore, allLedgerCount());
@@ -206,11 +226,11 @@ class WalletConversionPostingOracleTest {
     WalletConvertResponse result =
         conversion.convert(
             userId,
-            new WalletConvertRequest("USD", "INR", "0.0001"),
+            new WalletConvertRequest("USD", "INR", "0.01"),
             "fx-zero-fee-" + UUID.randomUUID());
 
     assertEquals("0.0000", result.fee());
-    assertEquals("0.0001", result.creditedAmount());
+    assertEquals("0.0100", result.creditedAmount());
     assertEquals(4, ledgerCount(result.journalReference()));
   }
 
@@ -228,6 +248,7 @@ class WalletConversionPostingOracleTest {
         () -> conversion.convert(userId, new WalletConvertRequest("EUR", "INR", "2"), key));
 
     assertEquals(money("1.0000"), databaseBalance(source.getId()));
+    assertEquals(money("0.0000"), databaseHeldBalance(source.getId()));
     assertEquals(0, customerWalletCount(userId, "INR"));
     assertEquals(0, operationCount(userId, key));
   }
@@ -323,6 +344,36 @@ class WalletConversionPostingOracleTest {
     return jdbc.queryForObject(
             "SELECT balance FROM wallets WHERE id=HEXTORAW(?)", BigDecimal.class, raw(walletId))
         .setScale(4);
+  }
+
+  private BigDecimal databaseHeldBalance(UUID walletId) {
+    return jdbc.queryForObject(
+            "SELECT held_balance FROM wallets WHERE id=HEXTORAW(?)",
+            BigDecimal.class,
+            raw(walletId))
+        .setScale(4);
+  }
+
+  private String journalCategory(String journalReference) {
+    return jdbc.queryForObject(
+        "SELECT transaction_category FROM ledger_journals WHERE journal_reference=?",
+        String.class,
+        journalReference);
+  }
+
+  private int conversionMetadataCount(String journalReference) {
+    return jdbc.queryForObject(
+        "SELECT COUNT(*) FROM ledger_entries WHERE journal_reference=? "
+            + "AND rate IS NOT NULL AND quote_id IS NOT NULL",
+        Integer.class,
+        journalReference);
+  }
+
+  private int distinctQuoteCount(String journalReference) {
+    return jdbc.queryForObject(
+        "SELECT COUNT(DISTINCT quote_id) FROM ledger_entries WHERE journal_reference=?",
+        Integer.class,
+        journalReference);
   }
 
   private BigDecimal journalImbalance(String journalReference, String currency) {

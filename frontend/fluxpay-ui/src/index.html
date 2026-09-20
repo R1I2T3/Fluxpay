@@ -1,63 +1,111 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#1974d2">
-  <meta name="description" content="FluxPay. Your money, without borders. Manage wallets, exchange currencies and track international payments in one place.">
-  <title>FluxPay — Money without borders</title>
-  <link rel="icon" href="css/images/fluxpay.svg" type="image/svg+xml">
-  <!-- injector:theme -->
-  <!-- endinjector -->
-  <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/home.css">
-  <link rel="stylesheet" href="css/auth.css">
-  <link rel="stylesheet" href="css/workspace.css">
-</head>
-<body>
-<div id="globalBody" data-bind="css:{'home-shell':isHome,'public-shell':isPublic,'workspace-shell':!isPublic(),'admin-shell':isAdminWorkspace}">
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <a href="?ojr=home" data-route="home" class="wordmark" aria-label="FluxPay home">FluxPay<span>✦</span></a>
-    <nav class="marketing-nav" aria-label="Main navigation" data-bind="visible:isPublic()&&!isHome()">
-      <a href="?ojr=wallets" data-route="wallets">Personal</a>
-      <a href="?ojr=payments-new" data-route="payments-new">Global transfers</a>
-      <a href="?ojr=kyc" data-route="kyc">Security</a>
-    </nav>
-    <div class="header-actions">
-      <!-- ko if: !session.user() -->
-      <a href="?ojr=login" data-route="login" class="login-link">Log in</a>
-      <a href="?ojr=register" data-route="register" class="pill header-signup">Sign up</a>
-      <!-- /ko -->
-      <!-- ko if: session.user() -->
-      <a href="?ojr=dashboard" data-route="dashboard" class="pill header-signup" data-bind="attr:{href:'?ojr='+accountPath(),'data-route':accountPath},text:session.isAdmin()?'Administration ↗':'My account ↗'"></a>
-      <button class="text-button" data-bind="click:logout">Log out</button>
-      <!-- /ko -->
-      <button type="button" class="menu-button" aria-label="Toggle navigation" aria-controls="mobile-navigation" data-bind="visible:!session.isAdmin()&&!isAdminWorkspace(),click:toggleMenu,attr:{'aria-expanded':menuOpen}">☰</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#1974d2" />
+    <meta
+      name="description"
+      content="FluxPay. Your money, without borders. Manage wallets, exchange currencies and track international payments in one place."
+    />
+    <title>FluxPay — Money without borders</title>
+    <link rel="icon" href="css/images/fluxpay.svg" type="image/svg+xml" />
+    <!-- injector:theme -->
+    <!-- endinjector -->
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/home.css" />
+    <link rel="stylesheet" href="css/auth.css" />
+    <link rel="stylesheet" href="css/workspace.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div
+      id="globalBody"
+      data-bind="css:{'home-shell':isHome,'public-shell':isPublic,'workspace-shell':!isPublic(),'admin-shell':isAdminWorkspace}"
+    >
+      <a class="skip-link" href="#main">Skip to content</a>
+      <header class="site-header">
+        <a href="?ojr=home" data-route="home" class="wordmark" aria-label="FluxPay home"
+          >FluxPay<span>✦</span></a
+        >
+        <nav
+          class="marketing-nav"
+          aria-label="Main navigation"
+          data-bind="visible:isPublic()&&!isHome()"
+        >
+          <a href="?ojr=wallets" data-route="wallets">Personal</a>
+          <a href="?ojr=payments-new" data-route="payments-new">Global transfers</a>
+          <a href="?ojr=kyc" data-route="kyc">Security</a>
+        </nav>
+        <div class="header-actions">
+          <!-- ko if: !session.user() -->
+          <a href="?ojr=login" data-route="login" class="login-link">Log in</a>
+          <a href="?ojr=register" data-route="register" class="pill header-signup">Sign up</a>
+          <!-- /ko -->
+          <!-- ko if: session.user() -->
+          <a
+            href="?ojr=dashboard"
+            data-route="dashboard"
+            class="pill header-signup"
+            data-bind="attr:{href:'?ojr='+accountPath(),'data-route':accountPath},text:session.isAdmin()?'Administration ↗':'My account ↗'"
+          ></a>
+          <button class="text-button" data-bind="click:logout">Log out</button>
+          <!-- /ko -->
+          <button
+            type="button"
+            class="menu-button"
+            aria-label="Toggle navigation"
+            aria-controls="mobile-navigation"
+            data-bind="visible:!session.isAdmin()&&!isAdminWorkspace(),click:toggleMenu,attr:{'aria-expanded':menuOpen}"
+          >
+            ☰
+          </button>
+        </div>
+      </header>
+      <nav
+        id="mobile-navigation"
+        class="mobile-nav"
+        aria-label="Mobile navigation"
+        data-bind="visible:menuOpen()&&!session.isAdmin()&&!isAdminWorkspace()"
+      >
+        <a href="?ojr=home" data-route="home">Home</a>
+        <!-- ko foreach: visibleNav --><a
+          data-bind="text:label,attr:{href:'?ojr='+path,'data-route':path}"
+        ></a
+        ><!-- /ko -->
+      </nav>
+      <aside class="sidebar" data-bind="visible:!isPublic()&&!isAdminWorkspace()">
+        <p class="nav-caption">YOUR WORKSPACE</p>
+        <nav aria-label="Account navigation" data-bind="foreach:visibleNav">
+          <a
+            data-bind="attr:{href:'?ojr='+path,'data-route':path},css:{active:$parent.selection.path()===path}"
+          >
+            <span class="nav-icon" data-bind="text:icon"></span><span data-bind="text:label"></span>
+          </a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="security-icon">◇</div>
+          <strong>Made for peace of mind.</strong>
+          <p>Clear quotes. Traceable transfers. Your money in view.</p>
+          <a href="?ojr=kyc" data-route="kyc">Check verification →</a>
+        </div>
+      </aside>
+      <div class="global-message" role="alert" data-bind="visible:message,text:message"></div>
+      <main id="main"><oj-module config="[[moduleAdapter.koObservableConfig]]"></oj-module></main>
+      <footer class="site-footer" data-bind="visible:isPublic">
+        <a class="wordmark" href="?ojr=home" data-route="home">FluxPay<span>✦</span></a>
+        <div>
+          <a href="?ojr=account" data-route="account">Your account</a
+          ><a href="?ojr=tracking" data-route="tracking">Track a transfer</a
+          ><a href="?ojr=kyc" data-route="kyc">Verification</a>
+        </div>
+        <p>© 2026 FluxPay. Money, in motion.</p>
+      </footer>
     </div>
-  </header>
-  <nav id="mobile-navigation" class="mobile-nav" aria-label="Mobile navigation" data-bind="visible:menuOpen()&&!session.isAdmin()&&!isAdminWorkspace()">
-    <a href="?ojr=home" data-route="home">Home</a>
-    <!-- ko foreach: visibleNav --><a data-bind="text:label,attr:{href:'?ojr='+path,'data-route':path}"></a><!-- /ko -->
-  </nav>
-  <aside class="sidebar" data-bind="visible:!isPublic()&&!isAdminWorkspace()">
-    <p class="nav-caption">YOUR WORKSPACE</p>
-    <nav aria-label="Account navigation" data-bind="foreach:visibleNav">
-      <a data-bind="attr:{href:'?ojr='+path,'data-route':path},css:{active:$parent.selection.path()===path}">
-        <span class="nav-icon" data-bind="text:icon"></span><span data-bind="text:label"></span>
-      </a>
-    </nav>
-    <div class="sidebar-bottom"><div class="security-icon">◇</div><strong>Made for peace of mind.</strong><p>Clear quotes. Traceable transfers. Your money in view.</p><a href="?ojr=kyc" data-route="kyc">Check verification →</a></div>
-  </aside>
-  <div class="global-message" role="alert" data-bind="visible:message,text:message"></div>
-  <main id="main"><oj-module config="[[moduleAdapter.koObservableConfig]]"></oj-module></main>
-  <footer class="site-footer" data-bind="visible:isPublic">
-    <a class="wordmark" href="?ojr=home" data-route="home">FluxPay<span>✦</span></a>
-    <div><a href="?ojr=account" data-route="account">Your account</a><a href="?ojr=tracking" data-route="tracking">Track a transfer</a><a href="?ojr=kyc" data-route="kyc">Verification</a></div>
-    <p>© 2026 FluxPay. Money, in motion.</p>
-  </footer>
-</div>
-<!-- injector:scripts -->
-<!-- endinjector -->
-</body>
+    <!-- injector:scripts -->
+    <!-- endinjector -->
+  </body>
 </html>

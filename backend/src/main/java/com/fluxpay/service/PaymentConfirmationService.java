@@ -6,10 +6,12 @@ import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.ComplianceAssessment;
 import com.fluxpay.common.contracts.ComplianceAssessor;
+import com.fluxpay.common.contracts.ComplianceScreeningContext;
 import com.fluxpay.common.contracts.ComplianceScreeningInput;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.PostingPort;
 import com.fluxpay.common.enums.ScreeningVerdict;
+import com.fluxpay.config.ComplianceReviewWindowProperties;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.ConfirmPaymentRequest;
 import com.fluxpay.dto.PaymentResponse;
@@ -23,6 +25,7 @@ import com.fluxpay.repository.PaymentRepository;
 import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.TransferRouteRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -46,6 +49,7 @@ public class PaymentConfirmationService {
   private final ObjectMapper objectMapper;
   private final TransferRouteRepository routes;
   private final ComplianceCaseService complianceCases;
+  private final Duration reviewHold;
 
   public PaymentConfirmationService(
       PaymentRepository payments,
@@ -75,7 +79,6 @@ public class PaymentConfirmationService {
         null);
   }
 
-  @org.springframework.beans.factory.annotation.Autowired
   public PaymentConfirmationService(
       PaymentRepository payments,
       PaymentQuoteRepository quotes,
@@ -89,6 +92,67 @@ public class PaymentConfirmationService {
       ObjectMapper objectMapper,
       TransferRouteRepository routes,
       ComplianceCaseService complianceCases) {
+    this(
+        payments,
+        quotes,
+        recipients,
+        kyc,
+        compliance,
+        posting,
+        clock,
+        operations,
+        outbox,
+        objectMapper,
+        routes,
+        complianceCases,
+        Duration.ofHours(24));
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public PaymentConfirmationService(
+      PaymentRepository payments,
+      PaymentQuoteRepository quotes,
+      RecipientRepository recipients,
+      KycGate kyc,
+      ComplianceAssessor compliance,
+      PostingPort posting,
+      Clock clock,
+      PaymentOperationService operations,
+      PayoutOutboxService outbox,
+      ObjectMapper objectMapper,
+      TransferRouteRepository routes,
+      ComplianceCaseService complianceCases,
+      ComplianceReviewWindowProperties reviewWindowProperties) {
+    this(
+        payments,
+        quotes,
+        recipients,
+        kyc,
+        compliance,
+        posting,
+        clock,
+        operations,
+        outbox,
+        objectMapper,
+        routes,
+        complianceCases,
+        Duration.ofHours(reviewWindowProperties.reviewHoldHours()));
+  }
+
+  private PaymentConfirmationService(
+      PaymentRepository payments,
+      PaymentQuoteRepository quotes,
+      RecipientRepository recipients,
+      KycGate kyc,
+      ComplianceAssessor compliance,
+      PostingPort posting,
+      Clock clock,
+      PaymentOperationService operations,
+      PayoutOutboxService outbox,
+      ObjectMapper objectMapper,
+      TransferRouteRepository routes,
+      ComplianceCaseService complianceCases,
+      Duration reviewHold) {
     this.payments = payments;
     this.quotes = quotes;
     this.recipients = recipients;
@@ -101,6 +165,7 @@ public class PaymentConfirmationService {
     this.objectMapper = objectMapper;
     this.routes = routes;
     this.complianceCases = complianceCases;
+    this.reviewHold = reviewHold;
   }
 
   public PaymentResponse confirm(
@@ -158,26 +223,40 @@ public class PaymentConfirmationService {
     var screeningInput =
         new ComplianceScreeningInput(
             userId, recipient.name(), payment.sourceAmount(), payment.sourceCurrency());
-    ScreeningVerdict verdict = assessWithTimeout(screeningInput);
     Instant now = Instant.now(clock);
+    var screeningContext =
+        new ComplianceScreeningContext(
+            payment.id(),
+            userId,
+            payment.sourceAmount(),
+            payment.sourceCurrency(),
+            recipient.id(),
+            recipient.createdAt(),
+            now);
+    ScreeningVerdict inputVerdict = assessWithTimeout(screeningInput);
+    ComplianceAssessment assessment = assessDetailedWithTimeout(screeningContext);
+    ScreeningVerdict verdict = mostSevere(inputVerdict, assessment.verdict());
     if (verdict == ScreeningVerdict.BLOCK) {
       payment.reject(now);
       PaymentResponse blocked = response(payment);
       return new PaymentOperationService.Result<>(422, blocked, payment.id());
     }
     if (verdict == ScreeningVerdict.REVIEW) {
-      ComplianceAssessment assessment = assessDetailedWithTimeout(screeningInput);
+      ComplianceAssessment reviewAssessment =
+          assessment.verdict() == ScreeningVerdict.REVIEW
+              ? assessment
+              : assessDetailedWithTimeout(screeningInput);
       String reviewReference = UUID.randomUUID().toString();
-      payment.underReview(quote.id(), reviewReference, now);
+      payment.underReview(quote.id(), reviewReference, now.plus(reviewHold), now);
       if (complianceCases == null) {
         throw new IllegalStateException("Compliance review case workflow is not configured");
       }
       complianceCases.openReview(
           payment.id(),
           reviewReference,
-          assessment.risk(),
-          assessment.reasons(),
-          assessment.suggestedAction());
+          reviewAssessment.risk(),
+          reviewAssessment.reasons(),
+          reviewAssessment.suggestedAction());
       outbox.enqueue(
           payment,
           com.fluxpay.messaging.EventTopics.PAYMENT_REVIEW_REQUESTED,
@@ -235,6 +314,7 @@ public class PaymentConfirmationService {
     java.util.Map<String, Object> details = new java.util.LinkedHashMap<>();
     details.put("status", PaymentStatus.UNDER_REVIEW.name());
     details.put("reviewReference", reviewReference);
+    details.put("reviewExpiresAt", payment.approvalExpiresAt().toString());
     details.put("senderId", payment.senderId().toString());
     details.put("walletId", payment.sourceWalletId().toString());
     details.put("sourceAmount", payment.sourceAmount().toPlainString());
@@ -287,9 +367,46 @@ public class PaymentConfirmationService {
     }
   }
 
+  private static ScreeningVerdict mostSevere(ScreeningVerdict first, ScreeningVerdict second) {
+    if (first == ScreeningVerdict.BLOCK || second == ScreeningVerdict.BLOCK) {
+      return ScreeningVerdict.BLOCK;
+    }
+    if (first == ScreeningVerdict.REVIEW || second == ScreeningVerdict.REVIEW) {
+      return ScreeningVerdict.REVIEW;
+    }
+    return ScreeningVerdict.APPROVE;
+  }
+
   private ComplianceAssessment assessDetailedWithTimeout(ComplianceScreeningInput input) {
     try {
       return CompletableFuture.supplyAsync(() -> compliance.assessDetailed(input))
+          .get(3, TimeUnit.SECONDS);
+    } catch (TimeoutException e) {
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment timed out.");
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment was interrupted.");
+    } catch (java.util.concurrent.ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof BusinessException businessException) {
+        throw businessException;
+      }
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment failed.");
+    }
+  }
+
+  private ComplianceAssessment assessDetailedWithTimeout(ComplianceScreeningContext context) {
+    try {
+      return CompletableFuture.supplyAsync(() -> compliance.assessDetailed(context))
           .get(3, TimeUnit.SECONDS);
     } catch (TimeoutException e) {
       throw new BusinessException(

@@ -24,6 +24,12 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 fluxpay:
+  wallet:
+    conversion:
+      fee-rates:
+        USD: ${FLUXPAY_WALLET_CONVERSION_FEE_RATE_USD:0.005}
+        EUR: ${FLUXPAY_WALLET_CONVERSION_FEE_RATE_EUR:0.005}
+        INR: ${FLUXPAY_WALLET_CONVERSION_FEE_RATE_INR:0.005}
   # Documented Frankfurter v1 /latest endpoint (see https://frankfurter.dev/v1/).
   # fluxpay.fx-mode/FLUXPAY_FX_MODE was retired: any value fails startup explicitly.
   fx-provider-url: ${FX_PROVIDER_URL:}
@@ -32,6 +38,8 @@ fluxpay:
     review-thresholds:
       USD: ${FLUXPAY_COMPLIANCE_REVIEW_THRESHOLD_USD:${fluxpay.m5.compliance.review-thresholds.USD:${M5_COMPLIANCE_REVIEW_THRESHOLD_USD:10000}}}
       INR: ${FLUXPAY_COMPLIANCE_REVIEW_THRESHOLD_INR:${fluxpay.m5.compliance.review-thresholds.INR:${M5_COMPLIANCE_REVIEW_THRESHOLD_INR:500000}}}
+    recipient-recent-hours: ${FLUXPAY_COMPLIANCE_RECIPIENT_RECENT_HOURS:${M5_COMPLIANCE_RECIPIENT_RECENT_HOURS:24}}
+    review-hold-hours: ${FLUXPAY_COMPLIANCE_REVIEW_HOLD_HOURS:24}
   vector:
     ollama-base-url: ${FLUXPAY_OLLAMA_BASE_URL:${fluxpay.m5.vector.ollama-base-url:${M5_OLLAMA_BASE_URL:http://127.0.0.1:11434}}}
     embedding-model: ${FLUXPAY_OLLAMA_EMBEDDING_MODEL:${fluxpay.m5.vector.embedding-model:${M5_OLLAMA_EMBEDDING_MODEL:qwen3-embedding:4b}}}
@@ -43,6 +51,11 @@ fluxpay:
     chat-temperature: ${FLUXPAY_OLLAMA_CHAT_TEMPERATURE:${fluxpay.m5.copilot.chat-temperature:${M5_OLLAMA_CHAT_TEMPERATURE:0.2}}}
     max-distance: ${FLUXPAY_COPILOT_MAX_DISTANCE:${fluxpay.m5.copilot.max-distance:${M5_COPILOT_MAX_DISTANCE:0.65}}}
     chat-timeout-seconds: ${FLUXPAY_OLLAMA_CHAT_TIMEOUT_SECONDS:${fluxpay.m5.copilot.chat-timeout-seconds:${M5_OLLAMA_CHAT_TIMEOUT_SECONDS:90}}}
+    reasoning-enabled: ${FLUXPAY_COPILOT_REASONING_ENABLED:${M5_COPILOT_REASONING_ENABLED:true}}
+    chat-keep-alive: ${FLUXPAY_OLLAMA_CHAT_KEEP_ALIVE:${M5_OLLAMA_CHAT_KEEP_ALIVE:30m}}
+    chat-max-tokens: ${FLUXPAY_OLLAMA_CHAT_MAX_TOKENS:${M5_OLLAMA_CHAT_MAX_TOKENS:512}}
+    chat-context-tokens: ${FLUXPAY_OLLAMA_CHAT_CONTEXT_TOKENS:${M5_OLLAMA_CHAT_CONTEXT_TOKENS:2048}}
+    max-sources: ${FLUXPAY_COPILOT_MAX_SOURCES:${M5_COPILOT_MAX_SOURCES:3}}
   jwt-secret: ${JWT_SECRET}
   system-user-id: ${FLUXPAY_SYSTEM_USER_ID:}
   demo-funding-enabled: ${FLUXPAY_DEMO_FUNDING_ENABLED:false}

@@ -194,6 +194,24 @@ class PayoutLifecycleIntegrationTest {
     operationService = proxy(new PaymentOperationService(operations, mapper, clock, manager));
     var context = new LedgerPostingContext();
     var writer = proxy(new PersistentLedgerWriter(wallets, entries, context, clock));
+    var journalHeaders = mock(LedgerJournalRepository.class);
+    var journalLocks = mock(LedgerJournalLockRepository.class);
+    Map<String, LedgerJournal> storedJournals = new ConcurrentHashMap<>();
+    when(journalLocks.findByIdForUpdate(anyInt()))
+        .thenReturn(Optional.of(mock(LedgerJournalLock.class)));
+    when(journalHeaders.findByJournalReference(anyString()))
+        .thenAnswer(call -> Optional.ofNullable(storedJournals.get(call.getArgument(0))));
+    when(journalHeaders.saveAndFlush(any()))
+        .thenAnswer(
+            call -> {
+              LedgerJournal journal = call.getArgument(0);
+              storedJournals.put(journal.getJournalReference(), journal);
+              return journal;
+            });
+    var journalService =
+        proxy(
+            new LedgerJournalService(
+                writer, context, journalHeaders, journalLocks, entries, wallets, clock));
     outbox = proxy(spy(new PayoutOutboxService(events, deliveries, mapper, clock)));
     var reservationService =
         proxy(
@@ -222,33 +240,31 @@ class PayoutLifecycleIntegrationTest {
         proxy(
             new PayoutExecutionService(
                 operationService, reservationService, finalization, rails()));
-    refunds =
-        proxy(new RefundJournalService(proxy(new LedgerJournalService(writer, context)), writer));
-    proxy(new LedgerJournalService(writer, context))
-        .post(
-            "payment:" + id,
-            List.of(
-                new LedgerJournalLine(
-                    wallet,
-                    "DEBIT",
-                    new BigDecimal("100"),
-                    "USD",
-                    "payment:" + id + ":customer:debit",
-                    "Original funding"),
-                new LedgerJournalLine(
-                    clearing,
-                    "CREDIT",
-                    new BigDecimal("95"),
-                    "USD",
-                    "payment:" + id + ":clearing:credit",
-                    "Original funding"),
-                new LedgerJournalLine(
-                    feeWallet,
-                    "CREDIT",
-                    new BigDecimal("5"),
-                    "USD",
-                    "payment:" + id + ":fee:credit",
-                    "Original funding")));
+    refunds = proxy(new RefundJournalService(journalService, writer));
+    journalService.post(
+        "payment:" + id,
+        List.of(
+            new LedgerJournalLine(
+                wallet,
+                "DEBIT",
+                new BigDecimal("100"),
+                "USD",
+                "payment:" + id + ":customer:debit",
+                "Original funding"),
+            new LedgerJournalLine(
+                clearing,
+                "CREDIT",
+                new BigDecimal("95"),
+                "USD",
+                "payment:" + id + ":clearing:credit",
+                "Original funding"),
+            new LedgerJournalLine(
+                feeWallet,
+                "CREDIT",
+                new BigDecimal("5"),
+                "USD",
+                "payment:" + id + ":fee:credit",
+                "Original funding")));
     recovery =
         proxy(
             new RecoveryService(

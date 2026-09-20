@@ -60,8 +60,17 @@ public class SelectedQuoteService {
       throw new QuoteMismatchException(
           "selected quote payment, generation or route does not match");
     }
-    if (!clock.instant().isBefore(selected.expiresAt())) {
-      throw new QuoteExpiredException("selected quote has expired");
+    java.time.Instant approvalExpiresAt = payment.approvalExpiresAt();
+    java.time.Instant validUntil =
+        approvalExpiresAt == null ? selected.expiresAt() : approvalExpiresAt;
+    // Quote freshness is an approval gate for first-time submission. Retry/redelivery of
+    // already accepted, funded economics bypasses expiry via acceptedRetry(); initial
+    // submission must still reject an expired quote even after ledger posting.
+    if (!clock.instant().isBefore(validUntil)) {
+      throw new QuoteExpiredException(
+          approvalExpiresAt == null
+              ? "selected quote has expired"
+              : "review-approved quote has expired");
     }
     routes
         .findByRouteCode(selected.route())

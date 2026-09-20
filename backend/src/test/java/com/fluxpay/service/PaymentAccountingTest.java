@@ -11,6 +11,10 @@ import com.fluxpay.exception.SystemAccountUnavailableException;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -31,6 +35,82 @@ class PaymentAccountingTest {
     assertThat(db.jdbc.queryForList("select distinct journal from entries", String.class))
         .containsExactly("payment:" + paymentId);
     assertThat(db.locks.subList(0, 3)).containsExactly(db.clearing, db.fee, db.customer);
+  }
+
+  @Test
+  void paymentAndRefundWithCollidingJournalBucketsUseOneLockOrder() throws Exception {
+    UUID refundPaymentId = paymentIdWithCollidingRefundBucket(paymentId);
+    var systemAccounts =
+        new SystemAccountService(db.wallets, new SystemAccountConfig(db.system.toString()));
+    var delegate = db.transactional(new PersistentWalletAdapter(db.wallets, systemAccounts));
+    CountDownLatch paymentProgress = new CountDownLatch(1);
+    CountDownLatch refundSubmitted = new CountDownLatch(1);
+    CountDownLatch refundBucketLocked = new CountDownLatch(1);
+    AtomicBoolean paymentReferenceLocked = new AtomicBoolean();
+    com.fluxpay.common.contracts.WalletPort coordinatedWallets =
+        new com.fluxpay.common.contracts.WalletPort() {
+          @Override
+          public Optional<com.fluxpay.dto.WalletSnapshot> findOwned(UUID userId, UUID walletId) {
+            return delegate.findOwned(userId, walletId);
+          }
+
+          @Override
+          public com.fluxpay.dto.PostingAccounts lockPostingAccounts(
+              UUID userId, UUID walletId, String currency, BigDecimal gross) {
+            var result = delegate.lockPostingAccounts(userId, walletId, currency, gross);
+            if (!paymentReferenceLocked.get()) {
+              paymentProgress.countDown();
+              await(refundBucketLocked);
+            }
+            return result;
+          }
+        };
+    db.afterJournalLock =
+        ignored -> {
+          if (Thread.currentThread().getName().equals("payment-worker")) {
+            paymentReferenceLocked.set(true);
+            paymentProgress.countDown();
+            await(refundSubmitted);
+          } else if (Thread.currentThread().getName().equals("refund-worker")) {
+            refundBucketLocked.countDown();
+          }
+        };
+    var payment =
+        db.transactional(
+            new PaymentPostingService(coordinatedWallets, db.journals, Clock.systemUTC()));
+    var refund = db.transactional(new RefundJournalService(db.journals, db.writer));
+    var workers = Executors.newFixedThreadPool(2);
+    try {
+      var paymentResult =
+          workers.submit(
+              () -> {
+                Thread.currentThread().setName("payment-worker");
+                return payment.postApprovedPayment(
+                    paymentId,
+                    db.user,
+                    db.customer,
+                    "USD",
+                    new BigDecimal("10.0000"),
+                    BigDecimal.ZERO,
+                    Instant.now().plusSeconds(600));
+              });
+      assertThat(paymentProgress.await(5, TimeUnit.SECONDS)).isTrue();
+      var refundResult =
+          workers.submit(
+              () -> {
+                Thread.currentThread().setName("refund-worker");
+                refund.refund(snapshot(refundPaymentId, "0.0000", "10.0000"));
+                return true;
+              });
+      refundSubmitted.countDown();
+
+      assertThat(paymentResult.get(10, TimeUnit.SECONDS)).isNotNull();
+      assertThat(refundResult.get(10, TimeUnit.SECONDS)).isTrue();
+      assertThat(db.balance(db.customer)).isEqualByComparingTo("100.0000");
+      assertThat(db.count()).isEqualTo(4);
+    } finally {
+      workers.shutdownNow();
+    }
   }
 
   @Test
@@ -264,12 +344,16 @@ class PaymentAccountingTest {
   }
 
   PaymentSnapshot snapshot(String fee) {
+    return snapshot(paymentId, fee, "100.0000");
+  }
+
+  PaymentSnapshot snapshot(UUID snapshotPaymentId, String fee, String gross) {
     return new PaymentSnapshot(
-        paymentId.toString(),
+        snapshotPaymentId.toString(),
         db.user,
         db.customer,
         db.clearing,
-        new BigDecimal("100.0000"),
+        new BigDecimal(gross),
         "USD",
         "INR",
         PaymentStatus.FAILED,
@@ -278,10 +362,33 @@ class PaymentAccountingTest {
             db.clearing,
             db.fee,
             "USD",
-            new BigDecimal("100.0000"),
-            fee.equals("0.0000") ? new BigDecimal("100.0000") : new BigDecimal("95.0000"),
+            new BigDecimal(gross),
+            fee.equals("0.0000")
+                ? new BigDecimal(gross)
+                : new BigDecimal(gross).subtract(new BigDecimal(fee)),
             new BigDecimal(fee),
-            "payment:" + paymentId));
+            "payment:" + snapshotPaymentId));
+  }
+
+  private static UUID paymentIdWithCollidingRefundBucket(UUID postingPaymentId) {
+    int bucket = Math.floorMod(("payment:" + postingPaymentId).hashCode(), 64);
+    while (true) {
+      UUID candidate = UUID.randomUUID();
+      if (Math.floorMod(("refund:" + candidate).hashCode(), 64) == bucket) {
+        return candidate;
+      }
+    }
+  }
+
+  private static void await(CountDownLatch latch) {
+    try {
+      if (!latch.await(5, TimeUnit.SECONDS)) {
+        throw new AssertionError("lock-order coordination timed out");
+      }
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new AssertionError("lock-order coordination interrupted", interrupted);
+    }
   }
 
   Confirmation confirmation(com.fasterxml.jackson.databind.ObjectMapper mapper) {

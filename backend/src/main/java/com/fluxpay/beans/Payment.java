@@ -241,7 +241,12 @@ public class Payment {
   }
 
   public void underReview(UUID quoteId, String reference, Instant now) {
+    underReview(quoteId, reference, null, now);
+  }
+
+  public void underReview(UUID quoteId, String reference, Instant reviewExpiresAt, Instant now) {
     selectedQuoteId = quoteId;
+    approvalExpiresAt = reviewExpiresAt;
     underReview(reference, now);
   }
 

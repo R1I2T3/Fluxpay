@@ -10,6 +10,31 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-17-ledger-correctness-design.md` and `docs/superpowers/specs/2026-09-17-wallet-p2p-bankconnect-design.md`
 
+## Approved implementation corrections (2026-09-18)
+
+The two linked specifications are not present in this checkout. The following
+corrections were approved before starting on branch `member3-money-ledger`:
+
+- Keep `ledger_entries.entry_type` as `DEBIT` / `CREDIT`. Business labels such as
+  `SELF_TRANSFER`, `WALLET_TO_WALLET`, `WALLET_TOPUP`, and `SEND_MONEY` belong in
+  separate transaction-category metadata; existing records/callers use `LEGACY`.
+- Put the unique journal reference on a `ledger_journals` header. Multiple debit
+  and credit lines in the same currency **must** share a reference. Repeating an
+  identical complete journal is a no-op; reusing it for different content fails.
+- `journal_reference` and a unique `idempotency_key` already exist in V002. Do not
+  add them again or add the sample `UNIQUE(journal_reference, currency)` below.
+  Backfill historical journal headers without deleting or rewriting money amounts.
+- Add V007/V008 without changing applied migrations. Existing installations at
+  V605 require an explicit, controlled out-of-order migration; fresh installations
+  apply the scripts in numeric order. Never reset an application schema to upgrade.
+- Retain `NUMBER(19,4)` storage for compatibility. Introduce USD/EUR/INR minor-unit
+  scale 2 in the currency table in Task 1; switch business rounding coherently in
+  Task 2, rather than partially changing live posting behavior in Task 1.
+- Commands below containing `-v` are sketches: Maven `-v` only prints its version.
+  Omit `-v` when actually running tests, and use `mvnw.cmd` on Windows.
+
+These corrections take precedence over contradictory example snippets below.
+
 ## Global Constraints
 
 - Java 17, `spotless:apply`; amounts scale per currency table, never hardcoded 4.

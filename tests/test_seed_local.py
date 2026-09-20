@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -38,6 +39,58 @@ class HttpResponse:
 
 
 class SeedLocalTests(unittest.TestCase):
+    def test_provisions_every_system_currency_role_with_insert_only_merges_on_rerun(self):
+        script = load_script()
+        system_id = "11111111-1111-1111-1111-111111111111"
+        identities = {
+            "system": {"id": system_id},
+            "admin": {"id": "22222222-2222-2222-2222-222222222222"},
+        }
+        database = mock.MagicMock()
+        connection = database.connect.return_value.__enter__.return_value
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.side_effect = [("FLUXPAY",), (15,), (3,)] * 2
+        expected = {
+            (uuid.UUID(system_id).bytes, currency, role)
+            for currency in ("USD", "EUR", "INR")
+            for role in (
+                "FX_CLEARING",
+                "FX_GAIN_LOSS",
+                "DEMO_CLEARING",
+                "PAYOUT_CLEARING",
+                "FEE_REVENUE",
+            )
+        }
+        with (
+            mock.patch.dict(sys.modules, {"oracledb": database}),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "ORACLE_JDBC_URL": "jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
+                    "ORACLE_USERNAME": "FLUXPAY",
+                    "ORACLE_PASSWORD": "test-only",
+                },
+                clear=True,
+            ),
+        ):
+            for _ in range(2):
+                cursor.execute.reset_mock()
+                script.provision_local_database(identities)
+                merges = [call for call in cursor.execute.call_args_list if "MERGE INTO wallets" in call.args[0]]
+                self.assertEqual(
+                    {(call.kwargs["user_id"], call.kwargs["currency"], call.kwargs["account_role"]) for call in merges},
+                    expected,
+                )
+                self.assertEqual(len(merges), 15)
+                for call in merges:
+                    sql = " ".join(call.args[0].split())
+                    self.assertIn("target.user_id = source.user_id", sql)
+                    self.assertIn("target.currency = source.currency", sql)
+                    self.assertIn("target.account_role = source.account_role", sql)
+                    self.assertIn("WHEN NOT MATCHED THEN INSERT", sql)
+                    self.assertNotIn("WHEN MATCHED THEN", sql)
+        self.assertEqual(connection.commit.call_count, 2)
+
     def test_registers_full_contract_without_client_controlled_role_and_reports_actual_counts(self):
         script = load_script()
         requests = []
@@ -58,7 +111,7 @@ class SeedLocalTests(unittest.TestCase):
 
         provisioned = {
             "users": 4,
-            "systemWallets": 12,
+            "systemWallets": 15,
             "routes": 3,
             "systemUserId": "11111111-1111-1111-1111-111111111111",
         }
@@ -83,16 +136,12 @@ class SeedLocalTests(unittest.TestCase):
         ):
             self.assertEqual(script.main(), 0)
 
-        register_bodies = [
-            json.loads(request.data)
-            for request in requests
-            if request.full_url.endswith("/register")
-        ]
+        register_bodies = [json.loads(request.data) for request in requests if request.full_url.endswith("/register")]
         self.assertEqual(len(register_bodies), 4)
         self.assertTrue(all(body["fullName"].strip() for body in register_bodies))
         self.assertTrue(all("role" not in body for body in register_bodies))
         text = output.getvalue()
-        self.assertIn("users=4 system-wallets=12 routes=3", text)
+        self.assertIn("users=4 system-wallets=15 routes=3", text)
         self.assertNotIn("policies=", text)
         self.assertNotIn("secret", text)
         self.assertNotIn("Pass123", text)
@@ -113,9 +162,7 @@ class SeedLocalTests(unittest.TestCase):
             }
 
         with mock.patch.object(script, "request_json", side_effect=request_json):
-            user = script.register_or_login(
-                "http://localhost:8080", "same@example.com", "ValidPass123!", "Same User"
-            )
+            user = script.register_or_login("http://localhost:8080", "same@example.com", "ValidPass123!", "Same User")
 
         self.assertEqual(user["id"], "11111111-1111-1111-1111-111111111111")
         self.assertEqual(calls, [("/api/auth/register", "same@example.com"), ("/api/auth/login", "same@example.com")])

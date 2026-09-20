@@ -1,7 +1,8 @@
 package com.fluxpay.config;
 
 import com.fluxpay.common.contracts.ComplianceAssessor;
-import com.fluxpay.service.AmountComplianceAssessor;
+import com.fluxpay.repository.PaymentRepository;
+import com.fluxpay.service.PaymentRiskComplianceAssessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -15,7 +16,8 @@ import org.springframework.context.annotation.Configuration;
         + "'${fluxpay.development.simulated-compliance-enabled:false}' == 'false'")
 public class ComplianceConfiguration {
   @Bean
-  ComplianceAssessor complianceAssessor(ComplianceProperties properties) {
-    return new AmountComplianceAssessor(properties);
+  ComplianceAssessor complianceAssessor(
+      ComplianceProperties properties, PaymentRepository paymentRepository) {
+    return new PaymentRiskComplianceAssessor(properties, paymentRepository);
   }
 }

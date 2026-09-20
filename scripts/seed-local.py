@@ -20,7 +20,7 @@ IDENTITIES = (
     ("customer", "SEED_BOB_EMAIL", "bob@demo.io", "SEED_CUSTOMER_PASSWORD", "Bob Demo"),
 )
 
-SYSTEM_WALLET_ROLES = ("FX_CLEARING", "DEMO_CLEARING", "PAYOUT_CLEARING", "FEE_REVENUE")
+SYSTEM_WALLET_ROLES = ("FX_CLEARING", "FX_GAIN_LOSS", "DEMO_CLEARING", "PAYOUT_CLEARING", "FEE_REVENUE")
 CURRENCIES = ("USD", "EUR", "INR")
 ROUTES = (
     ("STANDARD_BANK", "Standard bank", "Simulated standard bank", "STANDARD", "5.0000", "0.500000", 240, "99.50"),
@@ -53,9 +53,7 @@ def register_or_login(base_url, email, password, full_name):
         {"email": email, "password": password, "fullName": full_name},
     )
     if status == 409:
-        status, payload = request_json(
-            base_url, "/api/auth/login", {"email": email, "password": password}
-        )
+        status, payload = request_json(base_url, "/api/auth/login", {"email": email, "password": password})
     if status not in (200, 201):
         code = payload.get("error", {}).get("code", "UNKNOWN") if isinstance(payload, dict) else "UNKNOWN"
         raise RuntimeError(f"identity provisioning failed for {email}: HTTP {status} ({code})")
@@ -211,10 +209,7 @@ def main():
         print(f"seed failed: {exception}")
         return 2
 
-    print(
-        f"users={result['users']} system-wallets={result['systemWallets']} "
-        f"routes={result['routes']}"
-    )
+    print(f"users={result['users']} system-wallets={result['systemWallets']} routes={result['routes']}")
     print(f"system-user-id={result['systemUserId']} (set FLUXPAY_SYSTEM_USER_ID before backend restart)")
     return 0
 

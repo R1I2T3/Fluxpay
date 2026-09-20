@@ -21,4 +21,9 @@ public interface ComplianceAssessor {
     Objects.requireNonNull(input, "input must not be null");
     return assessDetailed(input.userId(), input.amount(), input.currency());
   }
+
+  default ComplianceAssessment assessDetailed(ComplianceScreeningContext context) {
+    Objects.requireNonNull(context, "context must not be null");
+    return assessDetailed(context.userId(), context.amount(), context.currency());
+  }
 }

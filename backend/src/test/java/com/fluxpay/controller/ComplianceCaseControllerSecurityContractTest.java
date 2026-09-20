@@ -1,5 +1,6 @@
 package com.fluxpay.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -16,10 +17,13 @@ import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
 import com.fluxpay.common.security.MethodSecurityConfig;
 import com.fluxpay.common.security.SecurityConfig;
+import com.fluxpay.dto.ComplianceDecisionRequest;
+import com.fluxpay.dto.CopilotRequest;
 import com.fluxpay.service.ComplianceCaseService;
 import com.fluxpay.service.PolicyChunkService;
 import com.fluxpay.service.PolicyDeletionService;
 import com.fluxpay.service.PolicyDocumentService;
+import com.fluxpay.service.PolicyGuidanceService;
 import com.fluxpay.service.RouteReliabilityService;
 import com.fluxpay.service.TransferRouteService;
 import java.util.UUID;
@@ -30,7 +34,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.PostMapping;
 
 @WebMvcTest({
   ComplianceCaseController.class,
@@ -48,6 +54,7 @@ class ComplianceCaseControllerSecurityContractTest {
   @MockBean private PolicyDocumentService policyDocuments;
   @MockBean private PolicyChunkService policyChunks;
   @MockBean private PolicyDeletionService policyDeletion;
+  @MockBean private PolicyGuidanceService policyGuidance;
   @MockBean private TransferRouteService routeAdmin;
   @MockBean private RouteReliabilityService reliability;
   @MockBean private RouteAdminAuthorizer routeAdminAuthorizer;
@@ -175,5 +182,49 @@ class ComplianceCaseControllerSecurityContractTest {
         .andExpect(status().isForbidden());
 
     verify(routeAdmin, never()).update(any(), any());
+  }
+
+  @Test
+  void onlyAdminsCanMutateComplianceDataOrAskCopilot() throws NoSuchMethodException {
+    PreAuthorize approve =
+        ComplianceCaseController.class
+            .getMethod("approve", UUID.class, ComplianceDecisionRequest.class, CurrentUser.class)
+            .getAnnotation(PreAuthorize.class);
+    PreAuthorize reject =
+        ComplianceCaseController.class
+            .getMethod("reject", UUID.class, ComplianceDecisionRequest.class, CurrentUser.class)
+            .getAnnotation(PreAuthorize.class);
+    PreAuthorize deleteCase =
+        ComplianceCaseController.class
+            .getMethod("delete", UUID.class)
+            .getAnnotation(PreAuthorize.class);
+    PreAuthorize askCopilot =
+        CopilotController.class
+            .getMethod("ask", CopilotRequest.class)
+            .getAnnotation(PreAuthorize.class);
+    java.lang.reflect.Method streamMethod =
+        CopilotController.class.getMethod("stream", CopilotRequest.class);
+    PreAuthorize streamCopilot = streamMethod.getAnnotation(PreAuthorize.class);
+    PostMapping streamMapping = streamMethod.getAnnotation(PostMapping.class);
+
+    assertThat(approve.value()).isEqualTo("hasRole('ADMIN')");
+    assertThat(reject.value()).isEqualTo("hasRole('ADMIN')");
+    assertThat(deleteCase.value()).isEqualTo("hasRole('ADMIN')");
+    assertThat(askCopilot).isNotNull();
+    assertThat(askCopilot.value()).isEqualTo("hasRole('ADMIN')");
+    assertThat(streamCopilot).isNotNull();
+    assertThat(streamCopilot.value()).isEqualTo("hasRole('ADMIN')");
+    assertThat(streamMapping.produces()).contains("text/event-stream");
+  }
+
+  @Test
+  void allPolicyReadsAndMutationsInheritTheAdminRole() {
+    PreAuthorize policyOperations = PolicyController.class.getAnnotation(PreAuthorize.class);
+    PreAuthorize indexingOperations = PolicyIndexController.class.getAnnotation(PreAuthorize.class);
+
+    assertThat(policyOperations).isNotNull();
+    assertThat(policyOperations.value()).isEqualTo("hasRole('ADMIN')");
+    assertThat(indexingOperations).isNotNull();
+    assertThat(indexingOperations.value()).isEqualTo("hasRole('ADMIN')");
   }
 }

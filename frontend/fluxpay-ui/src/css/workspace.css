@@ -1294,50 +1294,766 @@
   }
 }
 /* Administration knowledge and review workspace: shares the customer design tokens. */
-.workspace-page .admin-tabs { display:flex; gap:8px; overflow-x:auto; padding:6px; margin:0 0 28px; background:#eaf0fa; border:1px solid #dce5f4; border-radius:22px; }
-.workspace-page .admin-tabs button { flex:1; white-space:nowrap; border:0; background:transparent; color:#53657f; border-radius:16px; padding:15px 20px; font:inherit; font-weight:650; cursor:pointer; transition:background .2s,color .2s,box-shadow .2s; }
-.workspace-page .admin-tabs button.selected { background:#fff; color:#1457d4; box-shadow:0 4px 16px #173b7112; }
-.workspace-page .admin-tabs button:hover { color:#1457d4; }
-.workspace-page .admin-intro { display:flex; align-items:center; justify-content:space-between; gap:24px; background:linear-gradient(120deg,#edf4ff,#f9fbff 65%,#e8f8fa); }
-.workspace-page .admin-intro h2,.workspace-page .copilot-composer h2 { font-size:clamp(26px,3vw,40px); letter-spacing:-1.4px; line-height:1.1; margin:12px 0; }
-.workspace-page .admin-intro p { max-width:650px; }
-.workspace-page .admin-toolbar { display:flex; align-items:end; gap:16px; margin-bottom:24px; }
-.workspace-page .admin-toolbar label:first-child { flex:1; }
-.workspace-page .admin-toolbar label { margin:0; }
-.workspace-page .admin-toolbar>.pill { margin-bottom:1px; }
-.workspace-page .admin-editor { border:1px solid #bfcfed; scroll-margin-top:100px; }
-.workspace-page .admin-reference { color:#687891; font-size:12px; overflow-wrap:anywhere; margin:10px 0 20px; }
-.workspace-page .admin-reasons { padding-left:24px; line-height:1.8; }
-.workspace-page .preserve-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; }
-.workspace-page .policy-content { max-height:400px; overflow:auto; padding:20px; background:#f6f8fc; border-radius:18px; }
-.workspace-page .policy-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
-.workspace-page .policy-card { text-align:left; padding:24px; border:1px solid #e0e7f2; border-radius:22px; background:linear-gradient(145deg,#fff,#f4f7fd); color:#182c49; font:inherit; cursor:pointer; transition:transform .2s,border-color .2s; min-width:0; }
-.workspace-page .policy-card:hover { transform:translateY(-3px); border-color:#91b5ef; }
-.workspace-page .policy-card h3 { margin:14px 0 10px; overflow-wrap:anywhere; }
-.workspace-page .policy-card p { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.65; color:#66768c; }
-.workspace-page .policy-card-footer { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-top:22px; color:#5a718e; }
-.workspace-page .policy-card-footer>span { color:#2563eb; font-size:25px; }
-.workspace-page .policy-chunks details { margin:12px 0; padding:16px 20px; background:#f5f8fd; border:1px solid #e0e7f2; border-radius:15px; }
-.workspace-page details summary { cursor:pointer; font-weight:600; padding:8px 0; }
-.workspace-page .risk-badge { display:inline-flex; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:750; letter-spacing:.04em; background:#e9f3fe; color:#2465a5; }
-.workspace-page .risk-badge[data-risk='HIGH'] { background:#fff0ec; color:#a33d29; }
-.workspace-page .risk-badge[data-risk='MEDIUM'] { background:#fff6df; color:#8b6410; }
-.workspace-page .pill.danger { color:#a43838; background:#fff0f0; border:1px solid #f0cccc; }
-.workspace-page .copilot-layout { display:grid; grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr); gap:24px; align-items:start; }
-.workspace-page .copilot-composer { background:linear-gradient(155deg,#eaf2ff,#fff 65%); }
-.workspace-page .copilot-response { min-height:540px; }
-.workspace-page .copilot-response>.empty-state { padding:100px 20px; }
-.workspace-page .copilot-answer { font-size:16px; color:#253b58; }
-.workspace-page .copilot-sources article { padding:20px; background:#f6f8fc; border:1px solid #e0e7f2; border-radius:18px; margin:14px 0; }
-.workspace-page .copilot-sources blockquote { margin:12px 0; padding-left:14px; border-left:3px solid #9cbaf0; color:#5d6d82; }
-.workspace-page .admin-confirmation { position:fixed; inset:0; z-index:150; display:grid; place-items:center; background:#10213b77; backdrop-filter:blur(7px); padding:20px; }
-.workspace-page .admin-confirmation .modal { max-height:90dvh; overflow:auto; }
-.workspace-page .admin-editor .detail-line strong { overflow-wrap:anywhere; min-width:0; }
-@media(max-width:1050px){.workspace-page .policy-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:700px){
-  .workspace-page .admin-tabs{border-radius:16px;}.workspace-page .admin-tabs button{padding:12px 15px;font-size:13px;}
-  .workspace-page .admin-intro{align-items:stretch;flex-direction:column;}.workspace-page .admin-toolbar{flex-wrap:wrap;}.workspace-page .admin-toolbar label:first-child{flex-basis:100%;}
-  .workspace-page .policy-grid,.workspace-page .copilot-layout{grid-template-columns:1fr;}.workspace-page .copilot-response{min-height:280px;}
-  .workspace-page .admin-editor .detail-line{align-items:flex-start;gap:10px;}.workspace-page .admin-editor .detail-line strong{max-width:70%;}
+.workspace-page .admin-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px;
+  margin: 0 0 28px;
+  background: #eaf0fa;
+  border: 1px solid #dce5f4;
+  border-radius: 22px;
 }
-@media(prefers-reduced-motion:reduce){.workspace-page .policy-card,.workspace-page .admin-tabs button{transition:none;}.workspace-page .policy-card:hover{transform:none;}}
+.workspace-page .admin-tabs button {
+  flex: 1;
+  white-space: nowrap;
+  border: 0;
+  background: transparent;
+  color: #53657f;
+  border-radius: 16px;
+  padding: 15px 20px;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+.workspace-page .admin-tabs button.selected {
+  background: #fff;
+  color: #1457d4;
+  box-shadow: 0 4px 16px #173b7112;
+}
+.workspace-page .admin-tabs button:hover {
+  color: #1457d4;
+}
+.workspace-page .admin-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: linear-gradient(120deg, #edf4ff, #f9fbff 65%, #e8f8fa);
+}
+.workspace-page .admin-intro h2,
+.workspace-page .copilot-composer h2 {
+  font-size: clamp(26px, 3vw, 40px);
+  letter-spacing: -1.4px;
+  line-height: 1.1;
+  margin: 12px 0;
+}
+.workspace-page .admin-intro p {
+  max-width: 650px;
+}
+.workspace-page .admin-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.workspace-page .admin-toolbar label:first-child {
+  flex: 1;
+}
+.workspace-page .admin-toolbar label {
+  margin: 0;
+}
+.workspace-page .admin-toolbar > .pill {
+  margin-bottom: 1px;
+}
+.workspace-page .admin-editor {
+  border: 1px solid #bfcfed;
+  scroll-margin-top: 100px;
+}
+.workspace-page .admin-reference {
+  color: #687891;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  margin: 10px 0 20px;
+}
+.workspace-page .admin-reasons {
+  padding-left: 24px;
+  line-height: 1.8;
+}
+.workspace-page .preserve-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.workspace-page .policy-content {
+  max-height: 400px;
+  overflow: auto;
+  padding: 20px;
+  background: #f6f8fc;
+  border-radius: 18px;
+}
+.workspace-page .policy-creation-panel {
+  border: 1px solid #c8d7ee;
+}
+.workspace-page .file-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.workspace-page .file-picker input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.workspace-page .policy-drafts {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.workspace-page .policy-draft {
+  padding: 12px 14px;
+  background: #f8faff;
+  border: 1px solid #dce6f4;
+  border-radius: 14px;
+}
+.workspace-page .policy-draft .error-text {
+  margin: 6px 0 0;
+}
+.workspace-page .policy-draft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.workspace-page .policy-draft-row > div:first-child {
+  min-width: 0;
+}
+.workspace-page .policy-draft-row strong,
+.workspace-page .policy-draft-row small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.workspace-page .policy-draft-row strong {
+  font-size: 14px;
+}
+.workspace-page .policy-draft-row small {
+  margin-top: 3px;
+  color: #5573a5;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+.workspace-page .policy-row-summary {
+  min-width: 0;
+}
+.workspace-page .policy-row-excerpt {
+  display: -webkit-box;
+  max-width: 760px;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #66768c;
+  font-size: 12px;
+  line-height: 1.4;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.workspace-page .policy-draft-actions {
+  margin-top: 20px;
+}
+.workspace-page .policy-draft-table {
+  margin: 16px 0;
+  border: 1px solid #dce6f4;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.workspace-page .policy-draft-table table {
+  table-layout: fixed;
+}
+.workspace-page .policy-draft-table th {
+  padding: 10px 12px;
+}
+.workspace-page .policy-draft-table td {
+  padding: 10px 12px;
+}
+.workspace-page .policy-draft-table th:nth-child(1) {
+  width: 25%;
+}
+.workspace-page .policy-draft-table th:nth-child(2) {
+  width: 16%;
+}
+.workspace-page .policy-draft-table th:last-child {
+  width: 118px;
+}
+.workspace-page .policy-draft-table td:last-child {
+  width: 118px;
+}
+.workspace-page .policy-draft-table .error-text {
+  margin: 5px 0 0;
+}
+.workspace-page .policy-draft-table td.draft-preview {
+  min-width: 0;
+  overflow: hidden;
+  color: #66768c;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.workspace-page .policy-library-list .panel-heading {
+  margin-bottom: 18px;
+}
+.workspace-page .policy-list-filters {
+  margin-bottom: 12px;
+}
+.workspace-page .policy-list {
+  display: grid;
+  gap: 8px;
+}
+.workspace-page .policy-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e0e7f2;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.workspace-page .policy-list-row:hover,
+.workspace-page .policy-list-row:focus-visible {
+  border-color: #91b5ef;
+  box-shadow: 0 5px 16px #173c6c12;
+  outline: none;
+}
+.workspace-page .policy-list-row h3 {
+  margin: 0 0 7px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.workspace-page .policy-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+.workspace-page .policy-row-actions .pill {
+  padding: 8px 12px;
+}
+.workspace-page .icon-action {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #dce8fa;
+  border-radius: 10px;
+  background: #f2f6fe;
+  color: #2868bf;
+  font: inherit;
+  cursor: pointer;
+}
+.workspace-page .icon-action:hover:not(:disabled),
+.workspace-page .icon-action:focus-visible {
+  border-color: #8eb7f3;
+  background: #e4efff;
+  color: #125bb7;
+  outline: none;
+}
+.workspace-page .icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.workspace-page .icon-action.danger {
+  border-color: #f1d4d4;
+  background: #fff4f4;
+  color: #a43838;
+}
+.workspace-page .icon-action.danger:hover:not(:disabled),
+.workspace-page .icon-action.danger:focus-visible {
+  border-color: #dfa7a7;
+  background: #ffe9e9;
+  color: #8c2626;
+}
+.workspace-page .policy-dialog-backdrop {
+  z-index: 150;
+}
+.workspace-page .policy-edit-backdrop {
+  z-index: 160;
+}
+.workspace-page .policy-details-dialog {
+  inline-size: min(860px, calc(100vw - 40px));
+  max-height: 90dvh;
+  overflow: hidden;
+  padding: 0;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+.workspace-page .compliance-case-dialog {
+  inline-size: min(720px, calc(100vw - 40px));
+  max-height: 90dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0;
+  isolation: isolate;
+}
+.workspace-page .compliance-case-scroll {
+  max-height: 90dvh;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 32px;
+  border-radius: inherit;
+  scrollbar-width: thin;
+  scrollbar-color: #c2cede transparent;
+  scrollbar-gutter: stable;
+}
+.workspace-page .compliance-case-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.workspace-page .compliance-case-scroll::-webkit-scrollbar-track {
+  margin: 18px 0;
+  background: transparent;
+}
+.workspace-page .compliance-case-scroll::-webkit-scrollbar-thumb {
+  background: #c2cede;
+  border-radius: 999px;
+}
+.workspace-page .policy-edit-dialog {
+  inline-size: min(680px, calc(100vw - 40px));
+  max-height: 90dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  isolation: isolate;
+  scrollbar-width: thin;
+  scrollbar-color: #c4d0df transparent;
+  scrollbar-gutter: stable;
+}
+.workspace-page .policy-dialog-scroll {
+  max-height: 90dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 32px;
+  border-radius: inherit;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #c4d0df transparent;
+  scrollbar-gutter: stable;
+}
+.workspace-page .policy-dialog-scroll::-webkit-scrollbar,
+.workspace-page .policy-edit-dialog::-webkit-scrollbar {
+  width: 6px;
+}
+.workspace-page .policy-dialog-scroll::-webkit-scrollbar-track,
+.workspace-page .policy-edit-dialog::-webkit-scrollbar-track {
+  margin: 18px 0;
+  background: transparent;
+}
+.workspace-page .policy-dialog-scroll::-webkit-scrollbar-thumb,
+.workspace-page .policy-edit-dialog::-webkit-scrollbar-thumb {
+  background: #c4d0df;
+  border-radius: 999px;
+}
+.workspace-page .policy-details-dialog .panel-heading,
+.workspace-page .policy-edit-dialog .panel-heading {
+  position: sticky;
+  top: -32px;
+  z-index: 10;
+  margin: -32px -32px 20px;
+  padding: 32px 32px 18px;
+  background: #fff;
+  border-bottom: 1px solid #edf1f7;
+  box-shadow: none;
+  align-items: flex-start;
+}
+.workspace-page .policy-details-dialog .panel-heading > div {
+  min-width: 0;
+  padding-right: 56px;
+}
+.workspace-page .policy-details-dialog h2 {
+  font-size: clamp(21px, 3vw, 28px);
+  overflow-wrap: anywhere;
+}
+.workspace-page .policy-details-dialog .close-button,
+.workspace-page .policy-edit-dialog .close-button {
+  position: absolute;
+  top: 22px;
+  right: 32px;
+  z-index: 11;
+  flex: 0 0 auto;
+}
+.workspace-page .modal-back {
+  display: block;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1e62bc;
+  font: 600 11px/1.2 inherit;
+  cursor: pointer;
+}
+.workspace-page .modal-back:hover,
+.workspace-page .modal-back:focus-visible {
+  color: #0f4e9f;
+  text-decoration: underline;
+  outline: none;
+}
+.workspace-page .policy-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.workspace-page .policy-meta span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.workspace-page .policy-meta code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  font-size: 12px;
+}
+.workspace-page .policy-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #dce6f4;
+  margin: 0 0 18px;
+}
+.workspace-page .policy-tabs button {
+  border: 0;
+  background: transparent;
+  color: #285999;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.workspace-page .policy-tabs button.selected {
+  color: #123d74;
+  border-bottom: 3px solid #1769dd;
+}
+.workspace-page .policy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.workspace-page .policy-card {
+  text-align: left;
+  padding: 24px;
+  border: 1px solid #e0e7f2;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #fff, #f4f7fd);
+  color: #182c49;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    border-color 0.2s;
+  min-width: 0;
+}
+.workspace-page .policy-card:hover {
+  transform: translateY(-3px);
+  border-color: #91b5ef;
+}
+.workspace-page .policy-card h3 {
+  margin: 14px 0 10px;
+  overflow-wrap: anywhere;
+}
+.workspace-page .policy-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.65;
+  color: #66768c;
+}
+.workspace-page .policy-card-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 22px;
+  color: #5a718e;
+}
+.workspace-page .policy-card-footer > span {
+  color: #2563eb;
+  font-size: 25px;
+}
+.workspace-page .policy-chunks details {
+  margin: 12px 0;
+  padding: 16px 20px;
+  background: #f5f8fd;
+  border: 1px solid #e0e7f2;
+  border-radius: 15px;
+}
+.workspace-page .chunk-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.workspace-page .chunk-actions {
+  display: flex;
+  gap: 8px;
+}
+.workspace-page .chunk-actions .icon-action {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.workspace-page .manual-chunk-form {
+  margin-bottom: 32px;
+}
+.workspace-page .guidance-case-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: end;
+  column-gap: 16px;
+}
+.workspace-page .guidance-case-picker label {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.workspace-page .guidance-case-picker .icon-action {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 6px;
+}
+.workspace-page .guidance-case-dialog h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+.workspace-page details summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.workspace-page .risk-badge {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  background: #e9f3fe;
+  color: #2465a5;
+}
+.workspace-page .risk-badge[data-risk='HIGH'] {
+  background: #fff0ec;
+  color: #a33d29;
+}
+.workspace-page .risk-badge[data-risk='MEDIUM'] {
+  background: #fff6df;
+  color: #8b6410;
+}
+.workspace-page .warning-text {
+  display: block;
+  margin-top: 6px;
+  color: #a33d29;
+  font-size: 11px;
+  font-weight: 700;
+}
+.workspace-page .sort-toggle {
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: #52749c;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.workspace-page .sort-toggle:hover,
+.workspace-page .sort-toggle:focus-visible {
+  color: #1466ce;
+  outline: none;
+}
+.workspace-page .pill.danger {
+  color: #a43838;
+  background: #fff0f0;
+  border: 1px solid #f0cccc;
+}
+.workspace-page .copilot-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 24px;
+  align-items: start;
+}
+.workspace-page .copilot-composer {
+  background: linear-gradient(155deg, #eaf2ff, #fff 65%);
+}
+.workspace-page .copilot-response {
+  min-height: 540px;
+}
+.workspace-page .copilot-response > .empty-state {
+  padding: 100px 20px;
+}
+.workspace-page .copilot-answer {
+  font-size: 16px;
+  color: #253b58;
+}
+.workspace-page .copilot-sources article {
+  padding: 13px 14px;
+  background: #f6f8fc;
+  border: 1px solid #e0e7f2;
+  border-radius: 14px;
+  margin: 9px 0;
+}
+.workspace-page .copilot-sources h4 {
+  margin: 5px 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+.workspace-page .copilot-sources blockquote {
+  margin: 7px 0;
+  padding-left: 10px;
+  border-left: 3px solid #9cbaf0;
+  color: #5d6d82;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.workspace-page .copilot-sources .text-button {
+  font-size: 13px;
+}
+.workspace-page .admin-confirmation {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  background: #10213b77;
+  backdrop-filter: blur(7px);
+  padding: 20px;
+}
+.workspace-page .admin-confirmation .modal {
+  max-height: 90dvh;
+  overflow: auto;
+}
+.workspace-page .admin-confirmation .policy-details-dialog {
+  overflow: hidden;
+}
+.workspace-page .admin-confirmation .compliance-case-dialog {
+  overflow: hidden;
+}
+.workspace-page .admin-editor .detail-line strong {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.workspace-page .workspace-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 300;
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 13px 16px;
+  border: 1px solid #cde2d7;
+  border-radius: 12px;
+  background: #effaf4;
+  box-shadow: 0 10px 28px #10213b20;
+  color: #237450;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.workspace-page .workspace-toast.error {
+  border-color: #efcbca;
+  background: #fff2f1;
+  color: #a74039;
+}
+@media (max-width: 1050px) {
+  .workspace-page .policy-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .workspace-page .admin-tabs {
+    border-radius: 16px;
+  }
+  .workspace-page .admin-tabs button {
+    padding: 12px 15px;
+    font-size: 13px;
+  }
+  .workspace-page .admin-intro {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workspace-page .admin-toolbar {
+    flex-wrap: wrap;
+  }
+  .workspace-page .admin-toolbar label:first-child {
+    flex-basis: 100%;
+  }
+  .workspace-page .policy-grid,
+  .workspace-page .copilot-layout {
+    grid-template-columns: 1fr;
+  }
+  .workspace-page .copilot-response {
+    min-height: 280px;
+  }
+  .workspace-page .policy-list-row,
+  .workspace-page .policy-draft-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .workspace-page .policy-row-actions {
+    justify-content: flex-end;
+  }
+  .workspace-page .policy-meta {
+    grid-template-columns: 1fr;
+  }
+  .workspace-page .policy-details-dialog,
+  .workspace-page .policy-edit-dialog {
+    inline-size: calc(100vw - 24px);
+  }
+  .workspace-page .policy-dialog-scroll {
+    padding: 22px;
+  }
+  .workspace-page .policy-details-dialog .panel-heading,
+  .workspace-page .policy-edit-dialog .panel-heading {
+    top: -22px;
+    margin: -22px -20px 16px;
+    padding: 22px 20px 14px;
+  }
+  .workspace-page .policy-details-dialog .close-button,
+  .workspace-page .policy-edit-dialog .close-button {
+    top: 15px;
+    right: 20px;
+  }
+  .workspace-page .policy-draft-table th:nth-child(2) {
+    width: 92px;
+  }
+  .workspace-page .policy-draft-table th:last-child,
+  .workspace-page .policy-draft-table td:last-child {
+    width: 110px;
+  }
+  .workspace-page .policy-draft-table td.draft-preview {
+    min-width: 0;
+  }
+  .workspace-page .guidance-case-picker {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+  .workspace-page .guidance-case-picker .icon-action {
+    margin: 0 0 6px;
+    align-self: end;
+  }
+  .workspace-page .admin-editor .detail-line {
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .workspace-page .admin-editor .detail-line strong {
+    max-width: 70%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-page .policy-card,
+  .workspace-page .admin-tabs button {
+    transition: none;
+  }
+  .workspace-page .policy-card:hover {
+    transform: none;
+  }
+}

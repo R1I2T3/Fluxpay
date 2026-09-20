@@ -1,10 +1,12 @@
 package com.fluxpay.service;
 
+import com.fluxpay.domain.ConversionCalculation;
 import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -14,17 +16,23 @@ import org.springframework.stereotype.Service;
 public class WalletConversionService {
   private static final String OPERATION_TYPE = "CONVERT";
   private static final Set<String> CURRENCIES = Set.of("USD", "EUR", "INR");
-  private static final ConversionMath CONVERSION_MATH = new ConversionMath();
-
   private final WalletOperationService operations;
   private final WalletPostingService posting;
   private final FxQuoteService quotes;
+  private final ConversionMath conversionMath;
+  private final FxQuoteValidator quoteValidator;
 
   public WalletConversionService(
-      WalletOperationService operations, WalletPostingService posting, FxQuoteService quotes) {
+      WalletOperationService operations,
+      WalletPostingService posting,
+      FxQuoteService quotes,
+      ConversionMath conversionMath,
+      FxQuoteValidator quoteValidator) {
     this.operations = operations;
     this.posting = posting;
     this.quotes = quotes;
+    this.conversionMath = conversionMath;
+    this.quoteValidator = quoteValidator;
   }
 
   public WalletConvertResponse convert(
@@ -34,7 +42,7 @@ public class WalletConversionService {
     NormalizedConversion normalized = normalize(request);
     String normalizedRequest = normalized.json();
 
-    var quote = new java.util.concurrent.atomic.AtomicReference<FxSnapshot>();
+    var accepted = new java.util.concurrent.atomic.AtomicReference<AcceptedConversion>();
     return operations.execute(
         owner,
         OPERATION_TYPE,
@@ -42,21 +50,27 @@ public class WalletConversionService {
         normalizedRequest,
         WalletConvertResponse.class,
         canonical -> {
-          // One accepted FX snapshot is retained across a rolled-back posting retry.
-          if (quote.get() == null) quote.set(quotes.snapshot(normalized.from(), normalized.to()));
-          FxSnapshot snapshot = quote.get();
-          BigDecimal fee = CONVERSION_MATH.fee(normalized.amount());
-          BigDecimal net = normalized.amount().subtract(fee).setScale(4);
-          BigDecimal credit = CONVERSION_MATH.convertedAmount(normalized.amount(), snapshot.rate());
+          // One accepted quote/calculation is retained across a rolled-back posting retry.
+          if (accepted.get() == null) {
+            FxSnapshot snapshot =
+                quoteValidator.accept(
+                    quotes.snapshot(normalized.from(), normalized.to()),
+                    normalized.from(),
+                    normalized.to());
+            ConversionCalculation calculation =
+                conversionMath.calculate(
+                    normalized.from(), normalized.to(), normalized.amount(), snapshot.rate());
+            accepted.set(
+                new AcceptedConversion(calculation, snapshot, FxQuoteValidator.quoteId(snapshot)));
+          }
+          AcceptedConversion conversion = accepted.get();
           return posting.convert(
               owner,
               normalized.from(),
               normalized.to(),
-              normalized.amount(),
-              fee,
-              net,
-              credit,
-              snapshot,
+              conversion.calculation(),
+              conversion.snapshot(),
+              conversion.quoteId(),
               canonical,
               key);
         });
@@ -90,11 +104,11 @@ public class WalletConversionService {
     if (amount.signum() <= 0) {
       throw new IllegalArgumentException("Amount must be greater than zero");
     }
-    if (amount.scale() > 4) {
-      throw new IllegalArgumentException("Amount must have at most four decimal places");
+    try {
+      amount = amount.setScale(4, RoundingMode.UNNECESSARY);
+    } catch (ArithmeticException excessPrecision) {
+      throw new IllegalArgumentException("Amount must fit NUMBER(19,4) storage", excessPrecision);
     }
-    amount = amount.setScale(4);
-    CONVERSION_MATH.fee(amount);
     return new NormalizedConversion(from, to, amount);
   }
 
@@ -113,4 +127,7 @@ public class WalletConversionService {
           + "\"}";
     }
   }
+
+  private record AcceptedConversion(
+      ConversionCalculation calculation, FxSnapshot snapshot, String quoteId) {}
 }
