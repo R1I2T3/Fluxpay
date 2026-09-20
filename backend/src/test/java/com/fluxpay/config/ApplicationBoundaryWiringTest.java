@@ -51,6 +51,11 @@ class ApplicationBoundaryWiringTest {
         new Class<?>[] {
           WalletRepository.class,
           WalletOperationRepository.class,
+          BankAccountRepository.class,
+          WalletTopupRepository.class,
+          CurrencyConfigurationRepository.class,
+          LedgerJournalRepository.class,
+          LedgerJournalLockRepository.class,
           UserRepository.class,
           RecipientRepository.class,
           PayoutRouteRepository.class,
@@ -66,7 +71,8 @@ class ApplicationBoundaryWiringTest {
           KycCaseRepository.class,
           ComplianceCaseRepository.class,
           PolicyDocumentRepository.class,
-          PolicyChunkRepository.class
+          PolicyChunkRepository.class,
+          PolicyGuidanceRepository.class
         }) {
       runner = runner.withBean(repository, () -> mock(repository));
     }

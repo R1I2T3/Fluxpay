@@ -81,9 +81,18 @@ public class PersistentLedgerWriter implements LedgerWriter {
 
     BigDecimal updatedBalance;
     if ("DEBIT".equals(entryType)) {
-      if (wallet.getAccountRole() == WalletAccountRole.CUSTOMER
-          && wallet.getAvailableBalance().compareTo(postedAmount) < 0) {
-        throw new InsufficientWalletFundsException(walletId);
+      boolean reserved =
+          context.consumeReservation(idempotencyKey, walletId, currency, postedAmount);
+      if (reserved) {
+        if (wallet.getHeldBalance().compareTo(postedAmount) < 0) {
+          throw new IllegalStateException("Reserved wallet funds are no longer present");
+        }
+        wallet.setHeldBalance(wallet.getHeldBalance().subtract(postedAmount));
+      } else {
+        if (wallet.getAccountRole() == WalletAccountRole.CUSTOMER
+            && wallet.getAvailableBalance().compareTo(postedAmount) < 0) {
+          throw new InsufficientWalletFundsException(walletId);
+        }
       }
       updatedBalance = wallet.getBalance().subtract(postedAmount);
     } else {
@@ -101,6 +110,8 @@ public class PersistentLedgerWriter implements LedgerWriter {
             idempotencyKey,
             metadata == null ? null : metadata.journalReference(),
             metadata == null ? null : metadata.narration(),
+            metadata == null ? null : metadata.rate(),
+            metadata == null ? null : metadata.quoteId(),
             clock.instant()));
     wallets.saveAndFlush(wallet);
   }
@@ -155,9 +166,15 @@ public class PersistentLedgerWriter implements LedgerWriter {
     boolean sameMetadata =
         metadata == null
             || (Objects.equals(existing.getJournalReference(), metadata.journalReference())
-                && Objects.equals(existing.getNarration(), metadata.narration()));
+                && Objects.equals(existing.getNarration(), metadata.narration())
+                && decimalEquals(existing.getRate(), metadata.rate())
+                && Objects.equals(existing.getQuoteId(), metadata.quoteId()));
     if (!samePayload || !sameMetadata) {
       throw new LedgerIdempotencyConflictException(existing.getIdempotencyKey());
     }
+  }
+
+  private static boolean decimalEquals(BigDecimal left, BigDecimal right) {
+    return left == null ? right == null : right != null && left.compareTo(right) == 0;
   }
 }

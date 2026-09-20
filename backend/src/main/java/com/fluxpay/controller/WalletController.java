@@ -30,12 +30,39 @@ public class WalletController {
   private final DemoFundingService funding;
   private final WalletConversionService conversion;
   private final WalletQueryService queries;
+  private final com.fluxpay.service.WalletTransferService transfers;
+  private final com.fluxpay.service.BankAccountService banks;
 
   public WalletController(
-      DemoFundingService funding, WalletConversionService conversion, WalletQueryService queries) {
+      DemoFundingService funding,
+      WalletConversionService conversion,
+      WalletQueryService queries,
+      com.fluxpay.service.WalletTransferService transfers,
+      com.fluxpay.service.BankAccountService banks) {
     this.funding = funding;
     this.conversion = conversion;
     this.queries = queries;
+    this.transfers = transfers;
+    this.banks = banks;
+  }
+
+  @PostMapping("/transfer")
+  public ApiResponse<com.fluxpay.dto.WalletTransferResponse> transfer(
+      @AuthenticationPrincipal CurrentUser currentUser,
+      @RequestHeader(name = "Idempotency-Key", required = false) String key,
+      @RequestBody com.fluxpay.dto.WalletTransferRequest request) {
+    requireUser(currentUser);
+    return new ApiResponse<>(
+        correlationId(), transfers.transfer(currentUser.userId(), request, key));
+  }
+
+  @PostMapping("/withdraw")
+  public ApiResponse<WalletResponse> withdraw(
+      @AuthenticationPrincipal CurrentUser currentUser,
+      @RequestHeader(name = "Idempotency-Key", required = false) String key,
+      @RequestBody com.fluxpay.dto.WalletWithdrawRequest request) {
+    requireUser(currentUser);
+    return new ApiResponse<>(correlationId(), banks.withdraw(currentUser.userId(), request, key));
   }
 
   @GetMapping

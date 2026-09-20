@@ -31,6 +31,7 @@ import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.PolicyChunkRepository;
 import com.fluxpay.repository.PolicyDocumentRepository;
+import com.fluxpay.repository.PolicyGuidanceRepository;
 import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
@@ -94,6 +95,11 @@ class DevelopmentDefaultsTest {
     for (Class repository :
         new Class<?>[] {
           WalletRepository.class,
+          com.fluxpay.repository.BankAccountRepository.class,
+          com.fluxpay.repository.WalletTopupRepository.class,
+          com.fluxpay.repository.CurrencyConfigurationRepository.class,
+          com.fluxpay.repository.LedgerJournalRepository.class,
+          com.fluxpay.repository.LedgerJournalLockRepository.class,
           WalletOperationRepository.class,
           UserRepository.class,
           RecipientRepository.class,
@@ -110,7 +116,8 @@ class DevelopmentDefaultsTest {
           KycCaseRepository.class,
           ComplianceCaseRepository.class,
           PolicyDocumentRepository.class,
-          PolicyChunkRepository.class
+          PolicyChunkRepository.class,
+          PolicyGuidanceRepository.class
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }

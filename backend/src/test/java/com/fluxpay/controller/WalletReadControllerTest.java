@@ -47,6 +47,8 @@ class WalletReadControllerTest {
   @MockBean DemoFundingService funding;
   @MockBean WalletConversionService conversion;
   @MockBean WalletQueryService queries;
+  @MockBean com.fluxpay.service.WalletTransferService transfers;
+  @MockBean com.fluxpay.service.BankAccountService banks;
   @MockBean JwtUtil jwt;
 
   @BeforeEach

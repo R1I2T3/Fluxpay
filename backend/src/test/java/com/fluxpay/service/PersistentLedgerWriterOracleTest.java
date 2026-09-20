@@ -201,6 +201,10 @@ class PersistentLedgerWriterOracleTest {
   void copiesBoundJournalMetadataToTheEntry() {
     Wallet wallet = wallet("USD", WalletAccountRole.CUSTOMER, "0.0000", "0.0000");
     String key = "writer:metadata";
+    jdbc.update(
+        "INSERT INTO ledger_journals(journal_reference,transaction_category,payload_hash) VALUES (?,?,NULL)",
+        "JRN-META",
+        "LEGACY");
 
     try (LedgerPostingContext.Scope ignored =
         context.bind(

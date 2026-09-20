@@ -11,6 +11,7 @@ import com.fluxpay.exception.FxUnavailableException;
 import com.fluxpay.exception.InsufficientWalletFundsException;
 import com.fluxpay.exception.LedgerIdempotencyConflictException;
 import com.fluxpay.exception.OperationRetryException;
+import com.fluxpay.exception.RequoteRequiredException;
 import com.fluxpay.exception.WalletNotFoundException;
 import java.util.Map;
 import org.springframework.core.Ordered;
@@ -21,8 +22,24 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = {WalletController.class, FxController.class})
+@RestControllerAdvice(
+    assignableTypes = {
+      WalletController.class,
+      FxController.class,
+      com.fluxpay.controller.BankAccountController.class
+    })
 public class WalletFxApiExceptionHandler {
+  @ExceptionHandler(com.fluxpay.exception.BusinessException.class)
+  public ResponseEntity<ApiError> business(com.fluxpay.exception.BusinessException exception) {
+    return response(exception.status(), exception.code(), exception.getMessage());
+  }
+
+  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  public ResponseEntity<ApiError> invalidBody(
+      org.springframework.http.converter.HttpMessageNotReadableException exception) {
+    return response(HttpStatus.BAD_REQUEST, "VALIDATION", "Request body is invalid");
+  }
+
   @ExceptionHandler(com.fluxpay.exception.SystemAccountUnavailableException.class)
   public ResponseEntity<ApiError> systemAccountUnavailable(
       com.fluxpay.exception.SystemAccountUnavailableException exception) {
@@ -51,6 +68,11 @@ public class WalletFxApiExceptionHandler {
   @ExceptionHandler(OperationRetryException.class)
   public ResponseEntity<ApiError> retry(OperationRetryException exception) {
     return response(HttpStatus.CONFLICT, "RETRY", exception.getMessage());
+  }
+
+  @ExceptionHandler(RequoteRequiredException.class)
+  public ResponseEntity<ApiError> requoteRequired(RequoteRequiredException exception) {
+    return response(exception.status(), exception.code(), exception.getMessage());
   }
 
   @ExceptionHandler(InsufficientWalletFundsException.class)
