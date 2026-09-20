@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -78,24 +76,20 @@ class AdviceBoundaryTest {
 
   @Test
   void kycPersistenceOptimisticLockPreservesConflictAndCorrelationId() throws Exception {
-    var cases = mock(KycCaseRepository.class);
-    when(cases.saveAndFlush(any(KycCase.class)))
+    var service = mock(KycUploadService.class);
+    when(service.submit(any(), any(), any(), any()))
         .thenThrow(new ObjectOptimisticLockingFailureException(KycCase.class, UUID.randomUUID()));
-    var service =
-        new KycService(
-            cases,
-            mock(KycDocumentRepository.class),
-            mock(UserRepository.class),
-            Clock.systemUTC(),
-            true);
 
-    mvc(new KycController(service))
+    mvc(new KycDocumentController(service))
         .perform(
-            post("/api/kyc/applications")
-                .header("X-Correlation-ID", "kyc-write-conflict")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    "{\"docType\":\"PAN\",\"docNumber\":\"ABCDE1234F\",\"documents\":[{\"fileName\":\"pan.pdf\",\"fileType\":\"application/pdf\",\"fileSize\":1024}]}"))
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                    "/api/kyc/applications")
+                .file(
+                    new org.springframework.mock.web.MockMultipartFile(
+                        "files", "identity.pdf", "application/pdf", "%PDF-1.4\n%%EOF".getBytes()))
+                .param("docType", "PAN")
+                .param("docNumber", "TEST123")
+                .header("X-Correlation-ID", "kyc-write-conflict"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("CONFLICT"))
         .andExpect(jsonPath("$.correlationId").value("kyc-write-conflict"));

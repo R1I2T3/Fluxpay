@@ -14,44 +14,39 @@
   <link rel="stylesheet" href="css/auth.css">
   <link rel="stylesheet" href="css/workspace.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/mobile-workspace.css">
+  <link rel="stylesheet" href="css/history.css">
 </head>
 <body>
 <div id="globalBody" data-bind="css:{'home-shell':isHome,'public-shell':isPublic,'workspace-shell':!isPublic(),'admin-shell':isAdminWorkspace}">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
-    <a href="?ojr=home" data-route="home" class="wordmark" aria-label="FluxPay home">FluxPay<span>✦</span></a>
-    <nav class="marketing-nav" aria-label="Main navigation" data-bind="visible:isPublic()&&!isHome()">
-      <a href="?ojr=wallets" data-route="wallets">Personal</a>
-      <a href="?ojr=payments-new" data-route="payments-new">Global transfers</a>
-      <a href="?ojr=kyc" data-route="kyc">Security</a>
-    </nav>
+    <a href="?ojr=home" data-route="home" class="wordmark" aria-label="FluxPay home" data-bind="attr:{href:'?ojr='+(session.user()?accountPath():'home'),'data-route':session.user()?accountPath():'home'}">FluxPay<span>✦</span></a>
     <div class="header-actions">
       <!-- ko if: !session.user() -->
       <a href="?ojr=login" data-route="login" class="login-link">Log in</a>
       <a href="?ojr=register" data-route="register" class="pill header-signup">Sign up</a>
       <!-- /ko -->
       <!-- ko if: session.user() -->
-      <a href="?ojr=dashboard" data-route="dashboard" class="pill header-signup" data-bind="attr:{href:'?ojr='+accountPath(),'data-route':accountPath},text:session.isAdmin()?'Administration ↗':'My account ↗'"></a>
-      <button class="text-button" data-bind="click:logout">Log out</button>
+      <details class="profile-menu">
+        <summary aria-label="Open profile and account options"><span class="profile-avatar" aria-hidden="true" data-bind="text:session.user().fullName?.slice(0,1)||'F'"></span><span class="profile-name" data-bind="text:session.user().fullName||'Your account'"></span><span aria-hidden="true">⌄</span></summary>
+        <div class="profile-options"><span class="eyebrow">YOUR ACCOUNT</span><!-- ko foreach:visibleNav --><a data-bind="text:label,attr:{href:'?ojr='+path,'data-route':path}"></a><!-- /ko --><!-- ko if:!session.isAdmin() --><a href="?ojr=tickets" data-route="tickets">Help &amp; support</a><!-- /ko --><button class="text-button" data-bind="click:logout">Log out</button></div>
+      </details>
       <!-- /ko -->
-      <button type="button" class="menu-button" aria-label="Toggle navigation" aria-controls="mobile-navigation" data-bind="visible:!session.isAdmin()&&!isAdminWorkspace(),click:toggleMenu,attr:{'aria-expanded':menuOpen}">☰</button>
     </div>
   </header>
-  <nav id="mobile-navigation" class="mobile-nav" aria-label="Mobile navigation" data-bind="visible:menuOpen()&&!session.isAdmin()&&!isAdminWorkspace()">
-    <a href="?ojr=home" data-route="home">Home</a>
-    <!-- ko foreach: visibleNav --><a data-bind="text:label,attr:{href:'?ojr='+path,'data-route':path}"></a><!-- /ko -->
+  <nav class="bottom-nav" aria-label="Account navigation" data-bind="visible:!isPublic()&&!isAdminWorkspace()">
+    <!-- ko foreach:bottomNav --><a data-bind="attr:{href:'?ojr='+path,'data-route':path,'aria-current':$parent.activeTab()===path?'page':null},css:{active:$parent.activeTab()===path}"><span aria-hidden="true" data-bind="text:icon"></span><span data-bind="text:label"></span></a><!-- /ko -->
   </nav>
-  <aside class="sidebar" data-bind="visible:!isPublic()&&!isAdminWorkspace()">
-    <p class="nav-caption">YOUR WORKSPACE</p>
-    <nav aria-label="Account navigation" data-bind="foreach:visibleNav">
-      <a data-bind="attr:{href:'?ojr='+path,'data-route':path},css:{active:$parent.selection.path()===path}">
-        <span class="nav-icon" data-bind="text:icon"></span><span data-bind="text:label"></span>
-      </a>
-    </nav>
-    <div class="sidebar-bottom"><div class="security-icon">◇</div><strong>Made for peace of mind.</strong><p>Clear quotes. Traceable transfers. Your money in view.</p><a href="?ojr=kyc" data-route="kyc">Check verification →</a></div>
-  </aside>
   <div class="global-message" role="alert" data-bind="visible:message,text:message"></div>
-  <main id="main"><oj-module config="[[moduleAdapter.koObservableConfig]]"></oj-module></main>
+  <main id="main">
+    <!-- ko if:!isPublic()&&needsVerificationSubmission() -->
+    <aside class="verification-reminder" role="status" aria-label="Identity verification reminder"><span class="verification-reminder-icon" aria-hidden="true">◇</span><div><strong>Identity verification not started</strong><p>You haven’t submitted your documents yet. Verify your identity to unlock transfers.</p></div><a class="pill soft" href="?ojr=kyc" data-route="kyc">Verify now ↗</a></aside>
+    <!-- /ko -->
+    <a class="workspace-return back-link" data-bind="visible:!isPublic()&&!isAdminWorkspace()&&selection.path()!=='dashboard',attr:{href:'?ojr='+accountPath(),'data-route':accountPath}">← Back to home</a>
+    <oj-module config="[[moduleAdapter.koObservableConfig]]"></oj-module>
+  </main>
+  <div id="helper-host"></div>
   <footer class="site-footer" data-bind="visible:isPublic">
     <a class="wordmark" href="?ojr=home" data-route="home">FluxPay<span>✦</span></a>
     <div><a href="?ojr=account" data-route="account">Your account</a><a href="?ojr=tracking" data-route="tracking">Track a transfer</a><a href="?ojr=kyc" data-route="kyc">Verification</a></div>
@@ -60,5 +55,6 @@
 </div>
 <!-- injector:scripts -->
 <!-- endinjector -->
+<script type="module" src="js/kyc-pdf-preview.mjs"></script>
 </body>
 </html>

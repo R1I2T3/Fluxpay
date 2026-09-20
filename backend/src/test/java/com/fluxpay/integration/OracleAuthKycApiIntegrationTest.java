@@ -36,6 +36,7 @@ class OracleAuthKycApiIntegrationTest {
   @Autowired private UserRepository users;
   @Autowired private KycCaseRepository kycCases;
   @Autowired private KycDocumentRepository kycDocuments;
+  @Autowired private com.fluxpay.service.KycDocumentStorage documentStorage;
 
   private UUID userId;
   private UUID applicationId;
@@ -47,6 +48,7 @@ class OracleAuthKycApiIntegrationTest {
           kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(applicationId);
       kycDocuments.deleteAll(documents);
       kycDocuments.flush();
+      documents.forEach(document -> documentStorage.remove(document.getStorageUrl()));
       kycCases.deleteById(applicationId);
       kycCases.flush();
     }
@@ -88,11 +90,14 @@ class OracleAuthKycApiIntegrationTest {
     String submitResponse =
         mockMvc
             .perform(
-                post("/api/kyc/applications")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        "{\"docType\":\"PAN\",\"docNumber\":\"ABCDE1234F\",\"documents\":[{\"fileName\":\"pan.pdf\",\"fileType\":\"application/pdf\",\"fileSize\":1024}]}"))
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                        "/api/kyc/applications")
+                    .file(
+                        new org.springframework.mock.web.MockMultipartFile(
+                            "files", "pan.pdf", "application/pdf", "%PDF-1.4\n%%EOF".getBytes()))
+                    .param("docType", "PAN")
+                    .param("docNumber", "ABCDE1234F")
+                    .header("Authorization", "Bearer " + token))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.status").value("PENDING"))
             .andReturn()
@@ -111,7 +116,7 @@ class OracleAuthKycApiIntegrationTest {
         .satisfies(
             document -> {
               assertThat(document.getFileName()).isEqualTo("pan.pdf");
-              assertThat(document.getFileSize()).isEqualTo(1024);
+              assertThat(document.getFileSize()).isEqualTo("%PDF-1.4\n%%EOF".getBytes().length);
             });
   }
 }

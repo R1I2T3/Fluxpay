@@ -12,4 +12,32 @@ public record DraftPaymentRequest(
     @NotBlank @Pattern(regexp = "USD|EUR|INR") String sourceCurrency,
     @NotBlank @Pattern(regexp = "USD|EUR|INR") String payoutCurrency,
     @NotNull PaymentPurpose purpose,
-    @NotNull RoutePreference preference) {}
+    @NotNull RoutePreference preference,
+    @Size(max = 250) String purposeReason) {
+  public DraftPaymentRequest(
+      UUID sourceWalletId,
+      UUID recipientId,
+      String sourceAmount,
+      String sourceCurrency,
+      String payoutCurrency,
+      PaymentPurpose purpose,
+      RoutePreference preference) {
+    this(
+        sourceWalletId,
+        recipientId,
+        sourceAmount,
+        sourceCurrency,
+        payoutCurrency,
+        purpose,
+        preference,
+        null);
+  }
+
+  @AssertTrue(message = "Enter a reason of 1 to 250 characters when Others is selected.")
+  public boolean isPurposeReasonValid() {
+    return purpose != PaymentPurpose.OTHERS
+        || (purposeReason != null
+            && !purposeReason.isBlank()
+            && purposeReason.trim().length() <= 250);
+  }
+}

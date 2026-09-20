@@ -18,10 +18,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
     assignableTypes = {
       AuthController.class,
       KycController.class,
+      com.fluxpay.controller.KycDocumentController.class,
       AdminKycController.class,
       com.fluxpay.controller.UserController.class
     })
 public class AuthKycApiExceptionHandler {
+  @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+  public ResponseEntity<ApiError> uploadTooLarge() {
+    return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+        .body(error("VALIDATION", "Choose up to four documents, no larger than 5 MB each."));
+  }
+
   @ExceptionHandler(AuthException.class)
   public ResponseEntity<ApiError> handleAuth(AuthException exception) {
     HttpStatus status =

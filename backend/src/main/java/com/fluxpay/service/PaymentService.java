@@ -128,6 +128,7 @@ public class PaymentService {
             request.preference(),
             snapshot,
             Instant.now(clock));
+    p.setPurposeReason(normalizedPurposeReason(request));
     Payment saved = payments.save(p);
     return response(saved);
   }
@@ -204,6 +205,7 @@ public class PaymentService {
   }
 
   private Object normalizedDraftRequest(UUID userId, DraftPaymentRequest request) {
+    String reason = normalizedPurposeReason(request);
     String amount;
     try {
       amount =
@@ -217,6 +219,8 @@ public class PaymentService {
       node.put("payoutCurrency", request.payoutCurrency().toUpperCase());
       node.put("preference", request.preference().name());
       node.put("purpose", request.purpose().name());
+      // Preserve existing preset-purpose fingerprints; custom reasons are part of idempotency.
+      if (reason != null) node.put("purposeReason", reason);
       node.put("recipientId", request.recipientId().toString());
       node.put("sourceAmount", amount);
       node.put("sourceCurrency", request.sourceCurrency().toUpperCase());
@@ -230,6 +234,14 @@ public class PaymentService {
       throw new BusinessException(
           HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Draft request could not be normalized.");
     }
+  }
+
+  private String normalizedPurposeReason(DraftPaymentRequest request) {
+    if (request.purpose() != com.fluxpay.beans.PaymentPurpose.OTHERS) return null;
+    if (!request.isPurposeReasonValid())
+      throw invalid(
+          "INVALID_PURPOSE", "Enter a reason of 1 to 250 characters when Others is selected.");
+    return request.purposeReason().trim();
   }
 
   private String escape(String s) {

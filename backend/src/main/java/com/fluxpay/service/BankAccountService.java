@@ -50,6 +50,16 @@ public class BankAccountService {
         canonical -> posting.link(user, normalized, canonical, key));
   }
 
+  @org.springframework.transaction.annotation.Transactional(readOnly = true)
+  public java.util.List<BankAccountResponse> list(UUID user) {
+    normalize.user(user);
+    return accounts.findByUserId(user).stream()
+        .map(account -> new BankAccountResponse(
+            account.getId().toString(), account.getBankName(), account.getAccountLast4(),
+            account.getCurrency(), account.getStatus()))
+        .toList();
+  }
+
   public WalletResponse withdraw(UUID user, WalletWithdrawRequest request, String key) {
     normalize.user(user);
     WalletOperationService.requireKey(key);

@@ -33,6 +33,9 @@ public class Payment {
   @Enumerated(EnumType.STRING)
   private PaymentPurpose purpose;
 
+  @Column(name = "purpose_reason", length = 250)
+  private String purposeReason;
+
   @Enumerated(EnumType.STRING)
   private RoutePreference preference;
 
@@ -139,6 +142,16 @@ public class Payment {
 
   public PaymentPurpose purpose() {
     return purpose;
+  }
+
+  public String purposeReason() {
+    return purposeReason;
+  }
+
+  public void setPurposeReason(String reason) {
+    if (status != PaymentStatus.DRAFT)
+      throw new IllegalStateException("Payment reason is fixed after drafting.");
+    purposeReason = reason;
   }
 
   public RoutePreference preference() {

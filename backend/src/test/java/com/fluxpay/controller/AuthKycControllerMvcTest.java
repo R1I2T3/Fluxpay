@@ -166,8 +166,7 @@ class AuthKycControllerMvcTest {
   }
 
   @Test
-  void submitKycReturnsCreatedEnvelope() throws Exception {
-    when(kycService.submit(eq(USER_ID), any())).thenReturn(kycStatus(KycStatus.PENDING, 0L));
+  void metadataOnlySubmissionRequiresRealDocuments() throws Exception {
 
     mockMvc
         .perform(
@@ -175,8 +174,8 @@ class AuthKycControllerMvcTest {
                 .header("Authorization", "Bearer user-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validKycBody()))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.data.status").value("PENDING"));
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("VALIDATION"));
   }
 
   @Test
@@ -190,11 +189,7 @@ class AuthKycControllerMvcTest {
   }
 
   @Test
-  void missingKycStorageReturnsServiceUnavailable() throws Exception {
-    when(kycService.submit(eq(USER_ID), any()))
-        .thenThrow(
-            new KycException(
-                KycException.KYC_STORAGE_UNAVAILABLE, "No KYC document storage is configured."));
+  void metadataFlagCannotBypassBinaryUploadRequirement() throws Exception {
 
     mockMvc
         .perform(
@@ -202,8 +197,8 @@ class AuthKycControllerMvcTest {
                 .header("Authorization", "Bearer user-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validKycBody()))
-        .andExpect(status().isServiceUnavailable())
-        .andExpect(jsonPath("$.code").value("KYC_STORAGE_UNAVAILABLE"));
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("VALIDATION"));
   }
 
   @Test

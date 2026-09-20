@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
+  @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+  @Query("select u from User u where u.id = :id")
+  Optional<User> findByIdForUpdate(@Param("id") UUID id);
+
   @Query("select u from User u where lower(trim(u.email)) = :canonicalEmail")
   Optional<User> findByCanonicalEmail(@Param("canonicalEmail") String canonicalEmail);
 

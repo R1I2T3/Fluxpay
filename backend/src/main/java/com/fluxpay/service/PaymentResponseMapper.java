@@ -16,6 +16,8 @@ public final class PaymentResponseMapper {
         payment.payoutCurrency(),
         payment.status(),
         payment.selectedQuoteId(),
-        payment.createdAt());
+        payment.createdAt(),
+        payment.purpose(),
+        payment.purposeReason());
   }
 }
