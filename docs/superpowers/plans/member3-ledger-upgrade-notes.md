@@ -49,7 +49,7 @@ specific error before retrying; Oracle DDL is not generally transactionally undo
 
 ## Task 3 system-wallet provisioning
 
-After V008 and the Task 3 V606 migration have been applied, the canonical system
+After V008 and the Task 3 V611 migration have been applied, the canonical system
 user needs `FX_CLEARING`, `FX_GAIN_LOSS`, `DEMO_CLEARING`, `PAYOUT_CLEARING`, and
 `FEE_REVENUE` wallets in each of USD, EUR, and INR (15 wallets in total).
 `FX_GAIN_LOSS` receives or supplies rounding differences; for example, a TARGET
