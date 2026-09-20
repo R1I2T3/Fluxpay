@@ -141,15 +141,11 @@ export class RoutingWorkspace {
   providerDisplayName = (id: string) =>
     this.providers().find((p) => p.id === id)?.providerName || '—';
   providerCount = (id: string) => this.routes().filter((r) => r.providerId === id).length;
-  // The admin list API does not expose protection flags, so the seeded internal
-  // catalogue (spec: FluxPay provider and routes, never physically deleted) is marked here.
-  providerProtected = (provider: { providerCode: string }) =>
-    provider.providerCode.trim().toUpperCase() === 'FLUXPAY';
-  routeProtected = (route: { routeCode: string; providerId: string }) => {
-    if (route.routeCode.trim().toUpperCase().startsWith('FLUXPAY_')) return true;
-    const owner = this.providers().find((p) => p.id === route.providerId);
-    return !!owner && this.providerProtected(owner);
-  };
+  // Protection badges are driven by the server `systemProtected` flag on each record.
+  providerProtected = (provider: { systemProtected?: boolean }) =>
+    provider.systemProtected === true;
+  routeProtected = (route: { systemProtected?: boolean }) =>
+    route.systemProtected === true;
   private disposed = false;
   private epoch = 0;
   private sessionChanged = session.user.subscribe(() => {

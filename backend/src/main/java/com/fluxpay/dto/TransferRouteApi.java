@@ -3,6 +3,7 @@ package com.fluxpay.dto;
 import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.domain.DestinationType;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 /** REST shapes for administrator-managed transfer routes. Entities are never serialized. */
@@ -33,6 +34,8 @@ public final class TransferRouteApi {
       BigDecimal minimumRecipientAmount,
       BigDecimal maximumRecipientAmount,
       boolean active,
+      boolean systemProtected,
+      Instant archivedAt,
       long version) {}
 
   public record CreateRouteRequest(
@@ -85,6 +88,8 @@ public final class TransferRouteApi {
         route.minimumRecipientAmount(),
         route.maximumRecipientAmount(),
         route.isActive(),
+        route.systemProtected(),
+        route.getArchivedAt(),
         route.getVersion() == null ? 0L : route.getVersion());
   }
 }

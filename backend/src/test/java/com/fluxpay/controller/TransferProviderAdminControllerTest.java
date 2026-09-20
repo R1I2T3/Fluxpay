@@ -111,6 +111,30 @@ class TransferProviderAdminControllerTest {
   }
 
   @Test
+  void listExposesServerProtectionFlags() throws Exception {
+    when(authorizer.isAdmin(any())).thenReturn(true);
+    TransferProvider internal =
+        TransferProvider.create(
+            UUID.nameUUIDFromBytes("fluxpay:provider:FLUXPAY".getBytes(StandardCharsets.UTF_8)),
+            "FLUXPAY",
+            "FluxPay",
+            RailType.INTERNAL_LEDGER,
+            false,
+            true,
+            Instant.parse("2026-01-01T00:00:00Z"));
+    internal.archive(Instant.parse("2026-02-01T00:00:00Z"));
+    when(service.list()).thenReturn(List.of(provider, internal));
+
+    mvc.perform(
+            get("/api/admin/providers")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.providers[0].systemProtected").value(false))
+        .andExpect(jsonPath("$.data.providers[1].systemProtected").value(true))
+        .andExpect(jsonPath("$.data.providers[1].archivedAt").value("2026-02-01T00:00:00Z"));
+  }
+
+  @Test
   void adminGetsProvider() throws Exception {
     when(authorizer.isAdmin(any())).thenReturn(true);
     when(service.get(P_HDFC)).thenReturn(provider);

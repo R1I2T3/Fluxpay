@@ -103,8 +103,8 @@ export interface ComplianceCase { id:string; paymentId:string; reviewReference:s
 export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }
 
 export interface RailDescriptor { railType:string; supportedDestinations:string[]; }
-export interface TransferProvider { id:string; providerCode:string; providerName:string; railType:string; active:boolean; version:number; }
-export interface TransferRoute { id:string; providerId:string; routeCode:string; name:string; destinationType:string; destinationCountry:string|null; payoutCurrency:string; baseFee:number|string; fxSpreadPercentage:number|string; estimatedMinutes:number; configuredSuccessRate:number|string; effectiveSuccessRate:number|string; completedCount:number; failedCount:number; minimumRecipientAmount:number|string|null; maximumRecipientAmount:number|string|null; active:boolean; version:number; }
+export interface TransferProvider { id:string; providerCode:string; providerName:string; railType:string; active:boolean; systemProtected:boolean; archivedAt:string|null; version:number; }
+export interface TransferRoute { id:string; providerId:string; routeCode:string; name:string; destinationType:string; destinationCountry:string|null; payoutCurrency:string; baseFee:number|string; fxSpreadPercentage:number|string; estimatedMinutes:number; configuredSuccessRate:number|string; effectiveSuccessRate:number|string; completedCount:number; failedCount:number; minimumRecipientAmount:number|string|null; maximumRecipientAmount:number|string|null; active:boolean; systemProtected:boolean; archivedAt:string|null; version:number; }
 export interface DeletionResult { disposition:'DELETED'|'ARCHIVED'; id:string; }
 export interface CreateProviderRequest { providerCode:string; providerName:string; railType:string; active:boolean; }
 export interface UpdateProviderRequest { providerName:string; railType:string; active:boolean; version:number; }

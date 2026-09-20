@@ -137,14 +137,17 @@ test('route filters narrow the catalogue by provider, corridor and status',async
   page.dispose();
 });
 
-test('system-protected catalogue records show protected labels',()=>{
+test('system-protected badges follow server flags, not code conventions',()=>{
   const {page}=workspace();
-  const internal={id:providerId,providerCode:'FLUXPAY',providerName:'FluxPay',railType:'INTERNAL_LEDGER',active:true,version:0};
+  const internal={id:providerId,providerCode:'FLUXPAY',providerName:'FluxPay',railType:'INTERNAL_LEDGER',active:true,systemProtected:true,archivedAt:null,version:0};
   assert.equal(page.providerProtected(internal),true);
-  assert.equal(page.providerProtected({providerCode:'HDFC_BANK'}),false);
-  page.providers([internal]);
-  assert.equal(page.routeProtected({routeCode:'FLUXPAY_INR_INTERNAL',providerId}),true);
-  assert.equal(page.routeProtected({routeCode:'HDFC_INR_STANDARD',providerId:'unknown-provider'}),false);
+  assert.equal(page.providerProtected({providerCode:'HDFC_BANK',systemProtected:false}),false);
+  assert.equal(page.providerProtected({providerCode:'FLUXPAY'}),false);
+  assert.equal(page.providerProtected({providerCode:'HDFC_BANK',systemProtected:true}),true);
+  assert.equal(page.routeProtected({routeCode:'FLUXPAY_INR_INTERNAL',providerId,systemProtected:true}),true);
+  assert.equal(page.routeProtected({routeCode:'FLUXPAY_INR_INTERNAL',providerId}),false);
+  assert.equal(page.routeProtected({routeCode:'HDFC_INR_STANDARD',providerId:'unknown-provider',systemProtected:false}),false);
+  assert.equal(page.routeProtected({routeCode:'HDFC_INR_STANDARD',providerId:'unknown-provider',systemProtected:true}),true);
   page.dispose();
 });
 

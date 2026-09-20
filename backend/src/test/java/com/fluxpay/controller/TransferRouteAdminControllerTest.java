@@ -160,6 +160,39 @@ class TransferRouteAdminControllerTest {
   }
 
   @Test
+  void listExposesServerProtectionFlags() throws Exception {
+    when(authorizer.isAdmin(any())).thenReturn(true);
+    TransferRoute internal =
+        TransferRoute.create(
+            UUID.nameUUIDFromBytes("fluxpay:route:FLUXPAY_INR".getBytes(StandardCharsets.UTF_8)),
+            provider,
+            "FLUXPAY_INR",
+            "FluxPay INR",
+            DestinationType.EXTERNAL_ACCOUNT,
+            "IN",
+            "INR",
+            new BigDecimal("0.00"),
+            new BigDecimal("0.0"),
+            60,
+            new BigDecimal("99.90"),
+            null,
+            null,
+            false,
+            true,
+            Instant.parse("2026-01-01T00:00:00Z"));
+    internal.archive(Instant.parse("2026-02-01T00:00:00Z"));
+    when(service.list()).thenReturn(List.of(route, internal));
+
+    mvc.perform(
+            get("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.routes[0].systemProtected").value(false))
+        .andExpect(jsonPath("$.data.routes[1].systemProtected").value(true))
+        .andExpect(jsonPath("$.data.routes[1].archivedAt").value("2026-02-01T00:00:00Z"));
+  }
+
+  @Test
   void adminGetsRoute() throws Exception {
     when(authorizer.isAdmin(any())).thenReturn(true);
     when(service.get(R_HDFC_KE)).thenReturn(route);

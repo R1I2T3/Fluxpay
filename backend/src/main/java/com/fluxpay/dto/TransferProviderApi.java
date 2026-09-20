@@ -2,6 +2,7 @@ package com.fluxpay.dto;
 
 import com.fluxpay.beans.TransferProvider;
 import com.fluxpay.domain.RailType;
+import java.time.Instant;
 import java.util.List;
 
 /** REST shapes for administrator-managed transfer providers. Entities are never serialized. */
@@ -20,6 +21,8 @@ public final class TransferProviderApi {
       String providerName,
       RailType railType,
       boolean active,
+      boolean systemProtected,
+      Instant archivedAt,
       long version) {}
 
   public record CreateProviderRequest(
@@ -35,6 +38,8 @@ public final class TransferProviderApi {
         provider.getProviderName(),
         provider.getRailType(),
         provider.isActive(),
+        provider.isSystemProtected(),
+        provider.getArchivedAt(),
         provider.getVersion() == null ? 0L : provider.getVersion());
   }
 }
