@@ -64,7 +64,16 @@ export const fluxApi = {
   recipients:()=>request<any[]>('/api/recipients'), recipient:(b:any)=>request<any>('/api/recipients','POST',b,true), updateRecipient:(id:string,b:any)=>request<any>(`/api/recipients/${id}`,'PUT',b),
   payments:(page=0)=>request<any>(`/api/payments?page=${page}&size=20`), payment:(id:string)=>request<any>(`/api/payments/${id}`), draft:(b:any)=>request<any>('/api/payments/draft','POST',b,true), quotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`,'POST',undefined,true), getQuotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`), confirm:(id:string,q:string)=>request<any>(`/api/payments/${id}/confirm`,'POST',{quoteId:q},true), cancel:(id:string)=>request<any>(`/api/payments/${id}/cancel`,'POST',undefined,true), timeline:(id:string)=>request<any[]>(`/api/payments/${id}/timeline`),
   routes:()=>request<any>('/api/routes'), recommend:(id:string,p:string)=>request<any>(`/api/payments/${id}/recommend-route`,'POST',{preference:p}), payout:(id:string,r:string)=>request<any>(`/api/payments/${id}/submit-payout`,'POST',{routeCode:r},true), retry:(id:string,q:string)=>request<any>(`/api/payments/${id}/retry-payout`,'POST',{quoteId:q},true), switchRoute:(id:string,r:string,q:string)=>request<any>(`/api/payments/${id}/switch-route`,'POST',{routeCode:r,quoteId:q},true), refund:(id:string)=>request<any>(`/api/payments/${id}/refund`,'POST',undefined,true),
-  adminKyc:(status='PENDING',page=0)=>request<any[]>(`/api/admin/kyc/applications?status=${status}&page=${page}&size=20`), approve:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/approve`,'PUT',b), reject:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/reject`,'PUT',b), updateRoute:(id:string,b:any)=>request<any>(`/api/admin/routes/${id}`,'PUT',b),
+  adminKyc:(status='PENDING',page=0)=>request<any[]>(`/api/admin/kyc/applications?status=${status}&page=${page}&size=20`), approve:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/approve`,'PUT',b), reject:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/reject`,'PUT',b),
+  railTypes:()=>request<{railTypes:RailDescriptor[]}>('/api/admin/rail-types').then(response=>response.railTypes||[]),
+  providers:()=>request<{providers:TransferProvider[]}>('/api/admin/providers').then(response=>response.providers||[]),
+  createProvider:(body:CreateProviderRequest)=>request<TransferProvider>('/api/admin/providers','POST',body),
+  updateProvider:(id:string,body:UpdateProviderRequest)=>request<TransferProvider>(`/api/admin/providers/${encodeURIComponent(id)}`,'PUT',body),
+  deleteProvider:(id:string,version:number|string)=>request<DeletionResult>(`/api/admin/providers/${encodeURIComponent(id)}?version=${encodeURIComponent(String(version))}`,'DELETE'),
+  routesAdmin:()=>request<{routes:TransferRoute[]}>('/api/admin/routes').then(response=>response.routes||[]),
+  createRoute:(body:CreateRouteRequest)=>request<TransferRoute>('/api/admin/routes','POST',body),
+  updateRoute:(id:string,body:UpdateRouteRequest)=>request<TransferRoute>(`/api/admin/routes/${encodeURIComponent(id)}`,'PUT',body),
+  deleteRoute:(id:string,version:number|string)=>request<DeletionResult>(`/api/admin/routes/${encodeURIComponent(id)}?version=${encodeURIComponent(String(version))}`,'DELETE'),
   policies:()=>request<PolicyDocument[]>('/api/policies'),
   policy:(id:string)=>request<PolicyDocument>(`/api/policies/${encodeURIComponent(id)}`),
   createPolicy:(body:{title:string;category:string;content:string})=>request<PolicyDocument>('/api/policies','POST',body),
@@ -92,3 +101,12 @@ export interface PolicyGuidance { id:string; policyDocumentId:string; compliance
 export interface PolicyDocument { id:string; title:string; category:string; content:string; documentHash:string; createdAt:string; chunks:PolicyChunk[]; }
 export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; reviewExpiresAt:string|null; requoteRequired:boolean; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
 export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }
+
+export interface RailDescriptor { railType:string; supportedDestinations:string[]; }
+export interface TransferProvider { id:string; providerCode:string; providerName:string; railType:string; active:boolean; version:number; }
+export interface TransferRoute { id:string; providerId:string; routeCode:string; name:string; destinationType:string; destinationCountry:string|null; payoutCurrency:string; baseFee:number|string; fxSpreadPercentage:number|string; estimatedMinutes:number; configuredSuccessRate:number|string; effectiveSuccessRate:number|string; completedCount:number; failedCount:number; minimumRecipientAmount:number|string|null; maximumRecipientAmount:number|string|null; active:boolean; version:number; }
+export interface DeletionResult { disposition:'DELETED'|'ARCHIVED'; id:string; }
+export interface CreateProviderRequest { providerCode:string; providerName:string; railType:string; active:boolean; }
+export interface UpdateProviderRequest { providerName:string; railType:string; active:boolean; version:number; }
+export interface CreateRouteRequest { providerId:string; routeCode:string; name:string; destinationType:string; destinationCountry:string|null; payoutCurrency:string; baseFee:number|string; fxSpreadPercentage:number|string; estimatedMinutes:number; configuredSuccessRate:number|string; minimumRecipientAmount:number|string|null; maximumRecipientAmount:number|string|null; active:boolean; }
+export interface UpdateRouteRequest { providerId:string; name:string; destinationType:string; destinationCountry:string|null; payoutCurrency:string; baseFee:number|string; fxSpreadPercentage:number|string; estimatedMinutes:number; configuredSuccessRate:number|string; minimumRecipientAmount:number|string|null; maximumRecipientAmount:number|string|null; active:boolean; version:number; }

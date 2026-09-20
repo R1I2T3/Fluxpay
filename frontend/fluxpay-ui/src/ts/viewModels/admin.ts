@@ -1,11 +1,14 @@
 import { Page } from '../services/page';
 import * as ko from 'knockout';
 import { ComplianceWorkspace } from '../services/compliance-workspace';
+import { RoutingWorkspace } from '../services/routing-workspace';
 class ViewModel extends Page {
   workspace = new ComplianceWorkspace();
+  routing = new RoutingWorkspace();
   adminTab = ko.observable('operations');
   tabs = [
     { id: 'operations', label: 'Verification & routes' },
+    { id: 'routing', label: 'Transfer routing' },
     { id: 'compliance', label: 'Compliance cases' },
     { id: 'policies', label: 'Policy library' },
     { id: 'copilot', label: 'Compliance Copilot' },
@@ -14,18 +17,21 @@ class ViewModel extends Page {
     super('admin', params);
   }
   refreshAdmin = () => {
-    if (this.workspace.busy()) return;
+    if (this.workspace.busy() || this.routing.busy()) return;
     if (this.adminTab() === 'policies') void this.workspace.loadPolicies();
     else if (this.adminTab() === 'compliance') void this.workspace.loadCases();
+    else if (this.adminTab() === 'routing') void this.routing.loadAll();
     else if (this.adminTab() === 'operations') this.refresh();
     else this.workspace.notice('Ask a new question to refresh the policy response.');
   };
   selectTab = (tab: { id: string }) => {
-    if (this.workspace.busy() || !this.session.isAdmin()) return;
+    if (this.workspace.busy() || this.routing.busy() || !this.session.isAdmin()) return;
     this.adminTab(tab.id);
     this.workspace.resetSearch();
+    this.routing.resetSearch();
     if (tab.id === 'policies') void this.workspace.loadPolicies();
     if (tab.id === 'compliance') void this.workspace.loadCases();
+    if (tab.id === 'routing') void this.routing.loadAll();
   };
   askAboutCase = () => {
     const c = this.workspace.selectedCase();
@@ -57,6 +63,7 @@ class ViewModel extends Page {
   disconnected() {
     super.disconnected();
     this.workspace.dispose();
+    this.routing.dispose();
   }
 }
 export = ViewModel;

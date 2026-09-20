@@ -78,12 +78,6 @@ export class Page {
   reviewConsent = ko.observable(false);
   reviewDecision = ko.observable('');
   reviewDocumentsAvailable = ko.pureComputed(()=>!!this.review()?.documents?.length&&this.review().documents.every((d:any)=>d.available));
-  routeEditing = ko.observable<any>();
-  routeFee = ko.observable('0');
-  routeSpread = ko.observable('0');
-  routeMinutes = ko.observable('0');
-  routeSuccess = ko.observable('0');
-  routeActive = ko.observable(true);
   filter = ko.observable('ALL');
   typeFilter = ko.observable('');
   fromDate = ko.observable('');
@@ -172,8 +166,7 @@ export class Page {
         case 'admin':
           await session.restore();
           if(!session.isAdmin())throw new Error('An administrator account is required to access these controls.');
-          this.cases(await api.adminKyc(this.adminStatus(),this.adminPage()));
-          this.routes((await api.routes()).routes);break;
+          this.cases(await api.adminKyc(this.adminStatus(),this.adminPage()));break;
       }
     });
   }
@@ -303,11 +296,4 @@ export class Page {
   adminNext=()=>{this.adminPage(this.adminPage()+1);void this.load();};
   adminPrevious=()=>{this.adminPage(Math.max(0,this.adminPage()-1));void this.load();};
   adminFilter=()=>{this.adminPage(0);void this.load();};
-  editRoute=(r:any)=>{this.routeEditing(r);this.routeFee(String(r.baseFee));this.routeSpread(String(r.fxSpreadPercentage));this.routeMinutes(String(r.estimatedMinutes));this.routeSuccess(String(r.successRate));this.routeActive(r.active);};
-  closeRoute=()=>this.routeEditing(undefined);
-  saveRoute=()=>this.run(async()=>{
-    const b={baseFee:Number(this.routeFee()),fxSpreadPercentage:Number(this.routeSpread()),estimatedMinutes:Number(this.routeMinutes()),successRate:Number(this.routeSuccess()),active:this.routeActive(),version:this.routeEditing().version};
-    if(Object.values(b).some(v=>typeof v==='number'&&(!Number.isFinite(v)||v<0))||b.successRate>100||b.fxSpreadPercentage>100)throw new Error('Enter valid non-negative route values and percentages up to 100.');
-    await api.updateRoute(this.routeEditing().routeId,b);this.routes((await api.routes()).routes);this.routeEditing(undefined);
-  },'Payout route updated.');
 }
