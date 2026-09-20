@@ -10,6 +10,7 @@
 module.exports = function (configObj) {
   return new Promise((resolve, reject) => {
     console.log('Running before_build hook.');
+    require('./theme-copy-guard.cjs').install();
     resolve(configObj);
   });
 };

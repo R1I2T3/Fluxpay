@@ -101,18 +101,23 @@ python -B scripts/test-all.py --suite e2e
 
 The default application uses the HTTP Frankfurter FX adapter, Oracle repositories,
 Kafka outbox relay, and JWT owner/admin authorization. `X-Local-User-Id` is never an
-authentication mechanism. With no real provider credentials, payout and
-KYC document-storage operations fail explicitly; the application does not claim
-production readiness for those integrations.
+authentication mechanism. With no real provider credentials, payout operations
+fail explicitly. KYC uses authenticated local document storage in gitignored
+`temp_images`; users and administrators can preview PDFs and images. Pending and
+approved applications are read-only, and only rejection permits resubmission.
+Keep the document directory with your database backups. Local storage does not
+provide malware scanning, encryption at rest or production retention management.
 
 Compliance uses configurable source-currency amount thresholds to request review.
 Policy indexing and copilot answers use Ollama and Oracle vector search; configure
 the `FLUXPAY_OLLAMA_*`, `FLUXPAY_POLICY_CHUNKER_VERSION`, `FLUXPAY_COPILOT_*`, and
 `FLUXPAY_COMPLIANCE_*` settings in `.env.example` for the local providers.
 
-Development-only metadata KYC, demo funding, simulated compliance, and simulated
+Development-only demo funding, simulated compliance, and simulated
 payout providers are off by default and require their explicit `FLUXPAY_DEVELOPMENT_*`
-or funding toggles. Metadata KYC records state that files were not stored.
+or funding toggles. Legacy metadata KYC records state that files were not stored
+and cannot be approved. JSON metadata submissions are rejected; use the real
+multipart upload instead. It needs no development toggle.
 
 ## Backend structure
 

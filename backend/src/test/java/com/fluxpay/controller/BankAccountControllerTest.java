@@ -3,6 +3,7 @@ package com.fluxpay.controller;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fluxpay.common.TestAuthHelper;
@@ -39,6 +40,25 @@ class BankAccountControllerTest {
   @BeforeEach
   void authenticate() {
     when(jwt.parse(TOKEN)).thenReturn(TestAuthHelper.withUser(USER, "test@example.com", "USER"));
+  }
+
+  @Test
+  void listUsesAuthenticatedOwnerAndReturnsOnlyRedactedMetadata() throws Exception {
+    when(banks.list(USER)).thenReturn(java.util.List.of(
+        new BankAccountResponse(BANK.toString(), "Bank", "1234", "USD", "VERIFIED")));
+    mvc.perform(get("/api/bank-accounts").header("Authorization", "Bearer " + TOKEN))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].id").value(BANK.toString()))
+        .andExpect(jsonPath("$.data[0].accountLast4").value("1234"))
+        .andExpect(jsonPath("$.data[0].accountNumber").doesNotExist())
+        .andExpect(jsonPath("$.data[0].userId").doesNotExist());
+    verify(banks).list(USER);
+  }
+
+  @Test
+  void listRequiresAuthentication() throws Exception {
+    mvc.perform(get("/api/bank-accounts")).andExpect(status().isUnauthorized());
+    verifyNoInteractions(banks);
   }
 
   @Test

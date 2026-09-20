@@ -1,8 +1,44 @@
 # FluxPay Bruno API Catalog
 
-This catalog documents all 46 HTTP API endpoints exposed by the FluxPay backend.
+This catalog documents the original 46 HTTP API endpoints, followed by the September 20 integration additions below.
+
+## September 20 integration additions
+
+All wallet/bank writes below require a bearer token and `Idempotency-Key`. Bank-account listing is authenticated and scoped to the current user; full account numbers are never accepted or returned.
+
+| Method and URL | Request / behavior | Frontend location |
+| --- | --- | --- |
+| `GET /api/bank-accounts` | Returns `[{id,bankName,accountLast4,currency,status}]` for the authenticated owner only. | Wallets → Your linked banks |
+| `POST /api/bank-accounts/link` | `{bankName:"Example Bank",accountLast4:"4321",currency:"USD"}`. Exactly four digits; no full bank number. | Wallets / Add money → Link bank |
+| `POST /api/bank-accounts/{id}/topup` | `{amount:"25.00",note:"Monthly savings"}`. Bank must be owned, verified, and currency-matched. Verified KYC required; daily cap 10,000 per currency. | Add money → Linked bank account → Review |
+| `POST /api/wallets/withdraw` | `{bankAccountId:"<uuid>",currency:"USD",amount:"10.00",note:"Savings"}`. Requires available balance and matching verified bank. | Wallets → Withdraw to bank |
+| `POST /api/wallets/transfer` | `{toEmail:"recipient@example.test",fromCurrency:"USD",toCurrency:"INR",amount:"10.00",amountMode:"SOURCE",note:"Lunch"}`. Supply exactly one of `toEmail` or `toUserId`. `SOURCE` sets sender amount; `TARGET` sets recipient amount. | Wallets → Pay a FluxPay wallet |
+| `PUT /api/policies/{id}` | `{title,category,content,clearExistingChunks}`; clearing/replacing content invalidates the search index. | Administration → Policy library → Edit |
+| `PUT /api/policies/{id}/chunks/{chunkId}` | `{content}`; manual chunks only. | Policy library → Advanced settings |
+| `DELETE /api/policies/{id}/chunks/{chunkId}` | Deletes a chunk. Reindexing can recreate generated chunks. | Policy library → Advanced settings |
+| `GET /api/policies/{id}/guidance` | Lists case-linked guidance. | Policy library → Advanced settings |
+| `POST /api/policies/{id}/guidance` | `{complianceCaseId,content}`; completed case required. | Policy library → Add guidance |
+| `PUT /api/policies/{id}/guidance/{guidanceId}` | `{content}`. | Policy library → Edit guidance |
+| `DELETE /api/policies/{id}/guidance/{guidanceId}` | Removes guidance. | Policy library → Delete guidance |
+| `POST /api/copilot/ask/stream` | Admin-only `{question,paymentId?}`. SSE `data:{delta}` frames and an `event:done` frame. This stream does not include source citations. | Compliance Copilot → Live response; Get cited answer uses the existing `/ask` endpoint |
+
+Wallet amounts use each currency's configured precision (currently 2 decimal places); notes are at most 255 characters. `REQUOTE_REQUIRED`, insufficient funds, bank mismatch, KYC, and daily-cap errors are shown without automatically retrying a financial operation. Bank actions in the current backend post to the local ledger; there is no external bank settlement integration.
+
+History recognizes the backend journal prefixes `wallet:topup:`, `wallet:p2p:`, `wallet:withdraw:`, and `wallet:fx:` and includes the resulting credits/debits alongside recipient payments.
 
 ## Bruno setup
+
+### Custom payment reasons
+
+`POST /api/payments/draft` also accepts `purpose: "OTHERS"` with a required
+`purposeReason` (1–250 nonblank characters, trimmed before storage). The reason
+is included in payment detail/list responses and idempotency checks. Preset
+purposes remain unchanged and ignore custom text. Migration V611 adds the
+nullable `payments.purpose_reason` column without changing existing payments.
+
+The signup verification step can be skipped to explore the dashboard. This does
+not grant verified status: existing backend verification requirements still
+apply. A customer reminder remains visible until documents are submitted.
 
 | Setting | Value |
 |---|---|
@@ -40,7 +76,7 @@ Successful responses normally use this envelope:
 
 | # | Method and URL | Auth / headers | Request body / parameters | Status and sample output |
 |---:|---|---|---|---|
-| 5 | `POST {{baseUrl}}/api/kyc/applications` | Bearer token | `{"docType":"PAN","docNumber":"ABCDE1234F","documents":[{"fileName":"pan.png","fileType":"image/png","fileSize":125000}]}` | **201** `{"correlationId":"...","data":{"applicationId":"<uuid>","version":0,"status":"PENDING","rejectReason":null,"submittedAt":"2026-09-15T10:00:00Z","decidedAt":null}}` |
+| 5 | `POST {{baseUrl}}/api/kyc/applications` | Bearer token; `multipart/form-data` | Fields `docType`, `docNumber`, and 1–4 repeated `files` parts containing actual PDF/JPG/PNG bytes | **201** application status plus `documents: [{id,fileName,fileType,fileSize,uploadedAt,available}]` |
 | 6 | `GET {{baseUrl}}/api/kyc/my-status` | Bearer token | None | **200** `{"correlationId":"...","data":{"applicationId":"<uuid>","version":0,"status":"PENDING","rejectReason":null,"submittedAt":"2026-09-15T10:00:00Z","decidedAt":null}}` |
 | 7 | `GET {{baseUrl}}/api/admin/kyc/applications?status=PENDING&page=0&size=50` | Admin token | Status: `NONE`, `PENDING`, `VERIFIED`, `REJECTED`, or `ALL`; size: `1-100` | **200** `{"correlationId":"...","data":[{"applicationId":"<uuid>","version":0,"email":"user@fluxpay.test","fullName":"Test User","docType":"PAN","docNumber":"ABCDE1234F","status":"PENDING","submittedAt":"2026-09-15T10:00:00Z","decidedAt":null,"rejectReason":null,"documents":[{"fileName":"pan.png","fileType":"image/png","fileSize":125000}]}]}` |
 | 8 | `PUT {{baseUrl}}/api/admin/kyc/applications/{{kycApplicationId}}/approve` | Admin token | `{"expectedVersion":0,"reason":"Documents verified"}` | **200** `{"correlationId":"...","data":{"applicationId":"<uuid>","version":1,"status":"VERIFIED","rejectReason":null,"submittedAt":"2026-09-15T10:00:00Z","decidedAt":"2026-09-15T10:05:00Z"}}` |
@@ -49,6 +85,14 @@ Successful responses normally use this envelope:
 KYC document types are `PASSPORT`, `AADHAAR`, `PAN`, and `DRIVING_LICENSE`.
 
 Allowed file types are `application/pdf`, `image/jpeg`, and `image/png`. Maximum file size is 5 MB.
+
+`GET /api/kyc/documents/{id}/content` returns the original binary only for the owning user or an administrator. Responses are non-cacheable attachments; the frontend fetches them with the bearer token and displays an in-memory popup. Neither filesystem paths nor bearer tokens are placed in document links. Missing/foreign documents return 404; unauthenticated requests return 401.
+
+Real uploads are stored privately in `temp_images` (gitignored), using generated filenames. `scripts/start-backend.py` sets the workspace-root directory; override with `FLUXPAY_KYC_STORAGE_DIRECTORY`. This directory must remain writable and must not be exposed as static web content. It is persistent application storage despite its name: do not clear it while documents are needed. Keep backups of the database and this directory together.
+
+Uploads are accepted only for an initial application or after rejection. Pending and verified applications cannot be overwritten. Admin decisions require the current `expectedVersion`; rejection requires a reason. Older metadata-only records have `available:false` and cannot be approved: reject pending legacy submissions with instructions to upload their originals. Existing verified users are not downgraded. On successful resubmission, replaced document files are removed after commit; rollback removes new files and preserves the old submission.
+
+The legacy JSON metadata-only submission now returns 400 with instructions to upload actual files, even if the old development flag is enabled. Use multipart for all submissions. The user status and admin list now both include document IDs, upload timestamps and availability.
 
 ## Wallet and FX APIs
 
@@ -154,7 +198,7 @@ The copilot returns an empty `sources` array and a scoped fallback answer when n
 | Feature | Default behavior | Setting needed for successful local testing |
 |---|---|---|
 | Demo wallet funding | Returns **404 NOT_FOUND** | `FLUXPAY_DEMO_FUNDING_ENABLED=true` |
-| KYC submission | Returns **503 KYC_STORAGE_UNAVAILABLE** | `FLUXPAY_DEVELOPMENT_KYC_METADATA_ENABLED=true` |
+| KYC document upload | Real multipart upload into private local storage | Writable `temp_images` or `FLUXPAY_KYC_STORAGE_DIRECTORY`; no metadata flag required |
 | Compliance confirmation | Real provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true` |
 | Policy indexing | Requires Ollama embeddings and Oracle vector storage | Configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_POLICY_CHUNKER_VERSION` settings |
 | Compliance Copilot | Requires an indexed policy corpus, Ollama embeddings/chat, and Oracle vector search | Index at least one policy and configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_COPILOT_*` settings |

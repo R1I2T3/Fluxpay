@@ -49,7 +49,8 @@ class KycServiceTest {
         kycDocuments,
         users,
         java.time.Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), java.time.ZoneOffset.UTC),
-        metadataEnabled);
+        metadataEnabled,
+        org.mockito.Mockito.mock(KycDocumentStorage.class));
   }
 
   @Test
@@ -174,6 +175,17 @@ class KycServiceTest {
     User reviewer = user(reviewerId);
     when(kycCases.findByIdForUpdate(applicationId)).thenReturn(Optional.of(pendingCase));
     when(users.findById(reviewerId)).thenReturn(Optional.of(reviewer));
+    when(kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(applicationId))
+        .thenReturn(
+            List.of(
+                new KycDocument(
+                    UUID.randomUUID(),
+                    pendingCase,
+                    "identity.pdf",
+                    "application/pdf",
+                    100,
+                    "local:" + UUID.randomUUID(),
+                    Instant.now())));
     when(kycCases.saveAndFlush(pendingCase)).thenReturn(pendingCase);
 
     var response = kycService.approve(reviewerId, applicationId, new KycReviewRequest(0L, null));

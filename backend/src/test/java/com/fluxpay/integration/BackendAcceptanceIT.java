@@ -122,20 +122,16 @@ class BackendAcceptanceIT {
 
     JsonNode kyc =
         request(
-            post("/api/kyc/applications"),
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                    "/api/kyc/applications")
+                .file(
+                    new org.springframework.mock.web.MockMultipartFile(
+                        "files", "acceptance.pdf", "application/pdf", "%PDF-1.4\n%%EOF".getBytes()))
+                .param("docType", "PASSPORT")
+                .param("docNumber", "ACCEPTANCE-" + UUID.randomUUID()),
             customerToken,
             null,
-            Map.of(
-                "docType",
-                "PASSPORT",
-                "docNumber",
-                "ACCEPTANCE-" + UUID.randomUUID(),
-                "documents",
-                java.util.List.of(
-                    Map.of(
-                        "fileName", "acceptance.pdf",
-                        "fileType", "application/pdf",
-                        "fileSize", 1024))),
+            null,
             201);
     String applicationId = kyc.path("data").path("applicationId").asText();
     long kycVersion = kyc.path("data").path("version").asLong();

@@ -1,0 +1,5 @@
+<div class="support-host">
+  <div class="workspace-page" role="status" data-bind="visible:loading">Opening support…</div>
+  <!-- ko if:unavailable --><section class="workspace-page"><article class="panel empty-state"><span>◌</span><h1>Support tickets</h1><p>The support module is not available in this build yet. Your account and transfers are still available.</p><a class="pill soft" href="?ojr=account" data-route="account">Back to More</a></article></section><!-- /ko -->
+  <oj-module config="[[config]]"></oj-module>
+</div>
