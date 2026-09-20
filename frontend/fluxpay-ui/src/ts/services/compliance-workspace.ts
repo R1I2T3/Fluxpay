@@ -165,12 +165,15 @@ export class ComplianceWorkspace {
   canDeleteCase = ko.pureComputed(()=>this.selectedCase()?.status==='OPEN'&&!this.selectedCase()?.reviewReference);
   date = (value:string|null)=>value?new Date(value).toLocaleString():'—';
   private disposed = false;
+  liveResponse=ko.observable(false);
+  streamedAnswer=ko.observable(false);
+  private streamAbort?:AbortController;
   private epoch = 0;
-  private sessionChanged = session.user.subscribe(()=>{this.epoch++;this.clear();});
+  private sessionChanged = session.user.subscribe(()=>{this.streamAbort?.abort();this.epoch++;this.clear();});
   private noticeChanged = this.notice.subscribe(value=>this.dismissToast(this.notice,value));
   private errorChanged = this.error.subscribe(value=>this.dismissToast(this.error,value));
   private clear(){this.policies([]);this.policyDrafts([]);this.draftEditor(undefined);this.draftEditorTarget(undefined);this.draftViewer(undefined);this.policyEdit(undefined);this.chunkEdit(undefined);this.chunkEditContent('');this.pendingChunk(undefined);this.policyImportError('');this.cases([]);this.policy(undefined);this.selectedCase(undefined);this.chunks([]);this.guidance([]);this.guidanceCaseViewer(undefined);this.policyView('policy');this.guidanceCaseId('');this.guidanceContent('');this.answer(undefined);this.confirmation('');this.decisionReason('');this.question('');this.copilotPaymentId('');this.answeredQuestion('');this.title('');this.content('');this.chunkContent('');this.paymentId('');this.reasons('');this.suggestedAction('');this.policyForm(false);this.caseForm(false);this.casePage(0);this.policyPage(0);this.error('');this.notice('');}
-  dispose(){this.disposed=true;this.epoch++;this.clear();this.sessionChanged.dispose();this.noticeChanged.dispose();this.errorChanged.dispose();}
+  dispose(){this.streamAbort?.abort();this.disposed=true;this.epoch++;this.clear();this.sessionChanged.dispose();this.noticeChanged.dispose();this.errorChanged.dispose();}
   private dismissToast(target:ko.Observable<string>,value:string){
     if(!value||typeof window==='undefined'||!window.setTimeout)return;
     window.setTimeout(()=>{if(!this.disposed&&target()===value)target('');},5000);
@@ -297,7 +300,7 @@ export class ComplianceWorkspace {
     if(!policy||!chunk||!chunk.manual)throw new Error('Only manually added chunks can be edited.');
     if(!content)throw new Error('Chunk text cannot be blank.');
     await api.updatePolicyChunk(policy.id,chunk.id,content);
-    this.closeChunkEdit();await this.readPolicy(policy.id);this.notice('Manual chunk updated.');
+    this.chunkEdit(undefined);this.chunkEditContent('');await this.readPolicy(policy.id);this.notice('Manual chunk updated.');
   });
   requestDeleteChunk = (chunk:PolicyChunk)=>{
     if(!this.busy()){this.error('');this.pendingChunk(chunk);this.confirmation('delete-chunk');}
@@ -309,7 +312,7 @@ export class ComplianceWorkspace {
   });
   openGuidanceEdit = (item:PolicyGuidance)=>{if(!this.busy()){this.guidanceEdit(item);this.guidanceEditContent(item.content);}};
   closeGuidanceEdit = ()=>{if(!this.busy()){this.guidanceEdit(undefined);this.guidanceEditContent('');}};
-  saveGuidanceEdit = ()=>this.run(async()=>{const policy=this.policy(),item=this.guidanceEdit(),content=this.guidanceEditContent().trim();if(!policy||!item||!content)throw new Error('Guidance text cannot be blank.');await api.updatePolicyGuidance(policy.id,item.id,content);this.closeGuidanceEdit();await this.readPolicy(policy.id);this.notice('Policy guidance updated. Rebuild the index to update Copilot.');});
+  saveGuidanceEdit = ()=>this.run(async()=>{const policy=this.policy(),item=this.guidanceEdit(),content=this.guidanceEditContent().trim();if(!policy||!item||!content)throw new Error('Guidance text cannot be blank.');await api.updatePolicyGuidance(policy.id,item.id,content);this.guidanceEdit(undefined);this.guidanceEditContent('');await this.readPolicy(policy.id);this.notice('Policy guidance updated. Rebuild the index to update Copilot.');});
   deleteGuidance = (item:PolicyGuidance)=>this.run(async()=>{const policy=this.policy();if(!policy||!window.confirm('Delete this policy guidance?'))return;await api.deletePolicyGuidance(policy.id,item.id);await this.readPolicy(policy.id);this.notice('Policy guidance deleted.');});
   openGuidanceCase = (item:PolicyGuidance)=>this.openGuidanceCaseById(item.complianceCaseId);
   openSelectedGuidanceCase = ()=>this.openGuidanceCaseById(this.guidanceCaseId().trim());
@@ -360,6 +363,13 @@ export class ComplianceWorkspace {
     const question=this.question().trim(),paymentId=this.copilotPaymentId().trim();
     if(!question)throw new Error('Enter a policy question.');
     if(paymentId&&!this.uuid(paymentId))throw new Error('Enter a valid payment UUID or leave it blank.');
-    this.answer(undefined);this.answeredQuestion(question);this.answer(await api.askCopilot(question,paymentId||undefined));
+    this.answer(undefined);this.answeredQuestion(question);this.streamedAnswer(this.liveResponse());
+    if(!this.liveResponse()){this.answer(await api.askCopilot(question,paymentId||undefined));return;}
+    const epoch=this.epoch;this.streamAbort=new AbortController();this.answer({answer:'',sources:[]});
+    try{await api.streamCopilot(question,paymentId||undefined,delta=>{if(!this.disposed&&epoch===this.epoch&&session.isAdmin())this.answer({answer:(this.answer()?.answer||'')+delta,sources:[]});},this.streamAbort.signal);}
+    catch(e:any){if(e.name==='AbortError')this.notice('Live response stopped. Request a cited answer when you are ready.');else throw e;}
+    finally{this.streamAbort=undefined;}
   });
+  stopLiveResponse=()=>this.streamAbort?.abort();
+  getCitedAnswer=()=>{if(!this.busy()){this.liveResponse(false);void this.ask();}};
 }

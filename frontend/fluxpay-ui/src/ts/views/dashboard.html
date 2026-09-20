@@ -16,12 +16,12 @@
         <div class="account-overview-top"><span class="eyebrow">PERSONAL ACCOUNT</span><span class="live-label"><i></i>Live balances</span></div>
         <div class="overview-balance-row">
           <div><label class="currency-picker"><span class="sr-only">Balance currency</span><select data-bind="options:wallets,optionsText:'currency',optionsValue:'currency',value:overviewCurrency"></select></label>
-            <!-- ko with: overviewWallet --><strong class="overview-amount" data-bind="text:$parent.money(availableBalance,currency)"></strong><p class="balance-caption">Available to spend <span>·</span> <span data-bind="text:$parent.money(heldBalance,currency)+' on hold'"></span></p><!-- /ko -->
+            <!-- ko with: overviewWallet --><strong class="overview-amount" data-bind="text:$parent.money(availableBalance,currency)"></strong><p class="balance-caption">Available to spend <!-- ko if:$parent.processingForWallet($data).length --><span>·</span> <span data-bind="text:$parent.money($parent.processingAmount($data),currency)+' on hold · processing'"></span><!-- /ko --></p><!-- /ko -->
             <p data-bind="visible:!busy()&&!wallets().length">Your wallets will appear here once provisioned.</p>
           </div>
           <div class="overview-card-art" aria-hidden="true"><span>FluxPay<span class="card-chip">▥</span></span><b>✦</b><small>YOUR WORLD. CONNECTED.</small></div>
         </div>
-        <div class="overview-actions"><a href="?ojr=wallets" data-route="wallets" class="pill dark"><span>＋</span>Add money</a><a href="?ojr=payments-new" data-route="payments-new" class="pill soft"><span>↗</span>Send</a><a href="?ojr=wallets" data-route="wallets" class="pill soft"><span>⇄</span>Exchange</a><a href="?ojr=tracking" data-route="tracking" class="pill soft"><span>⌁</span>Track</a></div>
+        <div class="overview-actions"><a href="?ojr=wallets&amp;action=add-money" data-route="wallets" data-action="add-money" class="pill dark"><span>＋</span>Add money</a><a href="?ojr=payments-new" data-route="payments-new" class="pill soft"><span>↗</span>Send</a><a href="?ojr=wallets" data-route="wallets" class="pill soft"><span>⇄</span>Exchange</a><a href="?ojr=tracking" data-route="tracking" class="pill soft"><span>⌁</span>Track</a></div>
         <div class="currency-strip" data-bind="foreach:wallets">
           <button class="currency-tile" data-bind="click:function(){$parent.overviewCurrency(currency)},css:{selected:$parent.overviewCurrency()===currency},attr:{'aria-pressed':$parent.overviewCurrency()===currency}">
             <span class="currency-flag" data-bind="text:currency==='USD'?'🇺🇸':currency==='EUR'?'🇪🇺':'🇮🇳'"></span><span><small data-bind="text:currency"></small><strong data-bind="text:$parent.money(availableBalance,currency)"></strong></span>
@@ -29,17 +29,31 @@
         </div>
       </article>
       <article class="panel activity-panel">
-        <div class="panel-heading"><div><h2>Transactions</h2><p>Your most recent moves.</p></div><a href="?ojr=payments-list" data-route="payments-list" class="pill soft compact">View all ↗</a></div>
-        <div data-bind="foreach:payments().slice(0,5)"><button class="transaction-row" data-bind="click:$parent.openPayment"><span class="avatar blue">↗</span><div class="grow"><strong data-bind="text:$parent.recipientLabel(recipientId)"></strong><small data-bind="text:$parent.date(createdAt)"></small></div><div class="align-right"><strong data-bind="text:$parent.money(sourceAmount,sourceCurrency)"></strong><span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span></div></button></div>
-        <div class="empty-state activity-empty" data-bind="visible:!busy()&&payments().length===0"><span class="empty-orbit" aria-hidden="true">↗</span><h3>A fresh start.</h3><p>Your transfers will appear here.<br>Make your first move whenever you’re ready.</p><a class="pill soft" href="?ojr=payments-new" data-route="payments-new">Send your first transfer ↗</a></div>
-        <div class="activity-summary" data-bind="visible:payments().length>0"><span><b data-bind="text:completedCount"></b> completed</span><span><b data-bind="text:pendingCount"></b> in progress</span><small>In your latest 20 transfers</small></div>
+        <div class="panel-heading"><div><h2>Recent activity</h2><p>Money added, wallet transfers, exchanges and payments.</p></div><a href="?ojr=payments-list" data-route="payments-list" class="pill soft compact">View all ↗</a></div>
+        <p class="error-text" role="status" data-bind="visible:activityWarning,text:activityWarning"></p>
+        <div data-bind="foreach:recentActivity"><button class="transaction-row" data-bind="click:$parent.openMovement"><span class="avatar blue" data-bind="text:$data.isLedger?($parent.movementDirection($data)==='Money in'?'＋':'⇄'):'↗'"></span><div class="grow"><strong data-bind="text:$data.isLedger?$parent.movementLabel($data):$parent.recipientLabel(recipientId)"></strong><small data-bind="text:($data.isLedger?sourceCurrency+' wallet · ':'')+$parent.date(createdAt)"></small></div><div class="align-right"><strong data-bind="text:($data.isLedger?($parent.movementDirection($data)==='Money in'?'+':$parent.movementDirection($data)==='Money out'?'−':''):'')+$parent.money(sourceAmount,sourceCurrency)"></strong><span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span></div></button></div>
+        <div class="empty-state activity-empty" data-bind="visible:!busy()&&recentActivity().length===0"><span class="empty-orbit" aria-hidden="true">↗</span><h3>A fresh start.</h3><p>All your money movements will appear here.</p><a class="pill soft" href="?ojr=payments-new" data-route="payments-new">Send your first transfer ↗</a></div>
+        <div class="activity-summary" data-bind="visible:recentActivity().length>0"><small>Latest activity across all your wallets and payments</small></div>
       </article>
     </div>
     <aside class="dashboard-rail" aria-label="Account shortcuts">
+      <article class="panel dashboard-pay-people">
+        <div class="panel-heading"><div><h2>Pay someone</h2><p>Pick a person. Pay in one simple flow.</p></div></div>
+        <div class="send-people" data-bind="foreach:activeRecipients().slice(0,8)"><button class="send-person" data-bind="click:$parent.payPerson"><span class="avatar blue" data-bind="text:$parent.initials(name)"></span><strong data-bind="text:name"></strong><small data-bind="text:currency"></small></button></div>
+        <p data-bind="visible:!activeRecipients().length">Your people will appear here. Add your first recipient to get started.</p><button class="pill soft wide" data-bind="click:paySomeoneNew">＋ Someone new</button>
+      </article>
       <article class="global-promo"><span class="eyebrow light">MAKE YOUR NEXT MOVE</span><h2>A little more<br>global.</h2><p>Three currencies.<br>One beautifully simple account.</p><div class="promo-globe" aria-hidden="true"><span>$</span><span>€</span><span>₹</span><i>✦</i></div><a href="?ojr=payments-new" data-route="payments-new" class="pill white">Explore transfers ↗</a></article>
-      <article class="panel people-panel"><div class="panel-heading"><h2>Your people</h2><a href="?ojr=recipients" data-route="recipients" aria-label="Manage recipients">↗</a></div><div class="people-list" data-bind="foreach:activeRecipients().slice(0,4)"><a href="?ojr=recipients" data-route="recipients"><span class="avatar" data-bind="text:$parent.initials(name)"></span><strong data-bind="text:name"></strong><small data-bind="text:currency"></small></a></div><p data-bind="visible:!activeRecipients().length">Keep your favourite recipients close. Add someone to get started.</p><a class="pill soft wide" href="?ojr=recipients" data-route="recipients">＋ Add a recipient</a></article>
       <a class="verification-nudge" href="?ojr=kyc" data-route="kyc"><span class="avatar blue">◇</span><div><strong>Your account, protected</strong><small data-bind="text:'Verification: '+label(session.user().kycStatus)"></small></div><span>↗</span></a>
     </aside>
+  </div>
+  <div class="page-heading"><div><h2>What else would you like to do?</h2><p>Everything you need, right here.</p></div></div>
+  <div class="dashboard-services">
+    <a href="?ojr=wallets" data-route="wallets"><strong>Your wallets ↗</strong><small>Add money, exchange currencies and see your balances.</small></a>
+    <a href="?ojr=payments-list" data-route="payments-list"><strong>Payment history ↗</strong><small>Find a receipt, continue a saved draft or check a transfer.</small></a>
+    <a href="?ojr=recipients" data-route="recipients"><strong>Your recipients ↗</strong><small>View and update the people you pay.</small></a>
+    <a href="?ojr=account" data-route="account"><strong>Your profile ↗</strong><small>Update your details, manage your account or log out.</small></a>
+    <a href="?ojr=kyc" data-route="kyc"><strong>Verify your identity ↗</strong><small>See your verification status and submit documents.</small></a>
+    <a href="?ojr=tickets" data-route="tickets"><strong>Get help ↗</strong><small>Open the support area for your account.</small></a>
   </div>
   <!-- /ko -->
 </section>

@@ -1,6 +1,8 @@
 import * as ko from 'knockout';
 import { fluxApi as api } from './flux-api';
 import { session, navigate } from './session';
+import {movementDescription} from './activity';
+import './experience-dialog';
 
 export class Page {
   session = session;
@@ -28,6 +30,19 @@ export class Page {
   docType = ko.observable('PAN');
   docNumber = ko.observable('');
   documents = ko.observableArray<any>([]);
+  documentPreview = ko.observable<any>();
+  previewLoading = ko.observable(false);
+  previewError = ko.observable('');
+  private previewAbort?: AbortController;
+  private previewVersion = 0;
+  fileSize=(size:number)=>size>=1024*1024?(size/(1024*1024)).toFixed(1)+' MB':Math.max(1,Math.round(size/1024))+' KB';
+  closeDocument=()=>{this.previewVersion++;this.previewAbort?.abort();const current=this.documentPreview();if(current?.url)URL.revokeObjectURL(current.url);this.documentPreview(undefined);this.previewLoading(false);this.previewError('');};
+  openDocument=async(file:any)=>{
+    this.closeDocument();this.documentPreview({...file,url:''});this.previewLoading(true);const version=this.previewVersion;this.previewAbort=new AbortController();
+    try{if(!file.available||!file.id)throw new Error('The original file was not stored with this older submission. Please contact support.');const blob=await api.kycDocument(file.id,this.previewAbort.signal);if(version!==this.previewVersion||this.disposed)return;this.documentPreview({...file,url:URL.createObjectURL(blob),fileType:blob.type});}
+    catch(e:any){if(version===this.previewVersion&&e.name!=='AbortError')this.previewError(e.message||'Unable to open this document.');}
+    finally{if(version===this.previewVersion)this.previewLoading(false);}
+  };
   currency = ko.observable('USD');
   amount = ko.observable('100');
   fundAmount = ko.observable('500');
@@ -60,6 +75,9 @@ export class Page {
   adminPage = ko.observable(0);
   review = ko.observable<any>();
   reviewReason = ko.observable('');
+  reviewConsent = ko.observable(false);
+  reviewDecision = ko.observable('');
+  reviewDocumentsAvailable = ko.pureComputed(()=>!!this.review()?.documents?.length&&this.review().documents.every((d:any)=>d.available));
   routeEditing = ko.observable<any>();
   routeFee = ko.observable('0');
   routeSpread = ko.observable('0');
@@ -67,17 +85,34 @@ export class Page {
   routeSuccess = ko.observable('0');
   routeActive = ko.observable(true);
   filter = ko.observable('ALL');
+  typeFilter = ko.observable('');
+  fromDate = ko.observable('');
+  toDate = ko.observable('');
   overviewCurrency = ko.observable('USD');
   overviewWallet = ko.pureComputed(()=>this.wallets().find(w=>w.currency===this.overviewCurrency()) || this.wallets()[0]);
   completedCount = ko.pureComputed(()=>this.payments().filter(p=>p.status==='COMPLETED').length);
   pendingCount = ko.pureComputed(()=>this.payments().filter(p=>['PROCESSING','UNDER_REVIEW'].includes(p.status)).length);
+  onHold = ko.pureComputed(()=>this.payments().filter(p=>p.status==='PROCESSING'));
+  processingForWallet=(wallet:any)=>this.onHold().filter(p=>p.sourceWalletId===wallet.walletId&&p.sourceCurrency===wallet.currency);
+  processingAmount=(wallet:any)=>this.processingForWallet(wallet).reduce((sum,p)=>sum+Math.round(Number(p.sourceAmount||0)*10000),0)/10000;
+  movementDescription=movementDescription;
   private timer?: number;
   private polling?: number;
   private disposed = false;
-  private sessionListener = ()=>{void this.load();};
+  private sessionListener = ()=>{this.closeDocument();this.documents([]);this.kyc(undefined);this.review(undefined);void this.load();};
   isAuthenticated = ko.pureComputed(()=>!!session.user());
   filteredRecipients = ko.pureComputed(()=>this.recipients().filter(r=>(r.name+' '+r.bankName).toLowerCase().includes(this.search().toLowerCase())));
-  filteredPayments = ko.pureComputed(()=>this.payments().filter(p=>(this.filter()==='ALL'||p.status===this.filter()) && (p.id+' '+this.recipientLabel(p.recipientId)).toLowerCase().includes(this.search().toLowerCase())));
+  filteredPayments = ko.pureComputed(()=>this.payments().filter(p=>this.matchesActivity(p)));
+  matchesActivity=(p:any)=>{
+    const type=p.type||p.entry_type||p.entryType||'SEND_MONEY';
+    const created=Date.parse(p.createdAt);
+    const after=this.fromDate()?new Date(this.fromDate()+'T00:00:00').getTime():-Infinity;
+    const end=this.toDate()?new Date(this.toDate()+'T00:00:00'):null;
+    if(end)end.setDate(end.getDate()+1);
+    return (this.filter()==='ALL'||(this.filter()==='ON_HOLD'?['PROCESSING','UNDER_REVIEW'].includes(p.status):p.status===this.filter())) &&
+      (!this.typeFilter()||type===this.typeFilter()) && (!this.fromDate()||created>=after) && (!end||created<end.getTime()) &&
+      (p.id+' '+(p.narration||'')+' '+type+' '+(p.sourceCurrency||'')+' '+(p.journalReference||'')+' '+this.recipientLabel(p.recipientId)).toLowerCase().includes(this.search().trim().toLowerCase());
+  };
   activeRecipients = ko.pureComputed(()=>this.recipients().filter(r=>r.status==='ACTIVE'));
   remaining = ko.pureComputed(()=>Math.max(0,Math.ceil((Date.parse(this.quoteExpires())-this.now())/1000))||0);
   quoteValid = ko.pureComputed(()=>this.quotes().length>0&&this.remaining()>0);
@@ -85,16 +120,17 @@ export class Page {
   currentRecipient = ko.pureComputed(()=>this.recipients().find(r=>r.id===this.recipientId()));
   pageCount = ko.pureComputed(()=>Math.max(1,Math.ceil(this.total()/20)));
   constructor(public screen:string,params:any={}){
-    this.paymentId(params.params?.payment||'');
+    this.paymentId(params.params?.id||params.params?.payment||'');
     this.timer=window.setInterval(()=>this.now(Date.now()),1000);
     window.addEventListener('fluxpay:session',this.sessionListener);
     void this.load();
   }
-  disconnected(){this.disposed=true;clearInterval(this.timer);clearInterval(this.polling);window.removeEventListener('fluxpay:session',this.sessionListener);}
+  disconnected(){this.disposed=true;this.closeDocument();clearInterval(this.timer);clearInterval(this.polling);window.removeEventListener('fluxpay:session',this.sessionListener);}
   money=(amount:any,currency='USD')=>new Intl.NumberFormat('en-US',{style:'currency',currency,maximumFractionDigits:2}).format(Number(amount||0));
   date=(value:any)=>value?new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
   label=(value:any)=>String(value||'').replace(/_/g,' ').toLowerCase().replace(/^./,s=>s.toUpperCase());
   initials=(name:string)=>name?.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()||'FP';
+  shortId=(id:string)=>id?id.slice(0,8)+'…':'';
   recipientLabel=(id:string)=>this.recipients().find(r=>r.id===id)?.name||'Recipient';
   walletLabel=(w:any)=>w.currency+' · '+this.money(w.availableBalance,w.currency)+' available';
   recipientOption=(r:any)=>r.name+' · '+r.currency;
@@ -153,8 +189,8 @@ export class Page {
   saveProfile=()=>this.run(async()=>{session.user(await api.updateMe({fullName:this.fullName().trim()}));},'Your profile has been updated.');
   chooseFiles=(_:any,event:Event)=>{
     const files=Array.from((event.target as HTMLInputElement).files||[]);
-    if(files.some(f=>!['application/pdf','image/jpeg','image/png'].includes(f.type)||f.size>5*1024*1024)){this.error('Choose PDF, JPG or PNG files up to 5 MB each.');this.documents([]);return;}
-    this.documents(files.map(f=>({fileName:f.name,fileType:f.type,fileSize:f.size})));this.error('');
+    if(files.length>4||files.some(f=>!['application/pdf','image/jpeg','image/png'].includes(f.type)||f.size===0||f.size>5*1024*1024)){this.error('Choose one to four non-empty PDF, JPG or PNG files up to 5 MB each.');this.documents([]);(event.target as HTMLInputElement).value='';return;}
+    this.documents(files.map(f=>({fileName:f.name,fileType:f.type,fileSize:f.size,file:f})));this.error('');
   };
   submitKyc=()=>this.run(async()=>{
     if(!this.docNumber().trim()||!this.documents().length)throw new Error('Enter the document number and choose at least one document.');
@@ -162,7 +198,7 @@ export class Page {
     await session.restore();
   },'Your verification has been submitted for review.');
   validAmount(value:string){if(!/^\d+(\.\d{1,4})?$/.test(value)||Number(value)<=0)throw new Error('Enter an amount greater than zero, with up to four decimal places.');return value;}
-  fund=()=>this.run(async()=>{await api.fund({currency:this.currency(),amount:this.validAmount(this.fundAmount())});this.wallets(await api.wallets());},'Demo funds added to your wallet.');
+  fund=()=>this.run(async()=>{await api.fund({currency:this.currency(),amount:this.validAmount(this.fundAmount())});this.wallets(await api.wallets());},'Money added to your wallet.');
   getRate=()=>this.run(async()=>{this.rate(undefined);if(this.from()===this.to())throw new Error('Choose two different currencies.');this.rate(await api.rate(this.from(),this.to()));});
   resetRate=()=>{this.rate(undefined);this.conversion(undefined);};
   convert=()=>this.run(async()=>{
@@ -201,7 +237,7 @@ export class Page {
     await this.acceptQuote();
     if(this.screen==='tracking')await this.inspectData();
   });
-  private async acceptQuote(){
+  protected async acceptQuote(){
     try{this.payment(await api.confirm(this.paymentId(),this.selectedQuote().id));}
     catch(error){
       // A compliance block is returned as an HTTP error after persisting REJECTED.
@@ -251,13 +287,16 @@ export class Page {
     if(this.screen==='tracking')await this.inspectData();
   },'Payment updated. The latest status is shown below.');
   selectRecoveryQuote=(q:any)=>this.selectedQuote(q);
-  openReview=(c:any)=>{this.review(c);this.reviewReason('');};
-  closeReview=()=>this.review(undefined);
+  openReview=(c:any)=>{this.review(c);this.reviewReason('');this.reviewConsent(false);this.reviewDecision('');this.error('');};
+  closeReview=()=>{if(this.busy())return;this.closeDocument();this.review(undefined);this.reviewDecision('');};
+  prepareReview=(approve:boolean)=>{this.error('');if(approve&&(!this.reviewConsent()||!this.reviewDocumentsAvailable())){this.error('Open the documents and confirm you have checked the identity details.');return;}if(!approve&&!this.reviewReason().trim()){this.error('Explain what the customer needs to correct.');return;}this.reviewDecision(approve?'approve':'reject');};
   decide=(approve:boolean)=>this.run(async()=>{
-    if(!this.reviewReason().trim())throw new Error('Add a review note before saving the decision.');
+    if(!this.review()||this.review().status!=='PENDING')throw new Error('This application has already been reviewed. Refresh the list.');
+    if(approve&&(!this.reviewConsent()||!this.reviewDocumentsAvailable()))throw new Error('Confirm you have checked the uploaded documents.');
+    if(!approve&&!this.reviewReason().trim())throw new Error('Add a rejection reason before saving the decision.');
     const b={expectedVersion:this.review().version,reason:this.reviewReason().trim()};
     if(approve)await api.approve(this.review().applicationId,b);else await api.reject(this.review().applicationId,b);
-    this.review(undefined);this.cases(await api.adminKyc(this.adminStatus(),this.adminPage()));
+    this.review(undefined);this.reviewDecision('');this.cases(await api.adminKyc(this.adminStatus(),this.adminPage()));
   },'Verification decision saved.');
   adminNext=()=>{this.adminPage(this.adminPage()+1);void this.load();};
   adminPrevious=()=>{this.adminPage(Math.max(0,this.adminPage()-1));void this.load();};

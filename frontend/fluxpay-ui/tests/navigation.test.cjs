@@ -1,34 +1,22 @@
-const {test} = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const ko = require('knockout');
-const index = fs.readFileSync(path.join(__dirname, '../src/index.html'), 'utf8');
-const css = fs.readFileSync(path.join(__dirname, '../src/css/app.css'), 'utf8');
-
-test('marketing links are hidden on home and workspace, retained on auth pages', () => {
-  const binding = index.match(/<nav class="marketing-nav"[^>]+data-bind="([^"]+)"/)[1];
-  for (const [home,publicPage,expected] of [[true,true,false],[false,false,false],[false,true,true]]) {
-    assert.equal(vm.runInNewContext('({' + binding + '}).visible', {isHome:()=>home,isPublic:()=>publicPage}), expected);
-  }
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
+const read=file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8');
+test('shell has logo/profile header and mobile bottom tabs, never a sidebar or hamburger',()=>{
+  const html=read('index.html');
+  assert.doesNotMatch(html,/class="sidebar"|class="menu-button"/);
+  assert.match(html,/← Back to home/);assert.match(html,/<header class="site-header">/);
+  assert.match(html,/class="profile-menu"/);assert.match(html,/text:session.user\(\).fullName/);assert.match(html,/class="bottom-nav"/);
+  assert.match(read('css/mobile-workspace.css'),/@media\(min-width:768px\)\{\.bottom-nav\{display:none !important;/);
 });
-test('hamburger controls the same menu and exposes its expanded state', () => {
-  assert.ok(index.includes('aria-controls="mobile-navigation"'));
-  assert.ok(index.includes('id="mobile-navigation" class="mobile-nav"'));
-  assert.ok(index.includes("'aria-expanded':menuOpen"));
-  assert.ok(index.includes('data-bind="visible:menuOpen()&&!session.isAdmin()&&!isAdminWorkspace()"'));
+test('dashboard content exposes every customer destination without a menu',()=>{
+  const html=read('ts/views/dashboard.html');
+  for(const destination of ['wallets','payments-new','payments-list','recipients','account','kyc','tickets'])assert.ok(html.includes('data-route="'+destination+'"'),destination);
+  assert.match(html,/click:paySomeoneNew/);assert.match(html,/click:\$parent.payPerson/);
 });
-test('mobile CSS reveals the menu when Knockout removes its inline display override', () => {
-  const element={style:{display:''}};
-  const open=ko.observable(false);
-  ko.bindingHandlers.visible.update(element,open);
-  assert.equal(element.style.display,'none');
-  open(true);
-  ko.bindingHandlers.visible.update(element,open);
-  assert.equal(element.style.display,'');
-  assert.match(css, /@media \(max-width: 900px\)\s*\{\s*\.mobile-nav\s*\{\s*display:\s*block;/);
-  open(false);
-  ko.bindingHandlers.visible.update(element,open);
-  assert.equal(element.style.display,'none');
+test('Send offers an inline recipient form beside the existing dropdown',()=>{
+  const html=read('ts/views/payments-new.html');
+  assert.match(html,/click:addRecipient/);assert.match(html,/options:activeRecipients/);assert.match(html,/submit:saveRecipient/);assert.match(html,/Save &amp; use this recipient/);
+  assert.doesNotMatch(html,/data-route="recipients"/);
+  for(const field of ['amount','recipientName','bankName','account','country'])assert.ok(html.includes('textInput:'+field),'input event binding for '+field);
 });

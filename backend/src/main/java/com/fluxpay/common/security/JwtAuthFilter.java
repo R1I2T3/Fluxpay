@@ -23,6 +23,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
   }
 
   @Override
+  protected boolean shouldNotFilterAsyncDispatch() {
+    // Stateless SSE completion is a new dispatch/thread: authenticate it again,
+    // rather than permitting unauthenticated asynchronous requests.
+    return false;
+  }
+
+  @Override
   protected void doFilterInternal(
       HttpServletRequest req, HttpServletResponse res, FilterChain chain)
       throws ServletException, IOException {

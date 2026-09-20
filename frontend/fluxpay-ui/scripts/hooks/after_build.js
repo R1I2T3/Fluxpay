@@ -10,6 +10,8 @@
 module.exports = function (configObj) {
   return new Promise((resolve, reject) => {
     console.log('Running after_build hook.');
+    require('./theme-copy-guard.cjs').uninstall();
+    require('./copy-kyc-pdf.cjs')(configObj);
     resolve(configObj);
   });
 };

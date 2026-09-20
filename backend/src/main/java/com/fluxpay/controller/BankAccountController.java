@@ -18,6 +18,13 @@ public class BankAccountController {
     this.banks = banks;
   }
 
+  @GetMapping
+  public ApiResponse<java.util.List<BankAccountResponse>> list(
+      @AuthenticationPrincipal CurrentUser user) {
+    requireUser(user);
+    return new ApiResponse<>(correlationId(), banks.list(user.userId()));
+  }
+
   @PostMapping("/link")
   public ApiResponse<BankAccountResponse> link(
       @AuthenticationPrincipal CurrentUser user,

@@ -1,6 +1,10 @@
 server:
   port: ${SERVER_PORT:8080}
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 21MB
   datasource:
     url: ${ORACLE_JDBC_URL}
     username: ${ORACLE_USERNAME}
@@ -24,6 +28,8 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 fluxpay:
+  kyc:
+    storage-directory: ${FLUXPAY_KYC_STORAGE_DIRECTORY:temp_images}
   wallet:
     conversion:
       fee-rates:

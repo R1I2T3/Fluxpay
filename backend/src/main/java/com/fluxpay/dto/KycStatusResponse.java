@@ -11,4 +11,15 @@ public record KycStatusResponse(
     KycStatus status,
     String rejectReason,
     Instant submittedAt,
-    Instant decidedAt) {}
+    Instant decidedAt,
+    java.util.List<KycFileMeta> documents) {
+  public KycStatusResponse(
+      UUID applicationId,
+      Long version,
+      KycStatus status,
+      String rejectReason,
+      Instant submittedAt,
+      Instant decidedAt) {
+    this(applicationId, version, status, rejectReason, submittedAt, decidedAt, java.util.List.of());
+  }
+}

@@ -8,4 +8,4 @@ export const session = {
   clear(){sessionStorage.removeItem('fluxpay.token');user(null);window.dispatchEvent(new Event('fluxpay:session'));},
   async restore(){if(!sessionStorage.getItem('fluxpay.token'))return;try{user(await fluxApi.me());}catch{user(null);} },
 };
-window.addEventListener('fluxpay:expired',()=>user(null));
+window.addEventListener('fluxpay:expired',()=>{session.clear();navigate('home');});

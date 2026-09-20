@@ -32,6 +32,14 @@ test('all 15 new endpoints use correct URLs, verbs, bodies and auth; DELETE acce
   await api.complianceCases('ALL');assert.equal(calls.at(-1)[0],'/api/compliance/cases');
   await api.askCopilot('Question');assert.deepEqual(JSON.parse(calls.at(-1)[1].body),{question:'Question'});
 });
+
+test('live Copilot accumulates text and offers the separate cited response without duplicate automatic requests',async()=>{
+ const {page,calls}=workspace({streamCopilot:async(q,id,delta)=>{delta('Live ');delta('answer');}},true,{AbortController});page.liveResponse(true);page.question('When is review needed?');await page.ask();assert.equal(page.answer().answer,'Live answer');assert.equal(page.streamedAnswer(),true);assert.equal(calls.filter(c=>c[0]==='askCopilot').length,0);page.liveResponse(false);await page.ask();assert.equal(page.streamedAnswer(),false);assert.equal(page.answer().answer,'A sourced answer');
+});
+
+test('saving manual chunk and guidance edits closes their editor after a successful write',async()=>{
+ const {page}=workspace({policyGuidance:async()=>[],updatePolicyGuidance:async()=>({}),updatePolicyChunk:async()=>({})});page.policy({...policy});page.chunkEdit({id:'chunk',manual:true,content:'Old'});page.chunkEditContent('Updated');await page.saveChunkEdit();assert.equal(page.chunkEdit(),undefined);page.guidanceEdit({id:'guidance',content:'Old'});page.guidanceEditContent('Updated');await page.saveGuidanceEdit();assert.equal(page.guidanceEdit(),undefined);
+});
 test('policy import parser accepts a single object or array and rejects invalid input without state',()=>{
   const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session:{}}:{fluxApi:{}}};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'),context);

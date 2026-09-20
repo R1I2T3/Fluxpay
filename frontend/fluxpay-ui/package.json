@@ -2,10 +2,16 @@
   "name": "fluxpay-ui",
   "version": "1.0.0",
   "description": "An Oracle JavaScript Extension Toolkit(JET) web app",
+  "scripts": {
+    "build": "ojet build",
+    "test": "node --test tests/*.test.cjs",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@oracle/oraclejet": "~16.1.0",
     "@oracle/oraclejet-core-pack": "~16.1.0",
-    "axios": "^1.20.0"
+    "axios": "^1.20.0",
+    "pdfjs-dist": "6.3.289"
   },
   "devDependencies": {
     "@oracle/ojet-cli": "~16.1.0",
