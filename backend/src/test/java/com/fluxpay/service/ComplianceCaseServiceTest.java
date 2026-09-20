@@ -62,9 +62,13 @@ class ComplianceCaseServiceTest {
     assertThatThrownBy(
             () ->
                 service()
-                    .approve(caseId, new ComplianceDecisionRequest(null, "release"), "admin@example.com"))
+                    .approve(
+                        caseId,
+                        new ComplianceDecisionRequest(null, "release"),
+                        "admin@example.com"))
         .isInstanceOfSatisfying(
-            BusinessException.class, e -> assertThat(e.code()).isEqualTo("STALE_COMPLIANCE_REVIEW"));
+            BusinessException.class,
+            e -> assertThat(e.code()).isEqualTo("STALE_COMPLIANCE_REVIEW"));
 
     verify(reviewCase, never()).setStatus(any());
     verify(payment, never()).selectAndProcess(any(), any());
@@ -156,8 +160,11 @@ class ComplianceCaseServiceTest {
     when(cases.lockById(caseId)).thenReturn(Optional.of(reviewCase));
     when(payments.lockById(paymentId)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quoteId, paymentId)).thenReturn(Optional.of(expiredQuote));
+    // Capture the wallet id before stubbing: calling a mock inside thenReturn(...) leaves the
+    // surrounding stubbing unfinished and Mockito rejects it with UnfinishedStubbingException.
+    UUID postedWalletId = payment.sourceWalletId();
     when(posting.postApprovedPayment(any(), any(), any(), any(), any(), any(), any()))
-        .thenReturn(new PostingAccounts(payment.sourceWalletId(), UUID.randomUUID(), UUID.randomUUID()));
+        .thenReturn(new PostingAccounts(postedWalletId, UUID.randomUUID(), UUID.randomUUID()));
     when(cases.save(reviewCase)).thenReturn(reviewCase);
 
     service().approve(caseId, new ComplianceDecisionRequest(null, "release"), "admin@example.com");
@@ -209,7 +216,10 @@ class ComplianceCaseServiceTest {
     assertThatThrownBy(
             () ->
                 service()
-                    .approve(caseId, new ComplianceDecisionRequest(null, "release"), "admin@example.com"))
+                    .approve(
+                        caseId,
+                        new ComplianceDecisionRequest(null, "release"),
+                        "admin@example.com"))
         .isInstanceOfSatisfying(
             BusinessException.class, e -> assertThat(e.code()).isEqualTo("REVIEW_WINDOW_EXPIRED"));
 
@@ -251,7 +261,8 @@ class ComplianceCaseServiceTest {
     when(payments.lockById(paymentId)).thenReturn(Optional.of(payment));
     when(cases.save(reviewCase)).thenReturn(reviewCase);
 
-    service().reject(caseId, new ComplianceDecisionRequest(null, "risk confirmed"), "admin@example.com");
+    service()
+        .reject(caseId, new ComplianceDecisionRequest(null, "risk confirmed"), "admin@example.com");
 
     verify(payment).reject(NOW);
     verify(reviewCase).setStatus(ComplianceCaseStatus.REJECTED);
