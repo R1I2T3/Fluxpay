@@ -61,7 +61,8 @@ public class SelectedQuoteService {
           "selected quote payment, generation or route does not match");
     }
     java.time.Instant approvalExpiresAt = payment.approvalExpiresAt();
-    java.time.Instant validUntil = approvalExpiresAt == null ? selected.expiresAt() : approvalExpiresAt;
+    java.time.Instant validUntil =
+        approvalExpiresAt == null ? selected.expiresAt() : approvalExpiresAt;
     // Quote freshness is an approval gate. Once ledger posting has funded the payment, delivery
     // must use the accepted economics even if asynchronous payout submission happens later.
     if (payment.postedAt() == null && !clock.instant().isBefore(validUntil)) {

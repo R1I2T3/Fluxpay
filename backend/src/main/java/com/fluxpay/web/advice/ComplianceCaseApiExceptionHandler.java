@@ -9,7 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** Preserves domain errors from a compliance decision without falling through to Spring's /error path. */
+/**
+ * Preserves domain errors from a compliance decision without falling through to Spring's /error
+ * path.
+ */
 @RestControllerAdvice(assignableTypes = ComplianceCaseController.class)
 public class ComplianceCaseApiExceptionHandler {
 

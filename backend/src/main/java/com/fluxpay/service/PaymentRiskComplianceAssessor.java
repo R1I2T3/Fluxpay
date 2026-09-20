@@ -40,7 +40,9 @@ public class PaymentRiskComplianceAssessor implements ComplianceAssessor {
     }
 
     List<String> reasons = new ArrayList<>(amountAssessment.reasons());
-    if (context.recipientId() == null || context.paymentId() == null || context.assessedAt() == null) {
+    if (context.recipientId() == null
+        || context.paymentId() == null
+        || context.assessedAt() == null) {
       return new ComplianceAssessment(
           ScreeningVerdict.REVIEW,
           ComplianceRisk.HIGH,

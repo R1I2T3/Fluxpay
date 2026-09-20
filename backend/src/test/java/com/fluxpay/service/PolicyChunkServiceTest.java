@@ -21,7 +21,8 @@ class PolicyChunkServiceTest {
 
   private final PolicyChunkRepository chunkRepository = mock(PolicyChunkRepository.class);
   private final PolicyDocumentRepository documentRepository = mock(PolicyDocumentRepository.class);
-  private final PolicyChunkService service = new PolicyChunkService(chunkRepository, documentRepository);
+  private final PolicyChunkService service =
+      new PolicyChunkService(chunkRepository, documentRepository);
 
   @Test
   void updateAllowsAHandWrittenChunkAndMarksItManualInTheResponse() {
@@ -63,7 +64,8 @@ class PolicyChunkServiceTest {
     verify(chunkRepository).delete(chunk);
   }
 
-  private static PolicyChunk chunk(UUID id, UUID policyId, PolicyChunkSource source, String content) {
+  private static PolicyChunk chunk(
+      UUID id, UUID policyId, PolicyChunkSource source, String content) {
     PolicyDocument document = new PolicyDocument();
     ReflectionTestUtils.setField(document, "id", policyId);
     PolicyChunk chunk = new PolicyChunk();

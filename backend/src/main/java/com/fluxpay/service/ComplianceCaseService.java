@@ -68,11 +68,17 @@ public class ComplianceCaseService {
 
   @Transactional
   public ComplianceCaseResponse openReview(
-      UUID paymentId, String reviewReference, com.fluxpay.common.enums.ComplianceRisk risk,
-      List<String> reasons, String suggestedAction) {
-    repository.findByReviewReference(reviewReference).ifPresent(existing -> {
-      throw new IllegalStateException("A compliance case already exists for this review");
-    });
+      UUID paymentId,
+      String reviewReference,
+      com.fluxpay.common.enums.ComplianceRisk risk,
+      List<String> reasons,
+      String suggestedAction) {
+    repository
+        .findByReviewReference(reviewReference)
+        .ifPresent(
+            existing -> {
+              throw new IllegalStateException("A compliance case already exists for this review");
+            });
     ComplianceCase entity = new ComplianceCase();
     entity.setPaymentId(paymentId);
     entity.setReviewReference(reviewReference);
@@ -98,12 +104,14 @@ public class ComplianceCaseService {
   }
 
   @Transactional
-  public ComplianceCaseResponse approve(UUID id, ComplianceDecisionRequest request, String reviewer) {
+  public ComplianceCaseResponse approve(
+      UUID id, ComplianceDecisionRequest request, String reviewer) {
     return decide(id, ComplianceCaseStatus.APPROVED, request, reviewer);
   }
 
   @Transactional
-  public ComplianceCaseResponse reject(UUID id, ComplianceDecisionRequest request, String reviewer) {
+  public ComplianceCaseResponse reject(
+      UUID id, ComplianceDecisionRequest request, String reviewer) {
     return decide(id, ComplianceCaseStatus.REJECTED, request, reviewer);
   }
 
@@ -150,7 +158,8 @@ public class ComplianceCaseService {
   }
 
   private Payment activeReviewPayment(ComplianceCase complianceCase) {
-    if (complianceCase.getReviewReference() == null || complianceCase.getReviewReference().isBlank()) {
+    if (complianceCase.getReviewReference() == null
+        || complianceCase.getReviewReference().isBlank()) {
       return null;
     }
     requirePaymentWorkflow();

@@ -5,17 +5,17 @@ import com.fluxpay.dto.CopilotAnswerResponse;
 import com.fluxpay.dto.CopilotRequest;
 import com.fluxpay.service.CopilotService;
 import jakarta.validation.Valid;
+import java.io.UncheckedIOException;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import org.slf4j.MDC;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.MediaType;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import java.io.UncheckedIOException;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /** HTTP entry point for cited Compliance Copilot answers. */
 @RestController

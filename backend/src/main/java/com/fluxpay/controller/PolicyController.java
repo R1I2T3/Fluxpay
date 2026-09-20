@@ -40,7 +40,8 @@ public class PolicyController {
   public PolicyController(
       PolicyDocumentService documentService,
       PolicyChunkService chunkService,
-      PolicyDeletionService deletionService, com.fluxpay.service.PolicyGuidanceService guidanceService) {
+      PolicyDeletionService deletionService,
+      com.fluxpay.service.PolicyGuidanceService guidanceService) {
     this.documentService = documentService;
     this.chunkService = chunkService;
     this.deletionService = deletionService;
@@ -80,10 +81,30 @@ public class PolicyController {
     return wrap(chunkService.list(id));
   }
 
-  @GetMapping("/{id}/guidance") public ApiResponse<List<PolicyGuidanceResponse>> listGuidance(@PathVariable UUID id){return wrap(guidanceService.list(id));}
-  @PostMapping("/{id}/guidance") public ResponseEntity<ApiResponse<PolicyGuidanceResponse>> addGuidance(@PathVariable UUID id,@Valid @RequestBody PolicyGuidanceRequest request){return ResponseEntity.status(HttpStatus.CREATED).body(wrap(guidanceService.add(id,request)));}
-  @PutMapping("/{id}/guidance/{guidanceId}") public ApiResponse<PolicyGuidanceResponse> updateGuidance(@PathVariable UUID id,@PathVariable UUID guidanceId,@Valid @RequestBody PolicyGuidanceUpdateRequest request){return wrap(guidanceService.update(id,guidanceId,request));}
-  @DeleteMapping("/{id}/guidance/{guidanceId}") public ResponseEntity<Void> deleteGuidance(@PathVariable UUID id,@PathVariable UUID guidanceId){guidanceService.delete(id,guidanceId);return ResponseEntity.noContent().build();}
+  @GetMapping("/{id}/guidance")
+  public ApiResponse<List<PolicyGuidanceResponse>> listGuidance(@PathVariable UUID id) {
+    return wrap(guidanceService.list(id));
+  }
+
+  @PostMapping("/{id}/guidance")
+  public ResponseEntity<ApiResponse<PolicyGuidanceResponse>> addGuidance(
+      @PathVariable UUID id, @Valid @RequestBody PolicyGuidanceRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(wrap(guidanceService.add(id, request)));
+  }
+
+  @PutMapping("/{id}/guidance/{guidanceId}")
+  public ApiResponse<PolicyGuidanceResponse> updateGuidance(
+      @PathVariable UUID id,
+      @PathVariable UUID guidanceId,
+      @Valid @RequestBody PolicyGuidanceUpdateRequest request) {
+    return wrap(guidanceService.update(id, guidanceId, request));
+  }
+
+  @DeleteMapping("/{id}/guidance/{guidanceId}")
+  public ResponseEntity<Void> deleteGuidance(@PathVariable UUID id, @PathVariable UUID guidanceId) {
+    guidanceService.delete(id, guidanceId);
+    return ResponseEntity.noContent().build();
+  }
 
   @PutMapping("/{id}/chunks/{chunkId}")
   public ApiResponse<PolicyChunkResponse> updateChunk(

@@ -103,8 +103,7 @@ public class OllamaChatAdapter implements ChatPort {
       body.put("stream", false);
       body.put("think", reasoningEnabled);
       body.put("keep_alive", keepAlive);
-      body
-          .putObject("options")
+      body.putObject("options")
           .put("temperature", temperature)
           .put("num_predict", outputTokenBudget())
           .put("num_ctx", contextTokens);
@@ -140,8 +139,7 @@ public class OllamaChatAdapter implements ChatPort {
       body.put("stream", true);
       body.put("think", reasoningEnabled);
       body.put("keep_alive", keepAlive);
-      body
-          .putObject("options")
+      body.putObject("options")
           .put("temperature", temperature)
           .put("num_predict", outputTokenBudget())
           .put("num_ctx", contextTokens);
@@ -160,7 +158,8 @@ public class OllamaChatAdapter implements ChatPort {
         throw new ChatException("Ollama chat provider returned HTTP " + response.statusCode());
       }
       try (BufferedReader reader =
-          new BufferedReader(new InputStreamReader(response.body(), java.nio.charset.StandardCharsets.UTF_8))) {
+          new BufferedReader(
+              new InputStreamReader(response.body(), java.nio.charset.StandardCharsets.UTF_8))) {
         String line;
         while ((line = reader.readLine()) != null) {
           if (line.isBlank()) {

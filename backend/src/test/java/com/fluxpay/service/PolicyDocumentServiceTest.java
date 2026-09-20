@@ -39,7 +39,8 @@ class PolicyDocumentServiceTest {
     when(repository.findByDocumentHash(any(String.class))).thenReturn(Optional.empty());
     when(repository.save(document)).thenReturn(document);
 
-    service.update(id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Changed text", null));
+    service.update(
+        id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Changed text", null));
 
     InOrder order = inOrder(indexStore, repository);
     order.verify(indexStore).delete(id);
@@ -73,7 +74,9 @@ class PolicyDocumentServiceTest {
     when(repository.findById(id)).thenReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.update(id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Text")))
+            () ->
+                service.update(
+                    id, new PolicyDocumentRequest("Changed", PolicyCategory.AML, "Text")))
         .isInstanceOf(NoSuchElementException.class)
         .hasMessage("Policy document not found: " + id);
     verifyNoInteractions(indexStore);

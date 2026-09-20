@@ -1,6 +1,7 @@
 package com.fluxpay.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.common.contracts.ComplianceAssessor;
@@ -11,8 +12,6 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-
-import static org.mockito.Mockito.mock;
 
 class ComplianceConfigurationBindingTest {
   private final ApplicationContextRunner runner =

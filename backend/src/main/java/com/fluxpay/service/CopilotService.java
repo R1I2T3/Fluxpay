@@ -83,5 +83,4 @@ public class CopilotService {
             .toList();
     chatPort.stream(request.question(), sources, onDelta);
   }
-
 }

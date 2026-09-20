@@ -2,9 +2,9 @@ package com.fluxpay.beans;
 
 import com.fluxpay.common.enums.PolicyChunkSource;
 import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -19,16 +19,15 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * A semantic chunk of a {@link PolicyDocument}. The `embedding` VECTOR column is intentionally
- * NOT mapped here yet -- it's populated by a later indexing pass, and Hibernate 6.4 (Spring Boot
- * 3.2.5) doesn't need to know about it for basic CRUD since ddl-auto is `validate`, which only
- * checks columns that are actually mapped.
+ * A semantic chunk of a {@link PolicyDocument}. The `embedding` VECTOR column is intentionally NOT
+ * mapped here yet -- it's populated by a later indexing pass, and Hibernate 6.4 (Spring Boot 3.2.5)
+ * doesn't need to know about it for basic CRUD since ddl-auto is `validate`, which only checks
+ * columns that are actually mapped.
  */
 @Entity
 @Table(
     name = "policy_chunks",
-    uniqueConstraints =
-        @UniqueConstraint(columnNames = {"policy_document_id", "chunk_number"}))
+    uniqueConstraints = @UniqueConstraint(columnNames = {"policy_document_id", "chunk_number"}))
 public class PolicyChunk {
 
   @Id

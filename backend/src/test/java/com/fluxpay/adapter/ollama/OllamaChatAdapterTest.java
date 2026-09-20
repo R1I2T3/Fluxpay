@@ -10,9 +10,9 @@ import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -132,7 +132,8 @@ class OllamaChatAdapterTest {
             HttpClient.newHttpClient(),
             objectMapper,
             "http://127.0.0.1:" + server.getAddress().getPort(),
-            "qwen3:4b", 0.2d);
+            "qwen3:4b",
+            0.2d);
     List<String> deltas = new ArrayList<>();
 
     adapter.stream("Can we release it?", List.of(), deltas::add);

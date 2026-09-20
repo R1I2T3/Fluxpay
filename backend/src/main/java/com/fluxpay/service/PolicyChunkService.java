@@ -31,9 +31,7 @@ public class PolicyChunkService {
         documentRepository
             .findById(policyDocumentId)
             .orElseThrow(
-                () ->
-                    new NoSuchElementException(
-                        "Policy document not found: " + policyDocumentId));
+                () -> new NoSuchElementException("Policy document not found: " + policyDocumentId));
     long nextNumber = chunkRepository.countByPolicyDocumentId(policyDocumentId) + 1;
     PolicyChunk chunk = new PolicyChunk();
     chunk.setPolicyDocument(document);

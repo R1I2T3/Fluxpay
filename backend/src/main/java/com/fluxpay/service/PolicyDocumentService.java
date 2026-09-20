@@ -1,8 +1,8 @@
 package com.fluxpay.service;
 
 import com.fluxpay.beans.PolicyDocument;
-import com.fluxpay.common.enums.PolicyChunkSource;
 import com.fluxpay.common.contracts.PolicyIndexStore;
+import com.fluxpay.common.enums.PolicyChunkSource;
 import com.fluxpay.dto.PolicyChunkResponse;
 import com.fluxpay.dto.PolicyDocumentRequest;
 import com.fluxpay.dto.PolicyDocumentResponse;

@@ -11,8 +11,8 @@ import com.fluxpay.repository.PolicyGuidanceRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
-import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Rebuilds a policy's chunks and publishes a new active Qwen vector generation. */
@@ -59,11 +59,13 @@ public class PolicyIndexingService {
                 () -> new NoSuchElementException("Policy document not found: " + policyDocumentId));
     List<String> contentChunks = new java.util.ArrayList<>(chunker.chunk(document.getContent()));
     if (guidance != null) {
-      guidance.findByPolicyDocumentIdOrderByCreatedAtDesc(policyDocumentId).forEach(item ->
-          contentChunks.add("Policy guidance / precedent:\n" + item.getContent()));
+      guidance
+          .findByPolicyDocumentIdOrderByCreatedAtDesc(policyDocumentId)
+          .forEach(item -> contentChunks.add("Policy guidance / precedent:\n" + item.getContent()));
     }
     if (contentChunks.size() > 16) {
-      throw new IllegalStateException("Policy and its guidance produce more than 16 searchable chunks");
+      throw new IllegalStateException(
+          "Policy and its guidance produce more than 16 searchable chunks");
     }
     List<IndexedPolicyChunk> chunks =
         java.util.stream.IntStream.range(0, contentChunks.size())

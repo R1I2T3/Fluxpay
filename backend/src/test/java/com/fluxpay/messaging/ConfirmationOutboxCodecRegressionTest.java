@@ -92,7 +92,8 @@ class ConfirmationOutboxCodecRegressionTest {
     var kyc = mock(KycGate.class);
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assessDetailed(any(com.fluxpay.common.contracts.ComplianceScreeningContext.class)))
+    when(compliance.assessDetailed(
+            any(com.fluxpay.common.contracts.ComplianceScreeningContext.class)))
         .thenReturn(
             new com.fluxpay.common.contracts.ComplianceAssessment(
                 ScreeningVerdict.APPROVE,

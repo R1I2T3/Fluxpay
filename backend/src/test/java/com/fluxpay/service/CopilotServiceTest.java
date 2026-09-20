@@ -33,12 +33,7 @@ class CopilotServiceTest {
         .thenReturn(
             List.of(
                 new PolicyMatch(
-                    UUID.randomUUID(),
-                    documentId,
-                    "KYC policy",
-                    2,
-                    fullEvidence,
-                    0.08)));
+                    UUID.randomUUID(), documentId, "KYC policy", 2, fullEvidence, 0.08)));
     when(chat.answer(eq("When is KYC required?"), any()))
         .thenReturn("KYC must be verified before release.");
     CopilotService service =
