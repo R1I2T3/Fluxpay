@@ -1,7 +1,195 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FluxPay — All Endpoint Chains</title><style>
-:root{--bg:#08111f;--panel:#101d30;--line:#2c405c;--ink:#e9f2ff;--muted:#9bb0ca;--cyan:#3dd9da;--green:#56d99a;--violet:#a98bff;--orange:#ffc266}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,Segoe UI,Arial,sans-serif}header{padding:30px max(24px,calc((100vw - 1440px)/2));background:linear-gradient(120deg,#102746,#11142d);border-bottom:1px solid var(--line)}h1{margin:0;font-size:28px}header p{margin:7px 0 0;color:var(--muted);max-width:900px}.summary{margin-top:17px;color:var(--cyan);font-weight:700}.layout{display:grid;grid-template-columns:240px minmax(0,1fr);max-width:1600px;margin:auto}.nav{position:sticky;top:0;height:100vh;padding:20px;border-right:1px solid var(--line);background:#0b1728}.nav a{display:block;padding:7px 9px;color:var(--muted);text-decoration:none;border-radius:6px}.nav a:hover{background:#172945;color:var(--ink)}main{padding:24px}.group{margin-bottom:38px}.group h2{margin:0 0 13px;font-size:19px}.count{color:var(--muted);font-size:12px;font-weight:400}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:13px}.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}.route{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}.method{padding:2px 6px;border-radius:4px;background:#1d4650;color:var(--cyan);font-weight:bold}.path{color:#dce9fb}.chain{display:grid;grid-template-columns:1fr 16px 1fr 16px 1fr;gap:5px;align-items:center;margin-top:12px}.step{min-height:56px;padding:8px;border:1px solid #29425f;border-radius:7px;background:#0c182a;font-size:12px}.step b{display:block;color:var(--green);font-size:11px;text-transform:uppercase;letter-spacing:.04em}.step:nth-child(5n+3) b{color:var(--orange)}.arrow{text-align:center;color:var(--cyan);font-size:18px}.response{margin-top:9px;color:var(--violet);font-family:ui-monospace,Consolas,monospace;font-size:12px}@media(max-width:800px){.layout{display:block}.nav{position:static;height:auto;border-right:0}.cards{grid-template-columns:1fr}.chain{grid-template-columns:1fr;gap:3px}.arrow{transform:rotate(90deg)}}
-</style><header><h1>FluxPay — All Endpoint Chains</h1><p>Code-level reference generated from the current API catalog and Spring MVC controllers. Every catalogued endpoint shows its input, concrete controller method, service call, persistence boundary, and response contract.</p><div class="summary" id="summary"></div></header><div class="layout"><nav id="nav"></nav><main id="app"></main></div><script>
-const rows=`Identity|POST|/api/auth/register|RegisterRequest|AuthController.register|AuthService.register|UserRepository|ApiResponse&lt;AuthResponse&gt; · 201
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>FluxPay — All Endpoint Chains</title
+  ><style>
+    :root {
+      --bg: #08111f;
+      --panel: #101d30;
+      --line: #2c405c;
+      --ink: #e9f2ff;
+      --muted: #9bb0ca;
+      --cyan: #3dd9da;
+      --green: #56d99a;
+      --violet: #a98bff;
+      --orange: #ffc266;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font:
+        14px/1.45 Inter,
+        Segoe UI,
+        Arial,
+        sans-serif;
+    }
+    header {
+      padding: 30px max(24px, calc((100vw - 1440px) / 2));
+      background: linear-gradient(120deg, #102746, #11142d);
+      border-bottom: 1px solid var(--line);
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+    header p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      max-width: 900px;
+    }
+    .summary {
+      margin-top: 17px;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      max-width: 1600px;
+      margin: auto;
+    }
+    .nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 20px;
+      border-right: 1px solid var(--line);
+      background: #0b1728;
+    }
+    .nav a {
+      display: block;
+      padding: 7px 9px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 6px;
+    }
+    .nav a:hover {
+      background: #172945;
+      color: var(--ink);
+    }
+    main {
+      padding: 24px;
+    }
+    .group {
+      margin-bottom: 38px;
+    }
+    .group h2 {
+      margin: 0 0 13px;
+      font-size: 19px;
+    }
+    .count {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 13px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .route {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12px;
+    }
+    .method {
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #1d4650;
+      color: var(--cyan);
+      font-weight: bold;
+    }
+    .path {
+      color: #dce9fb;
+    }
+    .chain {
+      display: grid;
+      grid-template-columns: 1fr 16px 1fr 16px 1fr;
+      gap: 5px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .step {
+      min-height: 56px;
+      padding: 8px;
+      border: 1px solid #29425f;
+      border-radius: 7px;
+      background: #0c182a;
+      font-size: 12px;
+    }
+    .step b {
+      display: block;
+      color: var(--green);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .step:nth-child(5n + 3) b {
+      color: var(--orange);
+    }
+    .arrow {
+      text-align: center;
+      color: var(--cyan);
+      font-size: 18px;
+    }
+    .response {
+      margin-top: 9px;
+      color: var(--violet);
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12px;
+    }
+    @media (max-width: 800px) {
+      .layout {
+        display: block;
+      }
+      .nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+      }
+      .cards {
+        grid-template-columns: 1fr;
+      }
+      .chain {
+        grid-template-columns: 1fr;
+        gap: 3px;
+      }
+      .arrow {
+        transform: rotate(90deg);
+      }
+    }
+  </style>
+  <header>
+    <h1>FluxPay — All Endpoint Chains</h1>
+    <p>
+      Code-level reference generated from the current API catalog and Spring MVC controllers. Every
+      catalogued endpoint shows its input, concrete controller method, service call, persistence
+      boundary, and response contract.
+    </p>
+    <div class="summary" id="summary"></div>
+  </header>
+  <div class="layout">
+    <nav id="nav"></nav>
+    <main id="app"></main>
+  </div>
+  <script>
+    const rows =
+      `Identity|POST|/api/auth/register|RegisterRequest|AuthController.register|AuthService.register|UserRepository|ApiResponse&lt;AuthResponse&gt; · 201
 Identity|POST|/api/auth/login|LoginRequest|AuthController.login|AuthService.login|UserRepository|ApiResponse&lt;AuthResponse&gt; · 200
 Identity|GET|/api/users/me|Bearer principal|UserController.getProfile|UserService.getProfile|UserRepository|ApiResponse&lt;UserResponse&gt;
 Identity|PUT|/api/users/me|UpdateProfileRequest|UserController.updateProfile|UserService.updateProfile|UserRepository|ApiResponse&lt;UserResponse&gt;
@@ -19,18 +207,30 @@ Recipients|POST|/api/recipients|RecipientRequest|RecipientController.create|Reci
 Recipients|GET|/api/recipients|Bearer principal|RecipientController.list|RecipientService.list|RecipientRepository|ApiResponse&lt;List&lt;RecipientResponse&gt;&gt;
 Recipients|PUT|/api/recipients/{id}|RecipientRequest|RecipientController.update|RecipientService.update|RecipientRepository|ApiResponse&lt;RecipientResponse&gt;
 Payments|POST|/api/payments/draft|DraftPaymentRequest + key|PaymentController.draft|PaymentService.draft|PaymentRepository|ApiResponse&lt;PaymentResponse&gt; · 201
-Payments|POST|/api/payments/{id}/quotes|id + key|PaymentController.quote|QuoteService.createOrCurrent|PaymentQuoteRepository + PayoutRouteRepository|ApiResponse&lt;QuoteResponse&gt; · 201
+Payments|POST|/api/payments/{id}/quotes|id + key|PaymentController.quote|QuoteService.createOrCurrent (SmartRoutingService top three)|PaymentQuoteRepository + TransferRouteRepository + TransferRouteOutcomeRepository|ApiResponse&lt;QuoteResponse&gt; · 201
 Payments|GET|/api/payments/{id}/quotes|id|PaymentController.getQuotes|QuoteService.get|PaymentQuoteRepository|ApiResponse&lt;QuoteResponse&gt;
 Payments|POST|/api/payments/{id}/confirm|ConfirmPaymentRequest + key|PaymentController.confirm|PaymentConfirmationService.confirm|PaymentRepository + PaymentQuoteRepository|ApiResponse&lt;PaymentResponse&gt; · 200 / 202
 Payments|POST|/api/payments/{id}/cancel|id + key|PaymentController.cancel|PaymentService.cancel|PaymentRepository|ApiResponse&lt;PaymentResponse&gt;
 Payments|GET|/api/payments|page, size|PaymentController.list|PaymentService.list|PaymentRepository|ApiResponse&lt;PaymentPageResponse&gt;
 Payments|GET|/api/payments/{id}|id|PaymentController.detail|PaymentService.detail|PaymentRepository|ApiResponse&lt;PaymentResponse&gt;
-Routes|GET|/api/routes|request context|RouteController.list|RouteCatalogService.listRoutes|PayoutRouteRepository|ApiResponse&lt;RouteListResponse&gt;
-Routes|POST|/api/payments/{paymentId}/recommend-route|RecommendRequest|RouteController.recommend|RouteCatalogService.recommend|PaymentReader + PayoutRouteRepository|ApiResponse&lt;RecommendResponse&gt;
-Routes|PUT|/api/admin/routes/{routeId}|RouteApi.Update|RouteAdminController.update|RouteCatalogService.updateRoute|PayoutRouteRepository|ApiResponse&lt;RouteEntry&gt;
-Payouts & Timeline|POST|/api/payments/{paymentId}/submit-payout|PayoutApi.SubmitRequest + key|PayoutController.submit|PayoutExecutionService.perform|PayoutAttemptRepository + provider adapter|ApiResponse&lt;OutcomeResponse&gt;
-Payouts & Timeline|POST|/api/payments/{paymentId}/retry-payout|PayoutApi.RetryRequest + key|PayoutController.retry|PayoutExecutionService.perform|PayoutAttemptRepository + provider adapter|ApiResponse&lt;OutcomeResponse&gt;
-Payouts & Timeline|POST|/api/payments/{paymentId}/switch-route|PayoutApi.SwitchRequest + key|PayoutController.switchRoute|PayoutExecutionService.perform|PayoutAttemptRepository + provider adapter|ApiResponse&lt;OutcomeResponse&gt;
+Transfer Routing|GET|/api/admin/rail-types|none|TransferRailAdminController.list|RailRegistry.all|RailRegistry (installed TransferRail beans)|ApiResponse&lt;RailListResponse&gt;
+ Transfer Routing|GET|/api/admin/rail-types/{railType}|railType|TransferRailAdminController.get|RailRegistry.require|RailRegistry|ApiResponse&lt;RailEntry&gt;
+ Transfer Routing|GET|/api/admin/providers|none|TransferProviderAdminController.list|TransferProviderService.list|TransferProviderRepository|ApiResponse&lt;ProviderListResponse&gt;
+ Transfer Routing|POST|/api/admin/providers|CreateProviderRequest|TransferProviderAdminController.create|TransferProviderService.create|TransferProviderRepository|ApiResponse&lt;ProviderEntry&gt; · 201
+ Transfer Routing|GET|/api/admin/providers/{id}|id|TransferProviderAdminController.get|TransferProviderService.get|TransferProviderRepository|ApiResponse&lt;ProviderEntry&gt;
+ Transfer Routing|PUT|/api/admin/providers/{id}|UpdateProviderRequest|TransferProviderAdminController.update|TransferProviderService.update|TransferProviderRepository|ApiResponse&lt;ProviderEntry&gt;
+ Transfer Routing|DELETE|/api/admin/providers/{id}|id + version|TransferProviderAdminController.delete|TransferProviderService.delete|TransferProviderRepository|ApiResponse&lt;DeletionResult&gt;
+ Transfer Routing|GET|/api/admin/routes|none|TransferRouteAdminController.list|TransferRouteService.list + RouteReliabilityService.effectiveFor|TransferRouteRepository + TransferRouteOutcomeRepository|ApiResponse&lt;RouteListResponse&gt;
+ Transfer Routing|POST|/api/admin/routes|CreateRouteRequest|TransferRouteAdminController.create|TransferRouteService.create|TransferRouteRepository|ApiResponse&lt;RouteEntry&gt; · 201
+ Transfer Routing|GET|/api/admin/routes/{id}|id|TransferRouteAdminController.get|TransferRouteService.get + RouteReliabilityService.effectiveFor|TransferRouteRepository + TransferRouteOutcomeRepository|ApiResponse&lt;RouteEntry&gt;
+ Transfer Routing|PUT|/api/admin/routes/{id}|UpdateRouteRequest|TransferRouteAdminController.update|TransferRouteService.update|TransferRouteRepository|ApiResponse&lt;RouteEntry&gt;
+ Transfer Routing|DELETE|/api/admin/routes/{id}|id + version|TransferRouteAdminController.delete|TransferRouteService.delete|TransferRouteRepository|ApiResponse&lt;DeletionResult&gt;
+ Transfer Routing|GET|/api/routes|request context|RouteController.list|RouteCatalogService.listRoutes|TransferRouteRepository + TransferRouteOutcomeRepository|ApiResponse&lt;RouteListResponse&gt;
+ Transfer Routing|POST|/api/payments/{paymentId}/recommend-route|RecommendRequest|RouteController.recommend|RouteCatalogService.recommend + SmartRoutingService.recommend|PaymentReader + TransferRouteRepository|ApiResponse&lt;RecommendResponse&gt;
+ Wallets|POST|/api/wallets/transfer|WalletTransferRequest + key|WalletController.transfer|WalletTransferRoutingService.transfer (BALANCED, single call) + InternalLedgerTransferRail|WalletOperationRepository + ledger|ApiResponse&lt;WalletTransferResponse&gt; · 200
+Payouts & Timeline|POST|/api/payments/{paymentId}/submit-payout|PayoutApi.SubmitRequest + key|PayoutController.submit|PayoutExecutionService.perform|PayoutAttemptRepository + RailRegistry (route to provider to rail)|ApiResponse&lt;OutcomeResponse&gt;
+Payouts & Timeline|POST|/api/payments/{paymentId}/retry-payout|PayoutApi.RetryRequest + key|PayoutController.retry|PayoutExecutionService.perform|PayoutAttemptRepository + RailRegistry (route to provider to rail)|ApiResponse&lt;OutcomeResponse&gt;
+Payouts & Timeline|POST|/api/payments/{paymentId}/switch-route|PayoutApi.SwitchRequest + key|PayoutController.switchRoute|PayoutExecutionService.perform|PayoutAttemptRepository + RailRegistry (route to provider to rail)|ApiResponse&lt;OutcomeResponse&gt;
 Payouts & Timeline|POST|/api/payments/{paymentId}/refund|id + key|PayoutController.refund|RecoveryService.refundFunded|PaymentRepository + ledger + outbox|ApiResponse&lt;RecoveryResult&gt;
 Payouts & Timeline|GET|/api/payments/{paymentId}/timeline|paymentId|TimelineController.timeline|TimelineService.getTimeline|PaymentEventStore|ApiResponse&lt;List&lt;TimelineEventResponse&gt;&gt;
 Policies|POST|/api/policies|PolicyDocumentRequest|PolicyController.create|PolicyDocumentService.create|PolicyDocumentRepository|ApiResponse&lt;PolicyDocumentResponse&gt; · 201
@@ -46,8 +246,33 @@ Compliance Cases|GET|/api/compliance/cases/{id}|id|ComplianceCaseController.getB
 Compliance Cases|PUT|/api/compliance/cases/{id}/approve|ComplianceDecisionRequest|ComplianceCaseController.approve|ComplianceCaseService.approve|ComplianceCaseRepository + PaymentRepository|ApiResponse&lt;ComplianceCaseResponse&gt;
 Compliance Cases|PUT|/api/compliance/cases/{id}/reject|ComplianceDecisionRequest|ComplianceCaseController.reject|ComplianceCaseService.reject|ComplianceCaseRepository + PaymentRepository|ApiResponse&lt;ComplianceCaseResponse&gt;
 Compliance Cases|DELETE|/api/compliance/cases/{id}|id|ComplianceCaseController.delete|ComplianceCaseService.deleteManualCase|ComplianceCaseRepository|204 No Content
-Compliance Copilot|POST|/api/copilot/ask|CopilotRequest|CopilotController.ask|CopilotService.ask|OraclePolicySearchRepository + Ollama adapters|ApiResponse&lt;CopilotAnswerResponse&gt;`.trim().split('\n').map(x=>x.split('|'));
-const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));const groups=[...new Set(rows.map(r=>r[0]))];document.querySelector('#summary').textContent=`${rows.length} endpoints · ${groups.length} controller domains · request DTO → controller → service → persistence → response`;
-document.querySelector('#nav').innerHTML='<b>Endpoint domains</b>'+groups.map(g=>`<a href="#${g.replaceAll(' ','-')}">${esc(g)} <span class="count">(${rows.filter(r=>r[0]===g).length})</span></a>`).join('');
-document.querySelector('#app').innerHTML=groups.map(g=>`<section class="group" id="${g.replaceAll(' ','-')}"><h2>${esc(g)} <span class="count">${rows.filter(r=>r[0]===g).length} endpoints</span></h2><div class="cards">${rows.filter(r=>r[0]===g).map(r=>`<article class="card"><div class="route"><span class="method">${r[1]}</span><span class="path">${esc(r[2])}</span></div><div class="chain"><div class="step"><b>Input</b>${esc(r[3])}</div><div class="arrow">→</div><div class="step"><b>Controller</b>${esc(r[4])}</div><div class="arrow">→</div><div class="step"><b>Service</b>${esc(r[5])}</div></div><div class="chain"><div class="step"><b>Repository / adapter</b>${esc(r[6])}</div><div class="arrow">→</div><div class="step"><b>Durable boundary</b>Oracle database or named external adapter</div><div class="arrow">→</div><div class="step"><b>Output</b>${r[7]}</div></div><div class="response">${r[1]} ${esc(r[2])} → ${r[7]}</div></article>`).join('')}</div></section>`).join('');
-</script></html>
+Compliance Copilot|POST|/api/copilot/ask|CopilotRequest|CopilotController.ask|CopilotService.ask|OraclePolicySearchRepository + Ollama adapters|ApiResponse&lt;CopilotAnswerResponse&gt;`
+        .trim()
+        .split('\n')
+        .map((x) => x.split('|'));
+    const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+    const groups = [...new Set(rows.map((r) => r[0]))];
+    document.querySelector('#summary').textContent =
+      `${rows.length} endpoints · ${groups.length} controller domains · request DTO → controller → service → persistence → response`;
+    document.querySelector('#nav').innerHTML =
+      '<b>Endpoint domains</b>' +
+      groups
+        .map(
+          (g) =>
+            `<a href="#${g.replaceAll(' ', '-')}">${esc(g)} <span class="count">(${rows.filter((r) => r[0] === g).length})</span></a>`,
+        )
+        .join('');
+    document.querySelector('#app').innerHTML = groups
+      .map(
+        (g) =>
+          `<section class="group" id="${g.replaceAll(' ', '-')}"><h2>${esc(g)} <span class="count">${rows.filter((r) => r[0] === g).length} endpoints</span></h2><div class="cards">${rows
+            .filter((r) => r[0] === g)
+            .map(
+              (r) =>
+                `<article class="card"><div class="route"><span class="method">${r[1]}</span><span class="path">${esc(r[2])}</span></div><div class="chain"><div class="step"><b>Input</b>${esc(r[3])}</div><div class="arrow">→</div><div class="step"><b>Controller</b>${esc(r[4])}</div><div class="arrow">→</div><div class="step"><b>Service</b>${esc(r[5])}</div></div><div class="chain"><div class="step"><b>Repository / adapter</b>${esc(r[6])}</div><div class="arrow">→</div><div class="step"><b>Durable boundary</b>Oracle database or named external adapter</div><div class="arrow">→</div><div class="step"><b>Output</b>${r[7]}</div></div><div class="response">${r[1]} ${esc(r[2])} → ${r[7]}</div></article>`,
+            )
+            .join('')}</div></section>`,
+      )
+      .join('');
+  </script>
+</html>

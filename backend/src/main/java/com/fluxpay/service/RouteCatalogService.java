@@ -19,9 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Catalog over {@code payout_routes}: lists rails, recommends one per payment via the frozen FX
- * rate, and applies admin updates with optimistic locking. Recommendations delegate to the shared
- * smart-routing orchestration so quotes and recommendations rank the same top three.
+ * Catalog over {@code transfer_routes}: customer-facing listing, frozen-FX recommendation for one
+ * payment, and learned-reliability metrics. Recommendations delegate to the shared smart-routing
+ * orchestration so quotes and recommendations rank the same top three.
  */
 @Service
 public class RouteCatalogService {

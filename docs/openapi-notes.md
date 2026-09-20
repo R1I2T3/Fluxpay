@@ -26,5 +26,12 @@ The canonical event envelope contains `eventType`, `eventId`, `paymentId`,
 `aggregateSequence`. Event type equals the Kafka topic. Review and quarantine topics
 are part of the documented inventory.
 
+Delivery follows `route -> provider -> rail -> internal ledger/external network`. Rails are
+code-shipped `TransferRail` implementations selected by `RailType` (`INTERNAL_LEDGER`,
+`BANK_NETWORK`, `REAL_TIME_NETWORK`, `PARTNER_NETWORK`); administrators manage providers and
+routes through `GET/POST/PUT/DELETE /api/admin/providers`, `/api/admin/routes`, and read-only
+`GET /api/admin/rail-types`. Administrators never install integrations, endpoints, or
+credentials, and quote generation persists at most the three top-ranked eligible routes.
+
 See the root README for local reset/seed commands and the required Maven
 `-Pintegration verify` environment.

@@ -2,8 +2,8 @@ package com.fluxpay.controller;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fluxpay.common.TestAuthHelper;
@@ -44,8 +44,10 @@ class BankAccountControllerTest {
 
   @Test
   void listUsesAuthenticatedOwnerAndReturnsOnlyRedactedMetadata() throws Exception {
-    when(banks.list(USER)).thenReturn(java.util.List.of(
-        new BankAccountResponse(BANK.toString(), "Bank", "1234", "USD", "VERIFIED")));
+    when(banks.list(USER))
+        .thenReturn(
+            java.util.List.of(
+                new BankAccountResponse(BANK.toString(), "Bank", "1234", "USD", "VERIFIED")));
     mvc.perform(get("/api/bank-accounts").header("Authorization", "Bearer " + TOKEN))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data[0].id").value(BANK.toString()))
