@@ -51,6 +51,11 @@ class ApplicationBoundaryWiringTest {
         new Class<?>[] {
           WalletRepository.class,
           WalletOperationRepository.class,
+          BankAccountRepository.class,
+          WalletTopupRepository.class,
+          CurrencyConfigurationRepository.class,
+          LedgerJournalRepository.class,
+          LedgerJournalLockRepository.class,
           UserRepository.class,
           RecipientRepository.class,
           PayoutRouteRepository.class,

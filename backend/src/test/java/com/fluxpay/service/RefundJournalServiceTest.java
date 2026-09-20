@@ -87,14 +87,16 @@ class RefundJournalServiceTest {
   void journalCannotCombineOneOldRefundEntryWithNewEntries() {
     fixture.confirm("5.0000");
     db.jdbc.update(
-        "insert into entries values (?,?,?,?,?,?,?)",
+        "insert into entries values (?,?,?,?,?,?,?,?,?)",
         "refund:" + fixture.paymentId + ":clearing:debit",
         db.clearing,
         "DEBIT",
         new java.math.BigDecimal("95.0000"),
         "USD",
         "refund:" + fixture.paymentId,
-        "Reversal of payment:" + fixture.paymentId);
+        "Reversal of payment:" + fixture.paymentId,
+        null,
+        null);
     assertThatThrownBy(() -> refunds.refund(fixture.snapshot("5.0000")))
         .hasMessageContaining("cannot mix replayed and newly posted entries");
     assertThat(db.balance(db.customer)).isEqualByComparingTo("0.0000");

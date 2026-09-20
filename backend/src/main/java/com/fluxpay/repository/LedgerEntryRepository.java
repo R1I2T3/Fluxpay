@@ -2,6 +2,7 @@ package com.fluxpay.repository;
 
 import com.fluxpay.beans.LedgerEntry;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,6 +13,8 @@ public interface LedgerEntryRepository extends Repository<LedgerEntry, UUID> {
   LedgerEntry save(LedgerEntry entry);
 
   Optional<LedgerEntry> findByIdempotencyKey(String idempotencyKey);
+
+  List<LedgerEntry> findByJournalReference(String journalReference);
 
   Page<LedgerEntry> findByWalletIdOrderByCreatedAtDescIdDesc(UUID walletId, Pageable pageable);
 }
