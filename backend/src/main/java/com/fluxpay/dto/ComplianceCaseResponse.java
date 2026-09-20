@@ -10,6 +10,8 @@ public record ComplianceCaseResponse(
     UUID id,
     UUID paymentId,
     String reviewReference,
+    Instant reviewExpiresAt,
+    boolean requoteRequired,
     ComplianceRisk risk,
     ComplianceCaseStatus status,
     List<String> riskReasons,

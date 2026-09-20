@@ -30,7 +30,8 @@ public class OraclePolicyIndexStore implements PolicyIndexStore {
           + "index_state = 'INDEXED', chunk_count = ? "
           + "WHERE id = ?";
   private static final String CLEAR_ACTIVE_GENERATION_SQL =
-      "UPDATE policy_documents SET active_generation_id = NULL WHERE id = ?";
+      "UPDATE policy_documents SET active_generation_id = NULL, embedding_space_id = NULL, "
+          + "chunker_version = NULL, index_state = 'UNINDEXED', chunk_count = 0 WHERE id = ?";
   private static final String DELETE_CHUNKS_SQL =
       "DELETE FROM policy_chunks WHERE policy_document_id = ?";
   private static final String DELETE_GENERATIONS_SQL =

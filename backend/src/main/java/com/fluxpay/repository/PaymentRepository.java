@@ -1,6 +1,7 @@
 package com.fluxpay.repository;
 
 import com.fluxpay.beans.Payment;
+import com.fluxpay.domain.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import java.util.*;
 import org.springframework.data.domain.*;
@@ -19,4 +20,22 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select p from Payment p where p.id=:id")
   Optional<Payment> lockById(@Param("id") UUID id);
+
+  boolean existsBySenderIdAndRecipientIdAndIdNotAndStatusIn(
+      UUID senderId, UUID recipientId, UUID paymentId, Collection<PaymentStatus> statuses);
+
+  default boolean existsPriorSubmittedPaymentForRecipient(
+      UUID senderId, UUID recipientId, UUID paymentId) {
+    return existsBySenderIdAndRecipientIdAndIdNotAndStatusIn(
+        senderId,
+        recipientId,
+        paymentId,
+        List.of(
+            PaymentStatus.UNDER_REVIEW,
+            PaymentStatus.PROCESSING,
+            PaymentStatus.COMPLETED,
+            PaymentStatus.FAILED,
+            PaymentStatus.REFUNDED,
+            PaymentStatus.REJECTED));
+  }
 }

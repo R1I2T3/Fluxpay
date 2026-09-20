@@ -4,4 +4,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record PolicyChunkResponse(
-    UUID id, UUID policyDocumentId, Integer chunkNumber, String content, Instant createdAt) {}
+    UUID id,
+    UUID policyDocumentId,
+    Integer chunkNumber,
+    String content,
+    boolean manual,
+    Instant createdAt) {}

@@ -13,7 +13,7 @@ class AmountComplianceAssessorTest {
 
   private final AmountComplianceAssessor assessor =
       new AmountComplianceAssessor(
-          new ComplianceProperties(Map.of("USD", new BigDecimal("10000"))));
+          new ComplianceProperties(Map.of("USD", new BigDecimal("10000")), 24));
 
   @Test
   void approvesAnAmountWithinTheConfiguredCurrencyThreshold() {

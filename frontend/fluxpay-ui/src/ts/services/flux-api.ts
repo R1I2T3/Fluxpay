@@ -37,8 +37,15 @@ export const fluxApi = {
   policies:()=>request<PolicyDocument[]>('/api/policies'),
   policy:(id:string)=>request<PolicyDocument>(`/api/policies/${encodeURIComponent(id)}`),
   createPolicy:(body:{title:string;category:string;content:string})=>request<PolicyDocument>('/api/policies','POST',body),
+  updatePolicy:(id:string,body:{title:string;category:string;content:string;clearExistingChunks:boolean})=>request<PolicyDocument>(`/api/policies/${encodeURIComponent(id)}`,'PUT',body),
   policyChunks:(id:string)=>request<PolicyChunk[]>(`/api/policies/${encodeURIComponent(id)}/chunks`),
   addPolicyChunk:(id:string,content:string)=>request<PolicyChunk>(`/api/policies/${encodeURIComponent(id)}/chunks`,'POST',{content}),
+  updatePolicyChunk:(policyId:string,chunkId:string,content:string)=>request<PolicyChunk>(`/api/policies/${encodeURIComponent(policyId)}/chunks/${encodeURIComponent(chunkId)}`,'PUT',{content}),
+  deletePolicyChunk:(policyId:string,chunkId:string)=>request<void>(`/api/policies/${encodeURIComponent(policyId)}/chunks/${encodeURIComponent(chunkId)}`,'DELETE'),
+  policyGuidance:(id:string)=>request<PolicyGuidance[]>(`/api/policies/${encodeURIComponent(id)}/guidance`),
+  addPolicyGuidance:(id:string,body:{complianceCaseId:string;content:string})=>request<PolicyGuidance>(`/api/policies/${encodeURIComponent(id)}/guidance`,'POST',body),
+  updatePolicyGuidance:(policyId:string,guidanceId:string,content:string)=>request<PolicyGuidance>(`/api/policies/${encodeURIComponent(policyId)}/guidance/${encodeURIComponent(guidanceId)}`,'PUT',{content}),
+  deletePolicyGuidance:(policyId:string,guidanceId:string)=>request<void>(`/api/policies/${encodeURIComponent(policyId)}/guidance/${encodeURIComponent(guidanceId)}`,'DELETE'),
   indexPolicy:(id:string)=>request<{policyDocumentId:string;chunkCount:number}>(`/api/policies/${encodeURIComponent(id)}/index`,'POST'),
   deletePolicy:(id:string)=>request<void>(`/api/policies/${encodeURIComponent(id)}`,'DELETE'),
   complianceCases:(status='ALL')=>request<ComplianceCase[]>('/api/compliance/cases'+(status==='ALL'?'':'?status='+encodeURIComponent(status))),
@@ -49,7 +56,8 @@ export const fluxApi = {
   askCopilot:(question:string,paymentId?:string)=>request<CopilotAnswer>('/api/copilot/ask','POST',{question,...(paymentId?{paymentId}:{})})
 };
 
-export interface PolicyChunk { id:string; policyDocumentId:string; chunkNumber:number; content:string; createdAt:string; }
+export interface PolicyChunk { id:string; policyDocumentId:string; chunkNumber:number; content:string; manual:boolean; createdAt:string; }
+export interface PolicyGuidance { id:string; policyDocumentId:string; complianceCaseId:string; content:string; createdAt:string; updatedAt:string; }
 export interface PolicyDocument { id:string; title:string; category:string; content:string; documentHash:string; createdAt:string; chunks:PolicyChunk[]; }
-export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
+export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; reviewExpiresAt:string|null; requoteRequired:boolean; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
 export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }

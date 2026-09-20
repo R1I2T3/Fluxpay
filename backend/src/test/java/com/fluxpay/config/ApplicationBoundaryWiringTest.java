@@ -71,7 +71,8 @@ class ApplicationBoundaryWiringTest {
           KycCaseRepository.class,
           ComplianceCaseRepository.class,
           PolicyDocumentRepository.class,
-          PolicyChunkRepository.class
+          PolicyChunkRepository.class,
+          PolicyGuidanceRepository.class
         }) {
       runner = runner.withBean(repository, () -> mock(repository));
     }

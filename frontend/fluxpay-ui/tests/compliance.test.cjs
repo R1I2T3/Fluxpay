@@ -10,26 +10,97 @@ const compile=file=>ts.transpileModule(read(file),{compilerOptions:{module:ts.Mo
 const id='11111111-1111-4111-8111-111111111111';
 const policy={id,title:'QA policy',category:'PAYMENT_REVIEW',content:'Review source of funds.',documentHash:'test-hash',createdAt:'2026-09-17T10:00:00Z',chunks:[]};
 const manual={id,paymentId:id,reviewReference:null,risk:'HIGH',status:'OPEN',riskReasons:['QA reason'],suggestedAction:'Review records',decidedBy:null,decidedAt:null,decisionReason:null,createdAt:policy.createdAt};
-function workspace(overrides={},admin=true){
+function workspace(overrides={},admin=true,runtime={}){
   const calls=[];
   const api=new Proxy(overrides,{get:(obj,name)=>async(...args)=>{calls.push([name,...args]);if(name in obj)return obj[name](...args);if(name==='policies')return [policy];if(name==='policy'||name==='createPolicy')return {...policy};if(name==='policyChunks')return [];if(name==='complianceCases')return [manual];if(name==='complianceCase'||name==='createComplianceCase')return {...manual};if(name==='decideComplianceCase')return {...manual,status:args[1]==='approve'?'APPROVED':'REJECTED'};if(name==='indexPolicy')return {policyDocumentId:id,chunkCount:2};if(name==='askCopilot')return {answer:'A sourced answer',sources:[]};}});
   const session={user:ko.observable({role:admin?'ADMIN':'USER'})};session.isAdmin=ko.pureComputed(()=>session.user()?.role==='ADMIN');
-  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api}};
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api},...runtime};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'),context);
   return {page:new context.exports.ComplianceWorkspace(),calls,session};
 }
-test('all 14 new endpoints use correct URLs, verbs, bodies and auth; DELETE accepts 204',async()=>{
+test('all 15 new endpoints use correct URLs, verbs, bodies and auth; DELETE accepts 204',async()=>{
   const calls=[];
   const context={exports:{},window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>({data:[]})};}};
   vm.runInNewContext(compile('ts/services/flux-api.ts'),context);const api=context.exports.fluxApi;
-  await api.policies();await api.policy(id);await api.createPolicy({title:'Policy',category:'AML',content:'Text'});await api.policyChunks(id);await api.addPolicyChunk(id,'Chunk');await api.indexPolicy(id);await api.deletePolicy(id);
+  await api.policies();await api.policy(id);await api.createPolicy({title:'Policy',category:'AML',content:'Text'});await api.updatePolicy(id,{title:'Updated policy',category:'AML',content:'Updated text'});await api.policyChunks(id);await api.addPolicyChunk(id,'Chunk');await api.indexPolicy(id);await api.deletePolicy(id);
   await api.complianceCases('OPEN');await api.complianceCase(id);await api.createComplianceCase({paymentId:id,risk:'LOW',riskReasons:['Reason'],suggestedAction:'Review'});await api.decideComplianceCase(id,'approve','Approved');await api.decideComplianceCase(id,'reject','Rejected');await api.deleteComplianceCase(id);await api.askCopilot('Question',id);
-  assert.equal(calls.length,14);
-  assert.deepEqual(calls.map(([url,o])=>[o.method,url]),[['GET','/api/policies'],['GET',`/api/policies/${id}`],['POST','/api/policies'],['GET',`/api/policies/${id}/chunks`],['POST',`/api/policies/${id}/chunks`],['POST',`/api/policies/${id}/index`],['DELETE',`/api/policies/${id}`],['GET','/api/compliance/cases?status=OPEN'],['GET',`/api/compliance/cases/${id}`],['POST','/api/compliance/cases'],['PUT',`/api/compliance/cases/${id}/approve`],['PUT',`/api/compliance/cases/${id}/reject`],['DELETE',`/api/compliance/cases/${id}`],['POST','/api/copilot/ask']]);
+  assert.equal(calls.length,15);
+  assert.deepEqual(calls.map(([url,o])=>[o.method,url]),[['GET','/api/policies'],['GET',`/api/policies/${id}`],['POST','/api/policies'],['PUT',`/api/policies/${id}`],['GET',`/api/policies/${id}/chunks`],['POST',`/api/policies/${id}/chunks`],['POST',`/api/policies/${id}/index`],['DELETE',`/api/policies/${id}`],['GET','/api/compliance/cases?status=OPEN'],['GET',`/api/compliance/cases/${id}`],['POST','/api/compliance/cases'],['PUT',`/api/compliance/cases/${id}/approve`],['PUT',`/api/compliance/cases/${id}/reject`],['DELETE',`/api/compliance/cases/${id}`],['POST','/api/copilot/ask']]);
   for(const [,options] of calls)assert.equal(options.headers.Authorization,'Bearer test-token');
-  assert.deepEqual(JSON.parse(calls[10][1].body),{decisionReason:'Approved'});
+  assert.deepEqual(JSON.parse(calls[3][1].body),{title:'Updated policy',category:'AML',content:'Updated text'});
+  assert.deepEqual(JSON.parse(calls[11][1].body),{decisionReason:'Approved'});
   await api.complianceCases('ALL');assert.equal(calls.at(-1)[0],'/api/compliance/cases');
   await api.askCopilot('Question');assert.deepEqual(JSON.parse(calls.at(-1)[1].body),{question:'Question'});
+});
+test('policy import parser accepts a single object or array and rejects invalid input without state',()=>{
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session:{}}:{fluxApi:{}}};
+  vm.runInNewContext(compile('ts/services/compliance-workspace.ts'),context);
+  const parse=context.exports.parsePolicyImport;
+  const single=parse(JSON.stringify({title:'  Source checks ',category:'AML',content:'  Verify origin of funds. '}));
+  assert.equal(single.length,1);assert.equal(single[0].title(),'Source checks');assert.equal(single[0].content(),'Verify origin of funds.');
+  const many=parse([{title:'KYC review',category:'KYC',content:'Collect evidence.'},{title:'Country rules',category:'COUNTRY_RULE',content:'Apply corridor rules.'}]);
+  assert.equal(many.length,2);assert.notEqual(many[0].id,many[1].id);
+  for(const value of ['{',{title:'',category:'AML',content:'Text'},{title:'Valid',category:'INVALID',content:'Text'},[{title:'Same',category:'AML',content:'Text'},{title:' same ',category:'AML',content:' text '}],null])assert.throws(()=>parse(value));
+});
+test('selecting the provided policy JSON appends all three policies to the visible draft list',async()=>{
+  class Reader { readAsText(file){this.result=file.text;Promise.resolve().then(()=>this.onload());} }
+  const {page}=workspace({},true,{FileReader:Reader});
+  const input={files:[{name:'policy.json',type:'application/json',text:JSON.stringify([
+    {title:'High-value transfer review1',category:'PAYMENT_REVIEW',content:'ABCD'},
+    {title:'High-value transfer review2',category:'PAYMENT_REVIEW',content:'EFGH'},
+    {title:'High-value transfer review3',category:'PAYMENT_REVIEW',content:'IJKL'}
+  ])}],value:'selected'};
+  page.loadPolicyJson(page,{target:input});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(input.value,'');
+  assert.equal(JSON.stringify(page.policyDrafts().map(draft=>[draft.title(),draft.category(),draft.content()])),JSON.stringify([
+    ['High-value transfer review1','PAYMENT_REVIEW','ABCD'],
+    ['High-value transfer review2','PAYMENT_REVIEW','EFGH'],
+    ['High-value transfer review3','PAYMENT_REVIEW','IJKL']
+  ]));
+  page.dispose();
+});
+test('batch policy creation preserves failed drafts in display order with server errors',async()=>{
+  const {page,calls}=workspace({createPolicy:async body=>{if(body.title==='Rejected')throw Error('Duplicate policy title');return {...policy,title:body.title};}});
+  page.addManualPolicyDraft();page.draftEditor().title('Accepted');page.draftEditor().category('AML');page.draftEditor().content('First policy');page.savePolicyDraft();
+  page.addManualPolicyDraft();page.draftEditor().title('Rejected');page.draftEditor().category('KYC');page.draftEditor().content('Second policy');page.savePolicyDraft();
+  const [first,second]=page.policyDrafts();
+  await page.createPolicyDrafts();
+  assert.deepEqual(calls.filter(c=>c[0]==='createPolicy').map(c=>c[1].title),['Accepted','Rejected']);
+  assert.equal(page.policyDrafts().length,1);assert.equal(page.policyDrafts()[0].id,second.id);assert.match(second.error(),/Duplicate policy title/);page.dispose();
+});
+test('publishing imported policy drafts clears the draft list only after every policy is created',async()=>{
+  const {page,calls}=workspace({createPolicy:async body=>({...policy,title:body.title}),policies:async()=>[policy]});
+  page.addManualPolicyDraft();
+  const draft=page.draftEditor();draft.title('Imported policy');draft.category('AML');draft.content('Unique imported policy text.');page.savePolicyDraft();
+  await page.createPolicyDrafts();
+  assert.equal(calls.filter(call=>call[0]==='createPolicy').length,1);
+  assert.equal(page.policyDrafts().length,0);
+  assert.match(page.notice(),/added/i);page.dispose();
+});
+test('saving a policy edit clears stale chunks when the edit choice is enabled',async()=>{
+  const updated={...policy,title:'Updated policy',content:'Updated content',chunks:[{id:'stale'}]};
+  const {page,calls}=workspace({updatePolicy:async()=>updated,policies:async()=>[updated]});
+  page.policy(policy);page.chunks([{id:'old',policyDocumentId:id,chunkNumber:1,content:'old',createdAt:policy.createdAt}]);
+  page.openPolicyEdit(policy);page.policyEdit().title(' Updated policy ');page.policyEdit().content(' Updated content ');
+  await page.savePolicyEdit();
+  assert.equal(JSON.stringify(calls.find(c=>c[0]==='updatePolicy')),JSON.stringify(['updatePolicy',id,{title:'Updated policy',category:'PAYMENT_REVIEW',content:'Updated content',clearExistingChunks:true}]));
+  assert.equal(page.policy().title,'Updated policy');assert.equal(page.chunks().length,0);assert.equal(page.policyEdit(),undefined);assert.equal(page.policies()[0].title,'Updated policy');assert.equal(page.notice(),'Policy updated. Rebuild its index before asking Copilot.');page.dispose();
+});
+test('saving a policy edit retains chunks when the edit choice is disabled',async()=>{
+  const updated={...policy,title:'Updated policy',content:'Updated content'};
+  const oldChunk={id:'old',policyDocumentId:id,chunkNumber:1,content:'old',createdAt:policy.createdAt};
+  const {page,calls}=workspace({updatePolicy:async()=>updated,policies:async()=>[updated]});
+  page.policy(policy);page.chunks([oldChunk]);page.openPolicyEdit(policy);page.policyEditClearChunks(false);
+  await page.savePolicyEdit();
+  assert.equal(JSON.stringify(calls.find(c=>c[0]==='updatePolicy')),JSON.stringify(['updatePolicy',id,{title:'QA policy',category:'PAYMENT_REVIEW',content:'Review source of funds.',clearExistingChunks:false}]));
+  assert.deepEqual(page.chunks(),[oldChunk]);assert.match(page.notice(),/retained/);page.dispose();
+});
+test('a failed policy edit retains the selected chunk retention choice',async()=>{
+  const {page}=workspace({updatePolicy:async()=>{throw Error('Policy update rejected');}});
+  page.openPolicyEdit(policy);page.policyEditClearChunks(false);
+  await page.savePolicyEdit();
+  assert.equal(page.policyEditClearChunks(),false);assert.match(page.policyEdit().error(),/rejected/);page.dispose();
 });
 test('non-admin cannot load or mutate global compliance data',async()=>{const {page,calls}=workspace({},false);await page.loadCases();await page.savePolicy();await page.ask();assert.equal(calls.length,0);assert.match(page.error(),/administrator/);page.dispose();});
 test('policy create, detail, chunks, index and confirmed delete flow',async()=>{
@@ -49,6 +120,86 @@ test('only open manual cases can be deleted',async()=>{for(const value of [{...m
 test('Copilot handles citations, optional UUID, no-source fallback and provider errors',async()=>{const {page,calls}=workspace({askCopilot:async()=>({answer:'Review is required.',sources:[{policyDocumentId:id,title:'Policy',chunkNumber:1,excerpt:'Review clause'}]})});page.question(' What requires review? ');await page.ask();assert.equal(calls[0][2],undefined);assert.equal(page.answer().sources[0].policyDocumentId,id);page.copilotPaymentId('invalid');await page.ask();assert.match(page.error(),/UUID/);assert.equal(calls.length,1);page.dispose();const second=workspace({askCopilot:async()=>{throw Error('Compliance Copilot is temporarily unavailable.');}});second.page.question('Question');await second.page.ask();assert.equal(second.page.answer(),undefined);assert.match(second.page.error(),/unavailable/);second.page.dispose();});
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
 test('admin template renders untrusted policy and AI text with text bindings, never HTML',()=>{const html=read('ts/views/admin.html');assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));for(const action of ['savePolicy','addChunk','saveCase','ask','confirm'])assert.ok(html.includes(action));assert.ok(html.includes('role="alertdialog"'));assert.ok(html.includes('maxlength="500"'));assert.ok(html.includes('maxlength="400"'));assert.ok(html.includes('maxlength="200"'));});
+test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
+  const html=read('ts/views/admin.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
+  assert.match(html,/policyAnswer:answer\(\)\.answer/);
+  assert.ok(!html.includes('<h3 data-bind="text:answeredQuestion"></h3>'));
+  assert.match(source,/ko\.bindingHandlers\.policyAnswer/);
+  assert.match(source,/document\.createTextNode/);
+  assert.match(source,/document\.createElement\('strong'\)/);
+  assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:15px;/);
+  assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:13px;/);
+});
+test('policy library template provides draft creation and compact accessible detail dialogs',()=>{
+  const html=read('ts/views/admin.html');
+  for(const binding of ['policyDrafts','loadPolicyJson','addManualPolicyDraft','removePolicyDraft','createPolicyDrafts','openPolicyEdit','savePolicyEdit','closePolicyEdit'])assert.ok(html.includes(binding),`missing ${binding}`);
+  assert.match(html,/accept="\.json,application\/json"/);
+  assert.match(html,/data-bind="foreach:policyDrafts"/);
+  assert.match(html,/data-bind="foreach:pagedPolicies"[\s\S]*class="policy-list-row"/);
+  assert.ok(html.includes('previousPolicyPage'));
+  assert.ok(html.includes('nextPolicyPage'));
+  assert.ok((html.match(/fa-solid fa-eye/g)||[]).length>=3);
+  assert.ok((html.match(/fa-solid fa-pen-to-square/g)||[]).length>=3);
+  assert.ok((html.match(/fa-solid fa-trash-can/g)||[]).length>=3);
+  assert.ok((html.match(/e\.stopPropagation\(\)/g)||[]).length>=2,'row actions stop click propagation');
+  assert.match(html,/openPolicyEdit\(\$data\)/);
+  assert.match(html,/askConfirmation\('delete-policy'\)/);
+  assert.match(html,/role="dialog" aria-modal="true" aria-labelledby="policy-details-title"/);
+  assert.match(html,/role="dialog" aria-modal="true" aria-labelledby="policy-edit-title"/);
+  assert.match(html,/data-bind="adminDialog:true[\s\S]*text:policy\(\)\.content/);
+  assert.match(html,/type="checkbox" data-bind="checked:policyEditClearChunks,disable:busy"/);
+  assert.match(html,/Retaining existing chunks can leave Copilot using older material\./);
+});
+test('policy import picker accepts a batch of JSON files and appends their parsed drafts',()=>{
+  const html=read('ts/views/admin.html');
+  const source=read('ts/services/compliance-workspace.ts');
+  assert.match(html,/type="file"[^>]*multiple[^>]*accept="\.json,application\/json"/);
+  assert.match(source,/Array\.from\(input\.files\?\?\[\]\)/);
+  assert.match(source,/Promise\.allSettled/);
+});
+test('policy drafts use one compact table and policy editing provides direct advanced settings',()=>{
+  const html=read('ts/views/admin.html');
+  assert.match(html,/class="table-scroll policy-draft-table"[\s\S]*foreach:policyDrafts/);
+  assert.match(html,/openAdvancedFromEdit/);
+  assert.match(html,/class="modal-back"[\s\S]*← Policy/);
+  assert.match(html,/class="manual-chunk-form"/);
+});
+test('policy-draft preview truncates before the fixed action column',()=>{
+  const css=read('css/workspace.css');
+  assert.match(css,/\.policy-draft-table td\.draft-preview\s*\{[^}]*overflow:hidden;[^}]*white-space:nowrap;[^}]*text-overflow:ellipsis;/s);
+  assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:118px;/);
+});
+test('opening a compliance case uses a modal rather than an inline panel below the list',()=>{
+  const html=read('ts/views/admin.html'),css=read('css/workspace.css');
+  assert.match(html,/<!-- ko if:selectedCase -->\s*<div class="admin-confirmation[^"]*" role="dialog" aria-modal="true" aria-labelledby="compliance-case-title"/);
+  assert.match(html,/aria-label="Close case details"/);
+  assert.match(html,/compliance-case-dialog"><div class="compliance-case-scroll">/);
+  assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:hidden;[^}]*padding:0;/);
+  assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:auto;[^}]*border-radius:inherit;/);
+});
+test('case-to-Copilot handoff includes the risk, reasons, and suggested action',()=>{
+  const source=read('ts/viewModels/admin.ts');
+  assert.match(source,/Case context:/);
+  assert.match(source,/Risk level:/);
+  assert.match(source,/riskReasons/);
+  assert.match(source,/Suggested action:/);
+});
+test('policy chunk maintenance keeps editing manual-only while allowing any chunk to be deleted',async()=>{
+  const calls=[];
+  const context={exports:{},window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>({data:{id,manual:true}})};}};
+  vm.runInNewContext(compile('ts/services/flux-api.ts'),context);
+  await context.exports.fluxApi.updatePolicyChunk(id,'chunk-1','Corrected guidance');
+  await context.exports.fluxApi.deletePolicyChunk(id,'chunk-1');
+  assert.deepEqual(calls.map(([url,options])=>[options.method,url]),[
+    ['PUT',`/api/policies/${id}/chunks/chunk-1`],
+    ['DELETE',`/api/policies/${id}/chunks/chunk-1`]
+  ]);
+  assert.deepEqual(JSON.parse(calls[0][1].body),{content:'Corrected guidance'});
+  const html=read('ts/views/admin.html');
+  assert.match(html,/<!-- ko if:manual --><button[^>]*openChunkEdit/);
+  assert.ok(html.includes('requestDeleteChunk'));
+  assert.ok(!/requestDeleteChunk[^>]*visible:manual/.test(html));
+});
 
 function paymentPage(api){
   const context={exports:{},require:name=>name==='knockout'?ko:name==='./flux-api'?{fluxApi:api}:{session:{user:ko.observable({role:'USER'})},navigate:()=>{}},window:{setInterval:()=>1,addEventListener:()=>{},removeEventListener:()=>{}},sessionStorage:{getItem:()=>null},clearInterval:()=>{},setInterval:()=>1,document:{visibilityState:'visible'}};
