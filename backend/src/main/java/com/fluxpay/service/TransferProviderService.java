@@ -96,7 +96,7 @@ public class TransferProviderService {
 
   @Transactional
   public TransferProvider update(UUID id, UpdateProvider command) {
-    TransferProvider provider = find(id);
+    TransferProvider provider = findForUpdate(id);
     requireVersion(provider, command.expectedVersion());
     if (command.railType() == null) {
       throw invalid("railType must not be null");
@@ -114,8 +114,8 @@ public class TransferProviderService {
       throw conflict(
           "PROVIDER_HAS_ROUTES", "Deactivate the provider routes before deactivating it.");
     }
-    if (railChanged && command.active()) {
-      requireInstalledCompatibleRail(command.railType(), activeChildren);
+    if (railChanged) {
+      requireCompatibleRail(command.railType(), children);
     }
     try {
       provider.update(
@@ -153,16 +153,24 @@ public class TransferProviderService {
         .orElseThrow(() -> notFound("PROVIDER_NOT_FOUND", "Transfer provider not found."));
   }
 
+  private TransferProvider findForUpdate(UUID id) {
+    return providers
+        .findByIdForUpdate(id)
+        .orElseThrow(() -> notFound("PROVIDER_NOT_FOUND", "Transfer provider not found."));
+  }
+
   private void requireVersion(TransferProvider provider, Long expectedVersion) {
     if (expectedVersion == null || !expectedVersion.equals(provider.version())) {
       throw conflict("STALE_PROVIDER", "The provider was changed. Refresh and try again.");
     }
   }
 
-  private void requireInstalledCompatibleRail(
-      RailType railType, List<TransferRoute> activeChildren) {
-    for (TransferRoute child : activeChildren) {
-      rails.requireCompatible(railType, child.destinationType());
+  private void requireCompatibleRail(RailType railType, List<TransferRoute> children) {
+    for (TransferRoute child : children) {
+      if (child.archivedAt() == null) {
+        RoutingCompatibility.requireCompatible(
+            rails, railType, child.destinationType(), child.active());
+      }
     }
   }
 

@@ -1,7 +1,6 @@
 package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -67,6 +66,7 @@ class TransferProviderServiceTest {
   @Test
   void usedProviderArchivesAndCannotChangeRail() {
     when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(true);
 
     assertThatThrownBy(
@@ -122,7 +122,7 @@ class TransferProviderServiceTest {
 
   @Test
   void updateNameAndRailBeforeUse() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
 
     TransferProvider updated =
@@ -136,7 +136,7 @@ class TransferProviderServiceTest {
 
   @Test
   void updateRejectsStaleVersion() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
 
     assertThatThrownBy(
             () ->
@@ -148,7 +148,7 @@ class TransferProviderServiceTest {
 
   @Test
   void updateRejectsMissingProvider() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.empty());
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.empty());
 
     assertThatThrownBy(
             () ->
@@ -161,7 +161,7 @@ class TransferProviderServiceTest {
   @Test
   void updateRejectsRailIncompatibleWithChildRoutes() {
     TransferRoute child = route(provider);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(child));
 
@@ -178,7 +178,7 @@ class TransferProviderServiceTest {
   @Test
   void updateRejectsDeactivationWhileActiveNonArchivedRoutesExist() {
     TransferRoute child = route(provider);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(child));
 
     assertThatThrownBy(
@@ -202,7 +202,7 @@ class TransferProviderServiceTest {
     TransferRoute archived =
         TransferRouteTestFixtures.externalRoute(UUID.randomUUID(), provider, NOW);
     archived.archive(NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID))
         .thenReturn(List.of(inactive, archived));
 
@@ -216,7 +216,7 @@ class TransferProviderServiceTest {
   @Test
   void updateActiveRailBindingRejectsUninstalledRailForActiveRoute() {
     TransferRoute child = route(provider);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(child));
 
@@ -236,25 +236,53 @@ class TransferProviderServiceTest {
   }
 
   @Test
-  void updateRailBindingIgnoresInactiveAndArchivedRoutes() {
+  void updateActiveRailBindingAllowsUninstalledRailForInactiveRoute() {
     TransferRoute inactive =
         TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, provider, NOW);
-    TransferRoute archived =
-        TransferRouteTestFixtures.externalRoute(UUID.randomUUID(), provider, NOW);
-    archived.archive(NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
-    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID))
-        .thenReturn(List.of(inactive, archived));
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(inactive));
 
-    assertThatCode(
+    TransferProvider updated =
+        service.update(
+            PROVIDER_ID, new UpdateProvider("HDFC Bank", RailType.PARTNER_NETWORK, true, 0L));
+
+    assertThat(updated.railType()).isEqualTo(RailType.PARTNER_NETWORK);
+  }
+
+  @Test
+  void updateActiveRailBindingRejectsInstalledIncompatibleRailForInactiveRoute() {
+    TransferRoute inactive =
+        TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, provider, NOW);
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(inactive));
+
+    assertThatThrownBy(
             () ->
                 service.update(
                     PROVIDER_ID,
                     new UpdateProvider("HDFC Bank", RailType.INTERNAL_LEDGER, true, 0L)))
-        .doesNotThrowAnyException();
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> assertThat(error.code()).isEqualTo("INVALID_TRANSFER_ROUTE"));
 
-    assertThat(provider.railType()).isEqualTo(RailType.INTERNAL_LEDGER);
+    assertThat(provider.railType()).isEqualTo(RailType.BANK_NETWORK);
+  }
+
+  @Test
+  void updateActiveRailBindingIgnoresArchivedRoute() {
+    TransferRoute archived = route(provider);
+    archived.archive(NOW);
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(archived));
+
+    TransferProvider updated =
+        service.update(
+            PROVIDER_ID, new UpdateProvider("HDFC Bank", RailType.INTERNAL_LEDGER, true, 0L));
+
+    assertThat(updated.railType()).isEqualTo(RailType.INTERNAL_LEDGER);
   }
 
   @Test

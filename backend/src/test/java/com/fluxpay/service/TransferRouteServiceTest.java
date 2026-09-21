@@ -66,7 +66,7 @@ class TransferRouteServiceTest {
 
   @Test
   void createNormalizesCodeAndPersistsRoute() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
     when(routes.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -80,7 +80,7 @@ class TransferRouteServiceTest {
 
   @Test
   void createRejectsDuplicateCode() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.of(route));
 
     assertThatThrownBy(() -> service.create(createCommand("HDFC_INR_STANDARD", true)))
@@ -94,7 +94,7 @@ class TransferRouteServiceTest {
 
   @Test
   void createRejectsUnknownProvider() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.empty());
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.create(createCommand("HDFC_INR_STANDARD", true)))
         .isInstanceOfSatisfying(
@@ -106,7 +106,7 @@ class TransferRouteServiceTest {
     TransferProvider ledger =
         TransferProvider.create(
             PROVIDER_ID, "FLUXPAY", "FluxPay", RailType.INTERNAL_LEDGER, true, false, NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(ledger));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(ledger));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.create(createCommand("HDFC_INR_STANDARD", true)))
@@ -123,7 +123,7 @@ class TransferRouteServiceTest {
     TransferProvider inactive =
         TransferProvider.create(
             PROVIDER_ID, "HDFC_BANK", "HDFC Bank", RailType.BANK_NETWORK, false, false, NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(inactive));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(inactive));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.create(createCommand("HDFC_INR_STANDARD", true)))
@@ -137,7 +137,7 @@ class TransferRouteServiceTest {
     TransferProvider partner =
         TransferProvider.create(
             PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(partner));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.create(createCommand("HDFC_INR_STANDARD", true)))
@@ -166,7 +166,7 @@ class TransferRouteServiceTest {
 
   @Test
   void createRejectsInvalidCorridorAndLimits() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
 
     assertThatThrownBy(
@@ -271,7 +271,7 @@ class TransferRouteServiceTest {
             OTHER_PROVIDER_ID, "SBI_BANK", "SBI", RailType.BANK_NETWORK, true, false, NOW);
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
     when(usage.routeUsed(ROUTE_ID)).thenReturn(false);
-    when(providers.findById(OTHER_PROVIDER_ID)).thenReturn(Optional.of(other));
+    when(providers.findByIdForUpdate(OTHER_PROVIDER_ID)).thenReturn(Optional.of(other));
 
     TransferRoute updated =
         service.update(
@@ -285,7 +285,7 @@ class TransferRouteServiceTest {
   void updateAllowsCommercialEdits() {
     // Binding fields are unchanged, so usage is not consulted and commercials stay editable.
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
 
     TransferRoute updated =
         service.update(
@@ -314,7 +314,7 @@ class TransferRouteServiceTest {
   void updateRejectsIncompatibleDestination() {
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
     when(usage.routeUsed(ROUTE_ID)).thenReturn(false);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
 
     assertThatThrownBy(
             () ->
@@ -334,7 +334,7 @@ class TransferRouteServiceTest {
     TransferRoute dormant =
         TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, inactive, NOW);
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(dormant));
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(inactive));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(inactive));
 
     assertThatThrownBy(
             () ->
@@ -353,7 +353,7 @@ class TransferRouteServiceTest {
             PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
     TransferRoute dormant = TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, partner, NOW);
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(dormant));
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(partner));
 
     assertThatThrownBy(
             () ->
@@ -372,7 +372,7 @@ class TransferRouteServiceTest {
             PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
     TransferRoute active = TransferRouteTestFixtures.externalRoute(ROUTE_ID, partner, NOW);
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(active));
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(partner));
 
     assertThatThrownBy(
             () ->
