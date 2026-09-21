@@ -274,9 +274,9 @@ export class Page {
     else {
       const q=this.selectedQuote() || this.quotes().find(q=>q.id===this.payment()?.selectedQuoteId);
       if(!q)throw new Error('Select a quote before continuing.');
-      if(action==='payout')this.outcome(await api.payout(id,q.route));
+      if(action==='payout')this.outcome(await api.payout(id,q.routeCode));
       if(action==='retry')this.outcome(await api.retry(id,q.id));
-      if(action==='switch')this.outcome(await api.switchRoute(id,q.route,q.id));
+      if(action==='switch')this.outcome(await api.switchRoute(id,q.routeCode,q.id));
     }
     this.confirmAction('');
     if(this.screen==='tracking')await this.inspectData();

@@ -41,7 +41,7 @@
   <button class="pill soft" data-bind="click:refreshQuotes,disable:busy">↻ Refresh quotes</button>
   <div class="quote-grid" data-bind="foreach:quotes">
     <article class="panel quote-card" data-bind="css:{recommended:recommended,selected:$parent.selectedQuote()?.id===id}">
-      <span class="eyebrow" data-bind="text:recommended?'RECOMMENDED FOR YOU':'TRANSFER OPTION'"></span><h2 data-bind="text:$parent.label(route)"></h2><small>Recipient gets</small><strong class="quote-amount" data-bind="text:$parent.money(recipientAmount,$parent.payment()?.payoutCurrency)"></strong>
+      <span class="eyebrow" data-bind="text:recommended?'RECOMMENDED FOR YOU':'TRANSFER OPTION'"></span><h2 data-bind="text:$parent.label($data.routeCode)"></h2><small>Recipient gets</small><strong class="quote-amount" data-bind="text:$parent.money(recipientAmount,$parent.payment()?.payoutCurrency)"></strong>
       <div class="detail-line"><span>Transfer fee</span><strong data-bind="text:$parent.money(feeAmount,$parent.payment()?.sourceCurrency)"></strong></div><div class="detail-line"><span>Exchange rate</span><strong data-bind="text:offeredRate"></strong></div><div class="detail-line"><span>Estimated arrival</span><strong data-bind="text:estimatedMinutes+' minutes'"></strong></div>
       <button class="pill wide" data-bind="click:$parent.chooseQuote,disable:!$parent.quoteValid()||$parent.busy(),css:{dark:recommended,soft:!recommended}">Choose this option ↗</button>
     </article>
@@ -55,7 +55,7 @@
       <div class="detail-line"><span>You send</span><strong data-bind="text:money(payment()?.sourceAmount,payment()?.sourceCurrency)"></strong></div>
       <div class="detail-line"><span>Reason</span><strong class="preserve-text" data-bind="text:paymentReason"></strong></div>
       <!-- ko if:selectedQuote -->
-      <div class="detail-line"><span>Transfer fee</span><strong data-bind="text:money(selectedQuote().feeAmount,payment()?.sourceCurrency)"></strong></div><div class="detail-line"><span>Exchange rate</span><strong data-bind="text:selectedQuote().offeredRate"></strong></div><div class="detail-line"><span>Delivery</span><strong data-bind="text:label(selectedQuote().route)"></strong></div><div class="detail-line"><span>Estimated arrival</span><strong data-bind="text:selectedQuote().estimatedMinutes+' minutes'"></strong></div>
+      <div class="detail-line"><span>Transfer fee</span><strong data-bind="text:money(selectedQuote().feeAmount,payment()?.sourceCurrency)"></strong></div><div class="detail-line"><span>Exchange rate</span><strong data-bind="text:selectedQuote().offeredRate"></strong></div><div class="detail-line"><span>Delivery</span><strong data-bind="text:label(selectedQuote().routeCode)"></strong></div><div class="detail-line"><span>Estimated arrival</span><strong data-bind="text:selectedQuote().estimatedMinutes+' minutes'"></strong></div>
       <p>Recipient gets</p><strong class="quote-amount" data-bind="text:money(selectedQuote().recipientAmount,payment()?.payoutCurrency)"></strong>
       <!-- /ko -->
     </article>

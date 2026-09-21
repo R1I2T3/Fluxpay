@@ -62,7 +62,7 @@ class ViewModel extends Page {
     // Once dispatched, an uncertain response must never cause an automatic second payout.
     this.payoutSubmitted(true);
     try {
-      this.outcome(await fluxApi.payout(this.paymentId(),quote.route));
+      this.outcome(await fluxApi.payout(this.paymentId(),quote.routeCode));
       await this.readTransfer();
     } catch(error) {
       await this.readTransfer().catch(()=>undefined);
