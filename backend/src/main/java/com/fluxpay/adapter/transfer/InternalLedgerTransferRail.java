@@ -1,7 +1,5 @@
 package com.fluxpay.adapter.transfer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.domain.ConversionCalculation;
@@ -19,11 +17,8 @@ import com.fluxpay.service.WalletPostingService;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -41,19 +36,16 @@ public class InternalLedgerTransferRail implements TransferRail {
   private final TransferRouteRepository routes;
   private final RouteReliabilityService reliability;
   private final Clock clock;
-  private final ObjectMapper mapper;
 
   public InternalLedgerTransferRail(
       WalletPostingService posting,
       TransferRouteRepository routes,
       RouteReliabilityService reliability,
-      Clock clock,
-      ObjectMapper mapper) {
+      Clock clock) {
     this.posting = Objects.requireNonNull(posting, "posting must not be null");
     this.routes = Objects.requireNonNull(routes, "routes must not be null");
     this.reliability = Objects.requireNonNull(reliability, "reliability must not be null");
     this.clock = Objects.requireNonNull(clock, "clock must not be null");
-    this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
   }
 
   @Override
@@ -113,16 +105,7 @@ public class InternalLedgerTransferRail implements TransferRail {
             command.recipientAmount(),
             quote,
             "Internal ledger wallet transfer via " + route.getRouteCode(),
-            canonicalRequest(
-                mapper,
-                command.senderUserId(),
-                destination.userId(),
-                command.sourceCurrency(),
-                command.targetCurrency(),
-                command.sourceAmount(),
-                command.customerFee(),
-                command.recipientAmount(),
-                command.offeredRate()),
+            requireNormalizedRequest(command.normalizedRequest()),
             command.idempotencyKey(),
             new WalletPostingService.TransferRouting(
                 route.provider().getProviderCode(),
@@ -132,38 +115,11 @@ public class InternalLedgerTransferRail implements TransferRail {
     return TransferRailResult.completed(response.journalReference(), BigDecimal.ZERO);
   }
 
-  /**
-   * Stable request identity shared by the routing service and this rail. Only stable money fields
-   * participate: the rail-assigned transfer and attempt ids identify delivery, not the request, and
-   * the user note is narration-only journal text owned by the rail.
-   */
-  public static String canonicalRequest(
-      ObjectMapper mapper,
-      UUID sender,
-      UUID recipient,
-      String from,
-      String to,
-      BigDecimal gross,
-      BigDecimal fee,
-      BigDecimal credit,
-      BigDecimal rate) {
-    Objects.requireNonNull(mapper, "mapper must not be null");
-    Map<String, String> body = new TreeMap<>();
-    body.put("kind", "wallet-p2p");
-    body.put("sender", Objects.requireNonNull(sender, "sender must not be null").toString());
-    body.put(
-        "recipient", Objects.requireNonNull(recipient, "recipient must not be null").toString());
-    body.put("from", Objects.requireNonNull(from, "from must not be null"));
-    body.put("to", Objects.requireNonNull(to, "to must not be null"));
-    body.put("gross", Objects.requireNonNull(gross, "gross must not be null").toPlainString());
-    body.put("fee", Objects.requireNonNull(fee, "fee must not be null").toPlainString());
-    body.put("credit", Objects.requireNonNull(credit, "credit must not be null").toPlainString());
-    body.put("rate", Objects.requireNonNull(rate, "rate must not be null").toPlainString());
-    try {
-      return mapper.writeValueAsString(body);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Could not canonicalize wallet transfer command", e);
+  private static String requireNormalizedRequest(String normalizedRequest) {
+    if (normalizedRequest == null || normalizedRequest.isBlank()) {
+      throw new IllegalArgumentException("Internal ledger command requires a normalized request");
     }
+    return normalizedRequest;
   }
 
   private static BusinessException invalidRoute(String message) {

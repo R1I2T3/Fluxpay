@@ -244,6 +244,32 @@ class WalletTransferTest {
   }
 
   @Test
+  void routedFxReplayUsesStoredResponseWhenLiveQuoteIsUnavailable() {
+    TransferRoute route = internalRoute("FLUXPAY_REPLAY", "FLUXPAY_INR_REPLAY", "INR");
+    quote("USD", "INR", "83.50");
+    var request = transfer(recipient, "USD", "INR", "100", "SOURCE");
+    var response = routed.transfer(sender, request, "route-fx-replay");
+    int postedEntries = entries.findByJournalReference(response.journalReference()).size();
+
+    route.archive(NOW.plusSeconds(1));
+    transferRoutes.saveAndFlush(route);
+    reset(quotes);
+    when(quotes.snapshot("USD", "INR")).thenThrow(new RequoteRequiredException());
+
+    assertThat(
+            routed.transfer(
+                sender, transfer(recipient, " usd ", "inr", "100.00", "source"), "route-fx-replay"))
+        .isEqualTo(response);
+    assertThat(entries.findByJournalReference(response.journalReference())).hasSize(postedEntries);
+    verifyNoInteractions(quotes);
+    assertThatThrownBy(
+            () ->
+                routed.transfer(
+                    sender, transfer(recipient, "USD", "INR", "101", "SOURCE"), "route-fx-replay"))
+        .isInstanceOf(LedgerIdempotencyConflictException.class);
+  }
+
+  @Test
   void routedFailureRecordsFailedOutcome() {
     customer(sender, "EUR", "20000");
     TransferRoute route = internalRoute("FLUXPAY_C", "FLUXPAY_EUR_C", "EUR");

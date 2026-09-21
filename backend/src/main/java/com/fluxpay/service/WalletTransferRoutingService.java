@@ -2,7 +2,6 @@ package com.fluxpay.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fluxpay.adapter.transfer.InternalLedgerTransferRail;
 import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
@@ -30,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -97,19 +97,49 @@ public class WalletTransferRoutingService {
     if (!mode.equals("SOURCE") && !mode.equals("TARGET"))
       throw new IllegalArgumentException("amountMode must be SOURCE or TARGET");
     BigDecimal amount = normalize.amount(request.amount(), mode.equals("SOURCE") ? from : to);
-    normalize.note(request.note());
+    String note = normalize.note(request.note());
+    WalletTransferRequest canonicalRequest =
+        new WalletTransferRequest(
+            request.toUserId(), email, from, to, amount.toPlainString(), mode, note);
+    UUID attemptId =
+        UUID.nameUUIDFromBytes(("wallet-p2p:" + user + ":" + key).getBytes(StandardCharsets.UTF_8));
+    String operationKey = "payout:" + attemptId;
+    String normalized = normalize.json(canonicalRequest);
+    AtomicReference<PreparedTransfer> prepared = new AtomicReference<>();
+    return operations.execute(
+        user,
+        "TRANSFER",
+        operationKey,
+        normalized,
+        WalletTransferResponse.class,
+        canonical -> {
+          if (prepared.get() == null) {
+            prepared.set(prepare(user, request.toUserId(), email, from, to, amount, mode));
+          }
+          return executeRouted(user, prepared.get(), canonical, attemptId, operationKey);
+        });
+  }
+
+  private PreparedTransfer prepare(
+      UUID user,
+      UUID recipientSelector,
+      String email,
+      String from,
+      String to,
+      BigDecimal amount,
+      String mode) {
     UUID recipient =
-        (request.toUserId() != null
-                ? users.findById(request.toUserId())
+        (recipientSelector != null
+                ? users.findById(recipientSelector)
                 : users.findByCanonicalEmail(email))
             .orElseThrow(
                 () ->
                     new BusinessException(
                         HttpStatus.NOT_FOUND, "RECIPIENT_NOT_FOUND", "Recipient does not exist"))
             .getId();
-    if (user.equals(recipient) && from.equals(to))
+    if (user.equals(recipient) && from.equals(to)) {
       throw new IllegalArgumentException("Same-user same-currency transfer is a no-op");
-
+    }
     ConversionCalculation calculation;
     FxSnapshot quote;
     BigDecimal targetCredit;
@@ -120,12 +150,11 @@ public class WalletTransferRoutingService {
       quote = null;
       targetCredit = amount;
     } else {
-      FxSnapshot accepted = validator.accept(quotes.snapshot(from, to), from, to);
-      quote = accepted;
+      quote = validator.accept(quotes.snapshot(from, to), from, to);
       calculation =
           mode.equals("SOURCE")
-              ? math.calculate(from, to, amount, accepted.rate())
-              : math.calculateTarget(from, to, amount, accepted.rate());
+              ? math.calculate(from, to, amount, quote.rate())
+              : math.calculateTarget(from, to, amount, quote.rate());
       targetCredit = mode.equals("TARGET") ? amount : calculation.credit();
     }
     TransferRoutingContext context =
@@ -135,52 +164,22 @@ public class WalletTransferRoutingService {
             to,
             mode.equals("SOURCE") ? amount : calculation.gross(),
             quote == null ? BigDecimal.ONE : quote.rate());
-    UUID attemptId =
-        UUID.nameUUIDFromBytes(("wallet-p2p:" + user + ":" + key).getBytes(StandardCharsets.UTF_8));
-    String operationKey = "payout:" + attemptId;
-    String normalized =
-        InternalLedgerTransferRail.canonicalRequest(
-            mapper,
-            user,
-            recipient,
-            from,
-            to,
-            calculation.gross(),
-            calculation.fee(),
-            targetCredit,
-            calculation.rate());
-    FxSnapshot acceptedQuote = quote;
-    return operations.execute(
-        user,
-        "TRANSFER",
-        operationKey,
-        normalized,
-        WalletTransferResponse.class,
-        canonical ->
-            executeRouted(
-                user,
-                recipient,
-                from,
-                to,
-                calculation,
-                targetCredit,
-                acceptedQuote,
-                context,
-                attemptId,
-                operationKey));
+    return new PreparedTransfer(recipient, from, to, calculation, targetCredit, quote, context);
   }
 
   private WalletTransferResponse executeRouted(
       UUID user,
-      UUID recipient,
-      String from,
-      String to,
-      ConversionCalculation calculation,
-      BigDecimal targetCredit,
-      FxSnapshot quote,
-      TransferRoutingContext context,
+      PreparedTransfer prepared,
+      String normalizedRequest,
       UUID attemptId,
       String operationKey) {
+    UUID recipient = prepared.recipient();
+    String from = prepared.from();
+    String to = prepared.to();
+    ConversionCalculation calculation = prepared.calculation();
+    BigDecimal targetCredit = prepared.targetCredit();
+    FxSnapshot quote = prepared.quote();
+    TransferRoutingContext context = prepared.context();
     var recommendation = routing.recommend(context, RoutePreference.BALANCED);
     var winner = recommendation.recommended();
     TransferRoute route = winner.quote().route();
@@ -218,7 +217,8 @@ public class WalletTransferRoutingService {
             1,
             calculation.fee(),
             calculation.rate(),
-            operationKey);
+            operationKey,
+            normalizedRequest);
     TransferRailResult result;
     try {
       result = rail.execute(command);
@@ -310,4 +310,13 @@ public class WalletTransferRoutingService {
         "INVALID_TRANSFER_ROUTE",
         "Route " + route.getRouteCode() + " does not support internal wallet transfer.");
   }
+
+  private record PreparedTransfer(
+      UUID recipient,
+      String from,
+      String to,
+      ConversionCalculation calculation,
+      BigDecimal targetCredit,
+      FxSnapshot quote,
+      TransferRoutingContext context) {}
 }

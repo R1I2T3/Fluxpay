@@ -23,7 +23,41 @@ public record TransferRailCommand(
     int attemptNumber,
     BigDecimal customerFee,
     BigDecimal offeredRate,
-    String idempotencyKey) {
+    String idempotencyKey,
+    String normalizedRequest) {
+  public TransferRailCommand(
+      UUID transferId,
+      UUID attemptId,
+      UUID senderUserId,
+      BigDecimal sourceAmount,
+      String sourceCurrency,
+      BigDecimal recipientAmount,
+      String targetCurrency,
+      TransferProviderSnapshot provider,
+      TransferRouteSnapshot route,
+      TransferDestination destination,
+      int attemptNumber,
+      BigDecimal customerFee,
+      BigDecimal offeredRate,
+      String idempotencyKey) {
+    this(
+        transferId,
+        attemptId,
+        senderUserId,
+        sourceAmount,
+        sourceCurrency,
+        recipientAmount,
+        targetCurrency,
+        provider,
+        route,
+        destination,
+        attemptNumber,
+        customerFee,
+        offeredRate,
+        idempotencyKey,
+        null);
+  }
+
   public TransferRailCommand {
     Objects.requireNonNull(transferId, "transferId must not be null");
     if (attemptId == null || !("payout:" + attemptId).equals(idempotencyKey)) {

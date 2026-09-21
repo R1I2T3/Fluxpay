@@ -240,8 +240,7 @@ class WalletTransferRoutingServiceTest {
             mock(WalletPostingService.class),
             mock(TransferRouteRepository.class),
             mock(RouteReliabilityService.class),
-            Clock.fixed(NOW, java.time.ZoneOffset.UTC),
-            new ObjectMapper());
+            Clock.fixed(NOW, java.time.ZoneOffset.UTC));
     RailRegistry registry =
         new RailRegistry(
             List.of(
