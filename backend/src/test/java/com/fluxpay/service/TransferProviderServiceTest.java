@@ -1,6 +1,7 @@
 package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -172,6 +173,88 @@ class TransferProviderServiceTest {
         .isInstanceOfSatisfying(
             BusinessException.class,
             error -> assertThat(error.code()).isEqualTo("INVALID_TRANSFER_ROUTE"));
+  }
+
+  @Test
+  void updateRejectsDeactivationWhileActiveNonArchivedRoutesExist() {
+    TransferRoute child = route(provider);
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(child));
+
+    assertThatThrownBy(
+            () ->
+                service.update(
+                    PROVIDER_ID, new UpdateProvider("HDFC Bank", RailType.BANK_NETWORK, false, 0L)))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> {
+              assertThat(error.code()).isEqualTo("PROVIDER_HAS_ROUTES");
+              assertThat(error.status().value()).isEqualTo(409);
+            });
+
+    assertThat(provider.active()).isTrue();
+  }
+
+  @Test
+  void updateAllowsDeactivationWhenChildrenAreInactiveOrArchived() {
+    TransferRoute inactive =
+        TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, provider, NOW);
+    TransferRoute archived =
+        TransferRouteTestFixtures.externalRoute(UUID.randomUUID(), provider, NOW);
+    archived.archive(NOW);
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID))
+        .thenReturn(List.of(inactive, archived));
+
+    TransferProvider updated =
+        service.update(
+            PROVIDER_ID, new UpdateProvider("HDFC Bank", RailType.BANK_NETWORK, false, 0L));
+
+    assertThat(updated.active()).isFalse();
+  }
+
+  @Test
+  void updateActiveRailBindingRejectsUninstalledRailForActiveRoute() {
+    TransferRoute child = route(provider);
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(child));
+
+    assertThatThrownBy(
+            () ->
+                service.update(
+                    PROVIDER_ID,
+                    new UpdateProvider("HDFC Bank", RailType.PARTNER_NETWORK, true, 0L)))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> {
+              assertThat(error.code()).isEqualTo("TRANSFER_RAIL_UNAVAILABLE");
+              assertThat(error.status().value()).isEqualTo(503);
+            });
+
+    assertThat(provider.railType()).isEqualTo(RailType.BANK_NETWORK);
+  }
+
+  @Test
+  void updateRailBindingIgnoresInactiveAndArchivedRoutes() {
+    TransferRoute inactive =
+        TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, provider, NOW);
+    TransferRoute archived =
+        TransferRouteTestFixtures.externalRoute(UUID.randomUUID(), provider, NOW);
+    archived.archive(NOW);
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
+    when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID))
+        .thenReturn(List.of(inactive, archived));
+
+    assertThatCode(
+            () ->
+                service.update(
+                    PROVIDER_ID,
+                    new UpdateProvider("HDFC Bank", RailType.INTERNAL_LEDGER, true, 0L)))
+        .doesNotThrowAnyException();
+
+    assertThat(provider.railType()).isEqualTo(RailType.INTERNAL_LEDGER);
   }
 
   @Test

@@ -133,6 +133,38 @@ class TransferRouteServiceTest {
   }
 
   @Test
+  void createActiveRouteRejectsUninstalledProviderRail() {
+    TransferProvider partner =
+        TransferProvider.create(
+            PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.create(createCommand("HDFC_INR_STANDARD", true)))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> {
+              assertThat(error.code()).isEqualTo("TRANSFER_RAIL_UNAVAILABLE");
+              assertThat(error.status().value()).isEqualTo(503);
+            });
+  }
+
+  @Test
+  void createInactiveRouteAllowsUninstalledProviderRail() {
+    TransferProvider partner =
+        TransferProvider.create(
+            PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
+    when(routes.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    TransferRoute created = service.create(createCommand("HDFC_INR_STANDARD", false));
+
+    assertThat(created.active()).isFalse();
+    assertThat(created.provider().railType()).isEqualTo(RailType.PARTNER_NETWORK);
+  }
+
+  @Test
   void createRejectsInvalidCorridorAndLimits() {
     when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
@@ -312,6 +344,60 @@ class TransferRouteServiceTest {
         .isInstanceOfSatisfying(
             BusinessException.class,
             error -> assertThat(error.code()).isEqualTo("INVALID_TRANSFER_ROUTE"));
+  }
+
+  @Test
+  void updateRejectsActivationWhenProviderRailIsUninstalled() {
+    TransferProvider partner =
+        TransferProvider.create(
+            PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
+    TransferRoute dormant = TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, partner, NOW);
+    when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(dormant));
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+
+    assertThatThrownBy(
+            () ->
+                service.update(
+                    ROUTE_ID,
+                    updateCommand(PROVIDER_ID, DestinationType.EXTERNAL_ACCOUNT, true, 0L)))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> assertThat(error.code()).isEqualTo("TRANSFER_RAIL_UNAVAILABLE"));
+  }
+
+  @Test
+  void updateActiveRouteRejectsUninstalledProviderRail() {
+    TransferProvider partner =
+        TransferProvider.create(
+            PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
+    TransferRoute active = TransferRouteTestFixtures.externalRoute(ROUTE_ID, partner, NOW);
+    when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(active));
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+
+    assertThatThrownBy(
+            () ->
+                service.update(
+                    ROUTE_ID,
+                    updateCommand(PROVIDER_ID, DestinationType.EXTERNAL_ACCOUNT, true, 0L)))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> assertThat(error.code()).isEqualTo("TRANSFER_RAIL_UNAVAILABLE"));
+  }
+
+  @Test
+  void updateInactiveRouteAllowsUninstalledProviderRail() {
+    TransferProvider partner =
+        TransferProvider.create(
+            PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
+    TransferRoute dormant = TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, partner, NOW);
+    when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(dormant));
+    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+
+    TransferRoute updated =
+        service.update(
+            ROUTE_ID, updateCommand(PROVIDER_ID, DestinationType.EXTERNAL_ACCOUNT, false, 0L));
+
+    assertThat(updated.active()).isFalse();
   }
 
   @Test

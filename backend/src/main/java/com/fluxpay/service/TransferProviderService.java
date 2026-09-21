@@ -101,10 +101,21 @@ public class TransferProviderService {
     if (command.railType() == null) {
       throw invalid("railType must not be null");
     }
-    if (!command.railType().equals(provider.railType()) && usage.providerUsed(id)) {
+    boolean railChanged = !command.railType().equals(provider.railType());
+    if (railChanged && usage.providerUsed(id)) {
       throw conflict(
           "ROUTING_BINDING_IMMUTABLE",
           "The provider rail cannot change after its routes have been used.");
+    }
+    List<TransferRoute> children = routes.findByProviderIdOrderByRouteCodeAsc(id);
+    List<TransferRoute> activeChildren =
+        children.stream().filter(child -> child.active() && child.archivedAt() == null).toList();
+    if (provider.active() && !command.active() && !activeChildren.isEmpty()) {
+      throw conflict(
+          "PROVIDER_HAS_ROUTES", "Deactivate the provider routes before deactivating it.");
+    }
+    if (railChanged && command.active()) {
+      requireInstalledCompatibleRail(command.railType(), activeChildren);
     }
     try {
       provider.update(
@@ -112,7 +123,6 @@ public class TransferProviderService {
     } catch (IllegalArgumentException e) {
       throw invalid(e.getMessage());
     }
-    requireCompatibleWithChildren(provider);
     providers.flush();
     return provider;
   }
@@ -149,10 +159,10 @@ public class TransferProviderService {
     }
   }
 
-  private void requireCompatibleWithChildren(TransferProvider provider) {
-    for (TransferRoute child : routes.findByProviderIdOrderByRouteCodeAsc(provider.id())) {
-      RoutingCompatibility.requireCompatibleIfInstalled(
-          rails, provider.railType(), child.destinationType());
+  private void requireInstalledCompatibleRail(
+      RailType railType, List<TransferRoute> activeChildren) {
+    for (TransferRoute child : activeChildren) {
+      rails.requireCompatible(railType, child.destinationType());
     }
   }
 

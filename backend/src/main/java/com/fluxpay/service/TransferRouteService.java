@@ -102,11 +102,11 @@ public class TransferRouteService {
     if (command.destinationType() == null) {
       throw invalid("destinationType must not be null");
     }
-    RoutingCompatibility.requireCompatibleIfInstalled(
-        rails, provider.railType(), command.destinationType());
     if (command.active() && !provider.active()) {
       throw invalid("The route cannot be active while its provider is inactive.");
     }
+    RoutingCompatibility.requireCompatible(
+        rails, provider.railType(), command.destinationType(), command.active());
     TransferRoute route;
     try {
       route =
@@ -156,11 +156,11 @@ public class TransferRouteService {
           "The route provider and destination cannot change after the route has been used.");
     }
     TransferProvider provider = findProvider(command.providerId());
-    RoutingCompatibility.requireCompatibleIfInstalled(
-        rails, provider.railType(), command.destinationType());
     if (command.active() && !provider.active()) {
       throw invalid("The route cannot be active while its provider is inactive.");
     }
+    RoutingCompatibility.requireCompatible(
+        rails, provider.railType(), command.destinationType(), command.active());
     try {
       route.update(
           provider,
