@@ -75,6 +75,8 @@ class ApplicationBoundaryWiringTest {
           PolicyDocumentRepository.class,
           PolicyChunkRepository.class,
           PolicyGuidanceRepository.class,
+          SupportTicketRepository.class,
+          TicketMessageRepository.class,
           TransferProviderRepository.class,
           TransferRouteOutcomeRepository.class
         }) {

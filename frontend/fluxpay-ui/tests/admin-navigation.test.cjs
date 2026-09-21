@@ -31,7 +31,7 @@ test('verification reminder follows server status and disappears after submissio
 test('admin login dashboard request opens Administration without customer navigation',async()=>{
   const f=fixture();await f.settle();f.session.user({role:'ADMIN'});f.navigate('dashboard');
   assert.equal(f.calls.at(-1).path,'admin');assert.equal(f.root.accountPath(),'admin');
-  assert.deepEqual(Array.from(f.root.visibleNav(),n=>n.path),['admin']);
+  assert.deepEqual(Array.from(f.root.visibleNav(),n=>n.path),['admin','admin-tickets']);
   assert.equal(f.root.isAdminWorkspace(),true);
 });
 test('restoring an admin on an old dashboard bookmark opens Administration',async()=>{

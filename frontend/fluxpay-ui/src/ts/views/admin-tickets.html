@@ -1,0 +1,100 @@
+<section class="workspace-page">
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">SUPPORT OPERATIONS</span>
+      <h1>Ticket review.</h1>
+      <p>Assign, investigate, resolve, and reopen customer support tickets.</p>
+    </div>
+    <button class="pill soft" data-bind="click:loadTickets,disable:busy">Refresh</button>
+  </div>
+
+  <div class="alert error" role="alert" data-bind="visible:error"><span>!</span><p data-bind="text:error"></p></div>
+  <div class="alert success" role="status" data-bind="visible:notice"><span>✓</span><p data-bind="text:notice"></p></div>
+  <div class="loading-line" role="progressbar" aria-label="Loading ticket queue" data-bind="visible:busy"></div>
+
+  <!-- ko if: !session.user() -->
+  <div class="sign-in-gate">
+    <span class="gate-icon">→</span>
+    <h2>Sign in to review tickets.</h2>
+    <p>Only administrators can manage support work.</p>
+    <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+  </div>
+  <!-- /ko -->
+
+  <!-- ko if: session.user() && !session.isAdmin() -->
+  <div class="sign-in-gate">
+    <span class="gate-icon">!</span>
+    <h2>Administrator access required.</h2>
+    <p>Your account cannot view or update support tickets for other users.</p>
+  </div>
+  <!-- /ko -->
+
+  <!-- ko if: session.isAdmin() -->
+  <article class="panel">
+    <div class="admin-toolbar">
+      <label>
+        Ticket status
+        <select data-bind="value:status,event:{change:changeFilter},disable:busy">
+          <option value="ALL">All tickets</option>
+          <option value="OPEN">Open</option>
+          <option value="IN_PROGRESS">In progress</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="CLOSED">Closed</option>
+        </select>
+      </label>
+      <button class="pill soft" data-bind="click:loadTickets,disable:busy">Refresh queue</button>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer / request</th>
+            <th>Status</th>
+            <th>Assigned</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:tickets">
+          <tr>
+            <td>
+              <strong data-bind="text:subject"></strong>
+              <small data-bind="text:body"></small>
+              <small class="mono" data-bind="text:'Customer: '+userId"></small>
+              <!-- ko if: paymentId --><small class="mono" data-bind="text:'Payment: '+paymentId"></small><!-- /ko -->
+            </td>
+            <td><span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span></td>
+            <td>
+              <!-- ko if: assigneeAdminId --><span data-bind="text:assigneeAdminId===$parent.currentAdminId()?'You':'Another administrator'"></span><!-- /ko -->
+              <!-- ko ifnot: assigneeAdminId --><span class="muted">Unassigned</span><!-- /ko -->
+            </td>
+            <td data-bind="text:$parent.date(createdAt)"></td>
+            <td>
+              <div class="action-row">
+                <button class="pill soft" data-bind="visible:status!=='CLOSED' && assigneeAdminId!==$parent.currentAdminId(),click:function(){ $parent.assignToMe($data) },disable:$parent.busy">Assign to me</button>
+                <button class="pill dark" data-bind="visible:status==='OPEN',click:function(){ $parent.moveTo($data,'IN_PROGRESS') },disable:$parent.busy">Start</button>
+                <button class="pill dark" data-bind="visible:status==='IN_PROGRESS',click:function(){ $parent.moveTo($data,'RESOLVED') },disable:$parent.busy">Resolve</button>
+                <button class="pill dark" data-bind="visible:status==='RESOLVED',click:function(){ $parent.moveTo($data,'CLOSED') },disable:$parent.busy">Close</button>
+                <button class="pill soft" data-bind="visible:status==='CLOSED',click:function(){ $parent.moveTo($data,'OPEN') },disable:$parent.busy">Reopen</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="empty-state" data-bind="visible:!busy()&&tickets().length===0">
+      <span>○</span>
+      <h3>No matching tickets</h3>
+      <p>Choose another status filter or refresh the queue.</p>
+    </div>
+
+    <div class="pagination">
+      <button data-bind="click:previousPage,disable:busy()||ticketPage()===0">← Previous</button>
+      <span data-bind="text:'Page '+(ticketPage()+1)+' · '+total()+' total'"></span>
+      <button data-bind="click:nextPage,disable:busy()||(ticketPage()+1)*20>=total()">Next →</button>
+    </div>
+  </article>
+  <!-- /ko -->
+</section>

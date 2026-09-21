@@ -330,9 +330,16 @@
 .workspace-shell .status[data-status='PROCESSING'],
 .workspace-shell .status[data-status='QUOTED'],
 .workspace-shell .status[data-status='PENDING'],
-.workspace-shell .status[data-status='UNDER_REVIEW'] {
+.workspace-shell .status[data-status='UNDER_REVIEW'],
+.workspace-shell .status[data-status='OPEN'],
+.workspace-shell .status[data-status='IN_PROGRESS'] {
   background: #eaf2ff;
   color: #235fba;
+}
+.workspace-shell .status[data-status='RESOLVED'],
+.workspace-shell .status[data-status='CLOSED'] {
+  background: #e8f6ef;
+  color: #1b7456;
 }
 .workspace-shell .status[data-status='FAILED'],
 .workspace-shell .status[data-status='REJECTED'],

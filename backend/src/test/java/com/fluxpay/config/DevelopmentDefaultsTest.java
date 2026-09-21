@@ -32,6 +32,8 @@ import com.fluxpay.repository.PolicyChunkRepository;
 import com.fluxpay.repository.PolicyDocumentRepository;
 import com.fluxpay.repository.PolicyGuidanceRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.SupportTicketRepository;
+import com.fluxpay.repository.TicketMessageRepository;
 import com.fluxpay.repository.TransferProviderRepository;
 import com.fluxpay.repository.TransferRouteOutcomeRepository;
 import com.fluxpay.repository.TransferRouteRepository;
@@ -120,6 +122,8 @@ class DevelopmentDefaultsTest {
           PolicyDocumentRepository.class,
           PolicyChunkRepository.class,
           PolicyGuidanceRepository.class,
+          SupportTicketRepository.class,
+          TicketMessageRepository.class,
           TransferProviderRepository.class,
           TransferRouteOutcomeRepository.class
         }) {

@@ -105,7 +105,11 @@ class BackendAcceptanceIT {
   @Test
   void adminManagedCatalogueRoutesExternalAndInternalTransfers() throws Exception {
     assertThat(flyway.info().pending()).isEmpty();
-    assertThat(flyway.info().applied()).isNotEmpty();
+    assertThat(flyway.info().applied())
+        .anyMatch(
+            migration ->
+                migration.getVersion() != null
+                    && "006".equals(migration.getVersion().getVersion()));
     Catalogue catalogue = provisionCatalogue();
 
     mvc.perform(get("/api/wallets").header("X-Local-User-Id", UUID.randomUUID()))
