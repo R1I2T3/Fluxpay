@@ -31,15 +31,16 @@ import com.fluxpay.repository.PayoutAttemptRepository;
 import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.PolicyChunkRepository;
 import com.fluxpay.repository.PolicyDocumentRepository;
+import com.fluxpay.repository.PolicyGuidanceRepository;
 import com.fluxpay.repository.RecipientRepository;
 import com.fluxpay.repository.SupportTicketRepository;
 import com.fluxpay.repository.TicketMessageRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
-import com.fluxpay.service.AmountComplianceAssessor;
 import com.fluxpay.service.DemoFundingService;
 import com.fluxpay.service.KycService;
+import com.fluxpay.service.PaymentRiskComplianceAssessor;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,11 @@ class DevelopmentDefaultsTest {
     for (Class repository :
         new Class<?>[] {
           WalletRepository.class,
+          com.fluxpay.repository.BankAccountRepository.class,
+          com.fluxpay.repository.WalletTopupRepository.class,
+          com.fluxpay.repository.CurrencyConfigurationRepository.class,
+          com.fluxpay.repository.LedgerJournalRepository.class,
+          com.fluxpay.repository.LedgerJournalLockRepository.class,
           WalletOperationRepository.class,
           UserRepository.class,
           RecipientRepository.class,
@@ -113,8 +119,12 @@ class DevelopmentDefaultsTest {
           ComplianceCaseRepository.class,
           PolicyDocumentRepository.class,
           PolicyChunkRepository.class,
+<<<<<<< HEAD
           SupportTicketRepository.class,
           TicketMessageRepository.class
+=======
+          PolicyGuidanceRepository.class
+>>>>>>> d0ef60141524f31198ba72c7972e79ca562d4f00
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }
@@ -146,7 +156,7 @@ class DevelopmentDefaultsTest {
               assertThat(context.getBeanNamesForType(SimulatedComplianceAssessor.class)).isEmpty();
               assertThat(context.getBeansOfType(ComplianceAssessor.class)).hasSize(1);
               assertThat(context.getBean(ComplianceAssessor.class))
-                  .isInstanceOf(AmountComplianceAssessor.class);
+                  .isInstanceOf(PaymentRiskComplianceAssessor.class);
 
               // Missing KYC storage fails honestly with 503 before claiming an upload.
               KycService kyc = context.getBean(KycService.class);

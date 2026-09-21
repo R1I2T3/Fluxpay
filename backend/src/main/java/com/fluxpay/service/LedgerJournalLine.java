@@ -10,4 +10,16 @@ public record LedgerJournalLine(
     BigDecimal amount,
     String currency,
     String idempotencyKey,
-    String narration) {}
+    String narration,
+    BigDecimal rate,
+    String quoteId) {
+  public LedgerJournalLine(
+      UUID walletId,
+      String entryType,
+      BigDecimal amount,
+      String currency,
+      String idempotencyKey,
+      String narration) {
+    this(walletId, entryType, amount, currency, idempotencyKey, narration, null, null);
+  }
+}

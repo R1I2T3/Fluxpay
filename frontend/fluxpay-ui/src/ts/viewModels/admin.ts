@@ -21,7 +21,19 @@ class ViewModel extends Page {
   };
   askAboutCase = ()=>{
     const c=this.workspace.selectedCase();if(!c)return;
-    this.workspace.copilotPaymentId(c.paymentId);this.workspace.question('Which policies are relevant to this payment review?');this.workspace.closeCase();this.selectTab({id:'copilot'});
+    const reasons=c.riskReasons.filter(Boolean).join('; ')||'No risk reasons recorded.';
+    const suggestedAction=c.suggestedAction.trim()||'No suggested action recorded.';
+    const question=[
+      'Which policies are relevant to this payment review?',
+      '',
+      'Case context:',
+      `- Risk level: ${c.risk}`,
+      `- Risk reasons: ${reasons}`,
+      `- Suggested action: ${suggestedAction}`,
+      '',
+      'Use this case context to identify the relevant policy checks before deciding.'
+    ].join('\n');
+    this.workspace.copilotPaymentId(c.paymentId);this.workspace.question(question);this.workspace.closeCase();this.selectTab({id:'copilot'});
   };
   openSource = async (source:{policyDocumentId:string})=>{if(this.workspace.busy())return;this.adminTab('policies');this.workspace.resetSearch();await this.workspace.loadPolicies();await this.workspace.openPolicy({id:source.policyDocumentId});};
   disconnected(){super.disconnected();this.workspace.dispose();}

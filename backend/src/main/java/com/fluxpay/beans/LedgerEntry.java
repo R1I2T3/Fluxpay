@@ -40,6 +40,12 @@ public class LedgerEntry {
   @Column(name = "narration", length = 255, updatable = false)
   private String narration;
 
+  @Column(name = "rate", precision = 19, scale = 8, updatable = false)
+  private BigDecimal rate;
+
+  @Column(name = "quote_id", length = 36, updatable = false)
+  private String quoteId;
+
   @JdbcTypeCode(SqlTypes.TIMESTAMP)
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
@@ -55,6 +61,30 @@ public class LedgerEntry {
       String journalReference,
       String narration,
       Instant createdAt) {
+    this(
+        walletId,
+        entryType,
+        amount,
+        currency,
+        idempotencyKey,
+        journalReference,
+        narration,
+        null,
+        null,
+        createdAt);
+  }
+
+  public LedgerEntry(
+      UUID walletId,
+      String entryType,
+      BigDecimal amount,
+      String currency,
+      String idempotencyKey,
+      String journalReference,
+      String narration,
+      BigDecimal rate,
+      String quoteId,
+      Instant createdAt) {
     this.id = UUID.randomUUID();
     this.walletId = walletId;
     this.entryType = entryType;
@@ -63,6 +93,8 @@ public class LedgerEntry {
     this.idempotencyKey = idempotencyKey;
     this.journalReference = journalReference;
     this.narration = narration;
+    this.rate = rate;
+    this.quoteId = quoteId;
     this.createdAt = createdAt;
   }
 
@@ -96,6 +128,14 @@ public class LedgerEntry {
 
   public String getNarration() {
     return narration;
+  }
+
+  public BigDecimal getRate() {
+    return rate == null ? null : rate.setScale(8);
+  }
+
+  public String getQuoteId() {
+    return quoteId;
   }
 
   public Instant getCreatedAt() {

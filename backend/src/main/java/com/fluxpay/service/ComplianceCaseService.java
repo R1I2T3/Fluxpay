@@ -68,11 +68,17 @@ public class ComplianceCaseService {
 
   @Transactional
   public ComplianceCaseResponse openReview(
-      UUID paymentId, String reviewReference, com.fluxpay.common.enums.ComplianceRisk risk,
-      List<String> reasons, String suggestedAction) {
-    repository.findByReviewReference(reviewReference).ifPresent(existing -> {
-      throw new IllegalStateException("A compliance case already exists for this review");
-    });
+      UUID paymentId,
+      String reviewReference,
+      com.fluxpay.common.enums.ComplianceRisk risk,
+      List<String> reasons,
+      String suggestedAction) {
+    repository
+        .findByReviewReference(reviewReference)
+        .ifPresent(
+            existing -> {
+              throw new IllegalStateException("A compliance case already exists for this review");
+            });
     ComplianceCase entity = new ComplianceCase();
     entity.setPaymentId(paymentId);
     entity.setReviewReference(reviewReference);
@@ -98,12 +104,14 @@ public class ComplianceCaseService {
   }
 
   @Transactional
-  public ComplianceCaseResponse approve(UUID id, ComplianceDecisionRequest request, String reviewer) {
+  public ComplianceCaseResponse approve(
+      UUID id, ComplianceDecisionRequest request, String reviewer) {
     return decide(id, ComplianceCaseStatus.APPROVED, request, reviewer);
   }
 
   @Transactional
-  public ComplianceCaseResponse reject(UUID id, ComplianceDecisionRequest request, String reviewer) {
+  public ComplianceCaseResponse reject(
+      UUID id, ComplianceDecisionRequest request, String reviewer) {
     return decide(id, ComplianceCaseStatus.REJECTED, request, reviewer);
   }
 
@@ -150,7 +158,8 @@ public class ComplianceCaseService {
   }
 
   private Payment activeReviewPayment(ComplianceCase complianceCase) {
-    if (complianceCase.getReviewReference() == null || complianceCase.getReviewReference().isBlank()) {
+    if (complianceCase.getReviewReference() == null
+        || complianceCase.getReviewReference().isBlank()) {
       return null;
     }
     requirePaymentWorkflow();
@@ -190,9 +199,12 @@ public class ComplianceCaseService {
                         HttpStatus.CONFLICT,
                         "STALE_COMPLIANCE_REVIEW",
                         "The selected quote no longer belongs to the reviewed payment."));
-    if (!now.isBefore(quote.expiresAt())) {
+    Instant reviewExpiresAt = payment.approvalExpiresAt();
+    if (reviewExpiresAt == null || !now.isBefore(reviewExpiresAt)) {
       throw new BusinessException(
-          HttpStatus.GONE, "QUOTE_EXPIRED", "The selected quote has expired during review.");
+          HttpStatus.GONE,
+          "REVIEW_WINDOW_EXPIRED",
+          "The compliance review window has expired; obtain a fresh quote before approving.");
     }
     PostingAccounts accounts =
         posting.postApprovedPayment(
@@ -202,7 +214,7 @@ public class ComplianceCaseService {
             payment.sourceCurrency(),
             payment.sourceAmount(),
             quote.feeAmount(),
-            quote.expiresAt());
+            reviewExpiresAt);
     payment.recordPosting(postingSnapshot(payment, accounts, quote), now);
     payment.selectAndProcess(quote.id(), now);
     outbox.enqueue(
@@ -285,10 +297,13 @@ public class ComplianceCaseService {
   }
 
   private ComplianceCaseResponse toResponse(ComplianceCase e) {
+    ReviewWindow reviewWindow = reviewWindow(e);
     return new ComplianceCaseResponse(
         e.getId(),
         e.getPaymentId(),
         e.getReviewReference(),
+        reviewWindow.expiresAt(),
+        reviewWindow.requoteRequired(),
         e.getRisk(),
         e.getStatus(),
         readJson(e.getRiskReasons()),
@@ -297,5 +312,23 @@ public class ComplianceCaseService {
         e.getDecidedAt(),
         e.getDecisionReason(),
         e.getCreatedAt());
+  }
+
+  private ReviewWindow reviewWindow(ComplianceCase complianceCase) {
+    if (complianceCase.getStatus() != ComplianceCaseStatus.OPEN
+        || complianceCase.getReviewReference() == null
+        || complianceCase.getReviewReference().isBlank()) {
+      return ReviewWindow.NONE;
+    }
+    Instant expiresAt =
+        payments
+            .findById(complianceCase.getPaymentId())
+            .map(Payment::approvalExpiresAt)
+            .orElse(null);
+    return new ReviewWindow(expiresAt, expiresAt != null && !clock.instant().isBefore(expiresAt));
+  }
+
+  private record ReviewWindow(Instant expiresAt, boolean requoteRequired) {
+    private static final ReviewWindow NONE = new ReviewWindow(null, false);
   }
 }

@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-17-mobile-refactor-design.md` and `docs/superpowers/specs/2026-09-17-qa-bugbatch-design.md`
 
+**Implementation update (2026-09-18):** Frontend changes and verification are recorded in [Plan 5 implementation status](2026-09-18-plan5-frontend-status.md). Full end-to-end sign-off remains blocked by the absent Plan 1/3/4 implementations, recipient DELETE endpoint, and Others payment-purpose enum. No backend changes were made; incomplete cross-plan requirements are not marked complete below.
+
 ## Global Constraints
 
 - No backend edits, no migrations, no API URL changes; consume Plan 1/3/4 contracts as documented.

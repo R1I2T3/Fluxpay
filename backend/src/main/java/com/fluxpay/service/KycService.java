@@ -29,6 +29,7 @@ public class KycService {
   private final UserRepository users;
   private final java.time.Clock clock;
   private final boolean metadataEnabled;
+  private final KycDocumentStorage storage;
 
   public KycService(
       KycCaseRepository kycCases,
@@ -37,12 +38,14 @@ public class KycService {
       java.time.Clock clock,
       @org.springframework.beans.factory.annotation.Value(
               "${fluxpay.development.kyc-metadata-enabled:false}")
-          boolean metadataEnabled) {
+          boolean metadataEnabled,
+      KycDocumentStorage storage) {
     this.kycCases = kycCases;
     this.kycDocuments = kycDocuments;
     this.users = users;
     this.clock = clock;
     this.metadataEnabled = metadataEnabled;
+    this.storage = storage;
   }
 
   @Transactional(readOnly = true)
@@ -84,6 +87,16 @@ public class KycService {
   @Transactional
   public KycStatusResponse approve(UUID reviewerId, UUID applicationId, KycReviewRequest request) {
     KycCase kycCase = reviewableCase(applicationId, request.expectedVersion());
+    List<KycDocument> submitted =
+        kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(applicationId);
+    if (submitted.isEmpty()
+        || submitted.stream().anyMatch(d -> !d.getStorageUrl().startsWith("local:"))) {
+      throw new KycException(
+          KycException.VALIDATION,
+          "Original documents are unavailable. Reject this application and request a new upload.");
+    }
+    // A local storage marker alone is not evidence that the original file still exists.
+    submitted.forEach(document -> storage.read(document.getStorageUrl()));
     User reviewer = findUser(reviewerId);
     kycCase.approve(reviewer, clock.instant());
     return toStatusResponse(kycCases.saveAndFlush(kycCase));
@@ -175,7 +188,10 @@ public class KycService {
         kycCase.getStatus(),
         kycCase.getRejectReason(),
         kycCase.getSubmittedAt(),
-        kycCase.getDecidedAt());
+        kycCase.getDecidedAt(),
+        kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(kycCase.getId()).stream()
+            .map(KycFileMeta::from)
+            .toList());
   }
 
   private KycAdminRow toAdminRow(KycCase kycCase) {
@@ -186,10 +202,7 @@ public class KycService {
     String fullName = user == null ? "Unknown user" : user.getFullName();
     List<KycFileMeta> documents =
         kycDocuments.findAllByKycCaseIdOrderByUploadedAtAsc(kycCase.getId()).stream()
-            .map(
-                document ->
-                    new KycFileMeta(
-                        document.getFileName(), document.getFileType(), document.getFileSize()))
+            .map(KycFileMeta::from)
             .toList();
     return new KycAdminRow(
         kycCase.getId(),

@@ -1,6 +1,8 @@
 package com.fluxpay.service;
 
 import com.fluxpay.beans.PolicyDocument;
+import com.fluxpay.common.contracts.PolicyIndexStore;
+import com.fluxpay.common.enums.PolicyChunkSource;
 import com.fluxpay.dto.PolicyChunkResponse;
 import com.fluxpay.dto.PolicyDocumentRequest;
 import com.fluxpay.dto.PolicyDocumentResponse;
@@ -20,11 +22,15 @@ public class PolicyDocumentService {
 
   private final PolicyDocumentRepository repository;
   private final PolicyChunkRepository chunkRepository;
+  private final PolicyIndexStore indexStore;
 
   public PolicyDocumentService(
-      PolicyDocumentRepository repository, PolicyChunkRepository chunkRepository) {
+      PolicyDocumentRepository repository,
+      PolicyChunkRepository chunkRepository,
+      PolicyIndexStore indexStore) {
     this.repository = repository;
     this.chunkRepository = chunkRepository;
+    this.indexStore = indexStore;
   }
 
   @Transactional
@@ -45,6 +51,28 @@ public class PolicyDocumentService {
     return toResponse(repository.save(entity), List.of());
   }
 
+  @Transactional
+  public PolicyDocumentResponse update(UUID id, PolicyDocumentRequest request) {
+    PolicyDocument document = find(id);
+    String hash = sha256(request.title() + "|" + request.content());
+    repository
+        .findByDocumentHash(hash)
+        .filter(existing -> !existing.getId().equals(id))
+        .ifPresent(
+            existing -> {
+              throw new IllegalStateException(
+                  "Duplicate policy content, existing id: " + existing.getId());
+            });
+    if (request.clearExistingChunks()) {
+      indexStore.delete(id);
+    }
+    document.setTitle(request.title());
+    document.setCategory(request.category());
+    document.setContent(request.content());
+    document.setDocumentHash(hash);
+    return toResponse(repository.save(document), List.of());
+  }
+
   @Transactional(readOnly = true)
   public List<PolicyDocumentResponse> list() {
     return repository.findAllByOrderByCreatedAtDesc().stream()
@@ -63,7 +91,12 @@ public class PolicyDocumentService {
         .map(
             c ->
                 new PolicyChunkResponse(
-                    c.getId(), documentId, c.getChunkNumber(), c.getContent(), c.getCreatedAt()))
+                    c.getId(),
+                    documentId,
+                    c.getChunkNumber(),
+                    c.getContent(),
+                    c.getSource() == PolicyChunkSource.MANUAL,
+                    c.getCreatedAt()))
         .toList();
   }
 

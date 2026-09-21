@@ -17,7 +17,10 @@ public record ComplianceAssessment(
   public static ComplianceAssessment fromVerdict(ScreeningVerdict verdict) {
     return verdict == ScreeningVerdict.APPROVE
         ? new ComplianceAssessment(
-            ScreeningVerdict.APPROVE, ComplianceRisk.LOW, List.of(), "Proceed with payment processing.")
+            ScreeningVerdict.APPROVE,
+            ComplianceRisk.LOW,
+            List.of(),
+            "Proceed with payment processing.")
         : new ComplianceAssessment(
             verdict,
             ComplianceRisk.MEDIUM,

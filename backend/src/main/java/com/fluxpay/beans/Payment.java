@@ -33,6 +33,9 @@ public class Payment {
   @Enumerated(EnumType.STRING)
   private PaymentPurpose purpose;
 
+  @Column(name = "purpose_reason", length = 250)
+  private String purposeReason;
+
   @Enumerated(EnumType.STRING)
   private RoutePreference preference;
 
@@ -141,6 +144,16 @@ public class Payment {
     return purpose;
   }
 
+  public String purposeReason() {
+    return purposeReason;
+  }
+
+  public void setPurposeReason(String reason) {
+    if (status != PaymentStatus.DRAFT)
+      throw new IllegalStateException("Payment reason is fixed after drafting.");
+    purposeReason = reason;
+  }
+
   public RoutePreference preference() {
     return preference;
   }
@@ -241,7 +254,12 @@ public class Payment {
   }
 
   public void underReview(UUID quoteId, String reference, Instant now) {
+    underReview(quoteId, reference, null, now);
+  }
+
+  public void underReview(UUID quoteId, String reference, Instant reviewExpiresAt, Instant now) {
     selectedQuoteId = quoteId;
+    approvalExpiresAt = reviewExpiresAt;
     underReview(reference, now);
   }
 

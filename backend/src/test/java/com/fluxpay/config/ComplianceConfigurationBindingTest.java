@@ -1,10 +1,12 @@
 package com.fluxpay.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.common.contracts.ComplianceAssessor;
-import com.fluxpay.service.AmountComplianceAssessor;
+import com.fluxpay.repository.PaymentRepository;
+import com.fluxpay.service.PaymentRiskComplianceAssessor;
 import com.fluxpay.service.UnavailableComplianceAssessor;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,8 @@ class ComplianceConfigurationBindingTest {
               VectorConfiguration.class,
               ComplianceConfiguration.class,
               UnavailableComplianceAssessor.class)
-          .withBean(ObjectMapper.class, ObjectMapper::new);
+          .withBean(ObjectMapper.class, ObjectMapper::new)
+          .withBean(PaymentRepository.class, () -> mock(PaymentRepository.class));
 
   @Test
   void applicationDefaultsBindToTheSharedConfigurationPackages() {
@@ -28,7 +31,7 @@ class ComplianceConfigurationBindingTest {
           assertThat(context).hasNotFailed();
           assertThat(context).hasSingleBean(ComplianceAssessor.class);
           assertThat(context.getBean(ComplianceAssessor.class))
-              .isInstanceOf(AmountComplianceAssessor.class);
+              .isInstanceOf(PaymentRiskComplianceAssessor.class);
           assertThat(context.getBean(VectorProperties.class).dimensions()).isEqualTo(1536);
           assertThat(context.getBean(VectorProperties.class).chunkerVersion())
               .isEqualTo("m5-sentence-v1");

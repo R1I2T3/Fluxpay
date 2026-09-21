@@ -139,6 +139,10 @@ class LedgerJournalOracleTest {
     Wallet customer = wallet("USD", WalletAccountRole.CUSTOMER, "20.0000");
     Wallet clearing = wallet("USD", WalletAccountRole.FX_CLEARING, "0.0000");
     String existingKey = "JRN-PARTIAL:customer";
+    jdbc.update(
+        "INSERT INTO ledger_journals(journal_reference,transaction_category,payload_hash) VALUES (?,?,NULL)",
+        "JRN-PARTIAL",
+        "LEGACY");
     try (LedgerPostingContext.Scope ignored =
         context.bind(
             java.util.Map.of(
@@ -148,7 +152,7 @@ class LedgerJournalOracleTest {
     }
 
     assertThrows(
-        IllegalStateException.class,
+        com.fluxpay.exception.LedgerIdempotencyConflictException.class,
         () ->
             journals.post(
                 "JRN-PARTIAL",

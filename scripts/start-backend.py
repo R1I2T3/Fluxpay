@@ -30,6 +30,7 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     load_env(a.env_file)
+    os.environ.setdefault("FLUXPAY_KYC_STORAGE_DIRECTORY", str(PROJECT_ROOT / "temp_images"))
     configure_windows_maven_home()
     retired_fx_mode = os.environ.get("FLUXPAY_FX_MODE")
     if retired_fx_mode is not None and retired_fx_mode.strip() != "":
