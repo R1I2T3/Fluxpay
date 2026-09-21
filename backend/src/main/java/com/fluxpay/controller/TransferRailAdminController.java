@@ -30,7 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/rail-types")
 public class TransferRailAdminController {
 
-  public record RailEntry(RailType railType, Set<DestinationType> supportedDestinations) {
+  public record RailEntry(
+      RailType railType, String displayLabel, Set<DestinationType> supportedDestinations) {
     public RailEntry {
       supportedDestinations =
           supportedDestinations == null || supportedDestinations.isEmpty()
@@ -82,7 +83,7 @@ public class TransferRailAdminController {
   }
 
   private static RailEntry toEntry(TransferRail rail) {
-    return new RailEntry(rail.type(), rail.supportedDestinations());
+    return new RailEntry(rail.type(), rail.type().displayLabel(), rail.supportedDestinations());
   }
 
   private static RailType parseRailType(String value) {

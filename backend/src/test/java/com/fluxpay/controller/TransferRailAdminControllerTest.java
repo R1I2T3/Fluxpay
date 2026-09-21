@@ -77,7 +77,13 @@ class TransferRailAdminControllerTest {
   @Test
   void adminListsRailTypes() throws Exception {
     when(authorizer.isAdmin(any())).thenReturn(true);
-    when(rails.all()).thenReturn(List.of(bankRail));
+    when(rails.all())
+        .thenReturn(
+            List.of(
+                new StubRail(RailType.REAL_TIME_NETWORK, Set.of(DestinationType.EXTERNAL_ACCOUNT)),
+                new StubRail(RailType.INTERNAL_LEDGER, Set.of(DestinationType.INTERNAL_WALLET)),
+                new StubRail(RailType.PARTNER_NETWORK, Set.of(DestinationType.EXTERNAL_ACCOUNT)),
+                bankRail));
 
     mvc.perform(
             get("/api/admin/rail-types")
@@ -87,8 +93,12 @@ class TransferRailAdminControllerTest {
         .andExpect(header().string("X-Correlation-ID", "cid-rails-1"))
         .andExpect(jsonPath("$.correlationId").value("cid-rails-1"))
         .andExpect(jsonPath("$.data.railTypes[0].railType").value("BANK_NETWORK"))
+        .andExpect(jsonPath("$.data.railTypes[0].displayLabel").value("Bank Network"))
         .andExpect(
-            jsonPath("$.data.railTypes[0].supportedDestinations[0]").value("EXTERNAL_ACCOUNT"));
+            jsonPath("$.data.railTypes[0].supportedDestinations[0]").value("EXTERNAL_ACCOUNT"))
+        .andExpect(jsonPath("$.data.railTypes[1].displayLabel").value("Internal Ledger"))
+        .andExpect(jsonPath("$.data.railTypes[2].displayLabel").value("Partner Network"))
+        .andExpect(jsonPath("$.data.railTypes[3].displayLabel").value("Real-Time Network"));
   }
 
   @Test
@@ -101,6 +111,7 @@ class TransferRailAdminControllerTest {
                 .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.railType").value("BANK_NETWORK"))
+        .andExpect(jsonPath("$.data.displayLabel").value("Bank Network"))
         .andExpect(jsonPath("$.data.supportedDestinations[0]").value("EXTERNAL_ACCOUNT"));
   }
 

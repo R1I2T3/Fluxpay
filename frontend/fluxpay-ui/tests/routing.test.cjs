@@ -13,7 +13,7 @@ const routeId='22222222-2222-4222-8222-222222222222';
 function fixture(){
   const calls=[];
   const dataFor=url=>{
-    if(url==='/api/admin/rail-types')return {railTypes:[{railType:'BANK_NETWORK',supportedDestinations:['EXTERNAL_ACCOUNT']}]};
+    if(url==='/api/admin/rail-types')return {railTypes:[{railType:'BANK_NETWORK',displayLabel:'Bank Network',supportedDestinations:['EXTERNAL_ACCOUNT']}]};
     if(url==='/api/admin/providers')return {providers:[]};
     if(url==='/api/admin/routes')return {routes:[]};
     if(url.endsWith('?version=3'))return {disposition:'ARCHIVED',id:routeId};
@@ -67,7 +67,7 @@ function workspace(overrides={},admin=true,runtime={}){
   const calls=[];
   const provider={id:providerId,providerCode:'HDFC_BANK',providerName:'HDFC Bank',railType:'BANK_NETWORK',active:true,version:0};
   const route={id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0};
-  const api=new Proxy(overrides,{get:(obj,name)=>async(...args)=>{calls.push([name,...args]);if(name in obj)return obj[name](...args);if(name==='railTypes')return [{railType:'BANK_NETWORK',supportedDestinations:['EXTERNAL_ACCOUNT']}];if(name==='providers')return [provider];if(name==='routesAdmin')return [route];if(name==='createProvider'||name==='updateProvider')return {...provider};if(name==='createRoute'||name==='updateRoute')return {...route};if(name==='deleteProvider')return {disposition:'DELETED',id:providerId};if(name==='deleteRoute')return {disposition:'ARCHIVED',id:routeId};}});
+  const api=new Proxy(overrides,{get:(obj,name)=>async(...args)=>{calls.push([name,...args]);if(name in obj)return obj[name](...args);if(name==='railTypes')return [{railType:'BANK_NETWORK',displayLabel:'Bank Network',supportedDestinations:['EXTERNAL_ACCOUNT']}];if(name==='providers')return [provider];if(name==='routesAdmin')return [route];if(name==='createProvider'||name==='updateProvider')return {...provider};if(name==='createRoute'||name==='updateRoute')return {...route};if(name==='deleteProvider')return {disposition:'DELETED',id:providerId};if(name==='deleteRoute')return {disposition:'ARCHIVED',id:routeId};}});
   const session={user:ko.observable({role:admin?'ADMIN':'USER'})};session.isAdmin=ko.pureComputed(()=>session.user()?.role==='ADMIN');
   const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api},...runtime};
   vm.runInNewContext(compile('ts/services/routing-workspace.ts'),context);
@@ -87,6 +87,21 @@ test('routing workspace loads rails, providers and routes for admins only',async
   assert.equal(blocked.calls.length,0);
   assert.match(blocked.page.error(),/administrator/);
   blocked.page.dispose();
+});
+
+test('routing workspace displays trusted rail labels while provider writes keep enum values',async()=>{
+  const {page,calls}=workspace();
+  await page.loadAll();
+  assert.equal(page.railDisplayLabel('BANK_NETWORK'),'Bank Network');
+  assert.notEqual(page.railDisplayLabel('BANK_NETWORK'),'BANK_NETWORK');
+  page.newProvider();
+  page.providerCode('SBI_BANK');
+  page.providerName('SBI Bank');
+  page.providerRail('BANK_NETWORK');
+  await page.saveProvider();
+  const create=calls.find(call=>call[0]==='createProvider');
+  assert.equal(create[1].railType,'BANK_NETWORK');
+  page.dispose();
 });
 
 test('provider validation rejects malformed codes without API calls',async()=>{
@@ -313,6 +328,9 @@ test('routing tab renders providers and routes with text bindings and alertdialo
   for(const binding of ['filteredProviders','filteredRoutes','newProvider','saveProvider','newRoute','saveRoute','requestDeleteProvider','requestDeleteRoute','providerFilter','destinationFilter','countryFilter','currencyFilter','statusFilter','providerProtected','routeProtected'])assert.ok(html.includes(binding),`missing ${binding}`);
   assert.ok(html.includes('role="alertdialog"'));
   assert.ok(html.includes('System protected'));
+  assert.ok(html.includes("optionsText:'displayLabel',optionsValue:'railType'"));
+  assert.ok(html.includes('text:$parent.railDisplayLabel(railType)'));
+  assert.ok(!html.includes('data-bind="text:railType"'));
   assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));
 });
 

@@ -140,6 +140,8 @@ export class RoutingWorkspace {
   });
   providerDisplayName = (id: string) =>
     this.providers().find((p) => p.id === id)?.providerName || '—';
+  railDisplayLabel = (railType: string) =>
+    this.railTypes().find((rail) => rail.railType === railType)?.displayLabel || 'Unknown rail type';
   providerCount = (id: string) => this.routes().filter((r) => r.providerId === id).length;
   // Protection badges are driven by the server `systemProtected` flag on each record.
   providerProtected = (provider: { systemProtected?: boolean }) =>

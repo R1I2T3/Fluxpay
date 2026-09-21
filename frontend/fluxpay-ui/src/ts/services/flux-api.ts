@@ -102,7 +102,7 @@ export interface PolicyDocument { id:string; title:string; category:string; cont
 export interface ComplianceCase { id:string; paymentId:string; reviewReference:string|null; reviewExpiresAt:string|null; requoteRequired:boolean; risk:string; status:string; riskReasons:string[]; suggestedAction:string; decidedBy:string|null; decidedAt:string|null; decisionReason:string|null; createdAt:string; }
 export interface CopilotAnswer { answer:string; sources:{policyDocumentId:string;title:string;chunkNumber:number;excerpt:string}[]; }
 
-export interface RailDescriptor { railType:string; supportedDestinations:string[]; }
+export interface RailDescriptor { railType:string; displayLabel:string; supportedDestinations:string[]; }
 export interface TransferProvider { id:string; providerCode:string; providerName:string; railType:string; active:boolean; systemProtected:boolean; archivedAt:string|null; version:number; }
 export interface TransferRoute { id:string; providerId:string; routeCode:string; name:string; destinationType:string; destinationCountry:string|null; payoutCurrency:string; baseFee:number|string; fxSpreadPercentage:number|string; estimatedMinutes:number; configuredSuccessRate:number|string; effectiveSuccessRate:number|string; completedCount:number; failedCount:number; minimumRecipientAmount:number|string|null; maximumRecipientAmount:number|string|null; active:boolean; systemProtected:boolean; archivedAt:string|null; version:number; }
 export interface DeletionResult { disposition:'DELETED'|'ARCHIVED'; id:string; }
