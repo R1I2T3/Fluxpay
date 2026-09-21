@@ -1,9 +1,9 @@
 package com.fluxpay.service;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 

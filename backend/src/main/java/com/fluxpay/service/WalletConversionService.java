@@ -1,7 +1,7 @@
 package com.fluxpay.service;
 
-import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.domain.ConversionCalculation;
+import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
 import com.fluxpay.dto.WalletConvertResponse;
@@ -61,8 +61,7 @@ public class WalletConversionService {
                 conversionMath.calculate(
                     normalized.from(), normalized.to(), normalized.amount(), snapshot.rate());
             accepted.set(
-                new AcceptedConversion(
-                    calculation, snapshot, FxQuoteValidator.quoteId(snapshot)));
+                new AcceptedConversion(calculation, snapshot, FxQuoteValidator.quoteId(snapshot)));
           }
           AcceptedConversion conversion = accepted.get();
           return posting.convert(

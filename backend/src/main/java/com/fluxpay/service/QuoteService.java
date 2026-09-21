@@ -2,8 +2,13 @@ package com.fluxpay.service;
 
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.FxRateProvider;
+import com.fluxpay.domain.DestinationType;
+import com.fluxpay.domain.ExternalAccountDestination;
 import com.fluxpay.domain.PaymentStatus;
+import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.QuoteResponse;
+import com.fluxpay.dto.RankedRouteQuote;
+import com.fluxpay.dto.TransferRoutingContext;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.*;
 import java.math.*;
@@ -19,9 +24,7 @@ public class QuoteService {
   private final PaymentQuoteRepository quotes;
   private final FxRateProvider fx;
   private final Clock clock;
-  private final PayoutRouteRepository routes;
-  private final RoutePricingService pricing;
-  private final RouteRecommender recommender;
+  private final SmartRoutingService smart;
   private final PaymentOperationService operations;
   private final PaymentRecoveryEligibility recoveryEligibility;
 
@@ -30,18 +33,14 @@ public class QuoteService {
       PaymentQuoteRepository quotes,
       FxRateProvider fx,
       Clock clock,
-      PayoutRouteRepository routes,
-      RoutePricingService pricing,
-      RouteRecommender recommender,
+      SmartRoutingService smart,
       PaymentOperationService operations,
       PaymentRecoveryEligibility recoveryEligibility) {
     this.payments = payments;
     this.quotes = quotes;
     this.fx = fx;
     this.clock = clock;
-    this.routes = routes;
-    this.pricing = pricing;
-    this.recommender = recommender;
+    this.smart = smart;
     this.operations = operations;
     this.recoveryEligibility = recoveryEligibility;
   }
@@ -85,27 +84,32 @@ public class QuoteService {
     if (rate == null || rate.signum() <= 0)
       throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE, "FX_UNAVAILABLE", "FX rates are unavailable.");
+    RoutePreference preference = p.preference() == null ? RoutePreference.BALANCED : p.preference();
+    var recommendation = smart.recommend(routingContext(p, rate), preference);
     Instant expires = now.plus(Duration.ofMinutes(15));
-    List<PaymentQuote> generated = new ArrayList<>();
-    var active = routes.findByActiveTrueOrderByRouteCodeAsc();
-    var pricedRoutes = pricing.price(p.sourceAmount(), rate, active);
-    var recommendation = recommender.recommend(p.preference(), pricedRoutes);
     int generation = p.nextQuoteGeneration();
-    for (var priced : recommendation.quotes()) {
-      PayoutRoute route = priced.route();
+    List<PaymentQuote> generated = new ArrayList<>();
+    for (RankedRouteQuote ranked : recommendation.quotes()) {
+      var inner = ranked.quote();
+      TransferRoute route = inner.route();
       generated.add(
           new PaymentQuote(
               UUID.randomUUID(),
               p.id(),
               generation,
-              route.code(),
-              priced.marketRate(),
-              route.fxSpreadPercentage(),
-              priced.offeredRate(),
-              priced.feeAmount(),
-              priced.recipientAmount(),
-              route.estimatedMinutes(),
-              route.code().equals(recommendation.recommended().code()),
+              route.getId(),
+              route.getRouteCode(),
+              route.getProvider().getId(),
+              inner.marketRate(),
+              route.getFxSpreadPercentage(),
+              inner.offeredRate(),
+              inner.feeAmount(),
+              inner.recipientAmount(),
+              route.getEstimatedMinutes(),
+              inner.effectiveReliability().setScale(6, RoundingMode.HALF_EVEN),
+              ranked.score().setScale(12, RoundingMode.HALF_EVEN),
+              ranked.position(),
+              ranked.position() == 1,
               now,
               expires));
     }
@@ -113,6 +117,17 @@ public class QuoteService {
     if (recovering) p.recoveryQuoted(generation, now);
     else p.quoted(generation, now);
     return response(p, generated, now);
+  }
+
+  private static TransferRoutingContext routingContext(Payment payment, BigDecimal marketRate) {
+    ExternalAccountDestination destination =
+        DbPaymentReader.parseDestination(payment.recipientSnapshot(), payment.payoutCurrency());
+    return new TransferRoutingContext(
+        DestinationType.EXTERNAL_ACCOUNT,
+        destination.country(),
+        destination.currency(),
+        payment.sourceAmount(),
+        marketRate);
   }
 
   @Transactional(readOnly = true)
@@ -134,24 +149,35 @@ public class QuoteService {
             .map(PaymentQuote::id)
             .findFirst()
             .orElse(null);
+    List<PaymentQuote> ordered =
+        qs.stream()
+            .sorted(
+                Comparator.comparingInt(PaymentQuote::rankingPosition)
+                    .thenComparing(PaymentQuote::routeCode))
+            .toList();
     return new QuoteResponse(
         p.id(),
         recommended,
         "Recommendation follows the selected " + p.preference() + " preference.",
         qs.isEmpty() ? null : qs.get(0).expiresAt(),
         now,
-        qs.stream()
+        ordered.stream()
             .map(
                 q ->
                     new QuoteResponse.Quote(
                         q.id(),
-                        q.route(),
+                        q.routeCode(),
                         q.marketRate().toPlainString(),
                         q.offeredRate().toPlainString(),
                         q.feeAmount().toPlainString(),
                         q.recipientAmount().toPlainString(),
                         q.estimatedMinutes(),
-                        q.recommended()))
+                        q.recommended(),
+                        q.routeId(),
+                        q.providerId(),
+                        q.effectiveReliability().toPlainString(),
+                        q.rankingScore().toPlainString(),
+                        q.rankingPosition()))
             .toList());
   }
 

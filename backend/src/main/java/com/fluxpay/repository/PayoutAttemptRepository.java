@@ -15,6 +15,8 @@ public interface PayoutAttemptRepository extends JpaRepository<PayoutAttempt, UU
 
   List<PayoutAttempt> findByRouteId(UUID routeId);
 
+  boolean existsByRouteId(UUID routeId);
+
   @Query("select count(a) from PayoutAttempt a where a.routeId = :routeId and a.status = :status")
   long countByRouteIdAndStatus(
       @Param("routeId") UUID routeId, @Param("status") PayoutAttemptStatus status);

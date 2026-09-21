@@ -28,16 +28,10 @@
       <a href="?ojr=register" data-route="register" class="pill header-signup">Sign up</a>
       <!-- /ko -->
       <!-- ko if: session.user() -->
-<<<<<<< HEAD
-      <a href="?ojr=dashboard" data-route="dashboard" class="pill header-signup" data-bind="attr:{href:'?ojr='+accountPath(),'data-route':accountPath},text:session.isAdmin()?'Administration ↗':'My account ↗'"></a>
-      <!-- ko if: session.isAdmin() --><a href="?ojr=admin-tickets" data-route="admin-tickets" class="pill soft">Support review</a><!-- /ko -->
-      <button class="text-button" data-bind="click:logout">Log out</button>
-=======
       <details class="profile-menu">
         <summary aria-label="Open profile and account options"><span class="profile-avatar" aria-hidden="true" data-bind="text:session.user().fullName?.slice(0,1)||'F'"></span><span class="profile-name" data-bind="text:session.user().fullName||'Your account'"></span><span aria-hidden="true">⌄</span></summary>
         <div class="profile-options"><span class="eyebrow">YOUR ACCOUNT</span><!-- ko foreach:visibleNav --><a data-bind="text:label,attr:{href:'?ojr='+path,'data-route':path}"></a><!-- /ko --><!-- ko if:!session.isAdmin() --><a href="?ojr=tickets" data-route="tickets">Help &amp; support</a><!-- /ko --><button class="text-button" data-bind="click:logout">Log out</button></div>
       </details>
->>>>>>> d0ef60141524f31198ba72c7972e79ca562d4f00
       <!-- /ko -->
     </div>
   </header>

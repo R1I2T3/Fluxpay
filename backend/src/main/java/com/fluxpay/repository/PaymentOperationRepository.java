@@ -6,5 +6,11 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PaymentOperationRepository extends JpaRepository<PaymentOperation, UUID> {
-  Optional<PaymentOperation> findByUserIdAndClientKey(UUID userId, String clientKey);
+  Optional<PaymentOperation> findByUserIdAndNamespaceAndClientKey(
+      UUID userId, PaymentOperation.Namespace namespace, String clientKey);
+
+  java.util.List<PaymentOperation> findByPaymentIdAndStatus(UUID paymentId, String status);
+
+  long countByPaymentIdAndNamespaceAndOperationType(
+      UUID paymentId, PaymentOperation.Namespace namespace, String operationType);
 }

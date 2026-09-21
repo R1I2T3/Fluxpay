@@ -104,13 +104,14 @@ test('recipient DELETE consumes 204 without parsing JSON and reports an unavaila
 
 function reviewedTransfer(page){
   transferData(page);page.payment({id:'p1',status:'QUOTED',selectedQuoteId:'q1'});page.paymentId('p1');
-  const quote={id:'q1',route:'BANK_TRANSFER'};page.quotes([quote]);page.selectedQuote(quote);
+  const quote={id:'q1',routeCode:'BANK_TRANSFER'};page.quotes([quote]);page.selectedQuote(quote);
   page.quoteFetchedAt(Date.now());page.quoteExpires(new Date(Date.now()+300000).toISOString());page.now(Date.now());page.step(3);
 }
 test('one-page Send confirms then submits payout, shows receipt and never navigates',async()=>{
   const f=fixture('payments-new',{confirm:async()=>({id:'p1',status:'PROCESSING'}),payout:async()=>({status:'COMPLETED'}),payment:async()=>({id:'p1',status:'COMPLETED'}),timeline:async()=>[{eventType:'payment.completed'}]});
   reviewedTransfer(f.page);await f.page.sendPayment();assert.equal(f.page.error(),'');assert.equal(f.page.step(),4);assert.equal(f.page.receiptTitle(),'Money sent.');assert.equal(f.page.timeline().length,1);
   assert.deepEqual(f.calls.map(c=>c[0]),['confirm','payout','payment','timeline']);assert.equal(f.navigation.length,0);
+  assert.equal(f.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
   await f.page.submitPayout();assert.equal(f.calls.filter(c=>c[0]==='payout').length,1);
 });
 test('compliance review and rejection never submit payout; approval can be sent on the same page',async()=>{
@@ -149,7 +150,7 @@ test('desktop workspace is full width without sidebar and bottom tabs are mobile
 });
 
 test('saving from final review confirms as Processing without submitting payout',async()=>{
-  const f=fixture('payments-new',{draft:async()=>({id:'p1',status:'DRAFT'}),confirm:async()=>({id:'p1',status:'PROCESSING',selectedQuoteId:'q1'}),quotes:async()=>({quotes:[{id:'q1',route:'BANK_TRANSFER'}],expiresAt:new Date(Date.now()+300000).toISOString()})});transferData(f.page);
+  const f=fixture('payments-new',{draft:async()=>({id:'p1',status:'DRAFT'}),confirm:async()=>({id:'p1',status:'PROCESSING',selectedQuoteId:'q1'}),quotes:async()=>({quotes:[{id:'q1',routeCode:'BANK_TRANSFER'}],expiresAt:new Date(Date.now()+300000).toISOString()})});transferData(f.page);
   await f.page.createDraft();f.page.chooseQuote(f.page.quotes()[0]);assert.equal(f.page.step(),3);await f.page.saveDraft();assert.equal(f.page.savedDraft(),false);assert.equal(f.page.payment().status,'PROCESSING');assert.equal(f.page.receiptStatus(),'Processing');assert.equal(f.page.step(),4);assert.equal(f.calls.filter(c=>c[0]==='draft').length,1);assert.equal(f.calls.filter(c=>c[0]==='confirm').length,1);assert.ok(!f.calls.some(c=>c[0]==='payout'));
   const view=fs.readFileSync(path.join(root,'views/payments-new.html'),'utf8');assert.match(view,/Send money ↗/);assert.match(view,/>Save draft</);assert.doesNotMatch(view,/id="confirm-title"/);
 });
@@ -225,7 +226,7 @@ test('review save respects expired quotes and compliance states, never calling p
 
 function payableReceipt(status='PROCESSING',extra={}){
   let current={id:'p1',status,selectedQuoteId:status==='PROCESSING'?'q1':null,sourceCurrency:'USD',payoutCurrency:'INR',sourceAmount:'100'};
-  const quote={id:'q1',route:'BANK_TRANSFER',feeAmount:'1',offeredRate:'83',recipientAmount:'8217',estimatedMinutes:30};
+  const quote={id:'q1',routeCode:'BANK_TRANSFER',feeAmount:'1',offeredRate:'83',recipientAmount:'8217',estimatedMinutes:30};
   const quotes=()=>({quotes:[quote],expiresAt:new Date(Date.now()+300000).toISOString()});
   const f=fixture('payments-list',{payment:async()=>({...current}),timeline:async()=>[],getQuotes:async()=>quotes(),quotes:async()=>{current.status='QUOTED';return quotes();},confirm:async()=>{current={...current,status:'PROCESSING',selectedQuoteId:'q1'};return {...current};},payout:async()=>{current.status='COMPLETED';return {};},...extra});
   return {...f,quote,current:()=>current,open:()=>f.page.openDetail({...current})};

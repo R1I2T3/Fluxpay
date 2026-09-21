@@ -3,13 +3,13 @@ package com.fluxpay.dto;
 import java.math.BigDecimal;
 import java.util.Objects;
 
-public record PayoutResult(
+public record TransferRailResult(
     Outcome outcome,
     String providerRef,
     String errorCode,
     String errorMessage,
     BigDecimal providerFee) {
-  /** Provider certainty is explicit; diagnostic text never determines whether funds are safe. */
+  /** Rail certainty is explicit; diagnostic text never determines whether funds are safe. */
   public enum Outcome {
     COMPLETED,
     FAILED,
@@ -20,7 +20,7 @@ public record PayoutResult(
     return outcome == Outcome.COMPLETED;
   }
 
-  public PayoutResult {
+  public TransferRailResult {
     Objects.requireNonNull(outcome, "outcome must not be null");
     Objects.requireNonNull(providerFee, "providerFee must not be null");
     if (outcome == Outcome.COMPLETED) {
@@ -46,16 +46,17 @@ public record PayoutResult(
     }
   }
 
-  public static PayoutResult ok(String providerRef, BigDecimal providerFee) {
-    return new PayoutResult(Outcome.COMPLETED, providerRef, null, null, providerFee);
+  public static TransferRailResult completed(String providerRef, BigDecimal providerFee) {
+    return new TransferRailResult(Outcome.COMPLETED, providerRef, null, null, providerFee);
   }
 
-  public static PayoutResult failed(String errorCode, String errorMessage, BigDecimal providerFee) {
-    return new PayoutResult(Outcome.FAILED, null, errorCode, errorMessage, providerFee);
-  }
-
-  public static PayoutResult uncertain(
+  public static TransferRailResult failed(
       String errorCode, String errorMessage, BigDecimal providerFee) {
-    return new PayoutResult(Outcome.UNCERTAIN, null, errorCode, errorMessage, providerFee);
+    return new TransferRailResult(Outcome.FAILED, null, errorCode, errorMessage, providerFee);
+  }
+
+  public static TransferRailResult uncertain(
+      String errorCode, String errorMessage, BigDecimal providerFee) {
+    return new TransferRailResult(Outcome.UNCERTAIN, null, errorCode, errorMessage, providerFee);
   }
 }

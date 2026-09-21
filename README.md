@@ -62,9 +62,18 @@ python -B scripts/check-ledger.py
 
 The seed registers four local identities with the real `fullName`/password contract,
 promotes only its local admin/system identities through a schema-scoped provisioning
-path, creates required system wallets, and upserts three routes. Passwords come from
+path, creates required system wallets, and inserts the demonstration transfer catalogue: the
+protected `FLUXPAY` provider with its `FLUXPAY_INTERNAL` wallet route plus one demonstration
+provider for each external rail with representative `IN`/`INR` routes. Passwords come from
 `SEED_SYSTEM_PASSWORD`, `SEED_ADMIN_PASSWORD`, and `SEED_CUSTOMER_PASSWORD`.
-Public registration never accepts a role.
+Public registration never accepts a role. Catalogue inserts use deterministic UUIDs and
+`MERGE ... WHEN NOT MATCHED THEN INSERT` only, so reruns keep administrator edits.
+
+The catalogue concepts: code-shipped `TransferRail` implementations (one per `RailType`) do the
+actual delivery; administrators manage providers (institutions bound to one rail type) and routes
+(commercial and eligibility configuration beneath one provider). Execution follows
+`route -> provider -> rail -> internal ledger or external network`. Administrators never install
+code, endpoints, or credentials.
 
 ## Verification
 
@@ -114,10 +123,47 @@ the `FLUXPAY_OLLAMA_*`, `FLUXPAY_POLICY_CHUNKER_VERSION`, `FLUXPAY_COPILOT_*`, a
 `FLUXPAY_COMPLIANCE_*` settings in `.env.example` for the local providers.
 
 Development-only demo funding, simulated compliance, and simulated
-payout providers are off by default and require their explicit `FLUXPAY_DEVELOPMENT_*`
+payout rails are off by default and require their explicit `FLUXPAY_DEVELOPMENT_*`
 or funding toggles. Legacy metadata KYC records state that files were not stored
 and cannot be approved. JSON metadata submissions are rejected; use the real
 multipart upload instead. It needs no development toggle.
+
+## Transfer routing
+
+Rails are code-shipped and trusted: `INTERNAL_LEDGER` delivers to another FluxPay wallet,
+`BANK_NETWORK` delivers through a conventional bank network, `REAL_TIME_NETWORK` delivers
+through a real-time payment network, and `PARTNER_NETWORK` delivers through a regional partner.
+One rail implementation serves every provider bound to its rail type.
+
+Administrators manage the catalogue from the dashboard (Administration → Transfer routing)
+or through the admin APIs:
+
+- `GET /api/admin/rail-types` lists the installed rail types and their supported destinations;
+  `GET /api/admin/rail-types/{railType}` describes one rail.
+- `GET/POST /api/admin/providers`, `GET/PUT/DELETE /api/admin/providers/{id}` manage providers
+  (code, name, rail type, active).
+- `GET/POST /api/admin/routes`, `GET/PUT/DELETE /api/admin/routes/{id}` manage routes (provider,
+  code, destination, country, currency, fee, spread, ETA, configured success rate, limits,
+  active).
+
+Codes are uppercase and immutable; a used provider/route binding cannot change; used or
+system-protected records archive instead of deleting. Deletes accept `?version=` for optimistic
+locking and return `{disposition: DELETED|ARCHIVED}`.
+
+Smart routing filters candidates by transfer context (active and unarchived provider/route,
+destination corridor, installed compatible rail), blends the configured success rate with
+terminal `COMPLETED`/`FAILED` outcomes using a 20-attempt prior, and ranks deterministically by
+`CHEAPEST`, `FASTEST`, or `BALANCED` preference. Every quote generation persists at most the top
+three quotes, and several winners may belong to the same provider. Wallet-to-wallet transfers
+rank internal routes with `BALANCED`, execute the winner once through the internal ledger rail,
+and return its `providerCode`, `routeCode`, `railType`, and `effectiveReliability`.
+
+Enable simulated external rails locally with
+`FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true`; the demo external providers stay inactive
+until an administrator activates them after enabling the flag. The simulated bank rail records
+`UNCERTAIN` delivery while `SIMULATE_FAILURE=BANK_NETWORK` is set (`BANK_NETWORK:2` fails only
+the next two attempts per transfer, then completes); uncertain operations record no terminal
+outcome and are retried through reconciliation.
 
 ## Backend structure
 

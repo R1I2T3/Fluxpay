@@ -135,8 +135,8 @@ test('Copilot answers safely render only bold Markdown and keep source cards com
   assert.match(source,/ko\.bindingHandlers\.policyAnswer/);
   assert.match(source,/document\.createTextNode/);
   assert.match(source,/document\.createElement\('strong'\)/);
-  assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:15px;/);
-  assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:13px;/);
+  assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:\s*15px;/);
+  assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:\s*13px;/);
 });
 test('policy library template provides draft creation and compact accessible detail dialogs',()=>{
   const html=read('ts/views/admin.html');
@@ -174,16 +174,16 @@ test('policy drafts use one compact table and policy editing provides direct adv
 });
 test('policy-draft preview truncates before the fixed action column',()=>{
   const css=read('css/workspace.css');
-  assert.match(css,/\.policy-draft-table td\.draft-preview\s*\{[^}]*overflow:hidden;[^}]*white-space:nowrap;[^}]*text-overflow:ellipsis;/s);
-  assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:118px;/);
+  assert.match(css,/\.policy-draft-table td\.draft-preview\s*\{[^}]*overflow:\s*hidden;[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s);
+  assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:\s*118px;/);
 });
 test('opening a compliance case uses a modal rather than an inline panel below the list',()=>{
   const html=read('ts/views/admin.html'),css=read('css/workspace.css');
   assert.match(html,/<!-- ko if:selectedCase -->\s*<div class="admin-confirmation[^"]*" role="dialog" aria-modal="true" aria-labelledby="compliance-case-title"/);
   assert.match(html,/aria-label="Close case details"/);
   assert.match(html,/compliance-case-dialog"><div class="compliance-case-scroll">/);
-  assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:hidden;[^}]*padding:0;/);
-  assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:auto;[^}]*border-radius:inherit;/);
+  assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:\s*hidden;[^}]*padding:\s*0;/);
+  assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:\s*auto;[^}]*border-radius:\s*inherit;/);
 });
 test('case-to-Copilot handoff includes the risk, reasons, and suggested action',()=>{
   const source=read('ts/viewModels/admin.ts');

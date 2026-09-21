@@ -5,7 +5,7 @@ import com.fluxpay.exception.QuoteExpiredException;
 import com.fluxpay.exception.QuoteMismatchException;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.util.Objects;
@@ -18,13 +18,13 @@ public class SelectedQuoteService {
   private final PaymentRepository payments;
   private final PaymentQuoteRepository quotes;
   private final Clock clock;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
 
   public SelectedQuoteService(
       PaymentRepository payments,
       PaymentQuoteRepository quotes,
       Clock clock,
-      PayoutRouteRepository routes) {
+      TransferRouteRepository routes) {
     this.payments = payments;
     this.quotes = quotes;
     this.clock = clock;
@@ -63,17 +63,22 @@ public class SelectedQuoteService {
     java.time.Instant approvalExpiresAt = payment.approvalExpiresAt();
     java.time.Instant validUntil =
         approvalExpiresAt == null ? selected.expiresAt() : approvalExpiresAt;
-    // Quote freshness is an approval gate. Once ledger posting has funded the payment, delivery
-    // must use the accepted economics even if asynchronous payout submission happens later.
-    if (payment.postedAt() == null && !clock.instant().isBefore(validUntil)) {
+    // Quote freshness is an approval gate for first-time submission. Retry/redelivery of
+    // already accepted, funded economics bypasses expiry via acceptedRetry(); initial
+    // submission must still reject an expired quote even after ledger posting.
+    if (!clock.instant().isBefore(validUntil)) {
       throw new QuoteExpiredException(
           approvalExpiresAt == null
               ? "selected quote has expired"
               : "review-approved quote has expired");
     }
     routes
-        .findByCode(selected.route())
+        .findByRouteCode(selected.route())
         .filter(r -> r.isActive())
+        .filter(r -> r.getArchivedAt() == null)
+        .filter(r -> r.provider() != null)
+        .filter(r -> r.provider().isActive())
+        .filter(r -> r.provider().getArchivedAt() == null)
         .orElseThrow(() -> new QuoteMismatchException("selected quote route is unavailable"));
     return new AcceptedQuote(
         selected.id(),

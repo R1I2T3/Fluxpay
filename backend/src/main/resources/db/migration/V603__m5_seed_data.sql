@@ -169,3 +169,119 @@ INSERT INTO compliance_cases
  'admin.reviewer@fluxpay.test', SYSTIMESTAMP, 'Reviewed and cleared for payout.');
 
 COMMIT;
+
+-- ---------------------------------------------------------------
+-- Transfer catalogue: one system-protected internal provider plus
+-- representative demonstration providers for every shipped rail.
+-- Merges are insert-only so re-running the seed never overwrites an
+-- administrator's providers or routes. UUIDs are deterministic:
+-- uuid5(uuid.NAMESPACE_URL, 'fluxpay:provider:CODE') for providers and
+-- uuid5(uuid.NAMESPACE_URL, 'fluxpay:route:CODE') for routes, matching
+-- scripts/seed-local.py. External demonstrations stay inactive until an
+-- administrator enables simulated payouts and activates them, because
+-- their rails are installed only when
+-- fluxpay.development.simulated-payouts-enabled=true.
+-- ---------------------------------------------------------------
+
+MERGE INTO transfer_providers target
+USING (SELECT 'FLUXPAY' AS provider_code FROM dual) source
+ON (target.provider_code = source.provider_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('38306FCF068655B19C26932512E8E4CF'), source.provider_code, 'FluxPay',
+   'INTERNAL_LEDGER', 1, 1, 0, SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_providers target
+USING (SELECT 'DEMO_BANK_ALPHA' AS provider_code FROM dual) source
+ON (target.provider_code = source.provider_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('9E239B061663536484510E9042102C28'), source.provider_code, 'Demo Bank Alpha',
+   'BANK_NETWORK', 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_providers target
+USING (SELECT 'DEMO_REAL_TIME' AS provider_code FROM dual) source
+ON (target.provider_code = source.provider_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('D6727E6342385AF3B8211413B083499A'), source.provider_code, 'Demo Real-Time Network',
+   'REAL_TIME_NETWORK', 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_providers target
+USING (SELECT 'DEMO_PARTNER' AS provider_code FROM dual) source
+ON (target.provider_code = source.provider_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('82883A0F2DAB5E169C321F4D08F7E89F'), source.provider_code, 'Demo Partner Network',
+   'PARTNER_NETWORK', 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_routes target
+USING (SELECT 'FLUXPAY_INTERNAL' AS route_code FROM dual) source
+ON (target.route_code = source.route_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_id, route_code, route_name, destination_type, destination_country,
+   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   configured_success_rate, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('69BF56EC453C519681E768F3D7F6DE0C'),
+   HEXTORAW('38306FCF068655B19C26932512E8E4CF'), source.route_code, 'FluxPay wallet',
+   'INTERNAL_WALLET', NULL, 'INR', 0.0000, 0.000000, 1, 100.00, 1, 1, 0,
+   SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_routes target
+USING (SELECT 'DEMO_BANK_STANDARD' AS route_code FROM dual) source
+ON (target.route_code = source.route_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_id, route_code, route_name, destination_type, destination_country,
+   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   configured_success_rate, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('00170BB8071C50A8AED959063231BC7A'),
+   HEXTORAW('9E239B061663536484510E9042102C28'), source.route_code, 'Demo bank standard',
+   'EXTERNAL_ACCOUNT', 'IN', 'INR', 5.0000, 0.500000, 240, 99.00, 0, 0, 0,
+   SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_routes target
+USING (SELECT 'DEMO_BANK_EXPRESS' AS route_code FROM dual) source
+ON (target.route_code = source.route_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_id, route_code, route_name, destination_type, destination_country,
+   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   configured_success_rate, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('CBD3B26F1ADB5D5D8139B9A69CE0E803'),
+   HEXTORAW('9E239B061663536484510E9042102C28'), source.route_code, 'Demo bank express',
+   'EXTERNAL_ACCOUNT', 'IN', 'INR', 11.0000, 0.750000, 30, 98.00, 0, 0, 0,
+   SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_routes target
+USING (SELECT 'DEMO_REALTIME_INR' AS route_code FROM dual) source
+ON (target.route_code = source.route_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_id, route_code, route_name, destination_type, destination_country,
+   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   configured_success_rate, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('609E178B629652908A7AAE3DB619623E'),
+   HEXTORAW('D6727E6342385AF3B8211413B083499A'), source.route_code, 'Demo real-time INR',
+   'EXTERNAL_ACCOUNT', 'IN', 'INR', 8.0000, 0.400000, 5, 97.50, 0, 0, 0,
+   SYSTIMESTAMP, SYSTIMESTAMP);
+
+MERGE INTO transfer_routes target
+USING (SELECT 'DEMO_PARTNER_INR' AS route_code FROM dual) source
+ON (target.route_code = source.route_code)
+WHEN NOT MATCHED THEN INSERT
+  (id, provider_id, route_code, route_name, destination_type, destination_country,
+   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   configured_success_rate, active, system_protected, version, created_at, updated_at)
+VALUES
+  (HEXTORAW('F5C1758635CC5347ADAAD3A7E15D0926'),
+   HEXTORAW('82883A0F2DAB5E169C321F4D08F7E89F'), source.route_code, 'Demo partner INR',
+   'EXTERNAL_ACCOUNT', 'IN', 'INR', 2.0000, 0.250000, 60, 97.50, 0, 0, 0,
+   SYSTIMESTAMP, SYSTIMESTAMP);
+
+COMMIT;

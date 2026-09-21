@@ -41,7 +41,7 @@ class ViewModel extends Page {
   detailPayoutStarted=ko.pureComputed(()=>this.dispatchedPayouts.has(this.detailRecord()?.id)||this.detailEvents().some(e=>['payout.submitted','payout.completed','payout.failed'].includes(e.eventType)));
   canPayDetail=ko.pureComputed(()=>!!this.detailPayment()&&!this.detailRow()?.isLedger&&!this.detailPayoutStarted()&&['DRAFT','QUOTED','PROCESSING'].includes(this.detailRecord()?.status));
   detailPayQuoteValid=ko.pureComputed(()=>!!this.detailPayQuote()&&Date.parse(this.detailQuotes()?.expiresAt)>this.now());
-  detailQuoteLabel=(q:any)=>this.label(q.route)+' · '+this.money(q.feeAmount,this.detailRecord()?.sourceCurrency)+' fee · receives '+this.money(q.recipientAmount,this.detailRecord()?.payoutCurrency);
+  detailQuoteLabel=(q:any)=>this.label(q.routeCode)+' · '+this.money(q.feeAmount,this.detailRecord()?.sourceCurrency)+' fee · receives '+this.money(q.recipientAmount,this.detailRecord()?.payoutCurrency);
   detailRecord=ko.pureComputed(()=>this.detailPayment()||this.detailRow());
   detailRecipient=ko.pureComputed(()=>this.recipients().find(r=>r.id===this.detailRecord()?.recipientId));
   detailWallet=ko.pureComputed(()=>this.wallets().find(w=>w.walletId===(this.detailRecord()?.sourceWalletId||this.detailRow()?.walletId)));
@@ -57,7 +57,7 @@ class ViewModel extends Page {
     return customerFields([{label:'Transfer fee',value:q.feeAmount!=null?this.money(q.feeAmount,p.sourceCurrency):undefined},
       {label:'Exchange rate',value:q.offeredRate!=null&&p.payoutCurrency?'1 '+p.sourceCurrency+' = '+q.offeredRate+' '+p.payoutCurrency:undefined},
       {label:'Recipient amount',value:q.recipientAmount!=null&&p.payoutCurrency?this.money(q.recipientAmount,p.payoutCurrency):undefined},
-      {label:'Delivery method',value:q.route?this.label(q.route):undefined}]);
+      {label:'Delivery method',value:q.routeCode?this.label(q.routeCode):undefined}]);
   });
   private detailGeneration=0;
   private detailTimer:number;
@@ -140,7 +140,7 @@ class ViewModel extends Page {
       const events=await fluxApi.timeline(id);if(!active())return;this.detailEvents(events);
       if(this.detailPayoutStarted())throw new Error('This payout has already been submitted. Refresh to see its latest status.');
       this.dispatchedPayouts.add(id);this.detailEvents.valueHasMutated();
-      await fluxApi.payout(id,quote.route);
+      await fluxApi.payout(id,quote.routeCode);
       if(active()){this.detailPayReview(false);this.detailPayNotice('Payment submitted. The latest result is shown above.');}
     }catch(e:any){if(active())this.detailPayError(e.message||'Unable to submit payment. Refresh its status before taking further action.');}
     finally{

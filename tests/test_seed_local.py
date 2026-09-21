@@ -49,7 +49,7 @@ class SeedLocalTests(unittest.TestCase):
         database = mock.MagicMock()
         connection = database.connect.return_value.__enter__.return_value
         cursor = connection.cursor.return_value.__enter__.return_value
-        cursor.fetchone.side_effect = [("FLUXPAY",), (15,), (3,)] * 2
+        cursor.fetchone.side_effect = [("FLUXPAY",), (15,), (4,), (5,)] * 2
         expected = {
             (uuid.UUID(system_id).bytes, currency, role)
             for currency in ("USD", "EUR", "INR")
@@ -76,15 +76,9 @@ class SeedLocalTests(unittest.TestCase):
             for _ in range(2):
                 cursor.execute.reset_mock()
                 script.provision_local_database(identities)
-                merges = [
-                    call for call in cursor.execute.call_args_list
-                    if "MERGE INTO wallets" in call.args[0]
-                ]
+                merges = [call for call in cursor.execute.call_args_list if "MERGE INTO wallets" in call.args[0]]
                 self.assertEqual(
-                    {
-                        (call.kwargs["user_id"], call.kwargs["currency"], call.kwargs["account_role"])
-                        for call in merges
-                    },
+                    {(call.kwargs["user_id"], call.kwargs["currency"], call.kwargs["account_role"]) for call in merges},
                     expected,
                 )
                 self.assertEqual(len(merges), 15)
@@ -95,6 +89,45 @@ class SeedLocalTests(unittest.TestCase):
                     self.assertIn("target.account_role = source.account_role", sql)
                     self.assertIn("WHEN NOT MATCHED THEN INSERT", sql)
                     self.assertNotIn("WHEN MATCHED THEN", sql)
+
+                provider_merges = [
+                    call for call in cursor.execute.call_args_list if "MERGE INTO transfer_providers" in call.args[0]
+                ]
+                self.assertEqual(
+                    {call.kwargs["provider_code"] for call in provider_merges},
+                    {"FLUXPAY", "DEMO_BANK_ALPHA", "DEMO_REAL_TIME", "DEMO_PARTNER"},
+                )
+                self.assertEqual(len(provider_merges), 4)
+                for call in provider_merges:
+                    sql = " ".join(call.args[0].split())
+                    self.assertIn("target.provider_code = source.provider_code", sql)
+                    self.assertIn("WHEN NOT MATCHED THEN INSERT", sql)
+                    self.assertNotIn("WHEN MATCHED THEN", sql)
+                self.assertEqual(
+                    {call.kwargs["provider_code"]: call.kwargs["system_protected"] for call in provider_merges}[
+                        "FLUXPAY"
+                    ],
+                    1,
+                )
+
+                route_merges = [
+                    call for call in cursor.execute.call_args_list if "MERGE INTO transfer_routes" in call.args[0]
+                ]
+                self.assertEqual({call.kwargs["payout_currency"] for call in route_merges}, {"INR"})
+                self.assertEqual({call.kwargs["route_code"] for call in route_merges}, {
+                    "FLUXPAY_INTERNAL",
+                    "DEMO_BANK_STANDARD",
+                    "DEMO_BANK_EXPRESS",
+                    "DEMO_REALTIME_INR",
+                    "DEMO_PARTNER_INR",
+                })
+                self.assertEqual(len(route_merges), 5)
+                for call in route_merges:
+                    sql = " ".join(call.args[0].split())
+                    self.assertIn("target.route_code = source.route_code", sql)
+                    self.assertIn("WHEN NOT MATCHED THEN INSERT", sql)
+                    self.assertNotIn("WHEN MATCHED THEN", sql)
+                    self.assertNotIn("payout_routes", sql)
         self.assertEqual(connection.commit.call_count, 2)
 
     def test_registers_full_contract_without_client_controlled_role_and_reports_actual_counts(self):
@@ -118,7 +151,8 @@ class SeedLocalTests(unittest.TestCase):
         provisioned = {
             "users": 4,
             "systemWallets": 15,
-            "routes": 3,
+            "providers": 4,
+            "routes": 5,
             "systemUserId": "11111111-1111-1111-1111-111111111111",
         }
         output = io.StringIO()
@@ -142,16 +176,12 @@ class SeedLocalTests(unittest.TestCase):
         ):
             self.assertEqual(script.main(), 0)
 
-        register_bodies = [
-            json.loads(request.data)
-            for request in requests
-            if request.full_url.endswith("/register")
-        ]
+        register_bodies = [json.loads(request.data) for request in requests if request.full_url.endswith("/register")]
         self.assertEqual(len(register_bodies), 4)
         self.assertTrue(all(body["fullName"].strip() for body in register_bodies))
         self.assertTrue(all("role" not in body for body in register_bodies))
         text = output.getvalue()
-        self.assertIn("users=4 system-wallets=15 routes=3", text)
+        self.assertIn("users=4 system-wallets=15 providers=4 routes=5", text)
         self.assertNotIn("policies=", text)
         self.assertNotIn("secret", text)
         self.assertNotIn("Pass123", text)
@@ -172,9 +202,7 @@ class SeedLocalTests(unittest.TestCase):
             }
 
         with mock.patch.object(script, "request_json", side_effect=request_json):
-            user = script.register_or_login(
-                "http://localhost:8080", "same@example.com", "ValidPass123!", "Same User"
-            )
+            user = script.register_or_login("http://localhost:8080", "same@example.com", "ValidPass123!", "Same User")
 
         self.assertEqual(user["id"], "11111111-1111-1111-1111-111111111111")
         self.assertEqual(calls, [("/api/auth/register", "same@example.com"), ("/api/auth/login", "same@example.com")])

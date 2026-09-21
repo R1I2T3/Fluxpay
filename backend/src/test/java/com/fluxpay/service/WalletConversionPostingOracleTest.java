@@ -7,9 +7,9 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
+import com.fluxpay.config.ConversionFeeSchedule;
 import com.fluxpay.config.DemoFundingConfig;
 import com.fluxpay.config.FxConfig;
-import com.fluxpay.config.ConversionFeeSchedule;
 import com.fluxpay.domain.ConversionMath;
 import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.dto.WalletConvertRequest;
@@ -22,8 +22,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -81,11 +81,11 @@ import org.springframework.transaction.support.TransactionTemplate;
   WalletPostingService.class,
   LedgerJournalService.class,
   PersistentLedgerWriter.class,
-  LedgerPostingContext.class
-  ,ConversionMath.class
-  ,ConversionFeeSchedule.class
-  ,CurrencyScaleService.class
-  ,FxQuoteValidator.class
+  LedgerPostingContext.class,
+  ConversionMath.class,
+  ConversionFeeSchedule.class,
+  CurrencyScaleService.class,
+  FxQuoteValidator.class
 })
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class WalletConversionPostingOracleTest {

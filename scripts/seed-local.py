@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Deterministically provision a local FluxPay schema and development identities."""
+"""Deterministically provision a local FluxPay schema, development identities, system
+wallets, and the transfer provider/route catalogue. Catalogue seeding is insert-only, so
+reruns and administrator edits never conflict."""
 
 import argparse
 import json
@@ -20,14 +22,92 @@ IDENTITIES = (
     ("customer", "SEED_BOB_EMAIL", "bob@demo.io", "SEED_CUSTOMER_PASSWORD", "Bob Demo"),
 )
 
-SYSTEM_WALLET_ROLES = (
-    "FX_CLEARING", "FX_GAIN_LOSS", "DEMO_CLEARING", "PAYOUT_CLEARING", "FEE_REVENUE"
-)
+SYSTEM_WALLET_ROLES = ("FX_CLEARING", "FX_GAIN_LOSS", "DEMO_CLEARING", "PAYOUT_CLEARING", "FEE_REVENUE")
 CURRENCIES = ("USD", "EUR", "INR")
+# Demonstration catalogue: code, name, code-shipped rail type, active.
+# The external demonstrations stay inactive because their simulated rails are only installed
+# when FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true; an administrator activates them
+# after enabling simulated payouts. The internal provider is always usable.
+PROVIDERS = (
+    ("FLUXPAY", "FluxPay", "INTERNAL_LEDGER", 1),
+    ("DEMO_BANK_ALPHA", "Demo Bank Alpha", "BANK_NETWORK", 0),
+    ("DEMO_REAL_TIME", "Demo Real-Time Network", "REAL_TIME_NETWORK", 0),
+    ("DEMO_PARTNER", "Demo Partner Network", "PARTNER_NETWORK", 0),
+)
+SYSTEM_PROTECTED_PROVIDERS = frozenset({"FLUXPAY"})
+# Routes: code, name, provider code, destination type, country, currency, base fee,
+# fx spread percentage, eta minutes, configured success rate, active, system-protected.
 ROUTES = (
-    ("STANDARD_BANK", "Standard bank", "Simulated standard bank", "STANDARD", "5.0000", "0.500000", 240, "99.50"),
-    ("INSTANT_PAYOUT", "Instant payout", "Simulated instant payout", "INSTANT", "11.0000", "0.750000", 5, "98.00"),
-    ("LOCAL_PARTNER", "Local partner", "Simulated local partner", "LOCAL_PARTNER", "2.0000", "0.250000", 60, "97.50"),
+    (
+        "FLUXPAY_INTERNAL",
+        "FluxPay wallet",
+        "FLUXPAY",
+        "INTERNAL_WALLET",
+        None,
+        "INR",
+        "0.0000",
+        "0.000000",
+        1,
+        "100.00",
+        1,
+        1,
+    ),
+    (
+        "DEMO_BANK_STANDARD",
+        "Demo bank standard",
+        "DEMO_BANK_ALPHA",
+        "EXTERNAL_ACCOUNT",
+        "IN",
+        "INR",
+        "5.0000",
+        "0.500000",
+        240,
+        "99.00",
+        0,
+        0,
+    ),
+    (
+        "DEMO_BANK_EXPRESS",
+        "Demo bank express",
+        "DEMO_BANK_ALPHA",
+        "EXTERNAL_ACCOUNT",
+        "IN",
+        "INR",
+        "11.0000",
+        "0.750000",
+        30,
+        "98.00",
+        0,
+        0,
+    ),
+    (
+        "DEMO_REALTIME_INR",
+        "Demo real-time INR",
+        "DEMO_REAL_TIME",
+        "EXTERNAL_ACCOUNT",
+        "IN",
+        "INR",
+        "8.0000",
+        "0.400000",
+        5,
+        "97.50",
+        0,
+        0,
+    ),
+    (
+        "DEMO_PARTNER_INR",
+        "Demo partner INR",
+        "DEMO_PARTNER",
+        "EXTERNAL_ACCOUNT",
+        "IN",
+        "INR",
+        "2.0000",
+        "0.250000",
+        60,
+        "97.50",
+        0,
+        0,
+    ),
 )
 
 
@@ -55,9 +135,7 @@ def register_or_login(base_url, email, password, full_name):
         {"email": email, "password": password, "fullName": full_name},
     )
     if status == 409:
-        status, payload = request_json(
-            base_url, "/api/auth/login", {"email": email, "password": password}
-        )
+        status, payload = request_json(base_url, "/api/auth/login", {"email": email, "password": password})
     if status not in (200, 201):
         code = payload.get("error", {}).get("code", "UNKNOWN") if isinstance(payload, dict) else "UNKNOWN"
         raise RuntimeError(f"identity provisioning failed for {email}: HTTP {status} ({code})")
@@ -84,6 +162,10 @@ def require_local_oracle(jdbc_url):
     if not parsed.path or parsed.path == "/":
         raise ValueError("local Oracle URL must name a service")
     return address[2:]
+
+
+def _provider_id(provider_code):
+    return uuid.uuid5(uuid.NAMESPACE_URL, "fluxpay:provider:" + provider_code).bytes
 
 
 def _route_id(route_code):
@@ -143,33 +225,65 @@ def provision_local_database(identities):
                         account_role=account_role,
                     )
 
-            for route in ROUTES:
-                code, name, provider, route_type, fee, spread, minutes, success_rate = route
+            for code, name, rail_type, active in PROVIDERS:
                 cursor.execute(
-                    """MERGE INTO payout_routes target
+                    """MERGE INTO transfer_providers target
+                       USING (SELECT :provider_code AS provider_code FROM dual) source
+                       ON (target.provider_code = source.provider_code)
+                       WHEN NOT MATCHED THEN INSERT
+                         (id, provider_code, provider_name, rail_type, active, system_protected,
+                          version, created_at, updated_at)
+                       VALUES (:provider_id, source.provider_code, :provider_name, :rail_type,
+                         :active, :system_protected, 0, SYSTIMESTAMP, SYSTIMESTAMP)""",
+                    provider_id=_provider_id(code),
+                    provider_code=code,
+                    provider_name=name,
+                    rail_type=rail_type,
+                    active=active,
+                    system_protected=1 if code in SYSTEM_PROTECTED_PROVIDERS else 0,
+                )
+
+            for route in ROUTES:
+                (
+                    code,
+                    name,
+                    provider_code,
+                    destination_type,
+                    country,
+                    currency,
+                    fee,
+                    spread,
+                    minutes,
+                    success_rate,
+                    active,
+                    system_protected,
+                ) = route
+                cursor.execute(
+                    """MERGE INTO transfer_routes target
                        USING (SELECT :route_code AS route_code FROM dual) source
                        ON (target.route_code = source.route_code)
-                       WHEN MATCHED THEN UPDATE SET route_name = :route_name,
-                         provider_name = :provider_name, route_type = :route_type,
-                         base_fee = :base_fee, fx_spread_percentage = :spread,
-                         estimated_minutes = :minutes, success_rate = :success_rate,
-                         active = 1, updated_at = SYSTIMESTAMP
                        WHEN NOT MATCHED THEN INSERT
-                         (id, route_code, route_name, provider_name, route_type, base_fee,
-                          fx_spread_percentage, estimated_minutes, success_rate, active,
+                         (id, provider_id, route_code, route_name, destination_type,
+                          destination_country, payout_currency, base_fee, fx_spread_percentage,
+                          estimated_minutes, configured_success_rate, active, system_protected,
                           version, created_at, updated_at)
-                       VALUES (:route_id, source.route_code, :route_name, :provider_name,
-                         :route_type, :base_fee, :spread, :minutes, :success_rate,
-                         1, 0, SYSTIMESTAMP, SYSTIMESTAMP)""",
+                       VALUES (:route_id, :provider_id, source.route_code, :route_name,
+                         :destination_type, :destination_country, :payout_currency, :base_fee,
+                         :spread, :minutes, :success_rate, :active, :system_protected,
+                         0, SYSTIMESTAMP, SYSTIMESTAMP)""",
                     route_id=_route_id(code),
+                    provider_id=_provider_id(provider_code),
                     route_code=code,
                     route_name=name,
-                    provider_name=provider,
-                    route_type=route_type,
+                    destination_type=destination_type,
+                    destination_country=country,
+                    payout_currency=currency,
                     base_fee=fee,
                     spread=spread,
                     minutes=minutes,
                     success_rate=success_rate,
+                    active=active,
+                    system_protected=system_protected,
                 )
 
             cursor.execute(
@@ -177,13 +291,16 @@ def provision_local_database(identities):
                 user_id=system_id,
             )
             wallet_count = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM payout_routes")
+            cursor.execute("SELECT COUNT(*) FROM transfer_providers")
+            provider_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM transfer_routes")
             route_count = cursor.fetchone()[0]
         connection.commit()
 
     return {
         "users": len(identities),
         "systemWallets": wallet_count,
+        "providers": provider_count,
         "routes": route_count,
         "systemUserId": str(uuid.UUID(identities["system"]["id"])),
     }
@@ -215,7 +332,7 @@ def main():
 
     print(
         f"users={result['users']} system-wallets={result['systemWallets']} "
-        f"routes={result['routes']}"
+        f"providers={result['providers']} routes={result['routes']}"
     )
     print(f"system-user-id={result['systemUserId']} (set FLUXPAY_SYSTEM_USER_ID before backend restart)")
     return 0
