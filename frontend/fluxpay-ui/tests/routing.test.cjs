@@ -170,16 +170,125 @@ test('delete uses archive confirmation and reports the server disposition',async
   page.dispose();
 });
 
-test('stale version conflict retains editor input for correction',async()=>{
-  const failing=workspace({updateRoute:async()=>{throw new Error('STALE_ROUTE: version 0 is stale');}});
-  await failing.page.loadAll();
-  failing.page.editRoute(failing.page.routes()[0]);
-  failing.page.routeFee('7.5000');
-  await failing.page.saveRoute();
-  assert.match(failing.page.routeError(),/stale/i);
-  assert.equal(failing.page.routeForm(),true);
-  assert.equal(failing.page.routeFee(),'7.5000');
-  failing.page.dispose();
+test('provider stale conflict rebases the edit target and retries retained entries with the refreshed version',async()=>{
+  const initial={id:providerId,providerCode:'HDFC_BANK',providerName:'HDFC Bank',railType:'BANK_NETWORK',active:true,version:0};
+  const latest={...initial,providerName:'Server renamed provider',version:4};
+  let providerReads=0;
+  const updates=[];
+  const result=workspace({
+    providers:async()=>providerReads++===0?[initial]:[latest],
+    updateProvider:async(id,body)=>{
+      updates.push([id,body]);
+      if(updates.length===1)throw new Error('STALE_PROVIDER: version 0 is stale');
+      return {...latest,...body,version:5};
+    }
+  });
+  await result.page.loadAll();
+  result.page.editProvider(result.page.providers()[0]);
+  result.page.providerName('Operator proposed provider');
+  result.page.providerActive(false);
+
+  await result.page.saveProvider();
+
+  assert.match(result.page.providerError(),/stale/i);
+  assert.equal(result.page.providerForm(),true);
+  assert.equal(result.page.providerName(),'Operator proposed provider');
+  assert.equal(result.page.providerRail(),'BANK_NETWORK');
+  assert.equal(result.page.providerActive(),false);
+  assert.equal(result.page.providerEditTarget().version,4);
+
+  await result.page.saveProvider();
+
+  assert.equal(updates.length,2);
+  assert.equal(updates[1][0],providerId);
+  assert.equal(updates[1][1].providerName,'Operator proposed provider');
+  assert.equal(updates[1][1].railType,'BANK_NETWORK');
+  assert.equal(updates[1][1].active,false);
+  assert.equal(updates[1][1].version,4);
+  result.page.dispose();
+});
+
+test('route stale conflict rebases the edit target and retries retained entries with the refreshed version',async()=>{
+  const initial={id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0};
+  const latest={...initial,name:'Server renamed route',baseFee:'6.0000',version:7};
+  let routeReads=0;
+  const updates=[];
+  const result=workspace({
+    routesAdmin:async()=>routeReads++===0?[initial]:[latest],
+    updateRoute:async(id,body)=>{
+      updates.push([id,body]);
+      if(updates.length===1)throw new Error('STALE_ROUTE: version 0 is stale');
+      return {...latest,...body,version:8};
+    }
+  });
+  await result.page.loadAll();
+  result.page.editRoute(result.page.routes()[0]);
+  result.page.routeName('Operator proposed route');
+  result.page.routeFee('7.5000');
+  result.page.routeSpread('0.750000');
+  result.page.routeEta('90');
+  result.page.routeReliability('98.50');
+  result.page.routeMin('10');
+  result.page.routeMax('5000');
+  result.page.routeActive(false);
+
+  await result.page.saveRoute();
+
+  assert.match(result.page.routeError(),/stale/i);
+  assert.equal(result.page.routeForm(),true);
+  assert.equal(result.page.routeName(),'Operator proposed route');
+  assert.equal(result.page.routeFee(),'7.5000');
+  assert.equal(result.page.routeSpread(),'0.750000');
+  assert.equal(result.page.routeEta(),'90');
+  assert.equal(result.page.routeReliability(),'98.50');
+  assert.equal(result.page.routeMin(),'10');
+  assert.equal(result.page.routeMax(),'5000');
+  assert.equal(result.page.routeActive(),false);
+  assert.equal(result.page.routeEditTarget().version,7);
+
+  await result.page.saveRoute();
+
+  assert.equal(updates.length,2);
+  assert.equal(updates[1][0],routeId);
+  assert.equal(updates[1][1].version,7);
+  assert.equal(updates[1][1].name,'Operator proposed route');
+  assert.equal(updates[1][1].baseFee,7.5);
+  assert.equal(updates[1][1].active,false);
+  result.page.dispose();
+});
+
+test('stale editors retain entries and block another update when the record was removed',async()=>{
+  let providerUpdates=0;
+  let providerReads=0;
+  const providerResult=workspace({
+    providers:async()=>providerReads++===0?[{id:providerId,providerCode:'HDFC_BANK',providerName:'HDFC Bank',railType:'BANK_NETWORK',active:true,version:0}]:[],
+    updateProvider:async()=>{providerUpdates++;throw new Error('STALE_PROVIDER: version 0 is stale');}
+  });
+  await providerResult.page.loadAll();
+  providerResult.page.editProvider(providerResult.page.providers()[0]);
+  providerResult.page.providerName('Retained provider');
+  await providerResult.page.saveProvider();
+  assert.match(providerResult.page.providerError(),/removed/i);
+  assert.equal(providerResult.page.providerName(),'Retained provider');
+  await providerResult.page.saveProvider();
+  assert.equal(providerUpdates,1);
+  providerResult.page.dispose();
+
+  let routeUpdates=0;
+  let routeReads=0;
+  const routeResult=workspace({
+    routesAdmin:async()=>routeReads++===0?[{id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0}]:[],
+    updateRoute:async()=>{routeUpdates++;throw new Error('STALE_ROUTE: version 0 is stale');}
+  });
+  await routeResult.page.loadAll();
+  routeResult.page.editRoute(routeResult.page.routes()[0]);
+  routeResult.page.routeName('Retained route');
+  await routeResult.page.saveRoute();
+  assert.match(routeResult.page.routeError(),/removed/i);
+  assert.equal(routeResult.page.routeName(),'Retained route');
+  await routeResult.page.saveRoute();
+  assert.equal(routeUpdates,1);
+  routeResult.page.dispose();
 });
 
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{

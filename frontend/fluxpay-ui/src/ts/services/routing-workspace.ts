@@ -148,6 +148,8 @@ export class RoutingWorkspace {
     route.systemProtected === true;
   private disposed = false;
   private epoch = 0;
+  private providerEditRemoved = false;
+  private routeEditRemoved = false;
   private sessionChanged = session.user.subscribe(() => {
     this.epoch++;
     this.clear();
@@ -160,9 +162,11 @@ export class RoutingWorkspace {
     this.routes([]);
     this.providerForm(false);
     this.providerEditTarget(undefined);
+    this.providerEditRemoved = false;
     this.providerError('');
     this.routeForm(false);
     this.routeEditTarget(undefined);
+    this.routeEditRemoved = false;
     this.routeError('');
     this.pendingProvider(undefined);
     this.pendingRoute(undefined);
@@ -240,6 +244,7 @@ export class RoutingWorkspace {
   newProvider = () => {
     if (this.busy()) return;
     this.providerEditTarget(undefined);
+    this.providerEditRemoved = false;
     this.providerCode('');
     this.providerName('');
     this.providerRail(this.railTypes()[0]?.railType || '');
@@ -250,6 +255,7 @@ export class RoutingWorkspace {
   editProvider = (provider: TransferProvider) => {
     if (this.busy()) return;
     this.providerEditTarget(provider);
+    this.providerEditRemoved = false;
     this.providerCode(provider.providerCode);
     this.providerName(provider.providerName);
     this.providerRail(provider.railType);
@@ -261,6 +267,7 @@ export class RoutingWorkspace {
     if (!this.busy()) {
       this.providerForm(false);
       this.providerEditTarget(undefined);
+      this.providerEditRemoved = false;
       this.providerError('');
     }
   };
@@ -282,6 +289,10 @@ export class RoutingWorkspace {
         return;
       }
       const target = this.providerEditTarget();
+      if (target && this.providerEditRemoved) {
+        this.providerError('This provider was removed. Your entries were kept, but it cannot be updated.');
+        return;
+      }
       try {
         if (target) {
           const updated = await api.updateProvider(target.id, {
@@ -297,10 +308,21 @@ export class RoutingWorkspace {
       } catch (e: any) {
         const message = e.message || 'The provider could not be saved.';
         if (/STALE_PROVIDER/.test(message)) {
-          this.providerError(
-            'Stale version: another administrator changed this provider. Your entries were kept; the latest list is shown below.',
-          );
-          this.providers(await api.providers());
+          const providers = await api.providers();
+          this.providers(providers);
+          const latest = providers.find((provider) => provider.id === target?.id);
+          if (latest) {
+            this.providerEditTarget(latest);
+            this.providerEditRemoved = false;
+            this.providerError(
+              'Stale version: another administrator changed this provider. Your entries were kept; the latest list is shown below.',
+            );
+          } else {
+            this.providerEditRemoved = true;
+            this.providerError(
+              'This provider was removed by another administrator. Your entries were kept, but it cannot be updated.',
+            );
+          }
           return;
         }
         this.providerError(message);
@@ -308,6 +330,7 @@ export class RoutingWorkspace {
       }
       this.providerForm(false);
       this.providerEditTarget(undefined);
+      this.providerEditRemoved = false;
       this.providerError('');
       this.notice(target ? 'Provider updated.' : 'Provider created.');
       this.providers(await api.providers());
@@ -316,6 +339,7 @@ export class RoutingWorkspace {
   newRoute = () => {
     if (this.busy()) return;
     this.routeEditTarget(undefined);
+    this.routeEditRemoved = false;
     this.routeProviderId(this.compatibleProviders()[0]?.id || '');
     this.routeCode('');
     this.routeName('');
@@ -335,6 +359,7 @@ export class RoutingWorkspace {
   editRoute = (route: TransferRoute) => {
     if (this.busy()) return;
     this.routeEditTarget(route);
+    this.routeEditRemoved = false;
     this.routeProviderId(route.providerId);
     this.routeCode(route.routeCode);
     this.routeName(route.name);
@@ -355,6 +380,7 @@ export class RoutingWorkspace {
     if (!this.busy()) {
       this.routeForm(false);
       this.routeEditTarget(undefined);
+      this.routeEditRemoved = false;
       this.routeError('');
     }
   };
@@ -407,6 +433,10 @@ export class RoutingWorkspace {
         return;
       }
       const target = this.routeEditTarget();
+      if (target && this.routeEditRemoved) {
+        this.routeError('This route was removed. Your entries were kept, but it cannot be updated.');
+        return;
+      }
       try {
         if (target) {
           const { routeCode: _immutable, ...mutable } = body;
@@ -419,10 +449,21 @@ export class RoutingWorkspace {
       } catch (e: any) {
         const message = e.message || 'The route could not be saved.';
         if (/STALE_ROUTE/.test(message)) {
-          this.routeError(
-            'Stale version: another administrator changed this route. Your entries were kept; the latest list is shown below.',
-          );
-          this.routes(await api.routesAdmin());
+          const routes = await api.routesAdmin();
+          this.routes(routes);
+          const latest = routes.find((route) => route.id === target?.id);
+          if (latest) {
+            this.routeEditTarget(latest);
+            this.routeEditRemoved = false;
+            this.routeError(
+              'Stale version: another administrator changed this route. Your entries were kept; the latest list is shown below.',
+            );
+          } else {
+            this.routeEditRemoved = true;
+            this.routeError(
+              'This route was removed by another administrator. Your entries were kept, but it cannot be updated.',
+            );
+          }
           return;
         }
         this.routeError(message);
@@ -430,6 +471,7 @@ export class RoutingWorkspace {
       }
       this.routeForm(false);
       this.routeEditTarget(undefined);
+      this.routeEditRemoved = false;
       this.routeError('');
       this.notice(target ? 'Route updated.' : 'Route created.');
       this.routes(await api.routesAdmin());
