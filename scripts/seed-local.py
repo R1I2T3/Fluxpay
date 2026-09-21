@@ -273,6 +273,7 @@ def provision_local_database(identities):
                          0, SYSTIMESTAMP, SYSTIMESTAMP)""",
                     route_id=_route_id(code),
                     provider_id=_provider_id(provider_code),
+                    route_code=code,
                     route_name=name,
                     destination_type=destination_type,
                     destination_country=country,

@@ -114,6 +114,13 @@ class SeedLocalTests(unittest.TestCase):
                     call for call in cursor.execute.call_args_list if "MERGE INTO transfer_routes" in call.args[0]
                 ]
                 self.assertEqual({call.kwargs["payout_currency"] for call in route_merges}, {"INR"})
+                self.assertEqual({call.kwargs["route_code"] for call in route_merges}, {
+                    "FLUXPAY_INTERNAL",
+                    "DEMO_BANK_STANDARD",
+                    "DEMO_BANK_EXPRESS",
+                    "DEMO_REALTIME_INR",
+                    "DEMO_PARTNER_INR",
+                })
                 self.assertEqual(len(route_merges), 5)
                 for call in route_merges:
                     sql = " ".join(call.args[0].split())
