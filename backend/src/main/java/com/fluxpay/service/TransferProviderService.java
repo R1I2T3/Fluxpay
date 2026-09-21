@@ -129,7 +129,7 @@ public class TransferProviderService {
 
   @Transactional
   public DeletionResult delete(UUID id, Long expectedVersion) {
-    TransferProvider provider = find(id);
+    TransferProvider provider = findForUpdate(id);
     requireVersion(provider, expectedVersion);
     List<TransferRoute> children = routes.findByProviderIdOrderByRouteCodeAsc(id);
     if (children.stream().anyMatch(child -> child.archivedAt() == null)) {

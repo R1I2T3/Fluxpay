@@ -65,7 +65,6 @@ class TransferProviderServiceTest {
 
   @Test
   void usedProviderArchivesAndCannotChangeRail() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(true);
 
@@ -287,7 +286,7 @@ class TransferProviderServiceTest {
 
   @Test
   void deleteUnusedProviderHardDeletes() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of());
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
 
@@ -303,7 +302,7 @@ class TransferProviderServiceTest {
     TransferProvider system =
         TransferProvider.create(
             PROVIDER_ID, "FLUXPAY", "FluxPay", RailType.INTERNAL_LEDGER, true, true, NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(system));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(system));
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of());
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
 
@@ -317,7 +316,7 @@ class TransferProviderServiceTest {
 
   @Test
   void deleteConflictsWhileNonArchivedChildrenExist() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID))
         .thenReturn(List.of(route(provider)));
 
@@ -332,7 +331,7 @@ class TransferProviderServiceTest {
   void deleteArchivesWhenOnlyArchivedChildrenRemain() {
     TransferRoute archived = route(provider);
     archived.archive(NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
     when(routes.findByProviderIdOrderByRouteCodeAsc(PROVIDER_ID)).thenReturn(List.of(archived));
     when(usage.providerUsed(PROVIDER_ID)).thenReturn(false);
 
@@ -346,7 +345,7 @@ class TransferProviderServiceTest {
 
   @Test
   void deleteRejectsStaleVersion() {
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(provider));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
 
     assertThatThrownBy(() -> service.delete(PROVIDER_ID, 99L))
         .isInstanceOfSatisfying(

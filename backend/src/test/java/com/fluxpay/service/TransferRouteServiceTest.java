@@ -154,7 +154,7 @@ class TransferRouteServiceTest {
     TransferProvider partner =
         TransferProvider.create(
             PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(partner));
     when(routes.findByRouteCode("HDFC_INR_STANDARD")).thenReturn(Optional.empty());
     when(routes.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -391,7 +391,7 @@ class TransferRouteServiceTest {
             PROVIDER_ID, "PARTNER", "Partner", RailType.PARTNER_NETWORK, true, false, NOW);
     TransferRoute dormant = TransferRouteTestFixtures.inactiveExternalRoute(ROUTE_ID, partner, NOW);
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(dormant));
-    when(providers.findById(PROVIDER_ID)).thenReturn(Optional.of(partner));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(partner));
 
     TransferRoute updated =
         service.update(

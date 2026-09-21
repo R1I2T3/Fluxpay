@@ -89,7 +89,7 @@ public class TransferRouteService {
     if (command.providerId() == null) {
       throw invalid("providerId must not be null");
     }
-    TransferProvider provider = findProvider(command.providerId(), command.active());
+    TransferProvider provider = findProviderForUpdate(command.providerId());
     String code;
     try {
       code = TransferProvider.normalizeCode(command.routeCode());
@@ -155,7 +155,7 @@ public class TransferRouteService {
           "ROUTING_BINDING_IMMUTABLE",
           "The route provider and destination cannot change after the route has been used.");
     }
-    TransferProvider provider = findProvider(command.providerId(), command.active());
+    TransferProvider provider = findProviderForUpdate(command.providerId());
     if (command.active() && !provider.active()) {
       throw invalid("The route cannot be active while its provider is inactive.");
     }
@@ -202,8 +202,9 @@ public class TransferRouteService {
         .orElseThrow(() -> notFound("ROUTE_NOT_FOUND", "Transfer route not found."));
   }
 
-  private TransferProvider findProvider(UUID providerId, boolean activeRoute) {
-    return (activeRoute ? providers.findByIdForUpdate(providerId) : providers.findById(providerId))
+  private TransferProvider findProviderForUpdate(UUID providerId) {
+    return providers
+        .findByIdForUpdate(providerId)
         .orElseThrow(() -> notFound("PROVIDER_NOT_FOUND", "Transfer provider not found."));
   }
 
