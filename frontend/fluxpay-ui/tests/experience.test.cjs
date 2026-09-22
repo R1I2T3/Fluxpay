@@ -144,9 +144,18 @@ test('dashboard people shortcut preselects recipient after authenticated Send lo
   await new Promise(resolve=>setImmediate(resolve));assert.equal(f.page.recipientId(),'r2');assert.equal(f.page.walletId(),'w1');
   const dashboard=fixture('dashboard');dashboard.page.payPerson({id:'r2'});assert.equal(dashboard.navigation[0][0],'payments-new');assert.equal(dashboard.navigation[0][1].recipient,'r2');
 });
-test('desktop workspace is full width without sidebar and bottom tabs are mobile-only',()=>{
+test('customer bottom navigation is unchanged and admin sidebar is guarded with visible labels',()=>{
   const css=fs.readFileSync(path.join(root,'../css/mobile-workspace.css'),'utf8'),html=fs.readFileSync(path.join(root,'../index.html'),'utf8');
-  assert.match(css,/@media\(min-width:900px\)/);assert.match(css,/#main \{ max-width:none; width:100%; margin:0; padding:76px 0 0;/);assert.doesNotMatch(html,/class="sidebar"|class="menu-button"/);
+  assert.match(css,/@media\(min-width:900px\)/);assert.match(css,/#main \{ max-width:none; width:100%; margin:0; padding:76px 0 0;/);
+  assert.match(html,/class="bottom-nav"/);assert.match(html,/foreach:bottomNav/);
+  assert.match(html,/visible:!isPublic\(\)&&!isAdminWorkspace\(\)/);
+  assert.match(html,/<!-- ko if:isAdminWorkspace -->[\s\S]*class="admin-sidebar"/);
+  assert.match(html,/foreach:adminNavGroups/);
+  assert.match(html,/<span data-bind="text:label"><\/span>/);
+  assert.match(html,/class="skip-link"/);
+  const adminCss=fs.readFileSync(path.join(root,'../css/admin-console.css'),'utf8');
+  assert.match(adminCss,/\.admin-environment\{[^}]*position:sticky/);
+  assert.doesNotMatch(adminCss,/linear-gradient|radial-gradient/);
 });
 
 test('saving from final review confirms as Processing without submitting payout',async()=>{

@@ -2,11 +2,18 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const read=file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8');
-test('shell has logo/profile header and mobile bottom tabs, never a sidebar or hamburger',()=>{
+test('shell keeps customer bottom tabs and guards admin sidebar to administrators',()=>{
   const html=read('index.html');
-  assert.doesNotMatch(html,/class="sidebar"|class="menu-button"/);
   assert.match(html,/← Back to home/);assert.match(html,/<header class="site-header">/);
   assert.match(html,/class="profile-menu"/);assert.match(html,/text:session.user\(\).fullName/);assert.match(html,/class="bottom-nav"/);
+  assert.match(html,/foreach:bottomNav/);
+  assert.match(html,/visible:!isPublic\(\)&&!isAdminWorkspace\(\)/);
+  assert.match(html,/<!-- ko if:isAdminWorkspace -->[\s\S]*class="admin-sidebar"/);
+  assert.match(html,/foreach:adminNavGroups/);
+  assert.match(html,/'aria-current':\$root\.activeAdminPath\(\)===path\?'page':null/);
+  assert.match(html,/text:environment\.label/);
+  assert.match(html,/class="skip-link"/);
+  assert.doesNotMatch(html,/Audit Log|Governance/);
   assert.match(read('css/mobile-workspace.css'),/@media\(min-width:768px\)\{\.bottom-nav\{display:none !important;/);
 });
 test('dashboard content exposes every customer destination without a menu',()=>{

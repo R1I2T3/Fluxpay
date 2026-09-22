@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/home.css">
   <link rel="stylesheet" href="css/auth.css">
   <link rel="stylesheet" href="css/workspace.css">
+  <link rel="stylesheet" href="css/admin-console.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="css/mobile-workspace.css">
   <link rel="stylesheet" href="css/history.css">
@@ -39,6 +40,16 @@
     <!-- ko foreach:bottomNav --><a data-bind="attr:{href:'?ojr='+path,'data-route':path,'aria-current':$parent.activeTab()===path?'page':null},css:{active:$parent.activeTab()===path}"><span aria-hidden="true" data-bind="text:icon"></span><span data-bind="text:label"></span></a><!-- /ko -->
   </nav>
   <div class="global-message" role="alert" data-bind="visible:message,text:message"></div>
+  <!-- ko if:isAdminWorkspace -->
+  <aside class="admin-sidebar" aria-label="Administrator navigation">
+    <div class="admin-environment" data-bind="attr:{'data-tone':environment.tone}"><i class="fa-solid fa-circle" aria-hidden="true"></i><span data-bind="text:environment.label"></span></div>
+    <nav>
+      <!-- ko foreach:adminNavGroups -->
+      <section class="admin-nav-group"><h2 data-bind="text:label"></h2><div data-bind="foreach:items"><a data-bind="attr:{href:'?ojr='+path,'data-route':path,'aria-current':$root.activeAdminPath()===path?'page':null},css:{active:$root.activeAdminPath()===path}"><i class="fa-solid" aria-hidden="true" data-bind="css:icon"></i><span data-bind="text:label"></span></a></div></section>
+      <!-- /ko -->
+    </nav>
+  </aside>
+  <!-- /ko -->
   <main id="main">
     <!-- ko if:!isPublic()&&needsVerificationSubmission() -->
     <aside class="verification-reminder" role="status" aria-label="Identity verification reminder"><span class="verification-reminder-icon" aria-hidden="true">◇</span><div><strong>Identity verification not started</strong><p>You haven’t submitted your documents yet. Verify your identity to unlock transfers.</p></div><a class="pill soft" href="?ojr=kyc" data-route="kyc">Verify now ↗</a></aside>
