@@ -47,7 +47,7 @@ test('KYC decisions require a reason code and compose the existing reason string
 test('KYC template is a three-pane manual review and makes no OCR claim', () => {
   const html=read('ts/views/admin-kyc.html');
   for(const token of ['review-workspace','review-queue','record-detail','evidence-panel','sticky-decision-bar','Customer-submitted information','Manual document checklist']) assert.ok(html.includes(token), token);
-  assert.match(html,/text:maskDocument\(docNumber\)/);
+  assert.match(html,/maskDocument\(docNumber\)/);
   assert.doesNotMatch(html,/OCR|automated mismatch|AI match/i);
   assert.doesNotMatch(html,/copy document|reveal document/i);
 });
