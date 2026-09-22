@@ -136,7 +136,7 @@ test('expired review leaves case open and displays server reason',async()=>{cons
 test('only open manual cases can be deleted',async()=>{for(const value of [{...manual,reviewReference:'auto-review'},{...manual,status:'APPROVED'}]){const {page,calls}=workspace();page.selectedCase(value);page.askConfirmation('delete-case');await page.confirm();assert.equal(calls.length,0);assert.match(page.error(),/Only open manual/);page.dispose();}const {page,calls}=workspace();page.selectedCase(manual);page.askConfirmation('delete-case');await page.confirm();assert.equal(page.selectedCase(),undefined);assert.equal(calls[0][0],'deleteComplianceCase');page.dispose();});
 test('Copilot handles citations, optional UUID, no-source fallback and provider errors',async()=>{const {page,calls}=workspace({askCopilot:async()=>({answer:'Review is required.',sources:[{policyDocumentId:id,title:'Policy',chunkNumber:1,excerpt:'Review clause'}]})});page.question(' What requires review? ');await page.ask();assert.equal(calls[0][2],undefined);assert.equal(page.answer().sources[0].policyDocumentId,id);page.copilotPaymentId('invalid');await page.ask();assert.match(page.error(),/UUID/);assert.equal(calls.length,1);page.dispose();const second=workspace({askCopilot:async()=>{throw Error('Compliance Copilot is temporarily unavailable.');}});second.page.question('Question');await second.page.ask();assert.equal(second.page.answer(),undefined);assert.match(second.page.error(),/unavailable/);second.page.dispose();});
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
-test('admin template renders untrusted policy and AI text with text bindings, never HTML',()=>{const html=read('ts/views/admin.html');assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));for(const action of ['savePolicy','addChunk','saveCase','ask','confirm'])assert.ok(html.includes(action));assert.ok(html.includes('role="alertdialog"'));assert.ok(html.includes('maxlength="500"'));assert.ok(html.includes('maxlength="400"'));assert.ok(html.includes('maxlength="200"'));});
+test('admin templates render untrusted policy and AI text with text bindings, never HTML',()=>{const files=['ts/views/admin.html','ts/views/admin-policies.html','ts/views/admin-compliance.html','ts/views/admin-copilot.html'];for(const file of files)assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(read(file)),file);const policies=read('ts/views/admin-policies.html');for(const action of ['savePolicy','addChunk','confirm'])assert.ok(policies.includes(action),action);const compliance=read('ts/views/admin-compliance.html');for(const action of ['prepareDecision','confirm'])assert.ok(compliance.includes(action),action);const copilot=read('ts/views/admin-copilot.html');assert.ok(copilot.includes('askCited'));assert.ok(policies.includes('role="alertdialog"'));assert.ok(compliance.includes('maxlength="500"'));assert.ok(policies.includes('maxlength="200"'));});
 test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
   const html=read('ts/views/admin-copilot.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
   assert.match(html,/policyAnswer:answer\(\)\.answer/);
@@ -181,11 +181,11 @@ test('policy-draft preview truncates before the fixed action column',()=>{
   assert.match(css,/\.policy-draft-table td\.draft-preview\s*\{[^}]*overflow:\s*hidden;[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s);
   assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:\s*118px;/);
 });
-test('opening a compliance case uses a modal rather than an inline panel below the list',()=>{
-  const html=read('ts/views/admin.html'),css=read('css/workspace.css');
-  assert.match(html,/<!-- ko if:selectedCase -->\s*<div class="admin-confirmation[^"]*" role="dialog" aria-modal="true" aria-labelledby="compliance-case-title"/);
-  assert.match(html,/aria-label="Close case details"/);
-  assert.match(html,/compliance-case-dialog"><div class="compliance-case-scroll">/);
+test('opening a compliance case uses a confirmation dialog rather than an inline panel below the list',()=>{
+  const html=read('ts/views/admin-compliance.html'),css=read('css/workspace.css');
+  assert.match(html,/<!-- ko if:confirmation -->\s*<div[^>]*class="admin-confirmation[^"]*"[^>]*role="alertdialog"[^>]*aria-modal="true"[^>]*aria-labelledby="compliance-confirm-title"/);
+  assert.match(html,/aria-label="Cancel action"/);
+  assert.match(html,/data-bind="text:decisionReason"/);
   assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:\s*hidden;[^}]*padding:\s*0;/);
   assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:\s*auto;[^}]*border-radius:\s*inherit;/);
 });
@@ -196,7 +196,7 @@ test('focused compliance template shows response-backed case context without del
   assert.match(html,/navigateToCopilot/);
 });
 test('case-to-Copilot handoff includes the risk, reasons, and suggested action',()=>{
-  const source=read('ts/viewModels/admin.ts');
+  const source=read('ts/services/admin-console.ts');
   assert.match(source,/Case context:/);
   assert.match(source,/Risk level:/);
   assert.match(source,/riskReasons/);

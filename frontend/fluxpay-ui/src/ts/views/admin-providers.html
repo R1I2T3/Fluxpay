@@ -1,3 +1,18 @@
+<!-- ko if: !session.user() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">→</span>
+  <h2>Sign in to configure providers.</h2>
+  <p>Only administrators can configure transfer providers.</p>
+  <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+</div>
+<!-- /ko -->
+<!-- ko if: session.user() && !session.isAdmin() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">!</span>
+  <h2>Administrator access required.</h2>
+  <p>Your account cannot configure transfer providers.</p>
+</div>
+<!-- /ko -->
 <section class="admin-page configuration-page" data-bind="if:session.isAdmin()">
   <div data-bind="with:workspace">
     <header class="admin-page-heading">

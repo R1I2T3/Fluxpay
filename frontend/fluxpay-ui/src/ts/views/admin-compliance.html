@@ -1,3 +1,18 @@
+<!-- ko if: !session.user() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">→</span>
+  <h2>Sign in to review compliance cases.</h2>
+  <p>Only administrators can review payment-linked cases.</p>
+  <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+</div>
+<!-- /ko -->
+<!-- ko if: session.user() && !session.isAdmin() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">!</span>
+  <h2>Administrator access required.</h2>
+  <p>Your account cannot review compliance cases.</p>
+</div>
+<!-- /ko -->
 <section class="admin-page review-page" data-bind="if:session.isAdmin()">
   <header class="admin-page-heading">
     <div>
