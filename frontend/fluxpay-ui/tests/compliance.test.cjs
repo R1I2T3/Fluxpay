@@ -111,12 +111,21 @@ test('a failed policy edit retains the selected chunk retention choice',async()=
   assert.equal(page.policyEditClearChunks(),false);assert.match(page.policyEdit().error(),/rejected/);page.dispose();
 });
 test('non-admin cannot load or mutate global compliance data',async()=>{const {page,calls}=workspace({},false);await page.loadCases();await page.savePolicy();await page.ask();assert.equal(calls.length,0);assert.match(page.error(),/administrator/);page.dispose();});
-test('policy create, detail, chunks, index and confirmed delete flow',async()=>{
+test('policy create, detail, chunks and index flow has no bound policy delete action',async()=>{
   const {page,calls}=workspace();page.title(' QA policy ');page.content(' Policy text ');await page.savePolicy();assert.equal(page.policy().id,id);assert.equal(page.policyForm(),false);
   await page.openPolicy({id});page.chunkContent(' Extra passage ');await page.addChunk();assert.equal(page.chunkContent(),'');
   page.askConfirmation('index');assert.equal(calls.filter(c=>c[0]==='indexPolicy').length,0);await page.confirm();assert.match(page.notice(),/2 chunks/);
-  page.askConfirmation('delete-policy');page.cancelConfirmation();assert.equal(calls.filter(c=>c[0]==='deletePolicy').length,0);
-  page.askConfirmation('delete-policy');await page.confirm();assert.equal(page.policy(),undefined);assert.equal(calls.filter(c=>c[0]==='deletePolicy').length,1);page.dispose();
+  assert.equal(calls.filter(c=>c[0]==='deletePolicy').length,0);
+  assert.doesNotMatch(read('ts/views/admin-policies.html'),/askConfirmation\('delete-policy'\)|deletePolicy|Delete policy/i);
+  page.dispose();
+});
+test('policy deletion endpoint wrapper issues an authorized DELETE',async()=>{
+  const calls=[];
+  const context={exports:{},window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:204,json:async()=>({})};}};
+  vm.runInNewContext(compile('ts/services/flux-api.ts'),context);
+  await context.exports.fluxApi.deletePolicy(id);
+  assert.deepEqual(calls.map(([url,options])=>[options.method,url]),[['DELETE',`/api/policies/${id}`]]);
+  assert.equal(calls[0][1].headers.Authorization,'Bearer test-token');
 });
 test('policy validation retains user input and does not call API',async()=>{const {page,calls}=workspace();page.title('x'.repeat(201));page.content('text');await page.savePolicy();assert.equal(calls.length,0);assert.equal(page.title().length,201);assert.match(page.error(),/200/);page.dispose();});
 test('index outage preserves selected document and does not claim success',async()=>{const {page}=workspace({indexPolicy:async()=>{throw Error('Embedding service unavailable');}});page.policy(policy);page.askConfirmation('index');await page.confirm();assert.match(page.error(),/unavailable/);assert.equal(page.confirmation(),'index');assert.equal(page.notice(),'');assert.equal(page.busy(),false);page.dispose();});
@@ -139,34 +148,29 @@ test('Copilot answers safely render only bold Markdown and keep source cards com
   assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:\s*13px;/);
 });
 test('policy library template provides draft creation and compact accessible detail dialogs',()=>{
-  const html=read('ts/views/admin.html');
-  for(const binding of ['policyDrafts','loadPolicyJson','addManualPolicyDraft','removePolicyDraft','createPolicyDrafts','openPolicyEdit','savePolicyEdit','closePolicyEdit'])assert.ok(html.includes(binding),`missing ${binding}`);
+  const html=read('ts/views/admin-policies.html');
+  for(const binding of ['policyDrafts','loadPolicyJson','addManualPolicyDraft','removePolicyDraft','requestPolicyDraftPublish','confirmPolicyDraftPublish','openPolicyEdit','requestPolicyEditSave','confirmPolicyEditSave','policyChanges','policySavedView','visiblePolicies','changeSavedView'])assert.ok(html.includes(binding),`missing ${binding}`);
   assert.match(html,/accept="\.json,application\/json"/);
   assert.match(html,/data-bind="foreach:policyDrafts"/);
-  assert.match(html,/data-bind="foreach:pagedPolicies"[\s\S]*class="policy-list-row"/);
+  assert.match(html,/data-bind="foreach:visiblePolicies"/);
   assert.ok(html.includes('previousPolicyPage'));
   assert.ok(html.includes('nextPolicyPage'));
-  assert.ok((html.match(/fa-solid fa-eye/g)||[]).length>=3);
-  assert.ok((html.match(/fa-solid fa-pen-to-square/g)||[]).length>=3);
-  assert.ok((html.match(/fa-solid fa-trash-can/g)||[]).length>=3);
-  assert.ok((html.match(/e\.stopPropagation\(\)/g)||[]).length>=2,'row actions stop click propagation');
-  assert.match(html,/openPolicyEdit\(\$data\)/);
-  assert.match(html,/askConfirmation\('delete-policy'\)/);
-  assert.match(html,/role="dialog" aria-modal="true" aria-labelledby="policy-details-title"/);
-  assert.match(html,/role="dialog" aria-modal="true" aria-labelledby="policy-edit-title"/);
-  assert.match(html,/data-bind="adminDialog:true[\s\S]*text:policy\(\)\.content/);
-  assert.match(html,/type="checkbox" data-bind="checked:policyEditClearChunks,disable:busy"/);
+  assert.match(html,/role="dialog"\s+aria-modal="true"\s+aria-labelledby="policy-edit-title"/);
+  assert.match(html,/role="alertdialog"\s+aria-modal="true"\s+aria-labelledby="policy-changes-title"/);
+  assert.match(html,/data-bind="adminDialog:true"/);
+  assert.match(html,/data-bind="text:content"/);
+  assert.match(html,/type="checkbox"\s+data-bind="checked:policyEditClearChunks,disable:busy"/);
   assert.match(html,/Retaining existing chunks can leave Copilot using older material\./);
 });
 test('policy import picker accepts a batch of JSON files and appends their parsed drafts',()=>{
-  const html=read('ts/views/admin.html');
+  const html=read('ts/views/admin-policies.html');
   const source=read('ts/services/compliance-workspace.ts');
-  assert.match(html,/type="file"[^>]*multiple[^>]*accept="\.json,application\/json"/);
+  assert.match(html,/type="file"\s+multiple\s+accept="\.json,application\/json"/);
   assert.match(source,/Array\.from\(input\.files\?\?\[\]\)/);
   assert.match(source,/Promise\.allSettled/);
 });
 test('policy drafts use one compact table and policy editing provides direct advanced settings',()=>{
-  const html=read('ts/views/admin.html');
+  const html=read('ts/views/admin-policies.html');
   assert.match(html,/class="table-scroll policy-draft-table"[\s\S]*foreach:policyDrafts/);
   assert.match(html,/openAdvancedFromEdit/);
   assert.match(html,/class="modal-back"[\s\S]*← Policy/);
@@ -209,10 +213,11 @@ test('policy chunk maintenance keeps editing manual-only while allowing any chun
     ['DELETE',`/api/policies/${id}/chunks/chunk-1`]
   ]);
   assert.deepEqual(JSON.parse(calls[0][1].body),{content:'Corrected guidance'});
-  const html=read('ts/views/admin.html');
+  const html=read('ts/views/admin-policies.html');
   assert.match(html,/<!-- ko if:manual --><button[^>]*openChunkEdit/);
   assert.ok(html.includes('requestDeleteChunk'));
   assert.ok(!/requestDeleteChunk[^>]*visible:manual/.test(html));
+  assert.ok(html.includes('requestDeleteGuidance'));
 });
 
 function paymentPage(api){

@@ -1,0 +1,754 @@
+<section class="admin-page configuration-page" data-bind="if:session.isAdmin()">
+  <div data-bind="with:workspace">
+    <header class="admin-page-heading">
+      <div>
+        <span class="eyebrow">POLICY &amp; AI</span>
+        <h1>Policy Library</h1>
+        <p>Maintain the current policy documents and their indexed source material.</p>
+      </div>
+      <button class="pill dark" data-bind="click:addManualPolicyDraft,disable:busy">
+        New policy
+      </button>
+    </header>
+    <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
+    <div
+      class="alert success"
+      role="status"
+      aria-live="polite"
+      data-bind="visible:notice,text:notice"
+    ></div>
+    <article class="panel policy-creation-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">CREATE OR IMPORT</span>
+          <h2>Policy drafts</h2>
+        </div>
+        <label class="pill soft file-picker"
+          >Import JSON<input
+            type="file"
+            multiple
+            accept=".json,application/json"
+            data-bind="event:{change:loadPolicyJson},disable:busy"
+        /></label>
+      </div>
+      <p class="subtle-note">
+        Select one or more JSON files, review every imported draft here, then publish them together.
+        Each file can contain one policy object or an array.
+      </p>
+      <p
+        class="error-text"
+        role="alert"
+        data-bind="visible:policyImportError,text:policyImportError"
+      ></p>
+      <!-- ko if:policyDrafts().length -->
+      <div class="table-scroll policy-draft-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Policy preview</th>
+              <th aria-label="Actions"></th>
+            </tr>
+          </thead>
+          <tbody data-bind="foreach:policyDrafts">
+            <tr>
+              <td>
+                <strong data-bind="text:title"></strong>
+                <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+              </td>
+              <td><span class="eyebrow" data-bind="text:category().replace(/_/g,' ')"></span></td>
+              <td class="draft-preview" data-bind="text:content()"></td>
+              <td>
+                <button
+                  type="button"
+                  class="text-button"
+                  data-bind="click:$parent.viewPolicyDraft,disable:$parent.busy"
+                >
+                  View
+                </button>
+                <button
+                  type="button"
+                  class="text-button"
+                  data-bind="click:$parent.editPolicyDraft,disable:$parent.busy"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  class="text-button"
+                  data-bind="click:$parent.removePolicyDraft,disable:$parent.busy"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="action-row policy-draft-actions">
+        <button type="button" class="pill soft" data-bind="click:addManualPolicyDraft,disable:busy">
+          ＋ Add draft
+        </button>
+        <button
+          type="button"
+          class="pill dark"
+          data-bind="click:requestPolicyDraftPublish,disable:busy()||!policyDrafts().length"
+        >
+          Publish policies
+        </button>
+      </div>
+      <!-- /ko -->
+    </article>
+    <!-- ko if:draftEditor -->
+    <div
+      class="admin-confirmation"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="draft-editor-title"
+      data-bind="adminDialog:true"
+    >
+      <article class="panel modal small policy-edit-dialog">
+        <div class="panel-heading">
+          <h2
+            id="draft-editor-title"
+            data-bind="text:draftEditorTarget()?'Edit draft':'Add policy draft'"
+          ></h2>
+          <button
+            class="close-button"
+            aria-label="Close draft editor"
+            data-bind="click:closePolicyDraftEditor,disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <form data-bind="submit:savePolicyDraft">
+          <div class="form-row">
+            <label
+              >Title<input
+                required
+                maxlength="200"
+                data-bind="textInput:draftEditor().title,disable:busy" /></label
+            ><label
+              >Category<select
+                data-bind="options:categories,value:draftEditor().category,disable:busy"
+              ></select
+            ></label>
+          </div>
+          <label
+            >Policy document text<textarea
+              required
+              rows="8"
+              data-bind="textInput:draftEditor().content,disable:busy"
+            ></textarea>
+          </label>
+          <p
+            class="error-text"
+            data-bind="visible:draftEditor().error,text:draftEditor().error"
+          ></p>
+          <div class="action-row">
+            <button class="pill dark" data-bind="disable:busy">Save draft</button
+            ><button
+              class="pill soft"
+              type="button"
+              data-bind="click:closePolicyDraftEditor,disable:busy"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:draftViewer -->
+    <div
+      class="admin-confirmation"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="draft-view-title"
+      data-bind="adminDialog:true"
+    >
+      <article class="panel modal small policy-edit-dialog">
+        <div class="panel-heading">
+          <h2 id="draft-view-title" data-bind="text:draftViewer().title"></h2>
+          <button
+            class="close-button"
+            aria-label="Close draft viewer"
+            data-bind="click:function(){draftViewer(undefined)},disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <span class="eyebrow" data-bind="text:draftViewer().category().replace(/_/g,' ')"></span>
+        <p class="policy-content preserve-text" data-bind="text:draftViewer().content()"></p>
+      </article>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:draftPublishReview -->
+    <div
+      class="admin-confirmation"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="draft-publish-title"
+      data-bind="adminDialog:true"
+    >
+      <section class="modal small">
+        <div class="panel-heading">
+          <h2 id="draft-publish-title">Publish policy drafts?</h2>
+          <button
+            class="close-button"
+            aria-label="Cancel publish"
+            data-bind="click:function(){draftPublishReview(false)},disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <p>These drafts will be added to the policy library as current documents.</p>
+        <ul class="admin-reasons" data-bind="foreach:policyDrafts">
+          <li>
+            <strong data-bind="text:title"></strong>
+            <span class="eyebrow" data-bind="text:category"></span>
+          </li>
+        </ul>
+        <p>Apply in <span data-bind="text:$root.environment.label"></span>.</p>
+        <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+        <button
+          class="pill dark wide"
+          data-bind="click:confirmPolicyDraftPublish,disable:busy,text:busy()?'Working…':'Confirm publish'"
+        ></button>
+        <button
+          class="pill soft wide"
+          data-bind="click:function(){draftPublishReview(false)},disable:busy"
+        >
+          Go back
+        </button>
+      </section>
+    </div>
+    <!-- /ko -->
+    <div class="configuration-workspace">
+      <section class="configuration-list">
+        <div class="filter-row">
+          <label
+            >Search<input
+              type="search"
+              placeholder="Title or policy text"
+              data-bind="textInput:search,event:{input:function(){policyPage(0)}}"
+          /></label>
+          <label
+            >Category<select
+              data-bind="value:categoryFilter,event:{change:function(){policyPage(0)}}"
+            >
+              <option value="ALL">All categories</option>
+              <!-- ko foreach:categories -->
+              <option data-bind="text:$data,value:$data"></option>
+              <!-- /ko -->
+            </select></label
+          >
+          <label
+            >Index view<select
+              data-bind="value:policySavedView,event:{change:$parent.changeSavedView}"
+            >
+              <option value="ALL">All documents</option>
+              <option value="UNINDEXED">Without indexed chunks</option>
+            </select></label
+          >
+          <button class="pill soft" data-bind="click:loadPolicies,disable:busy">↻ Refresh</button>
+        </div>
+        <table class="dense-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Document</th>
+              <th>Created</th>
+              <th>Indexed chunks</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody data-bind="foreach:visiblePolicies">
+            <tr>
+              <td data-bind="text:title"></td>
+              <td data-bind="text:category"></td>
+              <td>Current document</td>
+              <td data-bind="text:$parent.date(createdAt)"></td>
+              <td
+                data-bind="text:(chunks||[]).filter(function(item){return !item.manual;}).length"
+              ></td>
+              <td>
+                <button type="button" class="text-button" data-bind="click:$parent.openPolicy">
+                  Open
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pagination" data-bind="visible:savedPolicies().length">
+          <button data-bind="click:previousPolicyPage,disable:busy()||policyPage()===0">
+            ← Previous</button
+          ><span data-bind="text:'Page '+(policyPage()+1)+' of '+policyPageCount()"></span
+          ><button
+            data-bind="click:nextPolicyPage,disable:busy()||policyPage()>=policyPageCount()-1"
+          >
+            Next →
+          </button>
+        </div>
+        <div class="empty-state" data-bind="visible:!busy()&&!savedPolicies().length">
+          <h3>No matching policies</h3>
+          <p>Add a draft or adjust the filters.</p>
+        </div>
+      </section>
+      <aside class="configuration-editor" data-bind="with:policy">
+        <h2 data-bind="text:title"></h2>
+        <dl class="detail-grid">
+          <div>
+            <dt>Document hash</dt>
+            <dd class="mono" data-bind="text:documentHash"></dd>
+          </div>
+          <div>
+            <dt>Created</dt>
+            <dd data-bind="text:$parent.date(createdAt)"></dd>
+          </div>
+        </dl>
+        <p class="preserve-text" data-bind="text:content"></p>
+        <div class="action-row">
+          <button class="pill soft" data-bind="click:$parent.openPolicyEdit">
+            Edit current document
+          </button>
+          <button class="pill dark" data-bind="click:function(){$parent.askConfirmation('index')}">
+            Rebuild index
+          </button>
+        </div>
+        <label
+          >Details view<select data-bind="value:$parent.policyView">
+            <option value="policy">Policy</option>
+            <option value="advanced">Advanced</option>
+          </select></label
+        >
+      </aside>
+      <!-- ko if:!policy() -->
+      <aside class="configuration-editor">
+        <p class="muted">Select a document to review its current content.</p>
+      </aside>
+      <!-- /ko -->
+      <!-- ko if:policy()&&policyView()==='advanced' -->
+      <section class="configuration-advanced">
+        <button
+          class="modal-back"
+          type="button"
+          data-bind="click:function(){policyView('policy')},disable:busy"
+        >
+          ← Policy
+        </button>
+        <div class="action-row">
+          <button
+            class="pill dark"
+            data-bind="click:function(){askConfirmation('index')},disable:busy"
+          >
+            Rebuild search index
+          </button>
+          <button class="pill soft" data-bind="click:function(){openPolicy(policy())},disable:busy">
+            ↻ Refresh document
+          </button>
+        </div>
+        <p class="subtle-note">
+          Indexing rebuilds chunks from the original document and replaces the active index; manual
+          chunks are not appended to the document.
+        </p>
+        <h3 data-bind="text:'Document chunks · '+chunks().length"></h3>
+        <div class="policy-chunks" data-bind="foreach:chunks">
+          <details>
+            <summary
+              data-bind="text:'Chunk '+chunkNumber+(manual?' · Manual':' · Indexed')"
+            ></summary>
+            <p class="preserve-text" data-bind="text:content"></p>
+            <div class="chunk-meta">
+              <small data-bind="text:$parent.date(createdAt)"></small
+              ><span data-bind="text:manual?'Manual':'Indexed'"></span>
+              <div class="chunk-actions">
+                <!-- ko if:manual --><button
+                  type="button"
+                  class="icon-action"
+                  aria-label="Edit manual chunk"
+                  title="Edit manual chunk"
+                  data-bind="click:$parent.openChunkEdit,disable:$parent.busy"
+                >
+                  <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button
+                ><!-- /ko --><button
+                  type="button"
+                  class="icon-action danger"
+                  aria-label="Delete chunk"
+                  title="Delete chunk"
+                  data-bind="click:$parent.requestDeleteChunk,disable:$parent.busy"
+                >
+                  <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </details>
+        </div>
+        <p class="muted" data-bind="visible:!chunks().length">
+          No chunks yet. Index the document or add a manual chunk below.
+        </p>
+        <form class="manual-chunk-form" data-bind="submit:addChunk">
+          <label
+            >Manual chunk text<textarea
+              required
+              rows="3"
+              data-bind="textInput:chunkContent"
+            ></textarea></label
+          ><button class="pill soft" data-bind="disable:busy">＋ Add manual chunk</button>
+        </form>
+        <h3 data-bind="text:'Policy guidance · '+guidance().length"></h3>
+        <p class="subtle-note">
+          Attach a completed case as a reference for this policy. The editable guidance note is
+          included when the search index is rebuilt.
+        </p>
+        <div class="policy-chunks" data-bind="foreach:guidance">
+          <details>
+            <summary data-bind="text:'Case guidance · '+complianceCaseId"></summary>
+            <p class="preserve-text" data-bind="text:content"></p>
+            <div class="chunk-meta">
+              <small data-bind="text:$parent.date(createdAt)"></small>
+              <div class="chunk-actions">
+                <button
+                  type="button"
+                  class="icon-action"
+                  aria-label="View completed case"
+                  title="View completed case"
+                  data-bind="click:$parent.openGuidanceCase,disable:$parent.busy"
+                >
+                  <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="icon-action"
+                  aria-label="Edit guidance"
+                  title="Edit guidance"
+                  data-bind="click:$parent.openGuidanceEdit,disable:$parent.busy"
+                >
+                  <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="icon-action danger"
+                  aria-label="Delete guidance"
+                  title="Delete guidance"
+                  data-bind="click:$parent.requestDeleteGuidance,disable:$parent.busy"
+                >
+                  <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </details>
+        </div>
+        <form data-bind="submit:addGuidance">
+          <div class="guidance-case-picker">
+            <label
+              >Completed case<select
+                required
+                data-bind="options:completedCases,optionsText:function(item){return item.paymentId+' · '+item.risk+' · '+item.status},optionsValue:'id',value:guidanceCaseId,optionsCaption:'Choose a completed case'"
+              ></select></label
+            ><button
+              type="button"
+              class="icon-action"
+              aria-label="View selected completed case"
+              title="View selected completed case"
+              data-bind="click:openSelectedGuidanceCase,disable:busy()||!guidanceCaseId()"
+            >
+              <i class="fa-solid fa-eye" aria-hidden="true"></i>
+            </button>
+          </div>
+          <label
+            >Guidance comments<textarea
+              required
+              rows="3"
+              data-bind="textInput:guidanceContent"
+            ></textarea>
+          </label>
+          <button class="pill soft" data-bind="disable:busy">Add guidance</button>
+        </form>
+      </section>
+      <!-- /ko -->
+    </div>
+    <!-- ko if:policyEdit -->
+    <div
+      class="admin-confirmation policy-edit-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="policy-edit-title"
+      data-bind="adminDialog:true,event:{keydown:function(_,e){if(e.key==='Escape')closePolicyEdit();return true;}}"
+    >
+      <article class="panel modal small policy-edit-dialog">
+        <div class="panel-heading">
+          <h2 id="policy-edit-title">Edit policy</h2>
+          <button
+            class="close-button"
+            aria-label="Close policy editor"
+            data-bind="click:closePolicyEdit,disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <form data-bind="submit:requestPolicyEditSave">
+          <div class="form-row">
+            <label
+              >Title<input
+                required
+                maxlength="200"
+                data-bind="textInput:policyEdit().title,disable:busy" /></label
+            ><label
+              >Category<select
+                data-bind="options:categories,value:policyEdit().category,disable:busy"
+              ></select
+            ></label>
+          </div>
+          <label
+            >Policy document text<textarea
+              required
+              rows="7"
+              data-bind="textInput:policyEdit().content,disable:busy"
+            ></textarea>
+          </label>
+          <label class="checkbox-label"
+            ><input type="checkbox" data-bind="checked:policyEditClearChunks,disable:busy" />Clear
+            existing chunks after saving</label
+          >
+          <p class="subtle-note">
+            Retaining existing chunks can leave Copilot using older material.
+          </p>
+          <p
+            class="error-text"
+            role="alert"
+            data-bind="visible:policyEdit().error,text:policyEdit().error"
+          ></p>
+          <div class="action-row">
+            <button class="pill dark" data-bind="disable:busy">Review changes</button
+            ><button type="button" class="pill soft" data-bind="click:closePolicyEdit,disable:busy">
+              Cancel</button
+            ><button
+              type="button"
+              class="text-button link-blue"
+              data-bind="click:openAdvancedFromEdit,disable:busy"
+            >
+              Advanced settings →
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:policyChangeReview -->
+    <div
+      class="admin-confirmation"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="policy-changes-title"
+      data-bind="adminDialog:true"
+    >
+      <section class="modal small">
+        <div class="panel-heading">
+          <h2 id="policy-changes-title">Review policy changes</h2>
+          <button
+            class="close-button"
+            aria-label="Cancel review"
+            data-bind="click:function(){policyChangeReview(false)},disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <table class="dense-table">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Current</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody data-bind="foreach:policyChanges">
+            <tr>
+              <td data-bind="text:label"></td>
+              <td data-bind="text:before"></td>
+              <td data-bind="text:after"></td>
+            </tr>
+          </tbody>
+        </table>
+        <p>Apply in <span data-bind="text:$root.environment.label"></span>.</p>
+        <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+        <button
+          class="pill dark wide"
+          data-bind="click:confirmPolicyEditSave,disable:busy,text:busy()?'Working…':'Apply changes'"
+        ></button>
+        <button
+          class="pill soft wide"
+          data-bind="click:function(){policyChangeReview(false)},disable:busy"
+        >
+          Go back
+        </button>
+      </section>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:chunkEdit -->
+    <div
+      class="admin-confirmation policy-edit-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="chunk-edit-title"
+      data-bind="adminDialog:true,event:{keydown:function(_,e){if(e.key==='Escape')closeChunkEdit();return true;}}"
+    >
+      <article class="panel modal small policy-edit-dialog">
+        <div class="panel-heading">
+          <h2 id="chunk-edit-title">Edit manual chunk</h2>
+          <button
+            class="close-button"
+            aria-label="Close manual chunk editor"
+            data-bind="click:closeChunkEdit,disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <form data-bind="submit:saveChunkEdit">
+          <label
+            >Chunk text<textarea
+              required
+              rows="7"
+              data-bind="textInput:chunkEditContent,disable:busy"
+            ></textarea>
+          </label>
+          <p class="subtle-note">
+            This changes the manual note only. Indexed chunks are rebuilt from the policy document.
+          </p>
+          <div class="action-row">
+            <button class="pill dark" data-bind="disable:busy">Save chunk</button
+            ><button type="button" class="pill soft" data-bind="click:closeChunkEdit,disable:busy">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:guidanceEdit -->
+    <div
+      class="admin-confirmation policy-edit-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="guidance-edit-title"
+      data-bind="adminDialog:true,event:{keydown:function(_,e){if(e.key==='Escape')closeGuidanceEdit();return true;}}"
+    >
+      <article class="panel modal small policy-edit-dialog">
+        <div class="panel-heading">
+          <h2 id="guidance-edit-title">Edit policy guidance</h2>
+          <button
+            class="close-button"
+            aria-label="Close guidance editor"
+            data-bind="click:closeGuidanceEdit,disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <form data-bind="submit:saveGuidanceEdit">
+          <label
+            >Guidance text<textarea
+              required
+              rows="7"
+              data-bind="textInput:guidanceEditContent,disable:busy"
+            ></textarea>
+          </label>
+          <div class="action-row">
+            <button class="pill dark" data-bind="disable:busy">Save guidance</button
+            ><button
+              type="button"
+              class="pill soft"
+              data-bind="click:closeGuidanceEdit,disable:busy"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:guidanceCaseViewer -->
+    <div
+      class="admin-confirmation policy-edit-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="guidance-case-title"
+      data-bind="adminDialog:true,event:{keydown:function(_,e){if(e.key==='Escape')closeGuidanceCase();return true;}}"
+    >
+      <article class="panel modal small policy-edit-dialog guidance-case-dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">COMPLETED COMPLIANCE CASE</span>
+            <h2 id="guidance-case-title" data-bind="text:guidanceCaseViewer().paymentId"></h2>
+          </div>
+          <button
+            class="close-button"
+            aria-label="Close completed case"
+            data-bind="click:closeGuidanceCase,disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <div class="detail-line">
+          <span>Risk / outcome</span
+          ><strong
+            data-bind="text:guidanceCaseViewer().risk+' · '+guidanceCaseViewer().status"
+          ></strong>
+        </div>
+        <div class="detail-line">
+          <span>Decided</span
+          ><strong data-bind="text:date(guidanceCaseViewer().decidedAt)"></strong>
+        </div>
+        <h3>Risk reasons</h3>
+        <ul class="admin-reasons" data-bind="foreach:guidanceCaseViewer().riskReasons">
+          <li data-bind="text:$data"></li>
+        </ul>
+        <h3>Suggested action</h3>
+        <p class="preserve-text" data-bind="text:guidanceCaseViewer().suggestedAction"></p>
+        <h3>Decision comments</h3>
+        <p
+          class="preserve-text"
+          data-bind="text:guidanceCaseViewer().decisionReason||'No decision comments were recorded.'"
+        ></p>
+      </article>
+    </div>
+    <!-- /ko -->
+    <!-- ko if:confirmation -->
+    <div
+      class="admin-confirmation"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="policy-confirm-title"
+      data-bind="adminDialog:true,event:{keydown:function(_,e){if(e.key==='Escape')cancelConfirmation();return true;}}"
+    >
+      <section class="modal small">
+        <div class="panel-heading">
+          <h2
+            id="policy-confirm-title"
+            data-bind="text:confirmation()==='index'?'Rebuild policy index?':'Confirm deletion'"
+          ></h2>
+          <button
+            class="close-button"
+            aria-label="Cancel action"
+            data-bind="click:cancelConfirmation,disable:busy"
+          >
+            ×
+          </button>
+        </div>
+        <p
+          data-bind="text:confirmation()==='delete-guidance'?'This permanently deletes this guidance. Rebuild the search index to update Copilot answers.':confirmation()==='delete-chunk'?(pendingChunk()?.manual?'This permanently deletes this manually added chunk.':'This permanently deletes this indexed chunk. Rebuilding the index later will create indexed chunks again from the policy document.'):'This rebuilds searchable chunks from the original policy text and publishes a new index generation.'"
+        ></p>
+        <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+        <button
+          class="pill dark wide"
+          data-bind="click:confirm,disable:busy,text:busy()?'Working…':'Confirm action'"
+        ></button>
+        <button class="pill soft wide" data-bind="click:cancelConfirmation,disable:busy">
+          Go back
+        </button>
+      </section>
+    </div>
+    <!-- /ko -->
+  </div>
+</section>
