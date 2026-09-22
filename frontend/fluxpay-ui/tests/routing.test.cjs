@@ -325,8 +325,9 @@ test('route workspace renders catalogue, matrix, comparison and preview without 
   const providersHtml=read('ts/views/admin-providers.html');
   const routesHtml=read('ts/views/admin-routes.html');
   const html=read('ts/views/admin.html');
-  assert.ok(html.includes("adminTab()==='routing'"));
-  assert.ok(html.includes('with:routing'));
+  assert.ok(html.includes('attention-metrics'));
+  assert.ok(html.includes('source-health'));
+  assert.ok(html.includes('Open filtered queue'));
   for(const binding of ['filteredProviders','newProvider','requestProviderSave','providerChanges','confirmProviderSave','providerProtected'])assert.ok(providersHtml.includes(binding),`missing ${binding}`);
   for(const view of ['CATALOGUE','MATRIX','COMPARE','PREVIEW'])assert.ok(routesHtml.includes(view),`missing ${view}`);
   assert.ok(routesHtml.includes('Workspace view'));
@@ -347,10 +348,10 @@ test('route workspace renders catalogue, matrix, comparison and preview without 
   assert.ok(!/requestDeleteRoute|deleteRoute|Delete route|Remove route/i.test(routesHtml));
   const withoutDisclaimer=routesHtml.replace(/Configuration preview only\.[^<]*/,'');
   assert.ok(!/winner|recommend|proceeds|score|rank/i.test(withoutDisclaimer));
-  assert.ok(html.includes('role="alertdialog"'));
+  assert.ok(html.includes('role="alert"'));
   assert.ok(providersHtml.includes('role="dialog"'));
   assert.ok(providersHtml.includes('System protected'));
-  assert.ok(html.includes('System protected'));
+  assert.ok(routesHtml.includes('System protected'));
   assert.ok(providersHtml.includes("optionsText:'displayLabel',optionsValue:'railType'"));
   assert.ok(providersHtml.includes('text:$parent.railDisplayLabel(railType)'));
   assert.ok(!providersHtml.includes('data-bind="text:railType"'));
@@ -396,11 +397,12 @@ test('admin routes view model parses mode, attention status and preview state',a
   page.disconnected();fallback.disconnected();
 });
 
-test('admin view model exposes the transfer-routing tab and workspace',()=>{
+test('admin view model exposes the risk-prioritized overview entry',()=>{
   const source=read('ts/viewModels/admin.ts');
-  assert.match(source,/\{\s*id:\s*'routing',\s*label:\s*'Transfer routing'\s*\}/);
-  assert.ok(source.includes('RoutingWorkspace'));
-  assert.ok(source.includes('routing'));
+  assert.match(source,/deriveAdminOverview/);
+  assert.ok(source.includes('loadOverview'));
+  assert.ok(source.includes('retrySource'));
+  assert.ok(!source.includes('RoutingWorkspace'));
 });
 
 test('page no longer owns the legacy payout route editor',()=>{
