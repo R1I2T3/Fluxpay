@@ -322,16 +322,21 @@ test('rapid duplicate actions are blocked and logout clears late responses',asyn
 });
 
 test('routing tab renders providers and routes with text bindings and alertdialog confirmations',()=>{
+  const providersHtml=read('ts/views/admin-providers.html');
   const html=read('ts/views/admin.html');
   assert.ok(html.includes("adminTab()==='routing'"));
   assert.ok(html.includes('with:routing'));
-  for(const binding of ['filteredProviders','filteredRoutes','newProvider','saveProvider','newRoute','saveRoute','requestDeleteProvider','requestDeleteRoute','providerFilter','destinationFilter','countryFilter','currencyFilter','statusFilter','providerProtected','routeProtected'])assert.ok(html.includes(binding),`missing ${binding}`);
+  for(const binding of ['filteredProviders','newProvider','requestProviderSave','providerChanges','confirmProviderSave','providerProtected'])assert.ok(providersHtml.includes(binding),`missing ${binding}`);
+  for(const binding of ['filteredRoutes','newRoute','saveRoute','requestDeleteRoute','providerFilter','destinationFilter','countryFilter','currencyFilter','statusFilter','providerProtected','routeProtected'])assert.ok(html.includes(binding),`missing ${binding}`);
   assert.ok(html.includes('role="alertdialog"'));
+  assert.ok(providersHtml.includes('role="dialog"'));
+  assert.ok(providersHtml.includes('System protected'));
   assert.ok(html.includes('System protected'));
-  assert.ok(html.includes("optionsText:'displayLabel',optionsValue:'railType'"));
-  assert.ok(html.includes('text:$parent.railDisplayLabel(railType)'));
-  assert.ok(!html.includes('data-bind="text:railType"'));
-  assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));
+  assert.ok(providersHtml.includes("optionsText:'displayLabel',optionsValue:'railType'"));
+  assert.ok(providersHtml.includes('text:$parent.railDisplayLabel(railType)'));
+  assert.ok(!providersHtml.includes('data-bind="text:railType"'));
+  assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(providersHtml));
+  assert.ok(!/requestDeleteProvider|deleteProvider|Delete provider|Remove provider/i.test(providersHtml));
 });
 
 test('admin view model exposes the transfer-routing tab and workspace',()=>{

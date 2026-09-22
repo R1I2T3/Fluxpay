@@ -7,6 +7,7 @@ import {
   CreateProviderRequest,
 } from './flux-api';
 import { session } from './session';
+import { diffFields, FieldChange } from './admin-console';
 
 export const routingDestinations = ['INTERNAL_WALLET', 'EXTERNAL_ACCOUNT'];
 const codePattern = /^[A-Z][A-Z0-9_]{2,49}$/;
@@ -95,6 +96,9 @@ export class RoutingWorkspace {
   pendingProvider = ko.observable<TransferProvider>();
   pendingRoute = ko.observable<TransferRoute>();
   confirmation = ko.observable<'delete-provider' | 'delete-route' | ''>('');
+  providerChanges = ko.observableArray<FieldChange>([]);
+  routeChanges = ko.observableArray<FieldChange>([]);
+  saveReview = ko.observable<'provider' | 'route' | ''>('');
   filteredProviders = ko.pureComputed(() =>
     this.providers().filter((p) =>
       (p.providerCode + ' ' + p.providerName + ' ' + p.railType)
@@ -141,13 +145,13 @@ export class RoutingWorkspace {
   providerDisplayName = (id: string) =>
     this.providers().find((p) => p.id === id)?.providerName || '—';
   railDisplayLabel = (railType: string) =>
-    this.railTypes().find((rail) => rail.railType === railType)?.displayLabel || 'Unknown rail type';
+    this.railTypes().find((rail) => rail.railType === railType)?.displayLabel ||
+    'Unknown rail type';
   providerCount = (id: string) => this.routes().filter((r) => r.providerId === id).length;
   // Protection badges are driven by the server `systemProtected` flag on each record.
   providerProtected = (provider: { systemProtected?: boolean }) =>
     provider.systemProtected === true;
-  routeProtected = (route: { systemProtected?: boolean }) =>
-    route.systemProtected === true;
+  routeProtected = (route: { systemProtected?: boolean }) => route.systemProtected === true;
   private disposed = false;
   private epoch = 0;
   private providerEditRemoved = false;
@@ -173,6 +177,9 @@ export class RoutingWorkspace {
     this.pendingProvider(undefined);
     this.pendingRoute(undefined);
     this.confirmation('');
+    this.providerChanges([]);
+    this.routeChanges([]);
+    this.saveReview('');
     this.error('');
     this.notice('');
   }
@@ -271,6 +278,8 @@ export class RoutingWorkspace {
       this.providerEditTarget(undefined);
       this.providerEditRemoved = false;
       this.providerError('');
+      this.providerChanges([]);
+      this.saveReview('');
     }
   };
   private providerPayload(): CreateProviderRequest {
@@ -292,7 +301,9 @@ export class RoutingWorkspace {
       }
       const target = this.providerEditTarget();
       if (target && this.providerEditRemoved) {
-        this.providerError('This provider was removed. Your entries were kept, but it cannot be updated.');
+        this.providerError(
+          'This provider was removed. Your entries were kept, but it cannot be updated.',
+        );
         return;
       }
       try {
@@ -338,6 +349,41 @@ export class RoutingWorkspace {
       this.providers(await api.providers());
       this.routes(await api.routesAdmin());
     });
+  requestProviderSave = () => {
+    if (this.busy()) return;
+    let body: CreateProviderRequest;
+    try {
+      body = this.providerPayload();
+    } catch (error: any) {
+      this.providerError(error.message);
+      return;
+    }
+    const target = this.providerEditTarget();
+    const before = target || {};
+    this.providerChanges(
+      diffFields(
+        { ...before },
+        { ...body },
+        {
+          providerCode: 'Provider code',
+          providerName: 'Provider name',
+          railType: 'Rail type',
+          active: 'Active',
+        },
+        ['providerCode', 'providerName', 'railType', 'active'],
+      ),
+    );
+    if (target && !this.providerChanges().length) {
+      this.providerError('No provider changes to review.');
+      return;
+    }
+    this.saveReview('provider');
+  };
+  confirmProviderSave = async () => {
+    if (this.saveReview() !== 'provider') return;
+    this.saveReview('');
+    await this.saveProvider();
+  };
   newRoute = () => {
     if (this.busy()) return;
     this.routeEditTarget(undefined);
@@ -384,6 +430,8 @@ export class RoutingWorkspace {
       this.routeEditTarget(undefined);
       this.routeEditRemoved = false;
       this.routeError('');
+      this.routeChanges([]);
+      this.saveReview('');
     }
   };
   private routePayload() {
@@ -436,7 +484,9 @@ export class RoutingWorkspace {
       }
       const target = this.routeEditTarget();
       if (target && this.routeEditRemoved) {
-        this.routeError('This route was removed. Your entries were kept, but it cannot be updated.');
+        this.routeError(
+          'This route was removed. Your entries were kept, but it cannot be updated.',
+        );
         return;
       }
       try {
@@ -478,6 +528,66 @@ export class RoutingWorkspace {
       this.notice(target ? 'Route updated.' : 'Route created.');
       this.routes(await api.routesAdmin());
     });
+  requestRouteSave = () => {
+    if (this.busy()) return;
+    let body: ReturnType<RoutingWorkspace['routePayload']>;
+    try {
+      body = this.routePayload();
+    } catch (error: any) {
+      this.routeError(error.message);
+      return;
+    }
+    const target = this.routeEditTarget();
+    this.routeChanges(
+      diffFields(
+        { ...(target || {}) },
+        { ...body },
+        {
+          providerId: 'Provider',
+          routeCode: 'Route code',
+          name: 'Name',
+          destinationType: 'Payout method',
+          destinationCountry: 'Country',
+          payoutCurrency: 'Currency',
+          baseFee: 'Base fee',
+          fxSpreadPercentage: 'FX spread',
+          estimatedMinutes: 'ETA',
+          configuredSuccessRate: 'Configured reliability',
+          minimumRecipientAmount: 'Minimum amount',
+          maximumRecipientAmount: 'Maximum amount',
+          active: 'Active',
+        },
+        [
+          'providerId',
+          'routeCode',
+          'name',
+          'destinationType',
+          'destinationCountry',
+          'payoutCurrency',
+          'baseFee',
+          'fxSpreadPercentage',
+          'estimatedMinutes',
+          'configuredSuccessRate',
+          'minimumRecipientAmount',
+          'maximumRecipientAmount',
+          'active',
+        ],
+      ),
+    );
+    if (target && !this.routeChanges().length) {
+      this.routeError('No route changes to review.');
+      return;
+    }
+    this.saveReview('route');
+  };
+  confirmRouteSave = async () => {
+    if (this.saveReview() !== 'route') return;
+    this.saveReview('');
+    await this.saveRoute();
+  };
+  cancelSaveReview = () => {
+    if (!this.busy()) this.saveReview('');
+  };
   requestDeleteProvider = (provider: TransferProvider) => {
     if (!this.busy()) {
       this.error('');
