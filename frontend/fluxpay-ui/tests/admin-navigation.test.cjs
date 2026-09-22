@@ -68,12 +68,17 @@ test('old tracking matrix bookmarks migrate without losing the payment reference
   const f=fixture();await f.settle();assert.equal(f.migrate('/tracking;payment=111-222'),'activity/111-222');assert.equal(f.migrate('tracking;unused=value'),'payments-list');assert.equal(f.migrate('dashboard'),'dashboard');
 });
 
-test('administration exposes transfer routing alongside verification and compliance sections',()=>{
+test('administration is a risk-prioritized overview without a tab host',()=>{
   const source=read('ts/viewModels/admin.ts');
-  assert.match(source,/\{\s*id:\s*'routing',\s*label:\s*'Transfer routing'\s*\}/);
+  assert.doesNotMatch(source,/adminTab|selectTab/);
+  assert.match(source,/deriveAdminOverview/);
+  assert.match(source,/loadOverview/);
+  assert.match(source,/retrySource/);
   const html=read('ts/views/admin.html');
-  assert.ok(html.includes("adminTab()==='routing'"));
-  assert.ok(html.includes('with:routing'));
+  assert.match(html,/Operations requiring attention/);
+  assert.match(html,/Prioritized work/);
+  assert.ok(html.includes('if:session.isAdmin()'));
+  assert.doesNotMatch(html,/adminTab/);
 });
 
 test('quick-pay recipient and new-person intent use URL path parameters, keeping Send selected',async()=>{
