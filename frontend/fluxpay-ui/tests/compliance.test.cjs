@@ -138,7 +138,7 @@ test('Copilot handles citations, optional UUID, no-source fallback and provider 
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
 test('admin template renders untrusted policy and AI text with text bindings, never HTML',()=>{const html=read('ts/views/admin.html');assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));for(const action of ['savePolicy','addChunk','saveCase','ask','confirm'])assert.ok(html.includes(action));assert.ok(html.includes('role="alertdialog"'));assert.ok(html.includes('maxlength="500"'));assert.ok(html.includes('maxlength="400"'));assert.ok(html.includes('maxlength="200"'));});
 test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
-  const html=read('ts/views/admin.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
+  const html=read('ts/views/admin-copilot.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
   assert.match(html,/policyAnswer:answer\(\)\.answer/);
   assert.ok(!html.includes('<h3 data-bind="text:answeredQuestion"></h3>'));
   assert.match(source,/ko\.bindingHandlers\.policyAnswer/);

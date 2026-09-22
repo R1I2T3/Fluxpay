@@ -142,3 +142,21 @@ export function focusRecordHeading(
   };
   host.requestAnimationFrame(() => host.document.getElementById(id)?.focus());
 }
+export function copilotQuestionForCase(item: {
+  risk: string;
+  riskReasons: string[];
+  suggestedAction: string;
+}): string {
+  const reasons = item.riskReasons.filter(Boolean).join('; ') || 'No risk reasons recorded.';
+  const action = item.suggestedAction.trim() || 'No suggested action recorded.';
+  return [
+    'Which policies are relevant to this payment review?',
+    '',
+    'Case context:',
+    `- Risk level: ${item.risk}`,
+    `- Triggered reasons: ${reasons}`,
+    `- Suggested action: ${action}`,
+    '',
+    'Identify the relevant policy checks. Do not make the decision.',
+  ].join('\n');
+}

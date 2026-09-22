@@ -1,0 +1,75 @@
+<section class="admin-page copilot-page" data-bind="with:workspace">
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">POLICY &amp; AI</span>
+      <h1>Compliance Copilot</h1>
+      <p>Ask policy questions and inspect every returned source.</p>
+    </div>
+    <span class="advisory-badge"
+      ><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Advisory only</span
+    >
+  </header>
+  <div class="copilot-workspace">
+    <aside class="copilot-context">
+      <h2>Case context</h2>
+      <!-- ko if:$parent.caseContext -->
+      <dl class="detail-grid" data-bind="with:$parent.caseContext">
+        <div>
+          <dt>Case</dt>
+          <dd data-bind="text:id"></dd>
+        </div>
+        <div>
+          <dt>Payment</dt>
+          <dd data-bind="text:paymentId"></dd>
+        </div>
+        <div>
+          <dt>Risk</dt>
+          <dd data-bind="text:risk"></dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd data-bind="text:status"></dd>
+        </div>
+      </dl>
+      <!-- /ko --><!-- ko ifnot:$parent.caseContext -->
+      <p>No case context supplied. You can optionally enter a payment ID.</p>
+      <!-- /ko --><label>Payment ID<input data-bind="textInput:copilotPaymentId" /></label>
+    </aside>
+    <main class="copilot-conversation">
+      <form data-bind="submit:$parent.askCited">
+        <label
+          >Policy question<textarea
+            rows="6"
+            data-bind="textInput:question"
+            required
+          ></textarea></label
+        ><button class="pill dark" data-bind="disable:busy">Ask with citations</button>
+      </form>
+      <!-- ko if:answer -->
+      <article class="copilot-answer">
+        <h2>Answer</h2>
+        <p class="preserve-text" data-bind="policyAnswer:answer().answer"></p>
+        <p class="subtle-note">
+          Review the cited policies before taking any administrative action.
+        </p>
+      </article>
+      <!-- /ko -->
+    </main>
+    <aside class="copilot-sources" aria-label="Source policies">
+      <h2>Source policies</h2>
+      <!-- ko if:answer()&&answer().sources.length -->
+      <div data-bind="foreach:answer().sources">
+        <button type="button" class="source-row" data-bind="click:$parents[1].openSource">
+          <strong data-bind="text:title"></strong
+          ><small data-bind="text:'Policy '+policyDocumentId+' · chunk '+chunkNumber"></small>
+          <blockquote data-bind="text:excerpt"></blockquote>
+        </button>
+      </div>
+      <!-- /ko --><!-- ko if:answer()&&!answer().sources.length -->
+      <p class="empty-state">
+        No policy sources returned. Do not rely on this answer for a decision.
+      </p>
+      <!-- /ko -->
+    </aside>
+  </div>
+</section>

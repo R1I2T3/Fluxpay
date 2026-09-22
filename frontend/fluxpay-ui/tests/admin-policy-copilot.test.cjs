@@ -160,3 +160,93 @@ test('policy saved views filter indexed documents and reset paging', () => {
   assert.equal(page.savedPolicies().length, 3);
   page.dispose();
 });
+
+// Copilot section (Task 8: cited Compliance Copilot workspace)
+const openCase = {id, paymentId: id, reviewReference: null, risk: 'HIGH', status: 'OPEN', riskReasons: ['QA reason'], suggestedAction: 'Review records', decidedBy: null, decidedAt: null, decisionReason: null, createdAt: '2026-09-17T10:00:00Z'};
+
+function copilotPage(routeParams = {params: {}}, overrides = {}) {
+  const calls = [];
+  const api = new Proxy(overrides, {get: (obj, name) => async (...args) => {
+    calls.push([name, ...args]);
+    if (name in obj) return obj[name](...args);
+    if (name === 'complianceCase') return {...openCase};
+    if (name === 'askCopilot') return {answer: 'A sourced answer', sources: []};
+    throw new Error(`Unexpected api call: ${String(name)}`);
+  }});
+  const user = ko.observable({role: 'ADMIN'});
+  const session = {user, isAdmin: ko.pureComputed(() => user()?.role === 'ADMIN'), restore: async () => {}};
+  const navigations = [];
+  const navigate = (routePath, params) => navigations.push([routePath, params]);
+  const workspaceContext = {exports: {}, require: name => name === 'knockout' ? ko : name === './session' ? {session} : name === './admin-console' ? adminConsole : {fluxApi: api}};
+  vm.runInNewContext(compile('ts/services/compliance-workspace.ts'), workspaceContext);
+  const ViewModel = load('ts/viewModels/admin-copilot.ts', {
+    knockout: ko,
+    '../services/compliance-workspace': workspaceContext.exports,
+    '../services/flux-api': {fluxApi: api},
+    '../services/admin-console': adminConsole,
+    '../services/session': {navigate, session}
+  });
+  return {page: new ViewModel(routeParams), calls, navigations, session};
+}
+
+async function settlePage(page, done) {
+  for (let i = 0; i < 50 && !done(); i++) await new Promise(resolve => setImmediate(resolve));
+}
+
+test('case context pre-fills a cited question without inventing payment details', async () => {
+  const {page, calls} = copilotPage({params: {caseId: openCase.id, paymentId: openCase.paymentId}});
+  await page.ready;
+  assert.equal(calls[0][0], 'complianceCase');
+  assert.match(page.workspace.question(), /Risk level: HIGH/);
+  assert.match(page.workspace.question(), /Triggered reasons:/);
+  assert.doesNotMatch(page.workspace.question(), /customer country|amount|currency/i);
+  page.disconnected();
+});
+
+test('Copilot template keeps citations visible and exposes no decision action', () => {
+  const html = read('ts/views/admin-copilot.html');
+  assert.match(html, /policyAnswer:answer\(\)\.answer/);
+  for (const field of ['policyDocumentId', 'title', 'chunkNumber', 'excerpt']) assert.ok(html.includes(field), field);
+  assert.match(html, /Advisory only/);
+  assert.doesNotMatch(html, /Approve|Reject|Activate|Publish/);
+  assert.doesNotMatch(html, /policy version/i);
+  assert.doesNotMatch(html, /data-bind="[^"]*\bhtml\s*:/);
+});
+
+test('askCited requests only a cited answer without the live response', async () => {
+  const {page, calls} = copilotPage({params: {}});
+  await page.ready;
+  page.workspace.question('When is review needed?');
+  page.workspace.liveResponse(true);
+  page.askCited();
+  await settlePage(page, () => page.workspace.answer());
+  assert.equal(page.workspace.liveResponse(), false);
+  assert.deepEqual(calls.map(call => call[0]), ['askCopilot']);
+  assert.equal(page.workspace.answer().answer, 'A sourced answer');
+  assert.deepEqual(page.workspace.answer().sources, []);
+  page.disconnected();
+});
+
+test('empty Copilot sources render an explicit no-source state', () => {
+  assert.match(read('ts/views/admin-copilot.html'), /No policy sources returned/);
+});
+
+test('Copilot provider errors preserve the question for retry', async () => {
+  const {page} = copilotPage({params: {}}, {askCopilot: async () => { throw Error('Compliance Copilot is temporarily unavailable.'); }});
+  await page.ready;
+  page.workspace.question('What requires review?');
+  page.askCited();
+  await settlePage(page, () => page.workspace.error());
+  assert.match(page.workspace.error(), /unavailable/);
+  assert.equal(page.workspace.question(), 'What requires review?');
+  assert.equal(page.workspace.answer(), undefined);
+  page.disconnected();
+});
+
+test('opening a Copilot source navigates to the policy library', async () => {
+  const {page, navigations} = copilotPage({params: {}});
+  await page.ready;
+  page.openSource({policyDocumentId: id, title: 'Policy', chunkNumber: 1, excerpt: 'Review clause'});
+  assert.equal(JSON.stringify(navigations), JSON.stringify([['admin-policies', {policyId: id}]]));
+  page.disconnected();
+});
