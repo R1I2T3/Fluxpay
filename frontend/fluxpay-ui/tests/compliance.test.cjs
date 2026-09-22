@@ -185,6 +185,12 @@ test('opening a compliance case uses a modal rather than an inline panel below t
   assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:\s*hidden;[^}]*padding:\s*0;/);
   assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:\s*auto;[^}]*border-radius:\s*inherit;/);
 });
+test('focused compliance template shows response-backed case context without delete actions',()=>{
+  const html=read('ts/views/admin-compliance.html');
+  for(const field of ['reviewReference','reviewExpiresAt','requoteRequired','riskReasons','suggestedAction','decisionReason'])assert.ok(html.includes(field),field);
+  assert.doesNotMatch(read('ts/views/admin-compliance.html'), /delete-case|Delete manual case/);
+  assert.match(html,/navigateToCopilot/);
+});
 test('case-to-Copilot handoff includes the risk, reasons, and suggested action',()=>{
   const source=read('ts/viewModels/admin.ts');
   assert.match(source,/Case context:/);
