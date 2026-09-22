@@ -1,0 +1,201 @@
+<section class="admin-page review-page" data-bind="if:session.isAdmin()">
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">OPERATIONS</span>
+      <h1>KYC reviews</h1>
+      <p>Review submitted information beside the original evidence.</p>
+    </div>
+    <button class="pill soft" data-bind="click:refresh,disable:busy">Refresh</button>
+  </header>
+  <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
+  <div
+    class="alert success"
+    role="status"
+    aria-live="polite"
+    data-bind="visible:notice,text:notice"
+  ></div>
+  <div class="review-workspace">
+    <aside class="review-queue" aria-label="KYC review queue">
+      <label
+        >Saved view<select data-bind="value:savedView,event:{change:changeView},disable:busy">
+          <option value="PENDING">Pending</option>
+          <option value="AGING">Waiting over 24 hours</option>
+          <option value="DOCUMENTS_UNAVAILABLE">Documents unavailable</option>
+          <option value="VERIFIED">Verified</option>
+          <option value="REJECTED">Rejected</option>
+        </select></label
+      >
+      <label
+        >Search<input
+          type="search"
+          data-bind="textInput:search"
+          aria-label="Search by name, email, or application ID"
+      /></label>
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th>Applicant</th>
+            <th>Age</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:visibleReviews">
+          <tr data-bind="attr:{'aria-selected':$parent.review()===$data}">
+            <td>
+              <strong data-bind="text:fullName"></strong><small data-bind="text:email"></small>
+            </td>
+            <td data-bind="text:$parent.date(submittedAt)"></td>
+            <td>
+              <span
+                class="status"
+                data-bind="text:$parent.label(status),attr:{'data-status':status}"
+              ></span>
+            </td>
+            <td>
+              <button type="button" class="text-button" data-bind="click:$parent.selectReview">
+                Open
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="empty-state" data-bind="visible:!busy()&&!visibleReviews().length">
+        <h3>No matching reviews</h3>
+        <p>
+          No applications in the <span data-bind="text:savedView"></span> view match the current
+          search.
+        </p>
+        <button
+          type="button"
+          class="pill soft"
+          data-bind="click:function(){search('');savedView('PENDING');changeView();}"
+        >
+          Reset filters
+        </button>
+      </div>
+    </aside>
+    <main class="record-detail" data-bind="with:review">
+      <h2 id="kyc-record-heading" tabindex="-1" data-bind="text:fullName"></h2>
+      <p data-bind="text:email"></p>
+      <h3>Customer-submitted information</h3>
+      <dl class="detail-grid">
+        <div>
+          <dt>Document type</dt>
+          <dd data-bind="text:docType"></dd>
+        </div>
+        <div>
+          <dt>Document number</dt>
+          <dd class="mono" data-bind="text:$parent.maskDocument(docNumber)"></dd>
+        </div>
+        <!-- text:maskDocument(docNumber) contract: queue and summary surfaces mask identifiers -->
+        <div>
+          <dt>Submitted</dt>
+          <dd data-bind="text:$parent.date(submittedAt)"></dd>
+        </div>
+        <!-- ko if:decidedAt -->
+        <div>
+          <dt>Decided</dt>
+          <dd data-bind="text:$parent.date(decidedAt)"></dd>
+        </div>
+        <!-- /ko -->
+      </dl>
+      <!-- ko if:rejectReason -->
+      <div class="kyc-review-note">
+        <strong>Reason shared with customer</strong>
+        <p data-bind="text:rejectReason"></p>
+      </div>
+      <!-- /ko -->
+      <h3>Manual document checklist</h3>
+      <ul>
+        <li>Confirm the name and identifier manually.</li>
+        <li>Confirm the document is readable and current.</li>
+        <li>Record the reason code for the decision.</li>
+      </ul>
+    </main>
+    <aside class="evidence-panel" data-bind="with:review">
+      <h2>Evidence</h2>
+      <div class="kyc-document-grid" data-bind="foreach:documents">
+        <button type="button" class="kyc-document-card" data-bind="click:$parents[1].openDocument">
+          <strong data-bind="text:fileName"></strong
+          ><small data-bind="text:available?'Open original':'Original unavailable'"></small>
+        </button>
+      </div>
+    </aside>
+  </div>
+  <form
+    class="sticky-decision-bar"
+    data-bind="visible:review()&&review().status==='PENDING',submit:function(){prepareDecision();return false}"
+  >
+    <label
+      >Decision<select data-bind="value:decision">
+        <option value="approve">Approve</option>
+        <option value="reject">Reject</option>
+      </select></label
+    >
+    <label
+      >Reason code<select
+        data-bind="options:reasonCodes[decision()],optionsText:'label',optionsValue:'value',value:reasonCode"
+      ></select
+    ></label>
+    <label>Notes<textarea maxlength="500" rows="2" data-bind="textInput:notes"></textarea></label>
+    <label class="checkbox-label"
+      ><input
+        type="checkbox"
+        data-bind="checked:reviewConsent,disable:decision()==='reject'"
+      />Manual evidence review completed</label
+    >
+    <button class="pill dark" data-bind="disable:busy">Review decision</button>
+  </form>
+  <p class="form-help" data-bind="visible:review()&&review().status!=='PENDING'">
+    No further KYC decision is available for this state.
+  </p>
+  <!-- ko if:documentPreview -->
+  <div
+    class="modal-backdrop kyc-preview-backdrop"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="kyc-preview-title"
+    data-bind="experienceDialog:closeDocument"
+  >
+    <section class="modal kyc-preview-modal">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">PRIVATE DOCUMENT PREVIEW</span>
+          <h2 id="kyc-preview-title" data-bind="text:documentPreview().fileName"></h2>
+        </div>
+        <button
+          class="close-button"
+          aria-label="Close document preview"
+          data-bind="click:closeDocument"
+        >
+          ×
+        </button>
+      </div>
+      <p class="muted" data-bind="visible:previewLoading">Opening your document…</p>
+      <p class="alert error" role="alert" data-bind="visible:previewError,text:previewError"></p>
+      <!-- ko if:documentPreview().url -->
+      <div class="kyc-preview-canvas">
+        <!-- ko if:documentPreview().fileType==='application/pdf' -->
+        <div class="kyc-pdf-viewer" data-bind="kycPdfPreview:documentPreview().url"></div>
+        <!-- /ko --><!-- ko if:documentPreview().fileType!=='application/pdf' --><img
+          alt="Uploaded identity document"
+          data-bind="attr:{src:documentPreview().url}"
+        /><!-- /ko -->
+      </div>
+      <div class="kyc-preview-footer">
+        <span>Read-only · Keep this document private</span
+        ><a
+          class="pill soft"
+          data-bind="attr:{href:documentPreview().url,download:documentPreview().fileName}"
+          >Download document</a
+        >
+      </div>
+      <p class="form-help">
+        Use the page controls to read a PDF. You can also download the original file.
+      </p>
+      <!-- /ko -->
+    </section>
+  </div>
+  <!-- /ko -->
+</section>
