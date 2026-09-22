@@ -12,3 +12,4 @@ __pycache__/
 .video-tools/
 .m2-verification/
 temp_images/
+.superpowers/*
