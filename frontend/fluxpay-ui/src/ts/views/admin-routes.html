@@ -1,0 +1,394 @@
+<section class="admin-page configuration-page" data-bind="if:session.isAdmin()">
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">MONEY MOVEMENT</span>
+      <h1>Payout routes</h1>
+      <p>Review corridor coverage and route configuration using current server fields.</p>
+    </div>
+    <label
+      >Workspace view<select
+        aria-label="Workspace view"
+        data-bind="value:mode,event:{change:changeMode}"
+      >
+        <option value="CATALOGUE">Catalogue</option>
+        <option value="MATRIX">Matrix</option>
+        <option value="COMPARE">Compare</option>
+        <option value="PREVIEW">Preview</option>
+      </select></label
+    >
+  </header>
+  <p class="form-help" data-bind="text:'Target environment: '+environment.label"></p>
+  <div data-bind="with:workspace">
+    <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
+    <div
+      class="alert success"
+      role="status"
+      aria-live="polite"
+      data-bind="visible:notice,text:notice"
+    ></div>
+  </div>
+  <!-- ko if:mode()==='CATALOGUE' -->
+  <section aria-label="Route catalogue">
+    <div class="action-row">
+      <button class="pill dark" data-bind="click:workspace.newRoute,disable:workspace.busy">
+        New route
+      </button>
+    </div>
+    <p class="subtle-note" data-bind="visible:attentionOnly">
+      Attention only: showing routes that need attention.
+    </p>
+    <div class="table-scroll">
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Provider</th>
+            <th>Country</th>
+            <th>Currency</th>
+            <th>Method</th>
+            <th>Fee</th>
+            <th>Spread</th>
+            <th>ETA</th>
+            <th>Reliability</th>
+            <th>Limits</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:catalogueRoutes">
+          <tr>
+            <td class="mono" data-bind="text:routeCode"></td>
+            <td>
+              <span data-bind="text:name"></span>
+              <!-- ko if:$root.workspace.routeProtected($data) -->
+              <span class="protected-badge">System protected</span>
+              <!-- /ko -->
+            </td>
+            <td data-bind="text:$root.workspace.providerDisplayName(providerId)"></td>
+            <td data-bind="text:destinationCountry||'—'"></td>
+            <td data-bind="text:payoutCurrency"></td>
+            <td data-bind="text:destinationType"></td>
+            <td data-bind="text:baseFee"></td>
+            <td data-bind="text:fxSpreadPercentage"></td>
+            <td data-bind="text:estimatedMinutes+' min'"></td>
+            <td data-bind="text:configuredSuccessRate+'% / '+effectiveSuccessRate+'%'"></td>
+            <td
+              data-bind="text:(minimumRecipientAmount==null&&maximumRecipientAmount==null)?'No limits':(minimumRecipientAmount||'0')+' – '+(maximumRecipientAmount||'∞')"
+            ></td>
+            <td>
+              <span
+                class="status"
+                data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"
+              ></span>
+            </td>
+            <td>
+              <button type="button" class="text-button" data-bind="click:$root.workspace.editRoute">
+                Edit
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="empty-state" data-bind="visible:!catalogueRoutes().length">
+      <h3>No matching routes</h3>
+      <p>No routes match the current filters.</p>
+    </div>
+  </section>
+  <div data-bind="with:workspace">
+    <aside class="configuration-editor" data-bind="visible:routeForm">
+      <div
+        class="admin-confirmation"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="route-editor-title"
+        data-bind="adminDialog:true"
+      >
+        <section>
+          <div class="panel-heading">
+            <h2
+              id="route-editor-title"
+              data-bind="text:routeEditTarget()?'Edit route':'New route'"
+            ></h2>
+            <button
+              class="close-button"
+              aria-label="Close route editor"
+              data-bind="click:closeRouteEditor,disable:busy"
+            >
+              ×
+            </button>
+          </div>
+          <form data-bind="submit:function(){requestRouteSave();return false}">
+            <p
+              class="form-help"
+              data-bind="text:'Target environment: '+$root.environment.label"
+            ></p>
+            <div class="form-row">
+              <label
+                >Provider<select
+                  required
+                  data-bind="options:compatibleProviders,optionsText:'providerName',optionsValue:'id',value:routeProviderId,optionsCaption:'Choose a provider',disable:busy"
+                ></select
+              ></label>
+              <label
+                >Route code<input
+                  required
+                  maxlength="50"
+                  placeholder="HDFC_INR_STANDARD"
+                  data-bind="textInput:routeCode,disable:busy()||routeEditTarget()"
+              /></label>
+            </div>
+            <label
+              >Route name<input
+                required
+                maxlength="100"
+                data-bind="textInput:routeName,disable:busy"
+            /></label>
+            <div class="form-row">
+              <label
+                >Destination type<select
+                  required
+                  data-bind="options:destinations,value:routeDestination,disable:busy"
+                ></select
+              ></label>
+              <label
+                >Country (ISO)<input
+                  maxlength="2"
+                  placeholder="IN"
+                  data-bind="textInput:routeCountry,disable:busy"
+              /></label>
+              <label
+                >Payout currency (ISO)<input
+                  required
+                  maxlength="3"
+                  placeholder="INR"
+                  data-bind="textInput:routeCurrency,disable:busy"
+              /></label>
+            </div>
+            <div class="form-row">
+              <label
+                >Base fee<input
+                  required
+                  inputmode="decimal"
+                  data-bind="textInput:routeFee,disable:busy"
+              /></label>
+              <label
+                >FX spread (%)<input
+                  required
+                  inputmode="decimal"
+                  data-bind="textInput:routeSpread,disable:busy"
+              /></label>
+            </div>
+            <div class="form-row">
+              <label
+                >Estimated minutes<input
+                  required
+                  inputmode="numeric"
+                  data-bind="textInput:routeEta,disable:busy"
+              /></label>
+              <label
+                >Configured reliability (%)<input
+                  required
+                  inputmode="decimal"
+                  data-bind="textInput:routeReliability,disable:busy"
+              /></label>
+            </div>
+            <div class="form-row">
+              <label
+                >Minimum payout (optional)<input
+                  inputmode="decimal"
+                  data-bind="textInput:routeMin,disable:busy"
+              /></label>
+              <label
+                >Maximum payout (optional)<input
+                  inputmode="decimal"
+                  data-bind="textInput:routeMax,disable:busy"
+              /></label>
+            </div>
+            <label class="checkbox-label"
+              ><input type="checkbox" data-bind="checked:routeActive" />Active</label
+            >
+            <p class="alert error" role="alert" data-bind="visible:routeError,text:routeError"></p>
+            <button class="pill dark" data-bind="disable:busy">Review changes</button>
+          </form>
+        </section>
+      </div>
+    </aside>
+    <!-- ko if:saveReview()==='route' -->
+    <div
+      class="admin-confirmation"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="route-change-title"
+      data-bind="adminDialog:true"
+    >
+      <section>
+        <h2 id="route-change-title">Review route changes</h2>
+        <p data-bind="text:'Target environment: '+$root.environment.label"></p>
+        <!-- ko with:routeEditTarget -->
+        <p
+          class="form-help"
+          data-bind="text:'Corridor destinationCountry='+(destinationCountry||'—')+' payoutCurrency='+payoutCurrency+' destinationType='+destinationType"
+        ></p>
+        <!-- /ko -->
+        <table class="dense-table">
+          <tbody data-bind="foreach:routeChanges">
+            <tr>
+              <th data-bind="text:label"></th>
+              <td data-bind="text:before"></td>
+              <td data-bind="text:after"></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="action-row">
+          <button class="pill soft" data-bind="click:cancelSaveReview">Back</button>
+          <button
+            class="pill dark"
+            data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$root.environment.label"
+          ></button>
+        </div>
+      </section>
+    </div>
+    <!-- /ko -->
+  </div>
+  <!-- /ko -->
+  <!-- ko if:mode()==='MATRIX' -->
+  <section aria-label="Corridor matrix">
+    <div class="empty-state" data-bind="visible:!matrix().length">
+      <h3>No corridor coverage</h3>
+      <p>No active routes are available for the current providers.</p>
+    </div>
+    <!-- ko if:matrix().length -->
+    <div class="table-scroll">
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <!-- ko foreach:matrix()[0].cells -->
+            <th data-bind="text:currency"></th>
+            <!-- /ko -->
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:matrix">
+          <tr>
+            <td data-bind="text:country"></td>
+            <!-- ko foreach:cells -->
+            <td
+              data-bind="text:count?('Available · '+count+' routes'):'Unavailable · 0 routes',attr:{'data-state':count?'available':'unavailable'}"
+            ></td>
+            <!-- /ko -->
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- /ko -->
+  </section>
+  <!-- /ko -->
+  <!-- ko if:mode()==='COMPARE' -->
+  <section aria-label="Provider comparison">
+    <div class="table-scroll">
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Route</th>
+            <th>Country</th>
+            <th>Currency</th>
+            <th>Destination type</th>
+            <th>Base fee</th>
+            <th>Spread</th>
+            <th>ETA</th>
+            <th>Configured reliability</th>
+            <th>Effective reliability</th>
+            <th>Min amount</th>
+            <th>Max amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:comparison">
+          <!-- ko foreach:routes -->
+          <tr>
+            <td data-bind="text:$parent.provider.providerName"></td>
+            <td class="mono" data-bind="text:routeCode"></td>
+            <td data-bind="text:destinationCountry||'—'"></td>
+            <td data-bind="text:payoutCurrency"></td>
+            <td data-bind="text:destinationType"></td>
+            <td data-bind="text:baseFee"></td>
+            <td data-bind="text:fxSpreadPercentage"></td>
+            <td data-bind="text:estimatedMinutes+' min'"></td>
+            <td data-bind="text:configuredSuccessRate+'%'"></td>
+            <td data-bind="text:effectiveSuccessRate+'%'"></td>
+            <td data-bind="text:minimumRecipientAmount==null?'—':minimumRecipientAmount"></td>
+            <td data-bind="text:maximumRecipientAmount==null?'—':maximumRecipientAmount"></td>
+            <td>
+              <span
+                class="status"
+                data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"
+              ></span>
+            </td>
+          </tr>
+          <!-- /ko -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <!-- /ko -->
+  <!-- ko if:mode()==='PREVIEW' -->
+  <section aria-label="Configuration preview">
+    <form class="eligibility-inputs" data-bind="submit:runPreview">
+      <label>Country<input maxlength="2" data-bind="textInput:previewCountry" /></label
+      ><label>Currency<input maxlength="3" data-bind="textInput:previewCurrency" /></label
+      ><label>Amount<input inputmode="decimal" data-bind="textInput:previewAmount" /></label
+      ><label
+        >Payout method<select data-bind="value:previewDestination">
+          <option value="EXTERNAL_ACCOUNT">External account</option>
+          <option value="INTERNAL_WALLET">Internal wallet</option>
+        </select></label
+      ><button class="pill dark">Evaluate configuration</button>
+    </form>
+    <p class="subtle-note">
+      Configuration preview only. This does not create a payment, calculate proceeds, call smart
+      routing, or recommend a winner.
+    </p>
+    <!-- ko if:previewSubmitted -->
+    <div
+      class="alert error"
+      role="alert"
+      data-bind="visible:preview().inputErrors.length,text:preview().inputErrors.join(' ')"
+    ></div>
+    <table class="dense-table">
+      <thead>
+        <tr>
+          <th>Route</th>
+          <th>Result</th>
+          <th>Reasons</th>
+          <th>Fee</th>
+          <th>Spread</th>
+          <th>ETA</th>
+          <th>Effective reliability</th>
+        </tr>
+      </thead>
+      <tbody data-bind="foreach:preview().routes">
+        <tr>
+          <td data-bind="text:route.routeCode"></td>
+          <td>
+            <span
+              class="status"
+              data-bind="text:eligible?'Eligible':'Ineligible',attr:{'data-status':eligible?'ACTIVE':'WARNING'}"
+            ></span>
+          </td>
+          <td
+            data-bind="text:reasons.length?reasons.join(' '):'All loaded configuration checks passed.'"
+          ></td>
+          <td data-bind="text:route.baseFee"></td>
+          <td data-bind="text:route.fxSpreadPercentage"></td>
+          <td data-bind="text:route.estimatedMinutes+' min'"></td>
+          <td data-bind="text:route.effectiveSuccessRate+'%'"></td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- /ko -->
+  </section>
+  <!-- /ko -->
+</section>

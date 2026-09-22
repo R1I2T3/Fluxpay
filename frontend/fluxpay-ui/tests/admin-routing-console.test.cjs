@@ -145,3 +145,122 @@ test('providers page keeps the admin gate, protection copy and environment label
   assert.deepEqual(workspaceCalls, ['constructed', 'loadAll']);
   viewModel.disconnected();
 });
+
+// Route analysis section (Task 6): eligibility preview, corridor matrix and comparison.
+function loadAnalysis() {
+  const context = {exports: {}};
+  vm.runInNewContext(compile('ts/services/route-analysis.ts'), context);
+  return context.exports;
+}
+
+const analysisProvider = {id: '33333333-3333-4333-8333-333333333333', providerCode: 'WISE', providerName: 'Wise', railType: 'BANK_NETWORK', active: true, systemProtected: false, archivedAt: null, version: 0};
+const analysisRails = [{railType: 'BANK_NETWORK', displayLabel: 'Bank network', supportedDestinations: ['EXTERNAL_ACCOUNT']}];
+function analysisRoute(overrides = {}) {
+  return {id: '44444444-4444-4444-8444-444444444444', providerId: analysisProvider.id, routeCode: 'ELIGIBLE', name: 'Eligible route', destinationType: 'EXTERNAL_ACCOUNT', destinationCountry: 'IN', payoutCurrency: 'INR', baseFee: '5.0000', fxSpreadPercentage: '0.500000', estimatedMinutes: 120, configuredSuccessRate: '99.00', effectiveSuccessRate: '99.00', completedCount: 10, failedCount: 0, minimumRecipientAmount: null, maximumRecipientAmount: null, active: true, systemProtected: false, archivedAt: null, version: 0, ...overrides};
+}
+
+test('eligibility preview reports every route and never chooses a winner', () => {
+  const analysis = loadAnalysis();
+  const eligibleRoute = analysisRoute({routeCode: 'ELIGIBLE'});
+  const inactiveRoute = analysisRoute({id: '55555555-5555-4555-8555-555555555555', routeCode: 'INACTIVE', active: false});
+  const overLimitRoute = analysisRoute({id: '66666666-6666-4666-8666-666666666666', routeCode: 'OVER_LIMIT', maximumRecipientAmount: '50'});
+  const missingProviderRoute = analysisRoute({id: '77777777-7777-4777-8777-777777777777', routeCode: 'NO_PROVIDER', providerId: '99999999-9999-4999-8999-999999999999'});
+  const result = analysis.evaluateRouteEligibility(
+    {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT'},
+    [eligibleRoute, inactiveRoute, overLimitRoute, missingProviderRoute],
+    [analysisProvider],
+    analysisRails
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(result.routes.map(item => [item.route.routeCode, item.eligible, item.reasons]))), [
+    ['ELIGIBLE', true, []],
+    ['INACTIVE', false, ['Route is inactive.']],
+    ['OVER_LIMIT', false, ['Amount exceeds the configured maximum of 50.']],
+    ['NO_PROVIDER', false, ['Provider configuration is unavailable.']]
+  ]);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'winner'), false);
+  assert.deepEqual(Object.keys(result).sort(), ['inputErrors', 'routes']);
+});
+
+test('invalid amount and unknown rail produce explicit non-authoritative errors', () => {
+  const analysis = loadAnalysis();
+  const eligibleRoute = analysisRoute({routeCode: 'ELIGIBLE'});
+  const invalid = analysis.evaluateRouteEligibility({country: 'IN', currency: 'INR', amount: 'abc', destinationType: 'EXTERNAL_ACCOUNT'}, [eligibleRoute], [analysisProvider], analysisRails);
+  assert.deepEqual(Array.from(invalid.inputErrors), ['Enter an amount greater than zero.']);
+  const rail = analysis.evaluateRouteEligibility({country: 'IN', currency: 'INR', amount: '10', destinationType: 'EXTERNAL_ACCOUNT'}, [eligibleRoute], [analysisProvider], []);
+  assert.deepEqual(Array.from(rail.routes[0].reasons), ['Rail compatibility is unavailable.']);
+});
+
+test('eligibility boundaries, archived records, mismatches and limits share one table', () => {
+  const analysis = loadAnalysis();
+  const archivedAt = '2026-01-01T00:00:00.000Z';
+  const baseInput = {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT'};
+  const cases = [
+    {name: 'amount equals minimum', route: {minimumRecipientAmount: '100'}, input: baseInput, eligible: true, reasons: []},
+    {name: 'amount equals maximum', route: {maximumRecipientAmount: '100'}, input: baseInput, eligible: true, reasons: []},
+    {name: 'amount below minimum', route: {minimumRecipientAmount: '100'}, input: {...baseInput, amount: '50'}, eligible: false, reasons: ['Amount is below the configured minimum of 100.']},
+    {name: 'null limits stay eligible', route: {minimumRecipientAmount: null, maximumRecipientAmount: null}, input: baseInput, eligible: true, reasons: []},
+    {name: 'archived route', route: {archivedAt}, input: baseInput, eligible: false, reasons: ['Route is archived.']},
+    {name: 'archived provider', route: {}, provider: {...analysisProvider, archivedAt}, input: baseInput, eligible: false, reasons: ['Provider is archived.']},
+    {name: 'inactive provider', route: {}, provider: {...analysisProvider, active: false}, input: baseInput, eligible: false, reasons: ['Provider is inactive.']},
+    {name: 'country mismatch', route: {destinationCountry: 'KE'}, input: baseInput, eligible: false, reasons: ['Destination country does not match.']},
+    {name: 'currency mismatch', route: {payoutCurrency: 'KES'}, input: baseInput, eligible: false, reasons: ['Payout currency does not match.']},
+    {name: 'method mismatch', route: {destinationType: 'INTERNAL_WALLET'}, input: baseInput, eligible: false, reasons: ['Payout method does not match.']},
+    {name: 'unsupported destination', route: {destinationType: 'INTERNAL_WALLET'}, input: {...baseInput, destinationType: 'INTERNAL_WALLET'}, eligible: false, reasons: ['Provider rail does not support this payout method.']},
+    {name: 'zero amount is an input error', route: {}, input: {...baseInput, amount: '0'}, eligible: false, inputErrors: ['Enter an amount greater than zero.']},
+    {name: 'country uses two letters', route: {}, input: {...baseInput, country: 'IND'}, eligible: false, inputErrors: ['Enter a two-letter destination country.'], reasons: ['Destination country does not match.']},
+    {name: 'currency uses three letters', route: {}, input: {...baseInput, currency: 'IN'}, eligible: false, inputErrors: ['Enter a three-letter payout currency.'], reasons: ['Payout currency does not match.']}
+  ];
+  for (const item of cases) {
+    const route = analysisRoute({routeCode: item.name, ...item.route});
+    const result = analysis.evaluateRouteEligibility(item.input, [route], [item.provider || analysisProvider], analysisRails);
+    assert.equal(result.routes[0].eligible, item.eligible, item.name);
+    assert.deepEqual(Array.from(result.routes[0].reasons), item.reasons || [], item.name);
+    if (item.inputErrors) assert.deepEqual(Array.from(result.inputErrors), item.inputErrors, item.name);
+    assert.equal(Object.prototype.hasOwnProperty.call(result, 'winner'), false, item.name);
+  }
+});
+
+test('corridor matrix counts only active, non-archived route and provider combinations', () => {
+  const analysis = loadAnalysis();
+  const archivedAt = '2026-01-01T00:00:00.000Z';
+  const archivedProvider = {...analysisProvider, id: '88888888-8888-4888-8888-888888888888', archivedAt};
+  const inactiveProvider = {...analysisProvider, id: '99999999-9999-4999-8999-999999999999', active: false};
+  const routes = [
+    analysisRoute({id: 'm1', routeCode: 'M1', destinationCountry: 'IN', payoutCurrency: 'INR'}),
+    analysisRoute({id: 'm2', routeCode: 'M2', destinationCountry: 'IN', payoutCurrency: 'INR'}),
+    analysisRoute({id: 'm3', routeCode: 'M3', destinationCountry: 'IN', payoutCurrency: 'INR', active: false}),
+    analysisRoute({id: 'm4', routeCode: 'M4', destinationCountry: 'KE', payoutCurrency: 'KES', archivedAt}),
+    analysisRoute({id: 'm5', routeCode: 'M5', providerId: archivedProvider.id, destinationCountry: 'IN', payoutCurrency: 'INR'}),
+    analysisRoute({id: 'm6', routeCode: 'M6', providerId: inactiveProvider.id, destinationCountry: 'IN', payoutCurrency: 'INR'}),
+    analysisRoute({id: 'm7', routeCode: 'M7', providerId: 'missing-provider', destinationCountry: 'IN', payoutCurrency: 'INR'}),
+    analysisRoute({id: 'm8', routeCode: 'M8', destinationCountry: null, payoutCurrency: 'USD'})
+  ];
+  assert.deepEqual(JSON.parse(JSON.stringify(analysis.buildCorridorMatrix(routes, [analysisProvider, archivedProvider, inactiveProvider]))), [
+    {country: 'GLOBAL', cells: [{currency: 'INR', count: 0}, {currency: 'USD', count: 1}]},
+    {country: 'IN', cells: [{currency: 'INR', count: 2}, {currency: 'USD', count: 0}]}
+  ]);
+});
+
+test('provider comparison groups routes without choosing a winner', () => {
+  const analysis = loadAnalysis();
+  const other = {...analysisProvider, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', providerCode: 'OTHER', providerName: 'Other'};
+  const comparison = analysis.buildProviderComparison([analysisProvider, other], [
+    analysisRoute({id: 'c1', routeCode: 'C1'}),
+    analysisRoute({id: 'c2', routeCode: 'C2', providerId: other.id})
+  ]);
+  assert.deepEqual(comparison.map(entry => [entry.provider.providerCode, entry.routes.map(route => route.routeCode)]), [['WISE', ['C1']], ['OTHER', ['C2']]]);
+  for (const entry of comparison) assert.equal(Object.prototype.hasOwnProperty.call(entry, 'winner'), false);
+});
+
+test('route attention flags unavailable records and reliability drops', () => {
+  const analysis = loadAnalysis();
+  const archivedAt = '2026-01-01T00:00:00.000Z';
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({}), analysisProvider), false);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({active: false}), analysisProvider), true);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({archivedAt}), analysisProvider), true);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({}), undefined), true);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({}), {...analysisProvider, active: false}), true);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({}), {...analysisProvider, archivedAt}), true);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({completedCount: 90, failedCount: 10, effectiveSuccessRate: '90.00', configuredSuccessRate: '99.00'}), analysisProvider), true);
+  assert.equal(analysis.routeNeedsAttention(analysisRoute({completedCount: 0, failedCount: 0, effectiveSuccessRate: '0.00', configuredSuccessRate: '99.00'}), analysisProvider), false);
+});
