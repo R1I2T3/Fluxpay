@@ -160,9 +160,9 @@ persistent role check.
 | 35 | `GET {{baseUrl}}/api/routes` | Bearer token | None | **200** `{"correlationId":"...","data":{"routes":[{"routeId":"<uuid>","routeCode":"HDFC_INR_STANDARD","routeName":"HDFC INR Standard","providerName":"HDFC Bank","routeType":"BANK_NETWORK","baseFee":"1.0000","fxSpreadPercentage":"0.500000","estimatedMinutes":60,"successRate":"99.00","active":true,"version":0,"successCount":0,"totalAttempts":0}]}}` (informational catalogue; quoting and execution never trust it). |
 | 36 | `POST {{baseUrl}}/api/payments/{{paymentId}}/recommend-route` | Bearer token; owner only | `{"preference":"BALANCED"}`. Body may be omitted; the default is `BALANCED`. | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","recommendedRouteId":"<route-uuid>","recommendationReason":"BALANCED selected HDFC_INR_STANDARD ... showing top 3.","quotes":[{"routeId":"<route-uuid>","routeCode":"HDFC_INR_STANDARD","routeName":"HDFC INR Standard","providerId":"<provider-uuid>","providerName":"HDFC Bank","marketRate":83.50,"offeredRate":83.0825,"feeAmount":1.0000,"recipientAmount":8225.1675,"estimatedMinutes":60,"effectiveReliability":99.000000,"rankingScore":0.6949...,"rankingPosition":1,"recommended":true}]}}` |
 
-Seeded catalogue: protected `FLUXPAY` (`INTERNAL_LEDGER`) with `FLUXPAY_INTERNAL`, plus one inactive
-demonstration provider per external rail (`DEMO_BANK_ALPHA`, `DEMO_REAL_TIME`, `DEMO_PARTNER`)
-with representative `IN`/`INR` routes.
+Seeded catalogue: protected `FLUXPAY` (`INTERNAL_LEDGER`) with wallet routes in `INR`/`USD`/`EUR`,
+plus one inactive provider per external rail (`BANK_ALPHA`, `REAL_TIME`, `PARTNER`) with
+representative `IN`/`INR`, `US`/`USD`, and `DE`/`EUR` routes.
 
 Route preferences are `CHEAPEST`, `FASTEST`, and `BALANCED`. Eligibility keeps routes whose
 provider and route are active and unarchived, whose destination corridor matches, and whose rail

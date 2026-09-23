@@ -172,12 +172,12 @@ COMMIT;
 
 -- ---------------------------------------------------------------
 -- Transfer catalogue: one system-protected internal provider plus
--- representative demonstration providers for every shipped rail.
+-- representative providers for every shipped rail.
 -- Merges are insert-only so re-running the seed never overwrites an
 -- administrator's providers or routes. UUIDs are deterministic:
 -- uuid5(uuid.NAMESPACE_URL, 'fluxpay:provider:CODE') for providers and
 -- uuid5(uuid.NAMESPACE_URL, 'fluxpay:route:CODE') for routes, matching
--- scripts/seed-local.py. External demonstrations stay inactive until an
+-- scripts/seed-local.py. External providers stay inactive until an
 -- administrator enables simulated payouts and activates them, because
 -- their rails are installed only when
 -- fluxpay.development.simulated-payouts-enabled=true.
@@ -193,30 +193,30 @@ VALUES
    'INTERNAL_LEDGER', 1, 1, 0, SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_providers target
-USING (SELECT 'DEMO_BANK_ALPHA' AS provider_code FROM dual) source
+USING (SELECT 'BANK_ALPHA' AS provider_code FROM dual) source
 ON (target.provider_code = source.provider_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('9E239B061663536484510E9042102C28'), source.provider_code, 'Demo Bank Alpha',
+  (HEXTORAW('56F19E4B9DBC537E943DC2FF9DC47945'), source.provider_code, 'HDFC Bank',
    'BANK_NETWORK', 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_providers target
-USING (SELECT 'DEMO_REAL_TIME' AS provider_code FROM dual) source
+USING (SELECT 'REAL_TIME' AS provider_code FROM dual) source
 ON (target.provider_code = source.provider_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('D6727E6342385AF3B8211413B083499A'), source.provider_code, 'Demo Real-Time Network',
+  (HEXTORAW('9CCF60CF35545F519454BBAD7014D4B2'), source.provider_code, 'UPI Instant Network',
    'REAL_TIME_NETWORK', 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_providers target
-USING (SELECT 'DEMO_PARTNER' AS provider_code FROM dual) source
+USING (SELECT 'PARTNER' AS provider_code FROM dual) source
 ON (target.provider_code = source.provider_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_code, provider_name, rail_type, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('82883A0F2DAB5E169C321F4D08F7E89F'), source.provider_code, 'Demo Partner Network',
+  (HEXTORAW('196DC96DC95D5B46B24213E7FB3C16E7'), source.provider_code, 'SBI Partner Network',
    'PARTNER_NETWORK', 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
@@ -233,54 +233,54 @@ VALUES
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
-USING (SELECT 'DEMO_BANK_STANDARD' AS route_code FROM dual) source
+USING (SELECT 'BANK_STANDARD' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
    payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('00170BB8071C50A8AED959063231BC7A'),
-   HEXTORAW('9E239B061663536484510E9042102C28'), source.route_code, 'Demo bank standard',
+  (HEXTORAW('4E486C5C0B12563F88E4FABAD73CB88A'),
+   HEXTORAW('56F19E4B9DBC537E943DC2FF9DC47945'), source.route_code, 'HDFC INR Standard',
    'EXTERNAL_ACCOUNT', 'IN', 'INR', 5.0000, 0.500000, 240, 99.00, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
-USING (SELECT 'DEMO_BANK_EXPRESS' AS route_code FROM dual) source
+USING (SELECT 'BANK_EXPRESS' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
    payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('CBD3B26F1ADB5D5D8139B9A69CE0E803'),
-   HEXTORAW('9E239B061663536484510E9042102C28'), source.route_code, 'Demo bank express',
+  (HEXTORAW('D49DA17AB636547787D6E088F0E33AB4'),
+   HEXTORAW('56F19E4B9DBC537E943DC2FF9DC47945'), source.route_code, 'HDFC INR Express',
    'EXTERNAL_ACCOUNT', 'IN', 'INR', 11.0000, 0.750000, 30, 98.00, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
-USING (SELECT 'DEMO_REALTIME_INR' AS route_code FROM dual) source
+USING (SELECT 'REALTIME_INR' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
    payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('609E178B629652908A7AAE3DB619623E'),
-   HEXTORAW('D6727E6342385AF3B8211413B083499A'), source.route_code, 'Demo real-time INR',
+  (HEXTORAW('7FA87A43F1955CA38D2CC50B7EBE6E4B'),
+   HEXTORAW('9CCF60CF35545F519454BBAD7014D4B2'), source.route_code, 'UPI Instant INR',
    'EXTERNAL_ACCOUNT', 'IN', 'INR', 8.0000, 0.400000, 5, 97.50, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
-USING (SELECT 'DEMO_PARTNER_INR' AS route_code FROM dual) source
+USING (SELECT 'PARTNER_INR' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
    payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
-  (HEXTORAW('F5C1758635CC5347ADAAD3A7E15D0926'),
-   HEXTORAW('82883A0F2DAB5E169C321F4D08F7E89F'), source.route_code, 'Demo partner INR',
+  (HEXTORAW('D57E0E5CA72258CD8C79331D5E91D583'),
+   HEXTORAW('196DC96DC95D5B46B24213E7FB3C16E7'), source.route_code, 'SBI Partner INR',
    'EXTERNAL_ACCOUNT', 'IN', 'INR', 2.0000, 0.250000, 60, 97.50, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 

@@ -49,7 +49,7 @@ class SeedLocalTests(unittest.TestCase):
         database = mock.MagicMock()
         connection = database.connect.return_value.__enter__.return_value
         cursor = connection.cursor.return_value.__enter__.return_value
-        cursor.fetchone.side_effect = [("FLUXPAY",), (15,), (4,), (5,)] * 2
+        cursor.fetchone.side_effect = [("FLUXPAY",), (15,), (4,), (13,)] * 2
         expected = {
             (uuid.UUID(system_id).bytes, currency, role)
             for currency in ("USD", "EUR", "INR")
@@ -95,7 +95,7 @@ class SeedLocalTests(unittest.TestCase):
                 ]
                 self.assertEqual(
                     {call.kwargs["provider_code"] for call in provider_merges},
-                    {"FLUXPAY", "DEMO_BANK_ALPHA", "DEMO_REAL_TIME", "DEMO_PARTNER"},
+                    {"FLUXPAY", "BANK_ALPHA", "REAL_TIME", "PARTNER"},
                 )
                 self.assertEqual(len(provider_merges), 4)
                 for call in provider_merges:
@@ -113,15 +113,26 @@ class SeedLocalTests(unittest.TestCase):
                 route_merges = [
                     call for call in cursor.execute.call_args_list if "MERGE INTO transfer_routes" in call.args[0]
                 ]
-                self.assertEqual({call.kwargs["payout_currency"] for call in route_merges}, {"INR"})
-                self.assertEqual({call.kwargs["route_code"] for call in route_merges}, {
-                    "FLUXPAY_INTERNAL",
-                    "DEMO_BANK_STANDARD",
-                    "DEMO_BANK_EXPRESS",
-                    "DEMO_REALTIME_INR",
-                    "DEMO_PARTNER_INR",
-                })
-                self.assertEqual(len(route_merges), 5)
+                self.assertEqual({call.kwargs["payout_currency"] for call in route_merges}, {"INR", "USD", "EUR"})
+                self.assertEqual(
+                    {call.kwargs["route_code"] for call in route_merges},
+                    {
+                        "FLUXPAY_INTERNAL",
+                        "FLUXPAY_INTERNAL_USD",
+                        "FLUXPAY_INTERNAL_EUR",
+                        "BANK_STANDARD",
+                        "BANK_EXPRESS",
+                        "REALTIME_INR",
+                        "PARTNER_INR",
+                        "BANK_USD_STANDARD",
+                        "REALTIME_USD",
+                        "PARTNER_USD",
+                        "BANK_EUR_STANDARD",
+                        "REALTIME_EUR",
+                        "PARTNER_EUR",
+                    },
+                )
+                self.assertEqual(len(route_merges), 13)
                 for call in route_merges:
                     sql = " ".join(call.args[0].split())
                     self.assertIn("target.route_code = source.route_code", sql)
@@ -140,10 +151,10 @@ class SeedLocalTests(unittest.TestCase):
             email = body["email"]
             if request.full_url.endswith("/register"):
                 user_id = {
-                    "system@local.fluxpay": "11111111-1111-1111-1111-111111111111",
-                    "admin@local.fluxpay": "22222222-2222-2222-2222-222222222222",
-                    "alice@demo.io": "33333333-3333-3333-3333-333333333333",
-                    "bob@demo.io": "44444444-4444-4444-4444-444444444444",
+                    "fluxpay.system@gmail.com": "11111111-1111-1111-1111-111111111111",
+                    "fluxpay.admin@gmail.com": "22222222-2222-2222-2222-222222222222",
+                    "priya.sharma@gmail.com": "33333333-3333-3333-3333-333333333333",
+                    "arjun.mehta@gmail.com": "44444444-4444-4444-4444-444444444444",
                 }[email]
                 return HttpResponse(201, {"data": {"token": "secret", "user": {"id": user_id}}})
             return HttpResponse(200, {"data": {"token": "secret", "user": {"id": "unused"}}})
@@ -152,7 +163,7 @@ class SeedLocalTests(unittest.TestCase):
             "users": 4,
             "systemWallets": 15,
             "providers": 4,
-            "routes": 5,
+            "routes": 13,
             "systemUserId": "11111111-1111-1111-1111-111111111111",
         }
         output = io.StringIO()
@@ -181,7 +192,7 @@ class SeedLocalTests(unittest.TestCase):
         self.assertTrue(all(body["fullName"].strip() for body in register_bodies))
         self.assertTrue(all("role" not in body for body in register_bodies))
         text = output.getvalue()
-        self.assertIn("users=4 system-wallets=15 providers=4 routes=5", text)
+        self.assertIn("users=4 system-wallets=15 providers=4 routes=13", text)
         self.assertNotIn("policies=", text)
         self.assertNotIn("secret", text)
         self.assertNotIn("Pass123", text)
