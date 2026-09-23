@@ -31,3 +31,10 @@ test('admin CSS defines stable lists, one workflow modal, and wide-table actions
   assert.match(css, /\.admin-workflow-modal\s*\{[^}]*max-height:\s*90dvh/);
   assert.match(css, /\.sticky-action\s*\{[^}]*position:\s*sticky[^}]*right:\s*0/);
 });
+
+test('overview metric CSS is a compact single scrolling row', () => {
+  const css = read('css/admin-console.css');
+  assert.match(css, /\.attention-metrics\s*\{[^}]*grid-auto-flow:\s*column[^}]*overflow-x:\s*auto/);
+  assert.match(css, /\.attention-metric\s*\{[^}]*min-height:\s*80px[^}]*text-align:\s*center/);
+  assert.match(css, /\.attention-metric-label\s*\{[^}]*white-space:\s*nowrap/);
+});

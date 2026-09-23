@@ -30,10 +30,10 @@
     <button
       type="button"
       class="attention-metric"
-      data-bind="click:$parent.open,disable:unavailable||pending,attr:{'data-tone':tone}"
-    >
-      <span class="status-icon" aria-hidden="true"></span><strong data-bind="text:value"></strong
-      ><span data-bind="text:label"></span>
+      data-bind="click:$parent.open,disable:unavailable||pending,attr:{'data-tone':tone,'aria-label':label+': '+value}"
+      >
+      <strong class="attention-metric-value" data-bind="text:value"></strong
+      ><span class="attention-metric-label" data-bind="text:label,title:label"></span>
     </button>
   </div>
   <section class="attention-table">

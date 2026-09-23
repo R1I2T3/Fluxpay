@@ -307,37 +307,54 @@
 
 .attention-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(140px, 1fr);
+  grid-template-columns: none;
   gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
   border: 0;
   background: transparent;
 }
 
 .attention-metric {
   display: grid;
-  gap: 5px;
-  min-height: 104px;
-  padding: 18px;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  min-height: 80px;
+  padding: 12px 14px;
   border: 1px solid var(--admin-card-border);
   border-radius: 14px;
   background: #fff;
   box-shadow: var(--admin-card-shadow);
-  text-align: left;
+  text-align: center;
 }
 
-.attention-metric strong {
-  font-size: 24px;
+.attention-metric-value {
+  font-size: 22px;
+  line-height: 1.05;
 }
 
-.attention-metric[data-tone='critical'] strong {
+.attention-metric-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-metric[data-tone='critical'] .attention-metric-value {
   color: var(--admin-critical);
 }
 
-.attention-metric[data-tone='warning'] strong {
+.attention-metric[data-tone='warning'] .attention-metric-value {
   color: var(--admin-warning);
 }
 
-.attention-metric[data-tone='info'] strong {
+.attention-metric[data-tone='info'] .attention-metric-value {
   color: var(--admin-info);
 }
 
