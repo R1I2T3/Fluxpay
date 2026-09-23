@@ -231,7 +231,7 @@
             <span class="eyebrow" data-bind="text:category"></span>
           </li>
         </ul>
-        <p>Apply in <span data-bind="text:$root.environment.label"></span>.</p>
+        <p>Apply in <span data-bind="text:$parent.environment.label"></span>.</p>
         <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
         <button
           class="pill dark wide"
@@ -246,7 +246,7 @@
       </section>
     </div>
     <!-- /ko -->
-    <div class="configuration-workspace">
+    <div class="admin-list-surface policy-library-surface">
       <section class="configuration-list">
         <div class="filter-row">
           <label
@@ -275,7 +275,7 @@
           >
           <button class="pill soft" data-bind="click:loadPolicies,disable:busy">↻ Refresh</button>
         </div>
-        <table class="dense-table">
+        <table class="dense-table admin-wide-table policy-library-table">
           <thead>
             <tr>
               <th>Title</th>
@@ -283,7 +283,7 @@
               <th>Document</th>
               <th>Created</th>
               <th>Indexed chunks</th>
-              <th></th>
+              <th class="sticky-action"></th>
             </tr>
           </thead>
           <tbody data-bind="foreach:visiblePolicies">
@@ -295,10 +295,8 @@
               <td
                 data-bind="text:(chunks||[]).filter(function(item){return !item.manual;}).length"
               ></td>
-              <td>
-                <button type="button" class="text-button" data-bind="click:$parent.openPolicy">
-                  Open
-                </button>
+              <td class="sticky-action">
+                <button type="button" class="icon-action" aria-label="View policy" title="View policy" data-bind="click:$parent.openPolicy"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
               </td>
             </tr>
           </tbody>
@@ -318,8 +316,8 @@
           <p>Add a draft or adjust the filters.</p>
         </div>
       </section>
-      <aside class="configuration-editor" data-bind="with:policy">
-        <h2 data-bind="text:title"></h2>
+      <aside class="configuration-editor admin-confirmation modal-backdrop admin-workflow-modal policy-detail-modal" role="dialog" aria-modal="true" aria-labelledby="policy-detail-title" data-bind="with:policy,visible:policyModalMode()==='detail',adminDialog:{initialFocus:'#policy-detail-title'}">
+        <h2 id="policy-detail-title" tabindex="-1" data-bind="text:title"></h2>
         <dl class="detail-grid">
           <div>
             <dt>Document hash</dt>
@@ -338,6 +336,7 @@
           <button class="pill dark" data-bind="click:function(){$parent.askConfirmation('index')}">
             Rebuild index
           </button>
+          <button class="pill soft" data-bind="click:$parent.closePolicy,disable:$parent.busy">Close</button>
         </div>
         <label
           >Details view<select data-bind="value:$parent.policyView">
@@ -346,13 +345,8 @@
           </select></label
         >
       </aside>
-      <!-- ko if:!policy() -->
-      <aside class="configuration-editor">
-        <p class="muted">Select a document to review its current content.</p>
-      </aside>
-      <!-- /ko -->
       <!-- ko if:policy()&&policyView()==='advanced' -->
-      <section class="configuration-advanced">
+      <section class="configuration-advanced admin-confirmation modal-backdrop admin-workflow-modal policy-advanced-modal" role="dialog" aria-modal="true" aria-labelledby="policy-advanced-title" data-bind="visible:policyModalMode()==='advanced',adminDialog:{initialFocus:'#policy-advanced-title'}">
         <button
           class="modal-back"
           type="button"
@@ -370,11 +364,13 @@
           <button class="pill soft" data-bind="click:function(){openPolicy(policy())},disable:busy">
             ↻ Refresh document
           </button>
+          <button class="pill soft" data-bind="click:closePolicy,disable:busy">Close</button>
         </div>
         <p class="subtle-note">
           Indexing rebuilds chunks from the original document and replaces the active index; manual
           chunks are not appended to the document.
         </p>
+        <h2 id="policy-advanced-title" tabindex="-1">Advanced policy material</h2>
         <h3 data-bind="text:'Document chunks · '+chunks().length"></h3>
         <div class="policy-chunks" data-bind="foreach:chunks">
           <details>
@@ -491,9 +487,9 @@
       </section>
       <!-- /ko -->
     </div>
-    <!-- ko if:policyEdit -->
+    <!-- ko if:policyModalMode()==='edit' -->
     <div
-      class="admin-confirmation policy-edit-backdrop"
+      class="admin-confirmation modal-backdrop policy-edit-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="policy-edit-title"
@@ -558,9 +554,9 @@
       </article>
     </div>
     <!-- /ko -->
-    <!-- ko if:policyChangeReview -->
+    <!-- ko if:policyModalMode()==='review' -->
     <div
-      class="admin-confirmation"
+      class="admin-confirmation modal-backdrop"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="policy-changes-title"
@@ -593,7 +589,7 @@
             </tr>
           </tbody>
         </table>
-        <p>Apply in <span data-bind="text:$root.environment.label"></span>.</p>
+        <p>Apply in <span data-bind="text:$parent.environment.label"></span>.</p>
         <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
         <button
           class="pill dark wide"
@@ -608,9 +604,9 @@
       </section>
     </div>
     <!-- /ko -->
-    <!-- ko if:chunkEdit -->
+    <!-- ko if:policyModalMode()==='chunk-edit' -->
     <div
-      class="admin-confirmation policy-edit-backdrop"
+      class="admin-confirmation modal-backdrop policy-edit-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="chunk-edit-title"
@@ -648,9 +644,9 @@
       </article>
     </div>
     <!-- /ko -->
-    <!-- ko if:guidanceEdit -->
+    <!-- ko if:policyModalMode()==='guidance-edit' -->
     <div
-      class="admin-confirmation policy-edit-backdrop"
+      class="admin-confirmation modal-backdrop policy-edit-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="guidance-edit-title"
@@ -689,9 +685,9 @@
       </article>
     </div>
     <!-- /ko -->
-    <!-- ko if:guidanceCaseViewer -->
+    <!-- ko if:policyModalMode()==='case-view' -->
     <div
-      class="admin-confirmation policy-edit-backdrop"
+      class="admin-confirmation modal-backdrop policy-edit-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="guidance-case-title"
@@ -735,9 +731,9 @@
       </article>
     </div>
     <!-- /ko -->
-    <!-- ko if:confirmation -->
+    <!-- ko if:policyModalMode()==='confirmation' -->
     <div
-      class="admin-confirmation"
+      class="admin-confirmation modal-backdrop"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="policy-confirm-title"

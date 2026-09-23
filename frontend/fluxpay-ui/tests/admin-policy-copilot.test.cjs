@@ -54,6 +54,27 @@ test('policy edit shows current-document changes before calling the existing upd
   page.dispose();
 });
 
+test('policy modal mode selects exactly one active surface', () => {
+  const {page} = complianceWorkspace();
+  page.policy({...policy});
+  assert.equal(page.policyModalMode(), 'detail');
+  page.openPolicyEdit(policy);
+  assert.equal(page.policyModalMode(), 'edit');
+  page.policyEdit().title('Updated title');
+  page.requestPolicyEditSave();
+  assert.equal(page.policyModalMode(), 'review');
+  page.policyChangeReview(false);
+  assert.equal(page.policyModalMode(), 'edit');
+  page.dispose();
+});
+
+test('policy table is wide, scrollable and uses accessible icon actions', () => {
+  const html = read('ts/views/admin-policies.html');
+  assert.match(html, /class="dense-table admin-wide-table policy-library-table"/);
+  assert.match(html, /aria-label="View policy"/);
+  assert.doesNotMatch(html, /\$root\.environment/);
+});
+
 test('policy template exposes only current API metadata and hides document deletion', () => {
   const html = read('ts/views/admin-policies.html');
   for (const token of ['Current document', 'documentHash', 'createdAt', 'Indexed chunks', 'Advanced']) assert.ok(html.includes(token), token);

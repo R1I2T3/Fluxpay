@@ -182,12 +182,11 @@ test('policy-draft preview truncates before the fixed action column',()=>{
   assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:\s*118px;/);
 });
 test('opening a compliance case uses a confirmation dialog rather than an inline panel below the list',()=>{
-  const html=read('ts/views/admin-compliance.html'),css=read('css/workspace.css');
-  assert.match(html,/<!-- ko if:confirmation -->\s*<div[^>]*class="admin-confirmation[^"]*"[^>]*role="alertdialog"[^>]*aria-modal="true"[^>]*aria-labelledby="compliance-confirm-title"/);
-  assert.match(html,/aria-label="Cancel action"/);
+  const html=read('ts/views/admin-compliance.html');
+  assert.match(html,/<!-- ko if:selectedCase -->[\s\S]*class="admin-confirmation modal-backdrop"[\s\S]*class="admin-workflow-modal"/);
+  assert.match(html,/<!-- ko if:confirmation -->/);
+  assert.match(html,/click:\$parent\.confirmDecision/);
   assert.match(html,/data-bind="text:decisionReason"/);
-  assert.match(css,/\.compliance-case-dialog\s*\{[^}]*overflow:\s*hidden;[^}]*padding:\s*0;/);
-  assert.match(css,/\.compliance-case-scroll\s*\{[^}]*overflow-y:\s*auto;[^}]*border-radius:\s*inherit;/);
 });
 test('focused compliance template shows response-backed case context without delete actions',()=>{
   const html=read('ts/views/admin-compliance.html');

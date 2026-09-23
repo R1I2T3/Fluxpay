@@ -655,6 +655,32 @@
   word-break: normal;
 }
 
+.policy-library-table {
+  min-width: 860px;
+}
+
+.policy-detail-modal,
+.policy-advanced-modal {
+  box-sizing: border-box;
+  display: block;
+  width: min(1080px, calc(100vw - 40px));
+  max-height: 90dvh;
+  overflow: auto;
+  padding: 28px;
+  border: 1px solid var(--admin-card-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 70px #1018282b;
+}
+
+.policy-detail-modal .detail-grid {
+  margin: 18px 0;
+}
+
+.policy-advanced-modal {
+  display: block;
+}
+
 .review-list-heading {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(110px, 0.65fr) minmax(110px, 0.55fr) 24px;

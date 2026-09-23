@@ -138,3 +138,15 @@ test('provider modal environment bindings resolve from the workspace child conte
   const applyBinding = accessors(bindingContaining(html, "Apply in '+"), workspaceContext);
   assert.equal(ko.unwrap(applyBinding.text()), 'Apply in Staging');
 });
+
+test('policy modal environment bindings resolve from the workspace child context', () => {
+  const html = read('ts/views/admin-policies.html');
+  const viewModel = {environment: {label: 'Staging'}, workspace: {}};
+  const workspaceContext = moduleContext(viewModel).createChildContext(viewModel.workspace);
+  const applyBindings = bindings(html).filter((binding) => binding.includes('$parent.environment.label'));
+  assert.equal(applyBindings.length, 2);
+  for (const binding of applyBindings) {
+    const parsed = accessors(binding, workspaceContext);
+    assert.equal(ko.unwrap(parsed.text()), 'Staging');
+  }
+});

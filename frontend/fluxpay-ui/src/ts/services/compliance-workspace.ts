@@ -147,6 +147,15 @@ export class ComplianceWorkspace {
   policyChanges = ko.observableArray<FieldChange>([]);
   policyChangeReview = ko.observable(false);
   draftPublishReview = ko.observable(false);
+  policyModalMode = ko.pureComputed<''|'detail'|'advanced'|'edit'|'review'|'chunk-edit'|'guidance-edit'|'case-view'|'confirmation'>(()=>{
+    if(this.policyChangeReview())return 'review';
+    if(this.policyEdit())return 'edit';
+    if(this.chunkEdit())return 'chunk-edit';
+    if(this.guidanceEdit())return 'guidance-edit';
+    if(this.guidanceCaseViewer())return 'case-view';
+    if(this.confirmation()&&this.policy())return 'confirmation';
+    return this.policy()?(this.policyView()==='advanced'?'advanced':'detail'):'';
+  });
   policySavedView = ko.observable<'ALL'|'UNINDEXED'>('ALL');
   savedPolicies = ko.pureComputed(()=>this.filteredPolicies().filter(item=>this.policySavedView()==='ALL'||!(item.chunks||[]).some(chunk=>!chunk.manual)));
   visiblePolicies = ko.pureComputed(()=>{
@@ -209,9 +218,9 @@ export class ComplianceWorkspace {
   nextCasePage = ()=>this.casePage(Math.min(this.casePageCount()-1,this.casePage()+1));
   toggleRiskSort = ()=>{this.caseSort(this.caseSort()==='risk-desc'?'risk-asc':'risk-desc');this.casePage(0);};
   toggleCreatedSort = ()=>{this.caseSort(this.caseSort()==='created-desc'?'created-asc':'created-desc');this.casePage(0);};
-  openPolicy = (p:{id:string})=>this.run(()=>this.readPolicy(p.id));
+  openPolicy = (p:{id:string})=>{this.policyView('policy');return this.run(()=>this.readPolicy(p.id));};
   private async readPolicy(id:string){const [p,c,g,allCases]=await Promise.all([api.policy(id),api.policyChunks(id),api.policyGuidance(id),api.complianceCases('ALL')]);this.policy(p);this.chunks(c);this.guidance(g);this.cases(allCases);this.chunkContent('');}
-  closePolicy = ()=>{if(!this.busy()){this.policy(undefined);this.confirmation('');}};
+  closePolicy = ()=>{if(!this.busy()){this.policy(undefined);this.policyView('policy');this.confirmation('');}};
   loadPolicyJson = (contextOrEvent:unknown,event?:Event)=>{
     const input=(event??contextOrEvent as Event).target as HTMLInputElement;
     const files=Array.from(input.files??[]);
