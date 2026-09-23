@@ -476,10 +476,7 @@ class WalletTransferTest {
   }
 
   @ParameterizedTest
-  @CsvSource({
-    "INR, 83.4567, 834567.00, 834567.01",
-    "EUR, 0.92345, 9234.50, 9234.51"
-  })
+  @CsvSource({"INR, 83.4567, 834567.00, 834567.01", "EUR, 0.92345, 9234.50, 9234.51"})
   void topupCapMatchesTenThousandUsdAtCurrentRate(
       String currency, String usdRate, String capAmount, String overCapAmount) {
     when(quotes.rate("USD", currency)).thenReturn(new BigDecimal(usdRate));
@@ -490,9 +487,13 @@ class WalletTransferTest {
     assertThatThrownBy(
             () ->
                 banks.topup(
-                    sender, valid, new BankTopupRequest(overCapAmount, null), "over-cap-" + currency))
+                    sender,
+                    valid,
+                    new BankTopupRequest(overCapAmount, null),
+                    "over-cap-" + currency))
         .isInstanceOfSatisfying(
-            BusinessException.class, exception -> assertThat(exception.code()).isEqualTo("TOPUP_CAP_EXCEEDED"));
+            BusinessException.class,
+            exception -> assertThat(exception.code()).isEqualTo("TOPUP_CAP_EXCEEDED"));
   }
 
   @Test
