@@ -3,12 +3,15 @@ import { fluxApi as api } from './flux-api';
 import { session, navigate } from './session';
 import {movementDescription} from './activity';
 import './experience-dialog';
+import {feedbackObservable,ToastKind} from './notifications';
 
 export class Page {
   session = session;
   busy = ko.observable(false);
-  error = ko.observable('');
-  notice = ko.observable('');
+  protected feedback(kind:ToastKind){return feedbackObservable(kind,()=>!this.disposed);}
+  private suppressSuccessToast=false;
+  error = this.feedback('error');
+  notice = feedbackObservable('success',()=>!this.disposed&&!this.suppressSuccessToast);
   search = ko.observable('');
   wallets = ko.observableArray<any>([]);
   recipients = ko.observableArray<any>([]);
@@ -32,7 +35,7 @@ export class Page {
   documents = ko.observableArray<any>([]);
   documentPreview = ko.observable<any>();
   previewLoading = ko.observable(false);
-  previewError = ko.observable('');
+  previewError = this.feedback('error');
   private previewAbort?: AbortController;
   private previewVersion = 0;
   fileSize=(size:number)=>size>=1024*1024?(size/(1024*1024)).toFixed(1)+' MB':Math.max(1,Math.round(size/1024))+' KB';
@@ -137,12 +140,13 @@ export class Page {
   walletLabel=(w:any)=>w.currency+' · '+this.money(w.availableBalance,w.currency)+' available';
   recipientOption=(r:any)=>r.name+' · '+r.currency;
   go=(path:string)=>navigate(path);
-  async run(action:()=>Promise<void>,success=''){
-    if(this.busy())return;
+  async run(action:()=>Promise<void>,success='',successToast=true){
+    if(this.busy()||this.disposed)return;
+    this.suppressSuccessToast=!successToast;
     this.busy(true);this.error('');this.notice('');
-    try{await action();if(success)this.notice(success);}
-    catch(e:any){this.error(e.message||'Something went wrong. Please try again.');}
-    finally{this.busy(false);}
+    try{await action();if(success&&!this.disposed)this.notice(success);}
+    catch(e:any){if(!this.disposed)this.error(e.message||'Something went wrong. Please try again.');}
+    finally{this.suppressSuccessToast=false;this.busy(false);}
   }
   async load(){
     if(this.screen==='home'||['login','register'].includes(this.screen))return;
@@ -200,14 +204,14 @@ export class Page {
     await session.restore();
   },'Your verification has been submitted for review.');
   validAmount(value:string){if(!/^\d+(\.\d{1,4})?$/.test(value)||Number(value)<=0)throw new Error('Enter an amount greater than zero, with up to four decimal places.');return value;}
-  fund=()=>this.run(async()=>{await api.fund({currency:this.currency(),amount:this.validAmount(this.fundAmount())});this.wallets(await api.wallets());},'Money added to your wallet.');
+  fund=()=>this.run(async()=>{await api.fund({currency:this.currency(),amount:this.validAmount(this.fundAmount())});this.wallets(await api.wallets());},'Money added to your wallet.',false);
   getRate=()=>this.run(async()=>{this.rate(undefined);if(this.from()===this.to())throw new Error('Choose two different currencies.');this.rate(await api.rate(this.from(),this.to()));});
   resetRate=()=>{this.rate(undefined);this.conversion(undefined);};
   convert=()=>this.run(async()=>{
     if(this.from()===this.to())throw new Error('Choose two different currencies.');
     this.conversion(await api.convert({from:this.from(),to:this.to(),amount:this.validAmount(this.amount())}));
     this.wallets(await api.wallets());
-  },'Currency exchanged successfully.');
+  },'Currency exchanged successfully.',false);
   showLedger=(w:any)=>this.run(async()=>{this.ledgerWallet(w);this.ledgerPage(0);await this.loadLedger();});
   async loadLedger(){const data=await api.ledger(this.ledgerWallet().walletId,this.ledgerPage());this.ledger(data.entries);this.ledgerTotal(data.totalElements);}
   ledgerPrevious=()=>this.run(async()=>{this.ledgerPage(Math.max(0,this.ledgerPage()-1));await this.loadLedger();});
@@ -287,7 +291,7 @@ export class Page {
     }
     this.confirmAction('');
     if(this.screen==='tracking')await this.inspectData();
-  },'Payment updated. The latest status is shown below.');
+  },'Payment updated. The latest status is shown below.',false);
   selectRecoveryQuote=(q:any)=>this.selectedQuote(q);
   openReview=(c:any)=>{this.review(c);this.reviewReason('');this.reviewConsent(false);this.reviewDecision('');this.error('');};
   closeReview=()=>{if(this.busy())return;this.closeDocument();this.review(undefined);this.reviewDecision('');};

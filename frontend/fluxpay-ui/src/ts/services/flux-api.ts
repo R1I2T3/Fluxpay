@@ -1,8 +1,50 @@
 const base = (window as any).FLUXPAY_API_URL || '';
 const pending = new Map<string,string>();
 const token = () => sessionStorage.getItem('fluxpay.token') || '';
+// Only celebrate writes confirmed by the server. Ordinary history reads never trigger a popup.
+let feedbackOwner = '';
+const awaitedPayments = new Map<string,string>();
+const celebrated = new Set<string>();
+function transactionFeedback(path:string,method:string,body:any,data:any,key:string){
+  if(!data||Array.isArray(data))return;
+  let title='',description='',amount:any,currency='',identity=key;
+  const payment=path.match(/^\/api\/payments\/([^/]+)(?:\/(submit-payout|retry-payout|switch-route|refund))?$/);
+  if(payment){
+    const id=payment[1],action=awaitedPayments.get(id);
+    if(!action)return;
+    if(['FAILED','REJECTED','CANCELLED'].includes(data.status)){
+      awaitedPayments.delete(id);
+      window.dispatchEvent(new CustomEvent('fluxpay:toast',{detail:{kind:'error',message:data.status==='FAILED'?'Your payment could not be completed. Check its activity receipt for the latest status and available next steps.':data.status==='REJECTED'?'Your payment was rejected. Open its activity receipt for details.':'This payment was cancelled. No further payout will be submitted.'}}));
+      return;
+    }
+    if(data.status!==(action==='refund'?'REFUNDED':'COMPLETED'))return;
+    awaitedPayments.delete(id);identity=id+':'+data.status;
+    title=action==='refund'?'Money refunded':'Money sent';
+    description=action==='refund'?'Your refund has been completed.':'Your transfer has been completed successfully.';
+    amount=data.sourceAmount;currency=data.sourceCurrency;
+  }else if(method==='POST'&&data.journalReference){
+    identity=data.journalReference;
+    if(path==='/api/wallets/convert'){
+      title='Currency exchanged';description='Your exchanged money is ready in your wallet.';amount=data.creditedAmount;currency=data.to;
+    }else if(path==='/api/wallets/transfer'){
+      title='Wallet transfer complete';description='The money has been credited to their FluxPay wallet.';amount=data.creditedAmount;currency=data.toCurrency;
+    }else if(path==='/api/wallets/withdraw'){
+      title='Withdrawal recorded';description='Your withdrawal to your linked bank account has been recorded successfully.';amount=body.amount;currency=data.currency;
+    }else if(path==='/api/wallets/receive-demo'||/^\/api\/bank-accounts\/[^/]+\/topup$/.test(path)){
+      title='Money added';description='Your balance is topped up and ready to use.';amount=body.amount;currency=data.currency;
+    }
+  }
+  if(!title||celebrated.has(identity))return;
+  celebrated.add(identity);if(celebrated.size>200)celebrated.delete(celebrated.values().next().value!);
+  const formatted=amount!=null&&Number.isFinite(Number(amount))&&/^[A-Z]{3}$/.test(currency||'')?new Intl.NumberFormat('en',{style:'currency',currency}).format(Number(amount)):'';
+  window.dispatchEvent(new CustomEvent('fluxpay:transaction-success',{detail:{title,description,amount:formatted}}));
+}
 async function request<T>(path: string, method = 'GET', body?: unknown, idem = false): Promise<T> {
   const headers: Record<string,string> = { Accept: 'application/json' };
+  const requestOwner=token();
+  if(feedbackOwner!==requestOwner){feedbackOwner=requestOwner;awaitedPayments.clear();celebrated.clear();}
+  const paymentAction=method==='POST'&&path.match(/^\/api\/payments\/([^/]+)\/(submit-payout|retry-payout|switch-route|refund)$/);
+  if(paymentAction){awaitedPayments.set(paymentAction[1],paymentAction[2]);if(awaitedPayments.size>200)awaitedPayments.delete(awaitedPayments.keys().next().value!);}
   if (token()) headers.Authorization = `Bearer ${token()}`;
   const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
   if (body !== undefined && !multipart) headers['Content-Type'] = 'application/json';
@@ -24,6 +66,10 @@ async function request<T>(path: string, method = 'GET', body?: unknown, idem = f
     const fields = Object.entries(json.fieldErrors||{}).map(([key,value])=>key+': '+value).join('; ');
     const message=(json.message || json.code || 'Request failed ('+response.status+')') + (fields ? ' — '+fields : '');
     throw new Error(path==='/api/wallets/receive-demo'?message.replace(/demo[_ ]?funding/gi,'Adding money').replace(/\bdemo\b\s*/gi,''):message);
+  }
+  // A presentation failure must never turn a completed payment into a retryable error.
+  if(requestOwner&&requestOwner===token()&&response.status!==202){
+    try{transactionFeedback(path,method,body,json.data,headers['Idempotency-Key']||operation);}catch{/* The receipt remains available in activity. */}
   }
   return json.data as T;
 }

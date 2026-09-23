@@ -78,8 +78,8 @@ class ViewModel extends Page {
     }
     this.step(4);this.notice('');
     if(this.canSubmitPayout())await this.submitTransfer();else await this.readTransfer();
-  });
-  submitPayout=()=>this.run(()=>this.submitTransfer());
+  },'',false);
+  submitPayout=()=>this.run(()=>this.submitTransfer(),'',false);
   startAnother=()=>{
     if(this.busy())return;
     this.payment(undefined);this.paymentId('');this.quotes([]);this.selectedQuote(undefined);this.timeline([]);this.outcome(undefined);

@@ -16,11 +16,15 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="css/mobile-workspace.css">
   <link rel="stylesheet" href="css/history.css">
+  <link rel="stylesheet" href="css/dashboard-insights.css">
+  <link rel="stylesheet" href="css/transaction-success.css">
+  <link rel="stylesheet" href="css/notifications.css">
+  <link rel="stylesheet" href="css/product-polish.css">
 </head>
 <body>
 <div id="globalBody" data-bind="css:{'home-shell':isHome,'public-shell':isPublic,'workspace-shell':!isPublic(),'admin-shell':isAdminWorkspace}">
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
+  <header class="site-header" data-bind="attr:{inert:transactionSuccess()?'':null}">
     <a href="?ojr=home" data-route="home" class="wordmark" aria-label="FluxPay home" data-bind="attr:{href:'?ojr='+(session.user()?accountPath():'home'),'data-route':session.user()?accountPath():'home'}">FluxPay<span>✦</span></a>
     <div class="header-actions">
       <!-- ko if: !session.user() -->
@@ -35,18 +39,48 @@
       <!-- /ko -->
     </div>
   </header>
-  <nav class="bottom-nav" aria-label="Account navigation" data-bind="visible:!isPublic()&&!isAdminWorkspace()">
+  <nav class="bottom-nav" aria-label="Account navigation" data-bind="visible:!isPublic()&&!isAdminWorkspace(),attr:{inert:transactionSuccess()?'':null}">
     <!-- ko foreach:bottomNav --><a data-bind="attr:{href:'?ojr='+path,'data-route':path,'aria-current':$parent.activeTab()===path?'page':null},css:{active:$parent.activeTab()===path}"><span aria-hidden="true" data-bind="text:icon"></span><span data-bind="text:label"></span></a><!-- /ko -->
   </nav>
   <div class="global-message" role="alert" data-bind="visible:message,text:message"></div>
-  <main id="main">
+  <main id="main" data-bind="attr:{inert:transactionSuccess()?'':null}">
     <!-- ko if:!isPublic()&&needsVerificationSubmission() -->
     <aside class="verification-reminder" role="status" aria-label="Identity verification reminder"><span class="verification-reminder-icon" aria-hidden="true">◇</span><div><strong>Identity verification not started</strong><p>You haven’t submitted your documents yet. Verify your identity to unlock transfers.</p></div><a class="pill soft" href="?ojr=kyc" data-route="kyc">Verify now ↗</a></aside>
     <!-- /ko -->
     <a class="workspace-return back-link" data-bind="visible:!isPublic()&&!isAdminWorkspace()&&selection.path()!=='dashboard',attr:{href:'?ojr='+accountPath(),'data-route':accountPath}">← Back to home</a>
     <oj-module config="[[moduleAdapter.koObservableConfig]]"></oj-module>
   </main>
-  <div id="helper-host"></div>
+  <div id="helper-host" data-bind="attr:{inert:transactionSuccess()?'':null}"></div>
+  <section class="toast-region" aria-label="Notifications" data-bind="foreach:toasts.items">
+    <div class="app-toast" aria-atomic="true" data-bind="attr:{'data-kind':kind,role:kind==='error'?'alert':'status','aria-live':kind==='error'?'assertive':'polite'},event:{mouseenter:$root.toasts.hover,mouseleave:$root.toasts.unhover,focusin:$root.toasts.focus,focusout:$root.toasts.blur}">
+      <span class="app-toast-icon" aria-hidden="true" data-bind="text:kind==='success'?'✓':kind==='info'?'i':'!'"></span>
+      <div class="app-toast-copy"><strong data-bind="text:title"></strong><p data-bind="text:message"></p></div>
+      <button class="app-toast-close" type="button" aria-label="Dismiss notification" data-bind="click:$root.toasts.dismiss">×</button>
+    </div>
+  </section>
+  <!-- ko if:transactionSuccess -->
+  <div class="transaction-success-backdrop">
+    <canvas class="transaction-confetti" aria-hidden="true" data-bind="transactionCelebration:true"></canvas>
+    <section class="transaction-success-dialog" role="dialog" aria-modal="true" aria-labelledby="transaction-success-title" aria-describedby="transaction-success-description" data-bind="experienceDialog:closeTransactionSuccess">
+      <button class="transaction-success-close" aria-label="Close success confirmation" data-bind="click:closeTransactionSuccess">×</button>
+      <div class="success-receipt-brand" aria-hidden="true">FluxPay <span>PAYMENT RECEIPT</span></div>
+      <div class="transaction-success-art" aria-hidden="true">
+        <svg class="success-seal" viewBox="0 0 100 100" fill="none">
+          <circle class="success-seal-ground" cx="50" cy="50" r="43"/>
+          <circle class="success-seal-ring" cx="50" cy="50" r="43" pathLength="1"/>
+          <path class="success-seal-tick" d="M30 50.5 44 64 71 36" pathLength="1"/>
+        </svg>
+      </div>
+      <p class="transaction-success-eyebrow">Completed successfully</p>
+      <h2 id="transaction-success-title" data-bind="text:transactionSuccess().title"></h2>
+      <strong class="transaction-success-amount" data-bind="visible:transactionSuccess().amount,text:transactionSuccess().amount"></strong>
+      <p id="transaction-success-description" data-bind="text:transactionSuccess().description"></p>
+      <div class="transaction-success-receipt"><span aria-hidden="true">✓</span> A record is saved in your activity</div>
+      <button class="transaction-success-done" data-bind="click:closeTransactionSuccess">Done <span aria-hidden="true">↗</span></button>
+      <button class="transaction-success-activity" data-bind="click:viewTransactionActivity">View transaction activity</button>
+    </section>
+  </div>
+  <!-- /ko -->
   <footer class="site-footer" data-bind="visible:isPublic">
     <a class="wordmark" href="?ojr=home" data-route="home">FluxPay<span>✦</span></a>
     <div><a href="?ojr=account" data-route="account">Your account</a><a href="?ojr=tracking" data-route="tracking">Track a transfer</a><a href="?ojr=kyc" data-route="kyc">Verification</a></div>

@@ -6,7 +6,6 @@
 </div>
 
 <div class="admin-workbench" data-bind="visible:adminTab()!=='operations',with:workspace">
-  <div class="workspace-toast" role="status" aria-live="polite" data-bind="visible:error()||notice(),css:{error:!!error(),success:!error()&&!!notice()}"><span data-bind="text:error()||notice()"></span></div>
   <div class="loading-line" role="progressbar" aria-label="Contacting compliance service" data-bind="visible:busy"></div>
   <!-- ko if:$parent.adminTab()==='compliance' -->
   <article class="panel admin-intro"><div><span class="eyebrow">A CLEARER VIEW OF RISK</span><h2>Every review. In focus.</h2><p>Review payment-linked cases, record decisions, and keep a clear audit trail.</p></div><button class="pill dark" data-bind="click:newCase,disable:busy">＋ Open manual case</button></article>

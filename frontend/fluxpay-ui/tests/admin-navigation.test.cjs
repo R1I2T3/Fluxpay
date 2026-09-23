@@ -18,9 +18,21 @@ function fixture(initialPath='home',role=null,restoredRole=role) {
   class Selection {constructor(){this.path=current;}}
   const dependencies={knockout:ko,'ojs/ojcorerouter':Router,'ojs/ojmodulerouter-adapter':ModuleAdapter,'ojs/ojknockoutrouteradapter':Selection,'ojs/ojurlparamadapter':class {},'ojs/ojurlpathparamadapter':class {},'ojs/ojcontext':{getPageContext:()=>({getBusyContext:()=>({applicationBootstrapComplete(){}})})},'ojs/ojmodule-element':{},'./services/session':{session,navigate}};
   const context={exports:{},require:name=>dependencies[name],window:{addEventListener:(name,fn)=>events.set(name,fn),scrollTo(){}},document:{addEventListener(){}},location:{hash:''},history:{replaceState(){}},URLSearchParams};
+  dependencies['./services/notifications']=require('./notification-fixture.cjs')();
+  const sounds=[];
+  dependencies['./services/transaction-sound']={prepareTransactionSound(){},playTransactionSuccessSound(){sounds.push('success');}};
   vm.runInNewContext(compiled,context);
-  return {root:context.exports.default,migrate:context.exports.migrateTrackingBookmark,session,navigate,calls,current,settle:async()=>{await new Promise(resolve=>setImmediate(resolve));}};
+  return {root:context.exports.default,migrate:context.exports.migrateTrackingBookmark,session,navigate,calls,current,events,sounds,settle:async()=>{await new Promise(resolve=>setImmediate(resolve));}};
 }
+
+test('success dialog opens for signed-in transactions and closes on activity navigation or logout',async()=>{
+  const f=fixture('wallets','CUSTOMER');await f.settle();const detail={title:'Money added',description:'Added to wallet',amount:'$10.00'};
+  f.events.get('fluxpay:transaction-success')({detail});assert.equal(f.root.transactionSuccess(),detail);assert.equal(f.sounds.length,1);
+  f.root.viewTransactionActivity();assert.equal(f.root.transactionSuccess(),undefined);assert.equal(f.calls.at(-1).path,'payments-list');
+  f.events.get('fluxpay:transaction-success')({detail});f.session.clear();assert.equal(f.root.transactionSuccess(),undefined);
+  f.events.get('fluxpay:transaction-success')({detail});assert.equal(f.root.transactionSuccess(),undefined);assert.equal(f.sounds.length,2);
+  const html=read('index.html');assert.ok(html.includes('experienceDialog:closeTransactionSuccess'));assert.ok(html.includes('aria-describedby="transaction-success-description"'));assert.ok(html.includes("attr:{inert:transactionSuccess()?'':null}"));
+});
 test('verification reminder follows server status and disappears after submission',async()=>{
   const f=fixture('dashboard','CUSTOMER');await f.settle();
   for(const status of ['NONE','NOT_SUBMITTED','UNVERIFIED']){f.session.user({role:'CUSTOMER',kycStatus:status});assert.equal(f.root.needsVerificationSubmission(),true);}
@@ -74,4 +86,10 @@ test('quick-pay recipient and new-person intent use URL path parameters, keeping
   f.navigate('payments-new',{action:'add-recipient'});assert.equal(f.calls.at(-1).params.recipient,'new');
   assert.match(read('ts/appController.ts'),/path:'send\/\{recipient\}'/);
   f.navigate('wallets',{action:'add-money'});assert.equal(f.calls.at(-1).path,'add-money');
+});
+
+test('dashboard wallet actions preserve their intent in reloadable routes and select Wallets',async()=>{
+  const f=fixture('dashboard','CUSTOMER');await f.settle();
+  for(const action of ['transfer','withdraw']){f.navigate('wallets',{action});assert.equal(f.calls.at(-1).path,'wallet-action');assert.equal(f.calls.at(-1).params.action,action);assert.equal(f.root.activeTab(),'wallets');}
+  assert.match(read('ts/appController.ts'),/path:'wallet-action\/\{action\}'/);
 });

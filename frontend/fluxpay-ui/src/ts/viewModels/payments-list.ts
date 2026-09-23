@@ -8,7 +8,7 @@ const shortId=(id:string)=>id?id.slice(0,8)+'…':'';
 class ViewModel extends Page {
   static shortId=shortId;
   entries=ko.observableArray<any>([]);
-  activityWarning=ko.observable('');
+  activityWarning=this.feedback('warning');
   movementLabel=movementLabel;
   movementDirection=movementDirection;
   filteredActivity=ko.pureComputed(()=>[...this.payments(),...this.entries()].filter(row=>this.matchesActivity(row)).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)));
@@ -30,10 +30,10 @@ class ViewModel extends Page {
   detailEvents=ko.observableArray<any>([]);
   detailQuotes=ko.observable<any>();
   detailBusy=ko.observable(false);
-  detailWarning=ko.observable('');
+  detailWarning=this.feedback('warning');
   detailUpdated=ko.observable('');
   detailPayBusy=ko.observable(false);
-  detailPayError=ko.observable('');
+  detailPayError=this.feedback('error');
   detailPayNotice=ko.observable('');
   detailPayReview=ko.observable(false);
   detailPayQuote=ko.observable<any>();

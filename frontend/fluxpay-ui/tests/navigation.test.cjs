@@ -5,7 +5,7 @@ const read=file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8');
 test('shell has logo/profile header and mobile bottom tabs, never a sidebar or hamburger',()=>{
   const html=read('index.html');
   assert.doesNotMatch(html,/class="sidebar"|class="menu-button"/);
-  assert.match(html,/← Back to home/);assert.match(html,/<header class="site-header">/);
+  assert.match(html,/← Back to home/);assert.match(html,/<header class="site-header"[^>]*>/);
   assert.match(html,/class="profile-menu"/);assert.match(html,/text:session.user\(\).fullName/);assert.match(html,/class="bottom-nav"/);
   assert.match(read('css/mobile-workspace.css'),/@media\(min-width:768px\)\{\.bottom-nav\{display:none !important;/);
 });
