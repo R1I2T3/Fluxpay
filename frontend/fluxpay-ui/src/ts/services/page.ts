@@ -1,5 +1,5 @@
 import * as ko from 'knockout';
-import { fluxApi as api } from './flux-api';
+import { fluxApi as api,requireQuoteRoute } from './flux-api';
 import { session, navigate } from './session';
 import {movementDescription} from './activity';
 import './experience-dialog';
@@ -237,6 +237,7 @@ export class Page {
     if(this.screen==='tracking')await this.inspectData();
   });
   protected async acceptQuote(){
+    requireQuoteRoute(this.selectedQuote());
     try{this.payment(await api.confirm(this.paymentId(),this.selectedQuote().id));}
     catch(error){
       // A compliance block is returned as an HTTP error after persisting REJECTED.
@@ -278,9 +279,9 @@ export class Page {
     else {
       const q=this.selectedQuote() || this.quotes().find(q=>q.id===this.payment()?.selectedQuoteId);
       if(!q)throw new Error('Select a quote before continuing.');
-      if(action==='payout')this.outcome(await api.payout(id,q.routeCode));
+      if(action==='payout')this.outcome(await api.payout(id,requireQuoteRoute(q)));
       if(action==='retry')this.outcome(await api.retry(id,q.id));
-      if(action==='switch')this.outcome(await api.switchRoute(id,q.routeCode,q.id));
+      if(action==='switch')this.outcome(await api.switchRoute(id,requireQuoteRoute(q),q.id));
     }
     this.confirmAction('');
     if(this.screen==='tracking')await this.inspectData();

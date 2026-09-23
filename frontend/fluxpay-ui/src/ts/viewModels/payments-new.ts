@@ -1,6 +1,6 @@
 import { Page } from '../services/page';
 import * as ko from 'knockout';
-import {fluxApi} from '../services/flux-api';
+import {fluxApi,requireQuoteRoute} from '../services/flux-api';
 import '../services/experience-dialog';
 class ViewModel extends Page {
   quoteFetchedAt=ko.observable(0);
@@ -59,10 +59,11 @@ class ViewModel extends Page {
   private async submitTransfer(){
     const quote=this.selectedQuote()||this.quotes().find(q=>q.id===this.payment()?.selectedQuoteId);
     if(!this.canSubmitPayout()||!quote)throw new Error('This transfer is not ready to submit. Refresh its status first.');
+    const routeCode=requireQuoteRoute(quote);
     // Once dispatched, an uncertain response must never cause an automatic second payout.
     this.payoutSubmitted(true);
     try {
-      this.outcome(await fluxApi.payout(this.paymentId(),quote.routeCode));
+      this.outcome(await fluxApi.payout(this.paymentId(),routeCode));
       await this.readTransfer();
     } catch(error) {
       await this.readTransfer().catch(()=>undefined);

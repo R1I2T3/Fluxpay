@@ -211,9 +211,10 @@ test('policy chunk maintenance keeps editing manual-only while allowing any chun
 });
 
 function paymentPage(api){
-  const context={exports:{},require:name=>name==='knockout'?ko:name==='./notifications'?notifications:name==='./flux-api'?{fluxApi:api}:{session:{user:ko.observable({role:'USER'})},navigate:()=>{}},window:{setInterval:()=>1,addEventListener:()=>{},removeEventListener:()=>{}},sessionStorage:{getItem:()=>null},clearInterval:()=>{},setInterval:()=>1,document:{visibilityState:'visible'}};
+  const helpers={exports:{},window:{}};vm.runInNewContext(compile('ts/services/flux-api.ts'),helpers);
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./notifications'?notifications:name==='./flux-api'?{...helpers.exports,fluxApi:api}:{session:{user:ko.observable({role:'USER'})},navigate:()=>{}},window:{setInterval:()=>1,addEventListener:()=>{},removeEventListener:()=>{}},sessionStorage:{getItem:()=>null},clearInterval:()=>{},setInterval:()=>1,document:{visibilityState:'visible'}};
   vm.runInNewContext(compile('ts/services/page.ts'),context);const page=new context.exports.Page('payments-new');
-  page.paymentId(id);page.payment({id,status:'QUOTED'});page.quotes([{id:'quote'}]);page.selectedQuote({id:'quote'});page.quoteExpires(new Date(Date.now()+600000).toISOString());page.confirmAction('confirm');return page;
+  page.paymentId(id);page.payment({id,status:'QUOTED'});page.quotes([{id:'quote',routeCode:'BANK_TRANSFER'}]);page.selectedQuote({id:'quote',routeCode:'BANK_TRANSFER'});page.quoteExpires(new Date(Date.now()+600000).toISOString());page.confirmAction('confirm');return page;
 }
 test('202 review confirmation enters review-aware completion, not payout execution',async()=>{const page=paymentPage({confirm:async()=>({id,status:'UNDER_REVIEW'})});await page.executeAction();assert.equal(page.step(),3);assert.equal(page.payment().status,'UNDER_REVIEW');assert.equal(page.confirmAction(),'');page.disconnected();});
 test('persisted compliance rejection is displayed even when confirm returns an error',async()=>{const page=paymentPage({confirm:async()=>{throw Error('Payment blocked');},payment:async()=>({id,status:'REJECTED'})});await page.executeAction();assert.equal(page.payment().status,'REJECTED');assert.equal(page.step(),3);assert.equal(page.error(),'');page.disconnected();});
