@@ -1,0 +1,24 @@
+body:has(.transaction-success-backdrop){overflow:hidden}
+.transaction-success-backdrop{position:fixed;inset:0;z-index:3000;background:#17233599;backdrop-filter:blur(3px);display:grid;place-items:center;padding:20px;overflow:auto;overscroll-behavior:contain}
+.transaction-confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.transaction-success-dialog{position:relative;z-index:1;width:min(100%,420px);max-height:calc(100dvh - 40px);overflow:auto;box-sizing:border-box;padding:24px 28px 20px;border:1px solid #e5eaf0;border-radius:20px;text-align:center;color:#202a35;background:#fff;box-shadow:0 24px 80px #09142440;animation:success-enter .35s cubic-bezier(.2,.8,.2,1) both}
+.success-receipt-brand{display:flex;align-items:center;gap:12px;text-align:left;padding-right:32px;margin-bottom:28px;font-size:17px;font-weight:700;letter-spacing:-.6px;color:#202a35}.success-receipt-brand span{border-left:1px solid #dce2e8;padding-left:12px;font-size:8px;font-weight:600;letter-spacing:1.2px;color:#718092}
+.transaction-success-close{position:absolute;right:14px;top:14px;border:0;border-radius:50%;width:36px;height:36px;background:#f3f6f8;color:#597080;font-family:inherit;font-size:24px;line-height:1;cursor:pointer}
+.transaction-success-art{width:86px;height:86px;margin:0 auto 16px}
+.success-seal{display:block;width:100%;height:100%;overflow:visible;animation:success-settle .65s .65s cubic-bezier(.2,.8,.2,1) both}
+.success-seal-ground{fill:#2465d8;animation:success-disc .55s .15s cubic-bezier(.2,.8,.2,1) both;transform-origin:center}
+.success-seal-ring{stroke:#a8c6ff;stroke-width:1.5;stroke-dasharray:1;stroke-dashoffset:0;transform:rotate(-90deg);transform-origin:50px 50px;animation:success-stroke .8s .15s cubic-bezier(.3,0,.2,1) both}
+.success-seal-tick{stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:0;animation:success-stroke .5s .65s cubic-bezier(.3,0,.2,1) both}
+.transaction-success-eyebrow{font-size:12px!important;letter-spacing:.1px;font-weight:500;color:#23775f!important;margin:8px 0!important}
+.transaction-success-dialog h2{font-size:21px;line-height:1.25;letter-spacing:-.5px;margin:8px 0;color:#202a35;font-weight:600}
+.transaction-success-amount{display:block;font-size:40px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-1.5px;margin:12px 0;overflow-wrap:anywhere}
+.transaction-success-dialog p{font-size:13px;line-height:1.7;color:#6b7d8b;margin:14px 0}
+.transaction-success-receipt{margin:20px 0;padding:13px 0;border-top:1px dashed #d9e1e9;border-bottom:0;color:#637080;font-size:11px}.transaction-success-receipt span{color:#23775f;margin-right:6px}
+.transaction-success-done{display:flex;justify-content:center;gap:14px;align-items:center;width:100%;min-height:50px;border:0;border-radius:14px;background:#2874db;color:#fff;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;transition:background .2s,transform .2s}.transaction-success-done:hover{background:#1d61bd;transform:translateY(-1px)}
+.transaction-success-activity{background:none;border:0;padding:17px 8px 5px;color:#527493;font-family:inherit;font-weight:500;font-size:12px;cursor:pointer}.transaction-success-dialog button:focus-visible{outline:3px solid #80b0f2;outline-offset:3px}
+@keyframes success-enter{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes success-stroke{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes success-settle{from{transform:scale(.94)}to{transform:scale(1)}}
+@keyframes success-disc{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+@media(max-width:480px){.transaction-success-dialog{padding:22px 24px 18px;border-radius:18px}.transaction-success-dialog h2{font-size:21px}.transaction-success-amount{font-size:34px}.transaction-success-art{width:80px;height:80px;margin-bottom:16px}}
+@media(prefers-reduced-motion:reduce){.transaction-confetti{display:none}.transaction-success-dialog,.transaction-success-art *{animation:none!important}.transaction-success-done{transition:none}}

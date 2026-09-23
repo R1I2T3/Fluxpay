@@ -1,6 +1,7 @@
 import * as ko from 'knockout';
 import { fluxApi as api, PolicyDocument, PolicyChunk, PolicyGuidance, ComplianceCase, CopilotAnswer } from './flux-api';
 import { session } from './session';
+import {feedbackObservable} from './notifications';
 
 const policyCategories = ['KYC','AML','PAYMENT_REVIEW','COUNTRY_RULE','SUPPORT'];
 let nextPolicyDraftId = 0;
@@ -18,7 +19,7 @@ export class PolicyDraft {
     this.category=ko.observable(value.category||'PAYMENT_REVIEW');
     this.content=ko.observable(value.content||'');
     this.clearExistingChunks=ko.observable(value.clearExistingChunks??true);
-    this.error=ko.observable('');
+    this.error=feedbackObservable('error');
   }
 }
 
@@ -96,8 +97,8 @@ ko.bindingHandlers.policyAnswer = {
 export class ComplianceWorkspace {
   session = session;
   busy = ko.observable(false);
-  error = ko.observable('');
-  notice = ko.observable('');
+  error = feedbackObservable('error',()=>!this.disposed);
+  notice = feedbackObservable('success',()=>!this.disposed);
   policies = ko.observableArray<PolicyDocument>([]);
   policyDrafts = ko.observableArray<PolicyDraft>([]);
   draftEditor = ko.observable<PolicyDraft>();
@@ -112,7 +113,7 @@ export class ComplianceWorkspace {
     read:()=>this.policyEdit()?.clearExistingChunks()??true,
     write:(value:boolean)=>{const draft=this.policyEdit();if(draft)draft.clearExistingChunks(value);}
   });
-  policyImportError = ko.observable('');
+  policyImportError = feedbackObservable('error',()=>!this.disposed);
   cases = ko.observableArray<ComplianceCase>([]);
   chunks = ko.observableArray<PolicyChunk>([]);
   guidance = ko.observableArray<PolicyGuidance>([]);

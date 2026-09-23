@@ -7,6 +7,10 @@ import UrlPathParamAdapter = require('ojs/ojurlpathparamadapter');
 import Context = require('ojs/ojcontext');
 import 'ojs/ojmodule-element';
 import { session, navigate } from './services/session';
+import './services/experience-dialog';
+import './services/transaction-celebration';
+import {ToastCenter,feedbackObservable} from './services/notifications';
+import {prepareTransactionSound,playTransactionSuccessSound} from './services/transaction-sound';
 
 export function migrateTrackingBookmark(value:string):string{
   const [path,...parts]=value.replace(/^\//,'').split(';');
@@ -18,7 +22,11 @@ export function migrateTrackingBookmark(value:string):string{
 class RootViewModel {
   session = session;
   menuOpen = ko.observable(false);
-  message = ko.observable('');
+  message = feedbackObservable('error');
+  toasts = new ToastCenter();
+  transactionSuccess = ko.observable<any>();
+  closeTransactionSuccess = ()=>this.transactionSuccess(undefined);
+  viewTransactionActivity = ()=>{this.closeTransactionSuccess();navigate('payments-list');};
   nav = [
     {path:'dashboard',label:'Home',icon:'◫'}, {path:'wallets',label:'Wallets',icon:'◉'},
     {path:'payments-new',label:'Send',icon:'↗'}, {path:'payments-list',label:'Activity',icon:'⇄'},
@@ -38,9 +46,15 @@ class RootViewModel {
   bottomNav = this.nav.filter(n=>['dashboard','wallets','payments-new','payments-list','account'].includes(n.path)).map(n=>({...n,label:n.path==='account'?'More':n.label}));
   activeTab = ko.pureComputed(()=>{
     const path=this.selection?.path();
-    return path==='send'?'payments-new':path==='add-money'?'wallets':['tracking','activity','history','payments-list'].includes(path||'')?'payments-list':['recipients','kyc','tickets','account'].includes(path||'')?'account':path;
+    return path==='send'?'payments-new':['add-money','wallet-action'].includes(path||'')?'wallets':['tracking','activity','history','payments-list'].includes(path||'')?'payments-list':['recipients','kyc','tickets','account'].includes(path||'')?'account':path;
   });
   constructor(){
+    prepareTransactionSound();
+    window.addEventListener('fluxpay:toast',(event:any)=>{this.toasts.show(event.detail?.kind,event.detail?.message);});
+    window.addEventListener('fluxpay:expired',()=>this.toasts.show('error','Your session has expired. Please log in again.'));
+    document.addEventListener('invalid',event=>{const field=event.target as HTMLInputElement;this.toasts.show('error',field.validationMessage||'Please check the highlighted field.');},true);
+    window.addEventListener('fluxpay:transaction-success',(event:any)=>{if(session.user()){this.toasts.clear();this.transactionSuccess(event.detail);playTransactionSuccessSound();}});
+    session.user.subscribe(user=>{this.closeTransactionSuccess();if(!user)this.toasts.clear();});
     const savedQuery=new URLSearchParams(location.search||'');
     const savedRoute=savedQuery.get('ojr')||'';
     const migrated=migrateTrackingBookmark(savedRoute);
@@ -50,6 +64,7 @@ class RootViewModel {
       {path:'history/{id}',detail:{label:'Transaction receipt',module:'payments-list'}},
       {path:'send/{recipient}',detail:{label:'Send to someone',module:'payments-new'}},
       {path:'add-money',detail:{label:'Add money',module:'wallets'}},
+      {path:'wallet-action/{action}',detail:{label:'Move money',module:'wallets'}},
       {path:'tickets',detail:{label:'Support',module:'support-mount'}}];
     this.router = new CoreRouter(routes,{urlAdapter:new UrlParamAdapter(new UrlPathParamAdapter(''))});
     this.moduleAdapter = new ModuleRouterAdapter(this.router,{pathKey:'module'});
@@ -57,7 +72,7 @@ class RootViewModel {
     this.isHome = ko.pureComputed(()=>this.selection.path()==='home');
     this.isPublic = ko.pureComputed(()=>['home','login','register',''].includes(this.selection.path()||''));
     this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||['admin','admin-tickets'].includes(this.selection.path()||'')));
-    this.selection.path.subscribe(()=>{this.menuOpen(false);document.querySelector?.('.profile-menu')?.removeAttribute('open');window.scrollTo({top:0});});
+    this.selection.path.subscribe(()=>{this.closeTransactionSuccess();this.menuOpen(false);document.querySelector?.('.profile-menu')?.removeAttribute('open');window.scrollTo({top:0});});
     window.addEventListener('fluxpay:navigate', (event:any)=> {
       const {path,params} = event.detail;
       // Existing login and account links request dashboard; admins land in Administration.
@@ -66,6 +81,7 @@ class RootViewModel {
       if(path==='tracking'){destination=params?.payment?'activity':'payments-list';destinationParams=params?.payment?{id:params.payment}:{};}
       if(path==='payments-new'&&(params?.recipient||params?.action==='add-recipient')){destination='send';destinationParams={recipient:params.recipient||'new'};}
       if(path==='wallets'&&params?.action==='add-money'){destination='add-money';destinationParams={};}
+      if(path==='wallets'&&['transfer','withdraw'].includes(params?.action)){destination='wallet-action';destinationParams={action:params.action};}
       this.message('');
       void this.router.go({path:destination,params:destinationParams}).catch(e=>this.message(e.message));
     });
