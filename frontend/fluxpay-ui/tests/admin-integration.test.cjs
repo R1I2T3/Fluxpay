@@ -82,7 +82,9 @@ test('review queues use native open buttons and keyboard focus targets',()=>{
       assert.doesNotMatch(html,/>\s*Open\s*<\/button>/);
       assert.match(viewModel,/copyPaymentId/);
     } else {
-      assert.match(html,/>\s*Open\s*<\/button>/);
+      assert.match(html,/class="review-list-row"/);
+      assert.doesNotMatch(html,/>\s*Open\s*<\/button>/);
+      assert.match(viewModel,/closeTicket/);
     }
     assert.match(html,new RegExp(`id="${heading}"[^>]*tabindex="-1"`));
     assert.match(viewModel,/focusRecordHeading/);

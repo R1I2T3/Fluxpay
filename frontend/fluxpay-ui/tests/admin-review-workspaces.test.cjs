@@ -272,9 +272,22 @@ test('support queue prioritizes open, unassigned, and oldest records', async () 
   // excluded here (it is reachable via the CLOSED view below). Order proves
   // open-before-in-progress, unassigned-before-assigned, oldest-first.
   assert.deepEqual(Array.from(page.visibleTickets(), item => item.id), ['unassigned', 'assigned', 'in-progress']);
-  assert.equal(page.selectedTicket().id, 'unassigned');
+  assert.equal(page.selectedTicket(), undefined);
   page.savedView('CLOSED');
   assert.deepEqual(Array.from(page.visibleTickets(), item => item.id), ['closed']);
+  page.disconnected();
+});
+
+test('support initial load does not open the first ticket and closeTicket clears selection', async () => {
+  const {page, finish} = ticketWorkspaceWithDeferredLoad();
+  const pending = page.loadTickets();
+  finish({items: [ticket({id: 'first'}), ticket({id: 'second'})], total: 2});
+  await pending;
+  assert.equal(page.selectedTicket(), undefined);
+  page.selectTicket(page.visibleTickets()[1]);
+  assert.equal(page.selectedTicket().id, 'second');
+  page.closeTicket();
+  assert.equal(page.selectedTicket(), undefined);
   page.disconnected();
 });
 
@@ -294,7 +307,9 @@ test('support copy says age and customer statement, never SLA or latest message'
   assert.match(html, /Customer statement/);
   assert.match(html, /Waiting over 24 hours/);
   assert.doesNotMatch(html, /\bSLA\b|Latest message/i);
-  for (const token of ['review-workspace', 'review-queue', 'record-detail', 'evidence-panel', 'sticky-decision-bar']) assert.ok(html.includes(token), token);
+  for (const token of ['review-queue', 'review-list-row', 'admin-confirmation', 'admin-workflow-modal', 'Assign to me']) assert.ok(html.includes(token), token);
+  assert.doesNotMatch(html, />\s*Open\s*<\/button>/);
+  assert.equal((html.match(/class="admin-confirmation/g) || []).length, 1);
 });
 
 test('support ASSIGNED_TO_ME view shows only my open tickets', async () => {
@@ -354,7 +369,6 @@ test('support selection survives a refresh when the ticket is still present', as
     ticket({id: 'b', status: 'OPEN', assigneeAdminId: 'admin-1', createdAt: '2026-09-20T00:00:00Z'})
   ], total: 2});
   await pending;
-  assert.equal(page.selectedTicket().id, 'a');
   page.selectTicket(page.visibleTickets().find(item => item.id === 'b'));
   assert.equal(page.selectedTicket().id, 'b');
   const refresh = page.loadTickets();
@@ -367,7 +381,7 @@ test('support selection survives a refresh when the ticket is still present', as
   const gone = page.loadTickets();
   finish({items: [ticket({id: 'c', status: 'OPEN', assigneeAdminId: null, createdAt: '2026-09-22T00:00:00Z'})], total: 1});
   await gone;
-  assert.equal(page.selectedTicket().id, 'c');
+  assert.equal(page.selectedTicket(), undefined);
   page.disconnected();
 });
 

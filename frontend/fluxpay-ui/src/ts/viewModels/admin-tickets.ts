@@ -98,11 +98,7 @@ class AdminTicketsViewModel extends Page {
     }
     const currentId = this.selectedTicket()?.id;
     const retained = currentId && items.find((item) => item.id === currentId);
-    if (retained) {
-      this.selectedTicket(retained);
-      return;
-    }
-    this.selectedTicket(this.visibleTickets()[0]);
+    this.selectedTicket(retained || undefined);
   }
 
   loadTickets = () => this.run(() => this.fetchTickets());
@@ -117,6 +113,10 @@ class AdminTicketsViewModel extends Page {
   selectTicket = (ticket: TicketResponse, event?: { detail: number }) => {
     this.selectedTicket(ticket);
     if (event) focusRecordHeading(event, 'support-record-heading');
+  };
+
+  closeTicket = () => {
+    if (!this.busy()) this.selectedTicket(undefined);
   };
 
   ticketAge = (ticket: TicketResponse) => {
