@@ -1,6 +1,20 @@
 const base = (window as any).FLUXPAY_API_URL || '';
 const pending = new Map<string,string>();
 const token = () => sessionStorage.getItem('fluxpay.token') || '';
+// Older local backends return `route`; current backends return `routeCode`.
+// Both are route-code snapshots. Never substitute a catalogue UUID or display name.
+export function quoteRouteCode(quote:any):string {
+  for(const value of [quote?.routeCode,quote?.route])if(typeof value==='string'&&value.trim())return value.trim();
+  return '';
+}
+export function requireQuoteRoute(quote:any):string {
+  const routeCode=quoteRouteCode(quote);
+  if(!routeCode)throw new Error('This delivery option is missing its payment route. Refresh the delivery options before sending.');
+  return routeCode;
+}
+function normalizePaymentQuotes(data:any){
+  return {...data,quotes:(data?.quotes||[]).map((quote:any)=>({...quote,routeCode:quoteRouteCode(quote)}))};
+}
 // Only celebrate writes confirmed by the server. Ordinary history reads never trigger a popup.
 let feedbackOwner = '';
 const awaitedPayments = new Map<string,string>();
@@ -108,8 +122,8 @@ export const fluxApi = {
   withdraw:(body:{bankAccountId:string;currency:string;amount:string;note:string})=>request<any>('/api/wallets/withdraw','POST',body,true),
   walletTransfer:(body:{toEmail?:string;toUserId?:string;fromCurrency:string;toCurrency:string;amount:string;amountMode:string;note:string})=>request<any>('/api/wallets/transfer','POST',body,true),
   recipients:()=>request<any[]>('/api/recipients'), recipient:(b:any)=>request<any>('/api/recipients','POST',b,true), updateRecipient:(id:string,b:any)=>request<any>(`/api/recipients/${id}`,'PUT',b),
-  payments:(page=0,size=20)=>request<any>(`/api/payments?page=${page}&size=${size}`), payment:(id:string)=>request<any>(`/api/payments/${id}`), draft:(b:any)=>request<any>('/api/payments/draft','POST',b,true), quotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`,'POST',undefined,true), getQuotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`), confirm:(id:string,q:string)=>request<any>(`/api/payments/${id}/confirm`,'POST',{quoteId:q},true), cancel:(id:string)=>request<any>(`/api/payments/${id}/cancel`,'POST',undefined,true), timeline:(id:string)=>request<any[]>(`/api/payments/${id}/timeline`),
-  routes:()=>request<any>('/api/routes'), recommend:(id:string,p:string)=>request<any>(`/api/payments/${id}/recommend-route`,'POST',{preference:p}), payout:(id:string,r:string)=>request<any>(`/api/payments/${id}/submit-payout`,'POST',{routeCode:r},true), retry:(id:string,q:string)=>request<any>(`/api/payments/${id}/retry-payout`,'POST',{quoteId:q},true), switchRoute:(id:string,r:string,q:string)=>request<any>(`/api/payments/${id}/switch-route`,'POST',{routeCode:r,quoteId:q},true), refund:(id:string)=>request<any>(`/api/payments/${id}/refund`,'POST',undefined,true),
+  payments:(page=0,size=20)=>request<any>(`/api/payments?page=${page}&size=${size}`), payment:(id:string)=>request<any>(`/api/payments/${id}`), draft:(b:any)=>request<any>('/api/payments/draft','POST',b,true), quotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`,'POST',undefined,true).then(normalizePaymentQuotes), getQuotes:(id:string)=>request<any>(`/api/payments/${id}/quotes`).then(normalizePaymentQuotes), confirm:(id:string,q:string)=>request<any>(`/api/payments/${id}/confirm`,'POST',{quoteId:q},true), cancel:(id:string)=>request<any>(`/api/payments/${id}/cancel`,'POST',undefined,true), timeline:(id:string)=>request<any[]>(`/api/payments/${id}/timeline`),
+  routes:()=>request<any>('/api/routes'), recommend:(id:string,p:string)=>request<any>(`/api/payments/${id}/recommend-route`,'POST',{preference:p}), payout:async(id:string,r:string)=>request<any>(`/api/payments/${id}/submit-payout`,'POST',{routeCode:requireQuoteRoute({routeCode:r})},true), retry:(id:string,q:string)=>request<any>(`/api/payments/${id}/retry-payout`,'POST',{quoteId:q},true), switchRoute:async(id:string,r:string,q:string)=>request<any>(`/api/payments/${id}/switch-route`,'POST',{routeCode:requireQuoteRoute({routeCode:r}),quoteId:q},true), refund:(id:string)=>request<any>(`/api/payments/${id}/refund`,'POST',undefined,true),
   adminKyc:(status='PENDING',page=0)=>request<any[]>(`/api/admin/kyc/applications?status=${status}&page=${page}&size=20`), approve:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/approve`,'PUT',b), reject:(id:string,b:any)=>request<any>(`/api/admin/kyc/applications/${id}/reject`,'PUT',b),
   railTypes:()=>request<{railTypes:RailDescriptor[]}>('/api/admin/rail-types').then(response=>response.railTypes||[]),
   providers:()=>request<{providers:TransferProvider[]}>('/api/admin/providers').then(response=>response.providers||[]),
