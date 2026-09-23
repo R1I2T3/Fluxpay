@@ -40,6 +40,30 @@ test('templates use safe bindings and accessible status text',()=>{
   assert.match(read('ts/views/admin.html'),/Open filtered queue/);
 });
 
+test('every administrator workspace announces its loading state politely',()=>{
+  const expected={
+    'admin-kyc':'Loading KYC reviews',
+    'admin-compliance':'Loading compliance cases',
+    'admin-tickets':'Loading support tickets',
+    'admin-providers':'Loading providers',
+    'admin-routes':'Loading payout routes',
+    'admin-policies':'Loading policies',
+    'admin-copilot':'Loading Compliance Copilot'
+  };
+  for(const [route,message] of Object.entries(expected)){
+    const html=read(`ts/views/${route}.html`);
+    assert.match(html,new RegExp(`class="[^"]*admin-loading-status[^"]*"\\s+role="status"\\s+aria-live="polite"\\s+data-bind="[^"]*busy\\(\\)[^"]*${message}`),route);
+  }
+});
+
+test('overview and support controls are inside the administrator gate',()=>{
+  for(const route of ['admin','admin-tickets']){
+    const html=read(`ts/views/${route}.html`);
+    const gate=html.indexOf('<!-- ko if: session.isAdmin() -->');
+    assert.ok(gate>=0&&gate<html.indexOf('<header'),route);
+  }
+});
+
 test('review queues use native open buttons and keyboard focus targets',()=>{
   const reviews=[
     ['admin-kyc','kyc-record-heading'],

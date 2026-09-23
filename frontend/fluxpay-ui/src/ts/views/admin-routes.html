@@ -41,9 +41,31 @@
       aria-live="polite"
       data-bind="visible:notice,text:notice"
     ></div>
+    <p
+      class="sr-only admin-loading-status"
+      role="status"
+      aria-live="polite"
+      data-bind="text:busy()?'Loading payout routes.':''"
+    ></p>
   </div>
   <!-- ko if:mode()==='CATALOGUE' -->
-  <section aria-label="Route catalogue">
+  <div class="configuration-workspace">
+  <section class="configuration-list" aria-label="Route catalogue">
+    <div class="filter-row">
+      <label>Search<input type="search" aria-label="Search payout routes" data-bind="textInput:workspace.search" /></label>
+      <label>Provider<select data-bind="value:workspace.providerFilter">
+        <option value="ALL">All providers</option>
+        <!-- ko foreach:workspace.providers --><option data-bind="value:id,text:providerName"></option><!-- /ko -->
+      </select></label>
+      <label>Destination<select data-bind="value:workspace.destinationFilter">
+        <option value="ALL">All destinations</option><option value="EXTERNAL_ACCOUNT">External account</option><option value="INTERNAL_WALLET">Internal wallet</option>
+      </select></label>
+      <label>Country<input maxlength="2" placeholder="All" data-bind="textInput:workspace.countryFilter" /></label>
+      <label>Currency<input maxlength="3" placeholder="All" data-bind="textInput:workspace.currencyFilter" /></label>
+      <label>Status<select data-bind="value:workspace.statusFilter">
+        <option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
+      </select></label>
+    </div>
     <div class="action-row">
       <button class="pill dark" data-bind="click:workspace.newRoute,disable:workspace.busy">
         New route
@@ -111,15 +133,13 @@
       <p>No routes match the current filters.</p>
     </div>
   </section>
-  <div data-bind="with:workspace">
-    <aside class="configuration-editor" data-bind="visible:routeForm">
-      <div
-        class="admin-confirmation"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="route-editor-title"
-        data-bind="adminDialog:true"
-      >
+  <!-- ko with:workspace -->
+    <aside class="configuration-editor">
+      <div class="empty-state" data-bind="visible:!routeForm()">
+        <h2>Select a payout route</h2>
+        <p>Choose a route to edit, or create a new route.</p>
+      </div>
+      <!-- ko if:routeForm -->
         <section>
           <div class="panel-heading">
             <h2
@@ -228,7 +248,7 @@
             <button class="pill dark" data-bind="disable:busy">Review changes</button>
           </form>
         </section>
-      </div>
+      <!-- /ko -->
     </aside>
     <!-- ko if:saveReview()==='route' -->
     <div
@@ -266,6 +286,7 @@
       </section>
     </div>
     <!-- /ko -->
+  <!-- /ko -->
   </div>
   <!-- /ko -->
   <!-- ko if:mode()==='MATRIX' -->

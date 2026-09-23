@@ -30,6 +30,12 @@
       aria-live="polite"
       data-bind="visible:notice,text:notice"
     ></div>
+    <p
+      class="sr-only admin-loading-status"
+      role="status"
+      aria-live="polite"
+      data-bind="text:busy()?'Loading providers.':''"
+    ></p>
     <div class="configuration-workspace">
       <section class="configuration-list" aria-label="Provider list">
         <label

@@ -65,7 +65,7 @@ class RootViewModel {
     this.selection = new KnockoutRouterAdapter(this.router);
     this.isHome = ko.pureComputed(()=>this.selection.path()==='home');
     this.isPublic = ko.pureComputed(()=>['home','login','register',''].includes(this.selection.path()||''));
-    this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||this.adminPaths.includes(this.selection.path()||'')));
+    this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&session.isAdmin());
     this.selection.path.subscribe(()=>{this.menuOpen(false);document.querySelector?.('.profile-menu')?.removeAttribute('open');window.scrollTo({top:0});});
     window.addEventListener('fluxpay:navigate', (event:any)=> {
       const {path,params} = event.detail;

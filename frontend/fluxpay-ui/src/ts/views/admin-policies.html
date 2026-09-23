@@ -32,6 +32,12 @@
       aria-live="polite"
       data-bind="visible:notice,text:notice"
     ></div>
+    <p
+      class="sr-only admin-loading-status"
+      role="status"
+      aria-live="polite"
+      data-bind="text:busy()?'Loading policies.':''"
+    ></p>
     <article class="panel policy-creation-panel">
       <div class="panel-heading">
         <div>

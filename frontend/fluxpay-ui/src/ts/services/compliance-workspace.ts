@@ -50,23 +50,6 @@ export function parsePolicyImport(raw:unknown):PolicyDraft[]{
   });
 }
 
-// Keep keyboard focus inside destructive-action confirmations and return it on close.
-ko.bindingHandlers.adminDialog = {
-  init(element:HTMLElement){
-    const previous=document.activeElement as HTMLElement|null;
-    const controls=()=>Array.from(element.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),[tabindex="0"]'));
-    const focus=window.setTimeout(()=>controls()[0]?.focus(),0);
-    const trap=(event:KeyboardEvent)=>{
-      if(event.key!=='Tab')return;
-      const items=controls(),first=items[0],last=items[items.length-1];
-      if(!first){event.preventDefault();return;}
-      if(event.shiftKey&&(document.activeElement===first||!element.contains(document.activeElement))){event.preventDefault();last.focus();}
-      else if(!event.shiftKey&&(document.activeElement===last||!element.contains(document.activeElement))){event.preventDefault();first.focus();}
-    };
-    element.addEventListener('keydown',trap);
-    ko.utils.domNodeDisposal.addDisposeCallback(element,()=>{clearTimeout(focus);element.removeEventListener('keydown',trap);if(previous?.isConnected)previous.focus();});
-  }
-};
 ko.bindingHandlers.adminReveal = {
   update(element:HTMLElement,valueAccessor:()=>unknown){
     ko.unwrap(valueAccessor());

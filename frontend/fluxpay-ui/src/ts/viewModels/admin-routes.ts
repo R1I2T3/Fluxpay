@@ -1,6 +1,7 @@
 // viewModels/admin-routes.ts
 import * as ko from 'knockout';
 import { resolveAdminEnvironment } from '../services/admin-console';
+import '../services/admin-dialog';
 import { RoutingWorkspace } from '../services/routing-workspace';
 import {
   buildCorridorMatrix,

@@ -36,7 +36,7 @@ export function resolveAdminEnvironment(configured: unknown, hostname: string): 
   if (explicit in environments) return environments[explicit];
   const host = hostname.toLowerCase();
   if (host === 'localhost' || host === '127.0.0.1') return environments.SANDBOX;
-  if (/(^|[.-])(staging|stage|uat)([.-]|$)/.test(host)) return environments.STAGING;
+  if (/(staging|stage|uat)/.test(host)) return environments.STAGING;
   return environments.PRODUCTION;
 }
 export function isOlderThanHours(value: unknown, hours: number, now = Date.now()): boolean {

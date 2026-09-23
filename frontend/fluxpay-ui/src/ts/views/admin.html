@@ -1,4 +1,5 @@
 <section class="admin-page overview-page">
+  <!-- ko if: session.isAdmin() -->
   <header class="admin-page-heading">
     <div>
       <span class="eyebrow">OVERVIEW</span>
@@ -7,6 +8,7 @@
     </div>
     <button class="pill soft" data-bind="click:loadOverview">Refresh</button>
   </header>
+  <!-- /ko -->
   <!-- ko if: !session.user() -->
   <div class="sign-in-gate">
     <span class="gate-icon">→</span>

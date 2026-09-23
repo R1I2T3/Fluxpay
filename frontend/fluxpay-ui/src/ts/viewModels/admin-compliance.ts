@@ -1,6 +1,7 @@
 // viewModels/admin-compliance.ts
 import * as ko from 'knockout';
 import { focusRecordHeading } from '../services/admin-console';
+import '../services/admin-dialog';
 import { ComplianceWorkspace } from '../services/compliance-workspace';
 import { navigate, session } from '../services/session';
 

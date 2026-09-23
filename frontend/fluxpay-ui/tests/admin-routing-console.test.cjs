@@ -146,6 +146,69 @@ test('providers page keeps the admin gate, protection copy and environment label
   viewModel.disconnected();
 });
 
+test('direct provider navigation installs the shared dialog focus trap', async () => {
+  const previousHandler=ko.bindingHandlers.adminDialog;
+  const previousDisposal=ko.utils.domNodeDisposal.addDisposeCallback;
+  let activeElement;
+  let keydown;
+  let dispose;
+  const previousFocus={isConnected:true,focus(){activeElement=this;}};
+  const first={focus(){activeElement=this;}};
+  const last={focus(){activeElement=this;}};
+  activeElement=previousFocus;
+  const document={get activeElement(){return activeElement;}};
+  const window={
+    FLUXPAY_ENVIRONMENT:'STAGING',location:{hostname:'app.example'},
+    setTimeout(callback){callback();return 1;},clearTimeout(){}
+  };
+  const element={
+    querySelectorAll(){return [first,last];},
+    addEventListener(name,handler){if(name==='keydown')keydown=handler;},
+    removeEventListener(){},contains(value){return value===first||value===last;}
+  };
+  const user=ko.observable({role:'ADMIN'});
+  const session={user,isAdmin:ko.pureComputed(()=>true),restore:async()=>{}};
+  class FakeWorkspace {async loadAll(){} dispose(){}}
+  try{
+    delete ko.bindingHandlers.adminDialog;
+    ko.utils.domNodeDisposal.addDisposeCallback=(_element,callback)=>{dispose=callback;};
+    const dependencies={
+      knockout:ko,
+      '../services/admin-console':adminConsole,
+      '../services/routing-workspace':{RoutingWorkspace:FakeWorkspace},
+      '../services/session':{session}
+    };
+    let dialogLoaded=false;
+    const requireForPage=name=>{
+      if(name==='../services/admin-dialog'){
+        dialogLoaded=true;
+        const dialogContext={exports:{},require:dependency=>dependencies[dependency],window,document};
+        vm.runInNewContext(compile('ts/services/admin-dialog.ts'),dialogContext);
+        return {};
+      }
+      return dependencies[name];
+    };
+    const context={exports:{},module:{exports:{}},require:requireForPage,window,document};
+    vm.runInNewContext(compile('ts/viewModels/admin-providers.ts'),context);
+    new context.module.exports();
+    assert.equal(dialogLoaded,true);
+    assert.equal(typeof ko.bindingHandlers.adminDialog?.init,'function');
+    ko.bindingHandlers.adminDialog.init(element);
+    assert.equal(activeElement,first);
+    activeElement=last;
+    let prevented=false;
+    keydown({key:'Tab',shiftKey:false,preventDefault(){prevented=true;}});
+    assert.equal(prevented,true);
+    assert.equal(activeElement,first);
+    dispose();
+    assert.equal(activeElement,previousFocus);
+  }finally{
+    ko.utils.domNodeDisposal.addDisposeCallback=previousDisposal;
+    if(previousHandler)ko.bindingHandlers.adminDialog=previousHandler;
+    else delete ko.bindingHandlers.adminDialog;
+  }
+});
+
 // Route analysis section (Task 6): eligibility preview, corridor matrix and comparison.
 function loadAnalysis() {
   const context = {exports: {}};

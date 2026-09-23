@@ -108,6 +108,7 @@ test('policyId deep link opens the current document', async () => {
   const ViewModel = load('ts/viewModels/admin-policies.ts', {
     knockout: ko,
     '../services/admin-console': adminConsole,
+    '../services/admin-dialog': {},
     '../services/compliance-workspace': {ComplianceWorkspace: FakeWorkspace},
     '../services/session': {
       navigate: (routePath, params) => navigations.push([routePath, params]),

@@ -55,6 +55,13 @@ test('customer login and navigation remain unchanged',async()=>{
   assert.ok(!f.root.visibleNav().some(n=>n.path==='admin'));
   f.root.menuOpen(true);f.navigate('wallets');assert.equal(f.root.menuOpen(),false);
 });
+test('signed-out and customer admin deep links keep the customer shell',async()=>{
+  const signedOut=fixture('admin');await signedOut.settle();
+  assert.equal(signedOut.root.isAdminWorkspace(),false);
+  const customer=fixture('admin-routes','CUSTOMER');await customer.settle();
+  assert.equal(customer.root.isAdminWorkspace(),false);
+  assert.ok(customer.root.bottomNav.length>0);
+});
 test('admin shell exposes the approved grouped routes and no Governance group', async () => {
   const f=fixture('admin','ADMIN');await f.settle();
   assert.deepEqual(Array.from(f.root.adminNavGroups,group=>[group.label,Array.from(group.items,item=>item.path)]),[

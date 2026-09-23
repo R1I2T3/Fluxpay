@@ -1,5 +1,6 @@
 // viewModels/admin-policies.ts
 import { resolveAdminEnvironment } from '../services/admin-console';
+import '../services/admin-dialog';
 import { ComplianceWorkspace } from '../services/compliance-workspace';
 import { navigate, session } from '../services/session';
 

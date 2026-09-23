@@ -36,6 +36,12 @@
     data-bind="visible:workspace.notice,text:workspace.notice"
   ></div>
   <div data-bind="with:workspace">
+    <p
+      class="sr-only admin-loading-status"
+      role="status"
+      aria-live="polite"
+      data-bind="text:busy()?'Loading compliance cases.':''"
+    ></p>
     <div class="review-workspace compliance-review-workspace">
       <aside class="review-queue" aria-label="Compliance review queue">
         <label

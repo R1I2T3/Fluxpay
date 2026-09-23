@@ -32,6 +32,12 @@
     aria-live="polite"
     data-bind="visible:notice,text:notice"
   ></div>
+  <p
+    class="sr-only admin-loading-status"
+    role="status"
+    aria-live="polite"
+    data-bind="text:busy()?'Loading Compliance Copilot.':''"
+  ></p>
   <div class="copilot-workspace">
     <aside class="copilot-context">
       <h2>Case context</h2>

@@ -332,6 +332,9 @@ test('route workspace renders catalogue, matrix, comparison and preview without 
   for(const view of ['CATALOGUE','MATRIX','COMPARE','PREVIEW'])assert.ok(routesHtml.includes(view),`missing ${view}`);
   assert.ok(routesHtml.includes('Workspace view'));
   assert.ok(routesHtml.includes('event:{change:changeMode}'));
+  assert.ok(routesHtml.includes('configuration-workspace'));
+  assert.ok(routesHtml.includes('type="search"'));
+  for(const binding of ['workspace.search','workspace.providerFilter','workspace.destinationFilter','workspace.countryFilter','workspace.currencyFilter','workspace.statusFilter'])assert.ok(routesHtml.includes(binding),`missing ${binding}`);
   for(const binding of ['catalogueRoutes','comparison','matrix','preview','previewCountry','previewCurrency','previewAmount','previewDestination','runPreview','requestRouteSave','routeChanges','confirmRouteSave','providerDisplayName','routeProtected','attentionOnly'])assert.ok(routesHtml.includes(binding),`missing ${binding}`);
   assert.ok(routesHtml.includes('Attention only'));
   assert.ok(routesHtml.includes('Available · '));

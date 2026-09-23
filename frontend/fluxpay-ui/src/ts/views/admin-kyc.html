@@ -29,6 +29,12 @@
     aria-live="polite"
     data-bind="visible:notice,text:notice"
   ></div>
+  <p
+    class="sr-only admin-loading-status"
+    role="status"
+    aria-live="polite"
+    data-bind="text:busy()?'Loading KYC reviews.':''"
+  ></p>
   <div class="review-workspace">
     <aside class="review-queue" aria-label="KYC review queue">
       <label

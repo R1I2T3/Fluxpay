@@ -103,6 +103,7 @@ test('navigateToCopilot dispatches admin-copilot with the selected case and paym
   const ViewModel = load('ts/viewModels/admin-compliance.ts', {
     knockout: ko,
     '../services/admin-console': helpers,
+    '../services/admin-dialog': {},
     '../services/compliance-workspace': {ComplianceWorkspace: FakeWorkspace},
     '../services/session': {
       navigate: (routePath, params) => navigateCalls.push([routePath, params]),

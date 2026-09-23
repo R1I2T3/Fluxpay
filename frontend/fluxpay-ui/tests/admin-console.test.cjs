@@ -10,6 +10,9 @@ test('environment values are case-insensitive and hostname fallback is determini
   assert.equal(helpers.resolveAdminEnvironment('production', 'localhost').name, 'PRODUCTION');
   assert.equal(helpers.resolveAdminEnvironment(undefined, '127.0.0.1').name, 'SANDBOX');
   assert.equal(helpers.resolveAdminEnvironment('unknown', 'payments-uat.fluxpay.test').name, 'STAGING');
+  assert.equal(helpers.resolveAdminEnvironment('', 'staging1.fluxpay.test').name, 'STAGING');
+  assert.equal(helpers.resolveAdminEnvironment('', 'prestage.fluxpay.test').name, 'STAGING');
+  assert.equal(helpers.resolveAdminEnvironment('', 'uat2.fluxpay.test').name, 'STAGING');
   assert.equal(helpers.resolveAdminEnvironment('', 'admin.fluxpay.example').name, 'PRODUCTION');
 });
 

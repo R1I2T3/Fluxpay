@@ -1,5 +1,6 @@
 // viewModels/admin-providers.ts
 import { resolveAdminEnvironment } from '../services/admin-console';
+import '../services/admin-dialog';
 import { RoutingWorkspace } from '../services/routing-workspace';
 import { session } from '../services/session';
 
