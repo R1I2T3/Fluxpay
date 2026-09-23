@@ -27,7 +27,7 @@ class PageStub {
   disconnected() {}
 }
 
-const helpers=load('ts/services/admin-console.ts', {'./flux-api':{}});
+const helpers=load('ts/services/admin-console.ts', {'./flux-api':{}}, {Date});
 const ViewModel=load('ts/viewModels/admin-kyc.ts', {
   knockout:ko,
   '../services/page':{Page:PageStub},

@@ -5,6 +5,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const ts=require('typescript');
 const ko=require('knockout');
+const notifications=require('./notification-fixture.cjs')();
 const read=file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8');
 const compile=file=>ts.transpileModule(read(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const id='11111111-1111-4111-8111-111111111111';
@@ -14,7 +15,7 @@ function workspace(overrides={},admin=true,runtime={}){
   const calls=[];
   const api=new Proxy(overrides,{get:(obj,name)=>async(...args)=>{calls.push([name,...args]);if(name in obj)return obj[name](...args);if(name==='policies')return [policy];if(name==='policy'||name==='createPolicy')return {...policy};if(name==='policyChunks')return [];if(name==='complianceCases')return [manual];if(name==='complianceCase'||name==='createComplianceCase')return {...manual};if(name==='decideComplianceCase')return {...manual,status:args[1]==='approve'?'APPROVED':'REJECTED'};if(name==='indexPolicy')return {policyDocumentId:id,chunkCount:2};if(name==='askCopilot')return {answer:'A sourced answer',sources:[]};}});
   const session={user:ko.observable({role:admin?'ADMIN':'USER'})};session.isAdmin=ko.pureComputed(()=>session.user()?.role==='ADMIN');
-  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api},...runtime};
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./notifications'?notifications:name==='./session'?{session}:{fluxApi:api},...runtime};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'),context);
   return {page:new context.exports.ComplianceWorkspace(),calls,session};
 }
@@ -41,7 +42,7 @@ test('saving manual chunk and guidance edits closes their editor after a success
  const {page}=workspace({policyGuidance:async()=>[],updatePolicyGuidance:async()=>({}),updatePolicyChunk:async()=>({})});page.policy({...policy});page.chunkEdit({id:'chunk',manual:true,content:'Old'});page.chunkEditContent('Updated');await page.saveChunkEdit();assert.equal(page.chunkEdit(),undefined);page.guidanceEdit({id:'guidance',content:'Old'});page.guidanceEditContent('Updated');await page.saveGuidanceEdit();assert.equal(page.guidanceEdit(),undefined);
 });
 test('policy import parser accepts a single object or array and rejects invalid input without state',()=>{
-  const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session:{}}:{fluxApi:{}}};
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./notifications'?notifications:name==='./session'?{session:{}}:{fluxApi:{}}};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'),context);
   const parse=context.exports.parsePolicyImport;
   const single=parse(JSON.stringify({title:'  Source checks ',category:'AML',content:'  Verify origin of funds. '}));
@@ -220,9 +221,10 @@ test('policy chunk maintenance keeps editing manual-only while allowing any chun
 });
 
 function paymentPage(api){
-  const context={exports:{},require:name=>name==='knockout'?ko:name==='./flux-api'?{fluxApi:api}:{session:{user:ko.observable({role:'USER'})},navigate:()=>{}},window:{setInterval:()=>1,addEventListener:()=>{},removeEventListener:()=>{}},sessionStorage:{getItem:()=>null},clearInterval:()=>{},setInterval:()=>1,document:{visibilityState:'visible'}};
+  const helpers={exports:{},window:{}};vm.runInNewContext(compile('ts/services/flux-api.ts'),helpers);
+  const context={exports:{},require:name=>name==='knockout'?ko:name==='./notifications'?notifications:name==='./flux-api'?{...helpers.exports,fluxApi:api}:{session:{user:ko.observable({role:'USER'})},navigate:()=>{}},window:{setInterval:()=>1,addEventListener:()=>{},removeEventListener:()=>{}},sessionStorage:{getItem:()=>null},clearInterval:()=>{},setInterval:()=>1,document:{visibilityState:'visible'}};
   vm.runInNewContext(compile('ts/services/page.ts'),context);const page=new context.exports.Page('payments-new');
-  page.paymentId(id);page.payment({id,status:'QUOTED'});page.quotes([{id:'quote'}]);page.selectedQuote({id:'quote'});page.quoteExpires(new Date(Date.now()+600000).toISOString());page.confirmAction('confirm');return page;
+  page.paymentId(id);page.payment({id,status:'QUOTED'});page.quotes([{id:'quote',routeCode:'BANK_TRANSFER'}]);page.selectedQuote({id:'quote',routeCode:'BANK_TRANSFER'});page.quoteExpires(new Date(Date.now()+600000).toISOString());page.confirmAction('confirm');return page;
 }
 test('202 review confirmation enters review-aware completion, not payout execution',async()=>{const page=paymentPage({confirm:async()=>({id,status:'UNDER_REVIEW'})});await page.executeAction();assert.equal(page.step(),3);assert.equal(page.payment().status,'UNDER_REVIEW');assert.equal(page.confirmAction(),'');page.disconnected();});
 test('persisted compliance rejection is displayed even when confirm returns an error',async()=>{const page=paymentPage({confirm:async()=>{throw Error('Payment blocked');},payment:async()=>({id,status:'REJECTED'})});await page.executeAction();assert.equal(page.payment().status,'REJECTED');assert.equal(page.step(),3);assert.equal(page.error(),'');page.disconnected();});

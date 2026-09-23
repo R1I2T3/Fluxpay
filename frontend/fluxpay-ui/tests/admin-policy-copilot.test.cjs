@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const ko = require('knockout');
 const {load} = require('./helpers/load-typescript.cjs');
+const notifications = require('./notification-fixture.cjs')();
 const read = file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
 const compile = file => ts.transpileModule(read(file), {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020}}).outputText;
 const id = '11111111-1111-4111-8111-111111111111';
@@ -32,7 +33,7 @@ function complianceWorkspace(overrides = {}, admin = true, runtime = {}) {
   }});
   const user = ko.observable(admin ? {role: 'ADMIN'} : null);
   const session = {user, isAdmin: ko.pureComputed(() => user()?.role === 'ADMIN'), restore: async () => {}};
-  const context = {exports: {}, require: name => name === 'knockout' ? ko : name === './session' ? {session} : name === './admin-console' ? adminConsole : {fluxApi: api}, ...runtime};
+  const context = {exports: {}, require: name => name === 'knockout' ? ko : name === './session' ? {session} : name === './admin-console' ? adminConsole : name === './notifications' ? notifications : {fluxApi: api}, ...runtime};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'), context);
   return {page: new context.exports.ComplianceWorkspace(), calls, session};
 }
@@ -201,7 +202,7 @@ function copilotPage(routeParams = {params: {}}, overrides = {}) {
   const session = {user, isAdmin: ko.pureComputed(() => user()?.role === 'ADMIN'), restore: async () => {}};
   const navigations = [];
   const navigate = (routePath, params) => navigations.push([routePath, params]);
-  const workspaceContext = {exports: {}, require: name => name === 'knockout' ? ko : name === './session' ? {session} : name === './admin-console' ? adminConsole : {fluxApi: api}};
+  const workspaceContext = {exports: {}, require: name => name === 'knockout' ? ko : name === './session' ? {session} : name === './admin-console' ? adminConsole : name === './notifications' ? notifications : {fluxApi: api}};
   vm.runInNewContext(compile('ts/services/compliance-workspace.ts'), workspaceContext);
   const ViewModel = load('ts/viewModels/admin-copilot.ts', {
     knockout: ko,

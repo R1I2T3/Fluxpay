@@ -52,7 +52,7 @@ function complianceWorkspace(overrides = {}, admin = true) {
   };
   const Workspace = load(
     'ts/services/compliance-workspace.ts',
-    {knockout: ko, './flux-api': {fluxApi: api}, './session': {session}, './admin-console': helpers}
+    {knockout: ko, './flux-api': {fluxApi: api}, './session': {session}, './admin-console': helpers, './notifications': require('./notification-fixture.cjs')()}
   );
   return {page: new Workspace.ComplianceWorkspace(), calls, session};
 }

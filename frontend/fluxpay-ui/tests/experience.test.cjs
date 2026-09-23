@@ -2,6 +2,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript'),ko=require('knockout');
 const root=path.join(__dirname,'../src/ts');
+const routeHelpers={exports:{},window:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,routeHelpers);
 function fixture(name,overrides={},initialToken='',params={}){
   const calls=[],navigation=[],events=new Map(),cache=new Map();let token=initialToken;
   const session={user:ko.observable({role:'CUSTOMER',kycStatus:'NONE'}),restore:async()=>{},clear(){token='';this.user(null);}};
@@ -13,7 +15,7 @@ function fixture(name,overrides={},initialToken='',params={}){
     const module={exports:{}};
     const context={module,exports:module.exports,require:dep=>{
       if(dep==='knockout')return ko;
-      if(dep.endsWith('/flux-api'))return {fluxApi:api};
+      if(dep.endsWith('/flux-api'))return {...routeHelpers.exports,fluxApi:api};
       if(dep.endsWith('/session'))return {session,navigate:(...args)=>navigation.push(args)};
       if(dep.endsWith('/experience-dialog'))return {};
       if(dep.endsWith('/recipient-actions'))return {deleteRecipient:async id=>{calls.push(['deleteRecipient',id]);if(overrides.deleteRecipient)await overrides.deleteRecipient(id);}};
@@ -113,6 +115,15 @@ test('one-page Send confirms then submits payout, shows receipt and never naviga
   assert.deepEqual(f.calls.map(c=>c[0]),['confirm','payout','payment','timeline']);assert.equal(f.navigation.length,0);
   assert.equal(f.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
   await f.page.submitPayout();assert.equal(f.calls.filter(c=>c[0]==='payout').length,1);
+});
+
+test('Send accepts a legacy route snapshot and blocks missing routes before committing funds',async()=>{
+ const f=fixture('payments-new',{confirm:async()=>({id:'p1',status:'PROCESSING'}),payout:async()=>({status:'COMPLETED'}),payment:async()=>({id:'p1',status:'COMPLETED'}),timeline:async()=>[]});
+ reviewedTransfer(f.page);f.page.selectedQuote({id:'q1',route:'BANK_TRANSFER'});await f.page.sendPayment();assert.equal(f.page.error(),'');assert.equal(f.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
+ for(const action of ['sendPayment','saveDraft']){
+  const blocked=fixture('payments-new');reviewedTransfer(blocked.page);blocked.page.selectedQuote({id:'q1',routeId:'not-a-route-code'});
+  await blocked.page[action]();assert.match(blocked.page.error(),/missing its payment route/);assert.equal(blocked.calls.length,0);assert.equal(blocked.page.step(),3);assert.equal(blocked.page.payoutSubmitted(),false);
+ }
 });
 test('compliance review and rejection never submit payout; approval can be sent on the same page',async()=>{
   for(const status of ['UNDER_REVIEW','REJECTED']){
@@ -242,6 +253,11 @@ function payableReceipt(status='PROCESSING',extra={}){
 }
 test('Submit pay in an activity receipt sends a Processing payment without navigation or reconfirmation',async()=>{
   const f=payableReceipt();await f.open();assert.equal(f.page.canPayDetail(),true);await f.page.prepareDetailPay();assert.equal(f.page.detailRecord().status,'COMPLETED');assert.equal(f.calls.filter(c=>c[0]==='payout').length,1);assert.equal(f.calls.filter(c=>c[0]==='confirm').length,0);assert.equal(f.navigation.length,0);assert.equal(f.page.canPayDetail(),false);
+});
+
+test('activity payout accepts legacy quotes and missing routes do not lock the payment as dispatched',async()=>{
+ const legacy=payableReceipt();legacy.quote.route=legacy.quote.routeCode;delete legacy.quote.routeCode;await legacy.open();await legacy.page.prepareDetailPay();assert.equal(legacy.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
+ const missing=payableReceipt();delete missing.quote.routeCode;await missing.open();await missing.page.prepareDetailPay();assert.match(missing.page.detailPayError(),/missing its payment route/);assert.ok(!missing.calls.some(c=>c[0]==='payout'));assert.equal(missing.page.canPayDetail(),true);
 });
 test('older quoted drafts require selecting a current quote inside the receipt before submit',async()=>{
   const f=payableReceipt('QUOTED');await f.open();await f.page.prepareDetailPay();assert.equal(f.page.detailPayReview(),true);await f.page.submitDetailPay();assert.match(f.page.detailPayError(),/Choose a current/);assert.ok(!f.calls.some(c=>c[0]==='payout'));

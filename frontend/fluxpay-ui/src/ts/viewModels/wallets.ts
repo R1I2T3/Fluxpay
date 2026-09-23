@@ -5,12 +5,13 @@ import {loadPayments} from '../services/activity';
 import '../services/experience-dialog';
 class ViewModel extends Page {
   addMoneyOpen=ko.observable(false);
-  holdWarning=ko.observable('');
+  holdWarning=this.feedback('warning');
   banks=ko.observableArray<any>([]);
-  bankWarning=ko.observable('');
+  bankWarning=this.feedback('warning');
   bankId=ko.observable('');
   fundingMode=ko.observable('bank');
   bankFormName=ko.observable('');
+  bankOtherName=ko.observable('');
   bankLast4=ko.observable('');
   bankCurrency=ko.observable('USD');
   moneyAction=ko.observable('');
@@ -30,7 +31,13 @@ class ViewModel extends Page {
   private returnToFunding=false;
   private stopped=false;
   private holdTimer:number;
-  constructor(params:any) { super('home',params);this.screen='wallets';this.addMoneyOpen(params.routerState?.path==='add-money'||(params.params?.action||new URLSearchParams(window.location?.search||'').get('action'))==='add-money');void this.load();this.holdTimer=window.setInterval(()=>{if(this.onHold().length&&!this.busy()&&document.visibilityState==='visible')void this.load();},10000); }
+  constructor(params:any) {
+    super('home',params);this.screen='wallets';
+    const action=params.params?.action||new URLSearchParams(window.location?.search||'').get('action');
+    this.addMoneyOpen(params.routerState?.path==='add-money'||action==='add-money');
+    if(['transfer','withdraw'].includes(action))this.moneyAction(action);
+    void this.load();this.holdTimer=window.setInterval(()=>{if(this.onHold().length&&!this.busy()&&document.visibilityState==='visible')void this.load();},10000);
+  }
   async load(){
     if(this.screen!=='wallets')return;
     if(!sessionStorage.getItem('fluxpay.token'))return;
@@ -44,11 +51,11 @@ class ViewModel extends Page {
   closeMoneyAction=()=>{if(this.busy())return;this.moneyAction('');this.operationReview(undefined);if(this.returnToFunding){this.returnToFunding=false;this.addMoneyOpen(true);}};
   editOperation=()=>{if(!this.busy())this.operationReview(undefined);};
   linkBank=()=>this.run(async()=>{
-    const bankName=this.bankFormName().trim(),accountLast4=this.bankLast4().trim();
+    const bankName=(this.bankFormName()==='OTHER'?this.bankOtherName():this.bankFormName()).trim(),accountLast4=this.bankLast4().trim();
     if(!bankName||bankName.length>80||!/^\d{4}$/.test(accountLast4))throw new Error('Enter a bank name and only the last four digits of the account.');
     const bank=await fluxApi.linkBank({bankName,accountLast4,currency:this.bankCurrency()});
     if(this.stopped||!this.session.user())return;
-    this.banks([...this.banks().filter(b=>b.id!==bank.id),bank]);this.currency(bank.currency);this.bankId(bank.id);this.bankFormName('');this.bankLast4('');this.moneyAction('');
+    this.banks([...this.banks().filter(b=>b.id!==bank.id),bank]);this.currency(bank.currency);this.bankId(bank.id);this.bankFormName('');this.bankOtherName('');this.bankLast4('');this.moneyAction('');
     if(this.returnToFunding){this.returnToFunding=false;this.addMoneyOpen(true);}
   },'Bank account linked.');
   prepareMoney=(kind:string)=>{
@@ -89,17 +96,17 @@ class ViewModel extends Page {
     // A read failure after a successful write must not invite a duplicate payment.
     try{this.wallets(await fluxApi.wallets());this.ledgerWallet(this.wallets().find(w=>w.walletId===(result.sourceWalletId||result.walletId)));this.ledgerPage(0);if(this.ledgerWallet())await this.loadLedger();}
     catch{this.bankWarning('Your transaction succeeded. Refresh to update balances and activity.');}
-  },'Transaction recorded.');
+  },'Transaction recorded.',false);
   fund=()=>this.run(async()=>{
     await fluxApi.fund({currency:this.currency(),amount:this.validAmount(this.fundAmount())});
     this.wallets(await fluxApi.wallets());this.ledgerWallet(this.wallets().find(w=>w.currency===this.currency()));this.ledgerPage(0);this.addMoneyOpen(false);
     if(this.ledgerWallet())await this.loadLedger();
-  },'Money added. Your updated balance and wallet history are ready.');
+  },'Money added. Your updated balance and wallet history are ready.',false);
   convert=()=>this.run(async()=>{
     if(this.from()===this.to())throw new Error('Choose two different currencies.');
     this.conversion(await fluxApi.convert({from:this.from(),to:this.to(),amount:this.validAmount(this.amount())}));
     this.wallets(await fluxApi.wallets());if(this.ledgerWallet())await this.loadLedger();
-  },'Currency exchanged successfully.');
+  },'Currency exchanged successfully.',false);
   disconnected(){this.stopped=true;clearInterval(this.holdTimer);super.disconnected();}
 }
 export = ViewModel;

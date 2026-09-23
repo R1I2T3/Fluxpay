@@ -4,7 +4,8 @@ const fs=require('node:fs'),path=require('node:path');
 const read=file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8');
 test('shell keeps customer bottom tabs and guards admin sidebar to administrators',()=>{
   const html=read('index.html');
-  assert.match(html,/← Back to home/);assert.match(html,/<header class="site-header">/);
+  assert.doesNotMatch(html,/class="sidebar"|class="menu-button"/);
+  assert.match(html,/← Back to home/);assert.match(html,/<header class="site-header"[^>]*>/);
   assert.match(html,/class="profile-menu"/);assert.match(html,/text:session.user\(\).fullName/);assert.match(html,/class="bottom-nav"/);
   assert.match(html,/foreach:bottomNav/);
   assert.match(html,/visible:!isPublic\(\)&&!isAdminWorkspace\(\)/);

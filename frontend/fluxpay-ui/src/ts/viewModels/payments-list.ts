@@ -1,14 +1,14 @@
 import { Page } from '../services/page';
 import * as ko from 'knockout';
 import {loadActivity,movementLabel,movementDirection} from '../services/activity';
-import {fluxApi} from '../services/flux-api';
+import {fluxApi,requireQuoteRoute} from '../services/flux-api';
 import {preciseTime,customerFields,maskedAccount,historyIcon,historyTitle,statusText,statusDescription,eventSteps,ledgerSteps,dayGroups} from '../services/history-presentation';
 import '../services/experience-dialog';
 const shortId=(id:string)=>id?id.slice(0,8)+'…':'';
 class ViewModel extends Page {
   static shortId=shortId;
   entries=ko.observableArray<any>([]);
-  activityWarning=ko.observable('');
+  activityWarning=this.feedback('warning');
   movementLabel=movementLabel;
   movementDirection=movementDirection;
   filteredActivity=ko.pureComputed(()=>[...this.payments(),...this.entries()].filter(row=>this.matchesActivity(row)).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)));
@@ -30,10 +30,10 @@ class ViewModel extends Page {
   detailEvents=ko.observableArray<any>([]);
   detailQuotes=ko.observable<any>();
   detailBusy=ko.observable(false);
-  detailWarning=ko.observable('');
+  detailWarning=this.feedback('warning');
   detailUpdated=ko.observable('');
   detailPayBusy=ko.observable(false);
-  detailPayError=ko.observable('');
+  detailPayError=this.feedback('error');
   detailPayNotice=ko.observable('');
   detailPayReview=ko.observable(false);
   detailPayQuote=ko.observable<any>();
@@ -131,16 +131,18 @@ class ViewModel extends Page {
       if(['DRAFT','QUOTED'].includes(latest.status)){
         this.now(Date.now());
         if(!this.detailPayReview()||!this.detailPayQuoteValid())throw new Error('Choose a current delivery option before submitting. Refresh options if the quote has expired.');
+        requireQuoteRoute(this.detailPayQuote());
         this.detailPayment(await fluxApi.confirm(id,this.detailPayQuote().id));if(!active())return;
       }
       if(this.detailRecord().status!=='PROCESSING'){
         this.detailPayNotice(this.detailRecord().status==='UNDER_REVIEW'?'This payment needs compliance approval before it can be submitted.':'This payment is not ready for payout. Its latest status is shown above.');return;
       }
       const quote=this.acceptedQuote();if(!quote)throw new Error('The confirmed delivery option is unavailable. Refresh transaction details.');
+      const routeCode=requireQuoteRoute(quote);
       const events=await fluxApi.timeline(id);if(!active())return;this.detailEvents(events);
       if(this.detailPayoutStarted())throw new Error('This payout has already been submitted. Refresh to see its latest status.');
       this.dispatchedPayouts.add(id);this.detailEvents.valueHasMutated();
-      await fluxApi.payout(id,quote.routeCode);
+      await fluxApi.payout(id,routeCode);
       if(active()){this.detailPayReview(false);this.detailPayNotice('Payment submitted. The latest result is shown above.');}
     }catch(e:any){if(active())this.detailPayError(e.message||'Unable to submit payment. Refresh its status before taking further action.');}
     finally{
