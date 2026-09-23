@@ -1,6 +1,6 @@
 <!-- ko if: !session.user() -->
 <div class="sign-in-gate">
-  <span class="gate-icon">→</span>
+  <span class="gate-icon">&#8594;</span>
   <h2>Sign in to review compliance cases.</h2>
   <p>Only administrators can review payment-linked cases.</p>
   <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
@@ -18,178 +18,137 @@
     <div>
       <span class="eyebrow">OPERATIONS</span>
       <h1>Compliance reviews</h1>
-      <p>Review payment-linked cases beside their decision history.</p>
+      <p>Review payment-linked cases with one focused decision workflow.</p>
     </div>
     <button class="pill soft" data-bind="click:workspace.loadCases,disable:workspace.busy()">
       Refresh
     </button>
   </header>
-  <div
-    class="alert error"
-    role="alert"
-    data-bind="visible:workspace.error,text:workspace.error"
-  ></div>
-  <div
-    class="alert success"
-    role="status"
-    aria-live="polite"
-    data-bind="visible:workspace.notice,text:workspace.notice"
-  ></div>
+  <div class="alert error" role="alert" data-bind="visible:workspace.error,text:workspace.error"></div>
+  <div class="alert success" role="status" aria-live="polite" data-bind="visible:workspace.notice,text:workspace.notice"></div>
   <div data-bind="with:workspace">
-    <p
-      class="sr-only admin-loading-status"
-      role="status"
-      aria-live="polite"
-      data-bind="text:busy()?'Loading compliance cases.':''"
-    ></p>
-    <div
-      class="review-workspace compliance-review-workspace"
-      data-bind="css:{'has-selection':!!selectedCase()}"
-    >
-      <aside class="review-queue" aria-label="Compliance review queue">
-        <label
-          >Saved view<select data-bind="value:savedCaseView,event:{change:$parent.changeView}">
-            <option value="HIGH_RISK">High risk</option>
-            <option value="REQUOTE_REQUIRED">Requote required</option>
-            <option value="REVIEW_EXPIRING">Review expiring</option>
-            <option value="OPEN">Open</option>
-            <option value="COMPLETED">Completed</option>
-          </select></label
-        >
-        <table class="dense-table">
-          <tbody data-bind="foreach:prioritizedCases">
-            <tr>
-              <td><span class="status" data-bind="text:risk,attr:{'data-status':risk}"></span></td>
-              <td>
-                <strong data-bind="text:$parent.date(createdAt)"></strong
-                ><small data-bind="text:id"></small>
-              </td>
-              <td>
-                <button type="button" class="text-button" data-bind="click:$parents[1].openCase">
-                  Open
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="empty-state" data-bind="visible:!busy()&&!prioritizedCases().length">
-          <h3>No matching cases</h3>
-          <p>No cases in the <span data-bind="text:savedCaseView"></span> view.</p>
-        </div>
-      </aside>
-      <main class="record-detail" data-bind="with:selectedCase,visible:!!selectedCase()">
-        <h2 id="compliance-record-heading" tabindex="-1">Compliance case</h2>
-        <dl class="detail-grid">
-          <div>
-            <dt>Case ID</dt>
-            <dd data-bind="text:id"></dd>
-          </div>
-          <div>
-            <dt>Payment ID</dt>
-            <dd data-bind="text:paymentId"></dd>
-          </div>
-          <div>
-            <dt>Review reference</dt>
-            <dd data-bind="text:reviewReference||'—'"></dd>
-          </div>
-          <div>
-            <dt>Review expires</dt>
-            <dd data-bind="text:$parent.date(reviewExpiresAt)"></dd>
-          </div>
-          <div>
-            <dt>Requote required</dt>
-            <dd data-bind="text:requoteRequired?'Yes':'No'"></dd>
-          </div>
-        </dl>
-        <h3>Triggered reasons</h3>
-        <ul data-bind="foreach:riskReasons">
-          <li data-bind="text:$data"></li>
-        </ul>
-        <h3>Suggested action</h3>
-        <p data-bind="text:suggestedAction"></p>
-      </main>
-      <aside class="evidence-panel" data-bind="with:selectedCase,visible:!!selectedCase()">
-        <h2>Decision history</h2>
-        <dl class="detail-grid">
-          <div>
-            <dt>Status</dt>
-            <dd data-bind="text:status"></dd>
-          </div>
-          <div>
-            <dt>Decided by</dt>
-            <dd data-bind="text:decidedBy||'—'"></dd>
-          </div>
-          <div>
-            <dt>Decided at</dt>
-            <dd data-bind="text:$parent.date(decidedAt)"></dd>
-          </div>
-          <div>
-            <dt>Reason</dt>
-            <dd data-bind="text:decisionReason||'—'"></dd>
-          </div>
-        </dl>
-        <button class="pill soft" data-bind="click:$parents[1].navigateToCopilot">
-          Ask Copilot about this case
-        </button>
-      </aside>
-    </div>
-    <form
-      class="sticky-decision-bar"
-      data-bind="visible:selectedCase()&&selectedCase().status==='OPEN',submit:function(){prepareDecision(pendingDecision());return false}"
-    >
-      <label
-        >Decision<select data-bind="value:pendingDecision">
-          <option value="approve">Approve</option>
-          <option value="reject">Reject</option>
-        </select></label
-      >
-      <label
-        >Reason code<select
-          data-bind="options:decisionCodes[pendingDecision()],optionsText:'label',optionsValue:'value',value:decisionCode"
-        ></select
-      ></label>
-      <label
-        >Notes<textarea maxlength="500" rows="2" data-bind="textInput:decisionNotes"></textarea>
+    <p class="sr-only admin-loading-status" role="status" aria-live="polite" data-bind="text:busy()?'Loading compliance cases.':''"></p>
+    <section class="admin-list-surface compliance-review-queue" aria-label="Compliance review queue">
+      <label>
+        Saved view
+        <select data-bind="value:savedCaseView,event:{change:$parent.changeView}">
+          <option value="HIGH_RISK">High risk</option>
+          <option value="REQUOTE_REQUIRED">Requote required</option>
+          <option value="REVIEW_EXPIRING">Review expiring</option>
+          <option value="OPEN">Open</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
       </label>
-      <button class="pill dark" data-bind="disable:busy">Review decision</button>
-    </form>
-    <p class="form-help" data-bind="visible:selectedCase()&&selectedCase().status!=='OPEN'">
-      Decision complete — no further case action is available.
-    </p>
-    <!-- ko if:confirmation -->
-    <div
-      class="admin-confirmation"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="compliance-confirm-title"
-      data-bind="adminDialog:true"
-    >
-      <section class="modal small">
-        <div class="panel-heading">
-          <h2
-            id="compliance-confirm-title"
-            data-bind="text:confirmation()==='approve'?'Approve this review?':'Reject this review?'"
-          ></h2>
-          <button
-            class="close-button"
-            aria-label="Cancel action"
-            data-bind="click:cancelConfirmation,disable:busy"
-          >
-            ×
-          </button>
+      <div class="review-list" role="list" aria-label="Compliance cases">
+        <div class="review-list-heading" aria-hidden="true">
+          <span>Risk</span><span>Case</span><span>Status</span><span></span>
         </div>
-        <p
-          data-bind="text:selectedCase()?.reviewReference?'This decision changes the linked payment and cannot be undone here. Review the case and note before continuing.':'This records a final decision on the manual case only.'"
-        ></p>
-        <p class="preserve-text" data-bind="text:decisionReason"></p>
-        <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+        <!-- ko foreach:prioritizedCases -->
         <button
-          class="pill dark wide"
-          data-bind="click:confirm,disable:busy,text:busy()?'Working…':'Confirm action'"
-        ></button
-        ><button class="pill soft wide" data-bind="click:cancelConfirmation,disable:busy">
-          Go back
+          type="button"
+          class="review-list-row"
+          role="listitem"
+          data-bind="click:$parents[1].openCase,attr:{'aria-label':'Open compliance case '+id}"
+        >
+          <span class="status" data-bind="text:risk,attr:{'data-status':risk}"></span>
+          <span class="review-list-primary">
+            <strong data-bind="text:id"></strong>
+            <small data-bind="text:$parent.date(createdAt)"></small>
+          </span>
+          <span class="status" data-bind="text:status,attr:{'data-status':status}"></span>
+          <span class="row-chevron" aria-hidden="true">&#8250;</span>
         </button>
+        <!-- /ko -->
+      </div>
+      <div class="empty-state" data-bind="visible:!busy()&&!prioritizedCases().length">
+        <h3>No matching cases</h3>
+        <p>No cases in the <span data-bind="text:savedCaseView"></span> view.</p>
+      </div>
+    </section>
+
+    <!-- ko if:selectedCase -->
+    <div
+      class="admin-confirmation modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="compliance-record-heading"
+      data-bind="adminDialog:{initialFocus:'#compliance-record-heading'}"
+    >
+      <section class="admin-workflow-modal" aria-describedby="compliance-modal-summary">
+        <header class="admin-modal-header">
+          <div>
+            <span class="eyebrow">COMPLIANCE CASE</span>
+            <h2 id="compliance-record-heading" tabindex="-1">Review payment-linked case</h2>
+            <p id="compliance-modal-summary">Inspect the evidence and record a supported decision.</p>
+          </div>
+          <button type="button" class="close-button" aria-label="Close case" data-bind="click:closeCase,disable:busy">&#10005;</button>
+        </header>
+
+        <!-- ko ifnot:confirmation -->
+        <div class="admin-modal-body" data-bind="with:selectedCase">
+          <div class="modal-detail-grid">
+            <section>
+              <h3>Case details</h3>
+              <dl class="detail-grid">
+                <div><dt>Case ID</dt><dd data-bind="text:id"></dd></div>
+                <div>
+                  <dt>Payment ID</dt>
+                  <dd class="copyable-value">
+                    <span data-bind="text:paymentId"></span>
+                    <button type="button" class="icon-action" aria-label="Copy payment ID" title="Copy payment ID" data-bind="click:$parents[1].copyPaymentId">
+                      <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                    </button>
+                  </dd>
+                </div>
+                <div><dt>Review reference</dt><dd data-bind="text:reviewReference||'Not linked'"></dd></div>
+                <div><dt>Review expires</dt><dd data-bind="text:$parent.date(reviewExpiresAt)"></dd></div>
+                <div><dt>Requote required</dt><dd data-bind="text:requoteRequired?'Yes':'No'"></dd></div>
+              </dl>
+            </section>
+            <section>
+              <h3>Risk assessment</h3>
+              <p class="status-line"><span class="status" data-bind="text:risk,attr:{'data-status':risk}"></span></p>
+              <h4>Triggered reasons</h4>
+              <ul data-bind="foreach:riskReasons"><li data-bind="text:$data"></li></ul>
+              <h4>Suggested action</h4>
+              <p data-bind="text:suggestedAction"></p>
+            </section>
+            <section>
+              <h3>Decision history</h3>
+              <dl class="detail-grid">
+                <div><dt>Status</dt><dd data-bind="text:status"></dd></div>
+                <div><dt>Decided by</dt><dd data-bind="text:decidedBy||'Not decided'"></dd></div>
+                <div><dt>Decided at</dt><dd data-bind="text:$parent.date(decidedAt)"></dd></div>
+                <div><dt>Reason</dt><dd data-bind="text:decisionReason||'No decision recorded'"></dd></div>
+              </dl>
+              <button type="button" class="pill soft" data-bind="click:$parents[1].navigateToCopilot">Ask Copilot about this case</button>
+            </section>
+          </div>
+        </div>
+        <footer class="admin-modal-footer">
+          <button type="button" class="pill soft" data-bind="click:closeCase,disable:busy">Close</button>
+          <form data-bind="visible:selectedCase()&&selectedCase().status==='OPEN',submit:function(){prepareDecision(pendingDecision());return false}">
+            <label>Decision<select data-bind="value:pendingDecision"><option value="approve">Approve</option><option value="reject">Reject</option></select></label>
+            <label>Reason code<select data-bind="options:decisionCodes[pendingDecision()],optionsText:'label',optionsValue:'value',value:decisionCode"></select></label>
+            <label>Notes<textarea maxlength="500" rows="2" data-bind="textInput:decisionNotes"></textarea></label>
+            <button type="submit" class="pill dark" data-bind="disable:busy">Review decision</button>
+          </form>
+          <span class="form-help" data-bind="visible:selectedCase()&&selectedCase().status!=='OPEN'">Decision complete — no further case action is available.</span>
+        </footer>
+        <!-- /ko -->
+
+        <!-- ko if:confirmation -->
+        <div class="admin-modal-body confirmation-body">
+          <h3 data-bind="text:confirmation()==='approve'?'Approve this review?':'Reject this review?'" ></h3>
+          <p data-bind="text:selectedCase()?.reviewReference?'This decision changes the linked payment and cannot be undone here. Review the case and note before continuing.':'This records a final decision on the manual case only.'"></p>
+          <p class="preserve-text" data-bind="text:decisionReason"></p>
+          <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+        </div>
+        <footer class="admin-modal-footer">
+          <button type="button" class="pill soft" data-bind="click:cancelConfirmation,disable:busy">Go back</button>
+          <button type="button" class="pill dark" data-bind="click:$parent.confirmDecision,disable:busy,text:busy()?'Working…':'Confirm action'"></button>
+        </footer>
+        <!-- /ko -->
       </section>
     </div>
     <!-- /ko -->

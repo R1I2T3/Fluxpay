@@ -27,6 +27,23 @@ class AdminComplianceViewModel {
     await this.workspace.openCase(item);
     focusRecordHeading(event, 'compliance-record-heading');
   };
+  copyPaymentId = async () => {
+    const paymentId = this.workspace.selectedCase()?.paymentId;
+    if (!paymentId) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(paymentId);
+      this.workspace.notice('Payment ID copied.');
+    } catch {
+      this.workspace.error('Unable to copy the payment ID. Select the visible ID and copy it manually.');
+    }
+  };
+  confirmDecision = async () => {
+    await this.workspace.confirm();
+    if (!this.workspace.error() && this.workspace.selectedCase()?.status !== 'OPEN') {
+      this.workspace.closeCase();
+    }
+  };
   navigateToCopilot = () => {
     const selected = this.workspace.selectedCase();
     if (selected) navigate('admin-copilot', { caseId: selected.id, paymentId: selected.paymentId });

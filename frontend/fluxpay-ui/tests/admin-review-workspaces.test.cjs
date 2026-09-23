@@ -90,6 +90,67 @@ test('compliance page exposes only response-backed context and no delete action'
   assert.match(html, /navigateToCopilot/);
 });
 
+function complianceViewModel({clipboard} = {}) {
+  const user = ko.observable({id: 'admin-1', role: 'ADMIN'});
+  const session = {
+    user,
+    isAdmin: () => user()?.role === 'ADMIN',
+    restore: async () => {}
+  };
+  const workspace = {
+    savedCaseView: ko.observable('OPEN'),
+    selectedCase: ko.observable(undefined),
+    notice: ko.observable(''),
+    error: ko.observable(''),
+    loadCases: async () => {},
+    openCase: async () => {},
+    confirm: async () => {},
+    closeCase: () => {},
+    dispose: () => {}
+  };
+  const ViewModel = load('ts/viewModels/admin-compliance.ts', {
+    knockout: ko,
+    '../services/admin-console': helpers,
+    '../services/admin-dialog': {},
+    '../services/compliance-workspace': {ComplianceWorkspace: function FakeWorkspace() { return workspace; }},
+    '../services/session': {
+      navigate: () => {},
+      session
+    }
+  }, {navigator: clipboard === undefined ? {} : {clipboard}});
+  return {vm: new ViewModel({params: {view: 'OPEN'}}), workspace};
+}
+
+test('compliance payment copy reports success and keeps the visible ID', async () => {
+  const writes = [];
+  const {vm, workspace} = complianceViewModel({clipboard: {writeText: async value => writes.push(value)}});
+  workspace.selectedCase(makeCase());
+  await vm.copyPaymentId();
+  assert.deepEqual(writes, [paymentId]);
+  assert.match(workspace.notice(), /copied/i);
+  assert.equal(workspace.selectedCase().paymentId, paymentId);
+  vm.disconnected();
+});
+
+test('compliance payment copy reports a manual-copy fallback when clipboard is unavailable', async () => {
+  const {vm, workspace} = complianceViewModel({clipboard: undefined});
+  workspace.selectedCase(makeCase());
+  await vm.copyPaymentId();
+  assert.equal(workspace.selectedCase().paymentId, paymentId);
+  assert.match(workspace.error(), /select the visible ID and copy it manually/i);
+  vm.disconnected();
+});
+
+test('compliance renders a full-row queue and one modal workflow', () => {
+  const html = read('ts/views/admin-compliance.html');
+  assert.match(html, /class="review-list-row"/);
+  assert.match(html, /aria-label="Copy payment ID"/);
+  assert.match(html, /Ask Copilot about this case/);
+  assert.match(html, /class="admin-modal-footer"[\s\S]*Review decision/);
+  assert.doesNotMatch(html, />\s*Open\s*<\/button>/);
+  assert.equal((html.match(/class="admin-confirmation/g) || []).length, 1);
+});
+
 test('navigateToCopilot dispatches admin-copilot with the selected case and payment IDs', async () => {
   const navigateCalls = [];
   const selected = makeCase();

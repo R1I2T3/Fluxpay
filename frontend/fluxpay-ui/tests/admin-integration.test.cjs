@@ -77,6 +77,10 @@ test('review queues use native open buttons and keyboard focus targets',()=>{
       assert.match(html,/class="review-list-row"/);
       assert.doesNotMatch(html,/>\s*Open\s*<\/button>/);
       assert.match(viewModel,/openReviewDocument/);
+    } else if(route==='admin-compliance') {
+      assert.match(html,/class="review-list-row"/);
+      assert.doesNotMatch(html,/>\s*Open\s*<\/button>/);
+      assert.match(viewModel,/copyPaymentId/);
     } else {
       assert.match(html,/>\s*Open\s*<\/button>/);
     }
