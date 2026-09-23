@@ -123,6 +123,16 @@ test('provider template has no destructive resource control', () => {
   assert.doesNotMatch(html, /requestDeleteProvider|deleteProvider|Delete provider|Remove provider/i);
 });
 
+test('provider modal bindings work with a null Oracle JET outer root', () => {
+  const html = read('ts/views/admin-providers.html');
+  assert.match(html, /<!-- ko if:providerForm -->/);
+  assert.doesNotMatch(html, /visible:providerForm/);
+  assert.doesNotMatch(html, /\$root\.environment/);
+  assert.match(html, /adminDialog:\{initialFocus:'#provider-editor-title'\}/);
+  assert.match(html, /saveReview\(\)!=='provider'/);
+  assert.match(html, /saveReview\(\)==='provider'/);
+});
+
 test('providers page keeps the admin gate, protection copy and environment label', async () => {
   const html = read('ts/views/admin-providers.html');
   assert.ok(html.includes('if:session.isAdmin()'));

@@ -90,6 +90,18 @@ test('review workspaces hide detail cards until a record is selected', () => {
       assert.match(html, /adminDialog:\{initialFocus:'#kyc-record-heading'\}/);
       continue;
     }
+    if (file === 'ts/views/admin-compliance.html') {
+      assert.match(html, /class="review-list-row"/);
+      assert.match(html, /<!-- ko if:selectedCase -->[\s\S]*admin-workflow-modal/);
+      assert.match(html, /adminDialog:\{initialFocus:'#compliance-record-heading'\}/);
+      continue;
+    }
+    if (file === 'ts/views/admin-tickets.html') {
+      assert.match(html, /class="review-list-row"/);
+      assert.match(html, /<!-- ko if:selectedTicket -->[\s\S]*admin-workflow-modal/);
+      assert.match(html, /adminDialog:\{initialFocus:'#support-record-heading'\}/);
+      continue;
+    }
     const workspaceBinding = openingTagForClass(html, 'review-workspace').match(
       /data-bind="([^"]+)"/,
     );
@@ -111,4 +123,18 @@ test('review workspaces hide detail cards until a record is selected', () => {
     assert.equal(ko.unwrap(evidenceAccessors.visible()), true, `${file} evidence visible`);
     assert.equal(workspaceAccessors.css()['has-selection'], true, `${file} full workspace`);
   }
+});
+
+test('provider modal environment bindings resolve from the workspace child context', () => {
+  const html = read('ts/views/admin-providers.html');
+  const viewModel = {environment: {label: 'Staging'}, workspace: {}};
+  const workspaceContext = moduleContext(viewModel).createChildContext(viewModel.workspace);
+  const targetBindings = bindings(html).filter((binding) => binding.includes("Target environment: '+"));
+  assert.equal(targetBindings.length, 2);
+  for (const binding of targetBindings) {
+    const parsed = accessors(binding, workspaceContext);
+    assert.equal(ko.unwrap(parsed.text()), 'Target environment: Staging');
+  }
+  const applyBinding = accessors(bindingContaining(html, "Apply in '+"), workspaceContext);
+  assert.equal(ko.unwrap(applyBinding.text()), 'Apply in Staging');
 });

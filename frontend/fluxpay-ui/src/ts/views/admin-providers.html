@@ -1,6 +1,6 @@
 <!-- ko if: !session.user() -->
 <div class="sign-in-gate">
-  <span class="gate-icon">→</span>
+  <span class="gate-icon">&#8594;</span>
   <h2>Sign in to configure providers.</h2>
   <p>Only administrators can configure transfer providers.</p>
   <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
@@ -24,120 +24,74 @@
       <button class="pill dark" data-bind="click:newProvider,disable:busy">New provider</button>
     </header>
     <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
-    <div
-      class="alert success"
-      role="status"
-      aria-live="polite"
-      data-bind="visible:notice,text:notice"
-    ></div>
-    <p
-      class="sr-only admin-loading-status"
-      role="status"
-      aria-live="polite"
-      data-bind="text:busy()?'Loading providers.':''"
-    ></p>
-    <div class="configuration-workspace">
-      <section class="configuration-list" aria-label="Provider list">
-        <label
-          >Search<input type="search" data-bind="textInput:search" aria-label="Search providers"
-        /></label>
-        <div class="table-scroll">
-          <table class="dense-table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Rail</th>
-                <th>Routes</th>
-                <th>Status</th>
-                <th>Version</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody data-bind="foreach:filteredProviders">
-              <tr>
-                <td class="mono" data-bind="text:providerCode"></td>
-                <td>
-                  <span data-bind="text:providerName"></span>
-                  <!-- ko if:$parent.providerProtected($data) -->
-                  <span class="protected-badge">System protected</span>
-                  <!-- /ko -->
-                </td>
-                <td data-bind="text:$parent.railDisplayLabel(railType)"></td>
-                <td data-bind="text:$parent.providerCount(id)"></td>
-                <td>
-                  <span
-                    class="status"
-                    data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"
-                  ></span>
-                </td>
-                <td data-bind="text:version"></td>
-                <td>
-                  <button type="button" class="text-button" data-bind="click:$parent.editProvider">
-                    Edit
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="empty-state" data-bind="visible:!busy()&&!filteredProviders().length">
-          <h3>No matching providers</h3>
-          <p>No providers match the current search.</p>
-        </div>
-      </section>
-      <aside class="configuration-editor" data-bind="visible:providerForm">
-        <form data-bind="submit:function(){requestProviderSave();return false}">
-          <h2>Provider configuration</h2>
-          <p class="form-help" data-bind="text:'Target environment: '+$root.environment.label"></p>
-          <label
-            >Provider code<input data-bind="textInput:providerCode,disable:providerEditTarget"
-          /></label>
-          <label>Name<input data-bind="textInput:providerName" /></label>
-          <label
-            >Rail<select
-              data-bind="options:railTypes,optionsText:'displayLabel',optionsValue:'railType',value:providerRail"
-            ></select
-          ></label>
-          <label class="checkbox-label"
-            ><input type="checkbox" data-bind="checked:providerActive" />Active</label
-          >
-          <p
-            class="alert error"
-            role="alert"
-            data-bind="visible:providerError,text:providerError"
-          ></p>
-          <button class="pill dark" data-bind="disable:busy">Review changes</button>
-        </form>
-      </aside>
-    </div>
-    <!-- ko if:saveReview()==='provider' -->
-    <div
-      class="admin-confirmation"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="provider-change-title"
-      data-bind="adminDialog:true"
-    >
-      <section>
-        <h2 id="provider-change-title">Review provider changes</h2>
-        <p data-bind="text:'Target environment: '+$root.environment.label"></p>
-        <table class="dense-table">
-          <tbody data-bind="foreach:providerChanges">
+    <div class="alert success" role="status" aria-live="polite" data-bind="visible:notice,text:notice"></div>
+    <p class="sr-only admin-loading-status" role="status" aria-live="polite" data-bind="text:busy()?'Loading providers.':''"></p>
+
+    <section class="admin-list-surface configuration-list" aria-label="Provider list">
+      <label>Search<input type="search" data-bind="textInput:search" aria-label="Search providers" /></label>
+      <div class="table-scroll">
+        <table class="dense-table admin-wide-table">
+          <thead><tr><th>Code</th><th>Name</th><th>Rail</th><th>Routes</th><th>Status</th><th>Version</th><th class="sticky-action"></th></tr></thead>
+          <tbody data-bind="foreach:filteredProviders">
             <tr>
-              <th data-bind="text:label"></th>
-              <td data-bind="text:before"></td>
-              <td data-bind="text:after"></td>
+              <td class="mono" data-bind="text:providerCode"></td>
+              <td>
+                <span data-bind="text:providerName"></span>
+                <!-- ko if:$parent.providerProtected($data) --><span class="protected-badge">System protected</span><!-- /ko -->
+              </td>
+              <td data-bind="text:$parent.railDisplayLabel(railType)"></td>
+              <td data-bind="text:$parent.providerCount(id)"></td>
+              <td><span class="status" data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"></span></td>
+              <td data-bind="text:version"></td>
+              <td class="sticky-action">
+                <button type="button" class="icon-action" aria-label="Edit provider" title="Edit provider" data-bind="click:$parent.editProvider"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+              </td>
             </tr>
           </tbody>
         </table>
-        <div class="action-row">
-          <button class="pill soft" data-bind="click:cancelSaveReview">Back</button>
-          <button
-            class="pill dark"
-            data-bind="click:confirmProviderSave,disable:busy,text:'Apply in '+$root.environment.label"
-          ></button>
+      </div>
+      <div class="empty-state" data-bind="visible:!busy()&&!filteredProviders().length">
+        <h3>No matching providers</h3><p>No providers match the current search.</p>
+      </div>
+    </section>
+
+    <!-- ko if:providerForm -->
+    <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="provider-editor-title" data-bind="adminDialog:{initialFocus:'#provider-editor-title'}">
+      <section class="panel admin-workflow-modal provider-editor-modal">
+        <!-- ko if:saveReview()!=='provider' -->
+        <header class="admin-modal-header">
+          <div><span class="eyebrow">PROVIDER CONFIGURATION</span><h2 id="provider-editor-title" tabindex="-1">Provider configuration</h2><p data-bind="text:'Target environment: '+$parent.environment.label"></p></div>
+          <button type="button" class="close-button" aria-label="Close provider editor" title="Close" data-bind="click:closeProviderEditor,disable:busy">&#10005;</button>
+        </header>
+        <form class="admin-modal-body provider-editor-body" data-bind="submit:function(){requestProviderSave();return false}">
+          <label>Provider code<input data-bind="textInput:providerCode,disable:providerEditTarget" /></label>
+          <label>Name<input data-bind="textInput:providerName" /></label>
+          <label>Rail<select data-bind="options:railTypes,optionsText:'displayLabel',optionsValue:'railType',value:providerRail"></select></label>
+          <label class="checkbox-label"><input type="checkbox" data-bind="checked:providerActive" />Active</label>
+          <p class="alert error" role="alert" data-bind="visible:providerError,text:providerError"></p>
+          <footer class="admin-modal-footer">
+            <button type="button" class="pill soft" data-bind="click:closeProviderEditor,disable:busy">Close</button>
+            <button type="submit" class="pill dark" data-bind="disable:busy">Review changes</button>
+          </footer>
+        </form>
+        <!-- /ko -->
+
+        <!-- ko if:saveReview()==='provider' -->
+        <header class="admin-modal-header">
+          <div><span class="eyebrow">REVIEW CHANGES</span><h2 id="provider-editor-title" tabindex="-1">Review provider changes</h2><p data-bind="text:'Target environment: '+$parent.environment.label"></p></div>
+          <button type="button" class="close-button" aria-label="Close provider editor" title="Close" data-bind="click:closeProviderEditor,disable:busy">&#10005;</button>
+        </header>
+        <div class="admin-modal-body">
+          <table class="dense-table admin-wide-table">
+            <thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead>
+            <tbody data-bind="foreach:providerChanges"><tr><th data-bind="text:label"></th><td data-bind="text:before"></td><td data-bind="text:after"></td></tr></tbody>
+          </table>
         </div>
+        <footer class="admin-modal-footer">
+          <button type="button" class="pill soft" data-bind="click:cancelSaveReview,disable:busy">Back</button>
+          <button type="button" class="pill dark" data-bind="click:confirmProviderSave,disable:busy,text:'Apply in '+$parent.environment.label"></button>
+        </footer>
+        <!-- /ko -->
       </section>
     </div>
     <!-- /ko -->
