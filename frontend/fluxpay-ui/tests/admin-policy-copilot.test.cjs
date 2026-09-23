@@ -191,6 +191,7 @@ function copilotPage(routeParams = {params: {}}, overrides = {}) {
   const api = new Proxy(overrides, {get: (obj, name) => async (...args) => {
     calls.push([name, ...args]);
     if (name in obj) return obj[name](...args);
+    if (name === 'complianceCases') return [openCase];
     if (name === 'complianceCase') return {...openCase};
     if (name === 'askCopilot') return {answer: 'A sourced answer', sources: []};
     throw new Error(`Unexpected api call: ${String(name)}`);
@@ -218,10 +219,22 @@ async function settlePage(page, done) {
 test('case context pre-fills a cited question without inventing payment details', async () => {
   const {page, calls} = copilotPage({params: {caseId: openCase.id, paymentId: openCase.paymentId}});
   await page.ready;
-  assert.equal(calls[0][0], 'complianceCase');
+  assert.ok(calls.some(call => call[0] === 'complianceCase'));
   assert.match(page.workspace.question(), /Risk level: HIGH/);
   assert.match(page.workspace.question(), /Triggered reasons:/);
   assert.doesNotMatch(page.workspace.question(), /customer country|amount|currency/i);
+  page.disconnected();
+});
+
+test('Copilot loads case choices and applies selected payment context', async () => {
+  const {page, calls} = copilotPage({params: {}}, {complianceCases: async () => [openCase]});
+  await page.ready;
+  assert.equal(page.caseOptions().length, 2);
+  page.selectedCaseId(openCase.id);
+  await page.selectCaseContext();
+  assert.equal(page.workspace.copilotPaymentId(), openCase.paymentId);
+  assert.match(page.workspace.question(), /Risk level: HIGH/);
+  assert.ok(calls.some(call => call[0] === 'complianceCases'));
   page.disconnected();
 });
 
@@ -243,9 +256,19 @@ test('askCited requests only a cited answer without the live response', async ()
   page.askCited();
   await settlePage(page, () => page.workspace.answer());
   assert.equal(page.workspace.liveResponse(), false);
-  assert.deepEqual(calls.map(call => call[0]), ['askCopilot']);
+  assert.deepEqual(calls.map(call => call[0]).filter(name => name === 'askCopilot'), ['askCopilot']);
   assert.equal(page.workspace.answer().answer, 'A sourced answer');
   assert.deepEqual(page.workspace.answer().sources, []);
+  page.disconnected();
+});
+
+test('successful cited ask clears the composer but preserves the rendered question', async () => {
+  const {page} = copilotPage({params: {}});
+  await page.ready;
+  page.workspace.question('When is review required?');
+  await page.askCited();
+  assert.equal(page.workspace.question(), '');
+  assert.equal(page.workspace.answeredQuestion(), 'When is review required?');
   page.disconnected();
 });
 

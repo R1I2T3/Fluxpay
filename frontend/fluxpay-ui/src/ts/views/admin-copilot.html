@@ -1,6 +1,6 @@
 <!-- ko if: !session.user() -->
 <div class="sign-in-gate">
-  <span class="gate-icon">→</span>
+  <span class="gate-icon">&#8594;</span>
   <h2>Sign in to ask the Compliance Copilot.</h2>
   <p>Only administrators can ask policy questions with citations.</p>
   <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
@@ -21,85 +21,70 @@
       <h1>Compliance Copilot</h1>
       <p>Ask policy questions and inspect every returned source.</p>
     </div>
-    <span class="advisory-badge"
-      ><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Advisory only</span
-    >
+    <span class="advisory-badge"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Advisory only</span>
   </header>
   <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
-  <div
-    class="alert success"
-    role="status"
-    aria-live="polite"
-    data-bind="visible:notice,text:notice"
-  ></div>
-  <p
-    class="sr-only admin-loading-status"
-    role="status"
-    aria-live="polite"
-    data-bind="text:busy()?'Loading Compliance Copilot.':''"
-  ></p>
-  <div class="copilot-workspace">
-    <aside class="copilot-context">
-      <h2>Case context</h2>
+  <div class="alert success" role="status" aria-live="polite" data-bind="visible:notice,text:notice"></div>
+  <p class="sr-only admin-loading-status" role="status" aria-live="polite" data-bind="text:busy()?'Loading Compliance Copilot.':''"></p>
+
+  <section class="copilot-chat" aria-label="Compliance Copilot chat">
+    <header class="copilot-chat-toolbar">
+      <label class="copilot-context-select">
+        Case / payment context
+        <select data-bind="options:$parent.caseOptions,optionsText:'label',optionsValue:'id',value:$parent.selectedCaseId,event:{change:$parent.selectCaseContext}"></select>
+      </label>
       <!-- ko if:$parent.caseContext -->
-      <dl class="detail-grid" data-bind="with:$parent.caseContext">
-        <div>
-          <dt>Case</dt>
-          <dd data-bind="text:id"></dd>
-        </div>
-        <div>
-          <dt>Payment</dt>
-          <dd data-bind="text:paymentId"></dd>
-        </div>
-        <div>
-          <dt>Risk</dt>
-          <dd data-bind="text:risk"></dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd data-bind="text:status"></dd>
-        </div>
+      <dl class="copilot-selected-context" data-bind="with:$parent.caseContext">
+        <div><dt>Risk</dt><dd data-bind="text:risk"></dd></div>
+        <div><dt>Status</dt><dd data-bind="text:status"></dd></div>
+        <div><dt>Payment</dt><dd data-bind="text:paymentId"></dd></div>
       </dl>
-      <!-- /ko --><!-- ko ifnot:$parent.caseContext -->
-      <p>No case context supplied. You can optionally enter a payment ID.</p>
-      <!-- /ko --><label>Payment ID<input data-bind="textInput:copilotPaymentId" /></label>
-    </aside>
-    <main class="copilot-conversation">
-      <form data-bind="submit:$parent.askCited">
-        <label
-          >Policy question<textarea
-            rows="6"
-            data-bind="textInput:question"
-            required
-          ></textarea></label
-        ><button class="pill dark" data-bind="disable:busy">Ask with citations</button>
-      </form>
+      <!-- /ko -->
+      <div class="copilot-manual-context" data-bind="visible:$parent.manualPaymentContext">
+        <label>Payment ID (optional)<input aria-label="Payment ID" data-bind="textInput:copilotPaymentId" placeholder="Paste a payment UUID" /></label>
+      </div>
+    </header>
+
+    <main class="copilot-transcript" aria-live="polite">
+      <!-- ko ifnot:answer -->
+      <div class="empty-state copilot-welcome">
+        <span class="copilot-avatar" aria-hidden="true"><i class="fa-solid fa-robot"></i></span>
+        <h2>Ask a policy question</h2>
+        <p>Answers include the policy sources returned by FluxPay. Copilot is advisory only.</p>
+      </div>
+      <!-- /ko -->
+      <!-- ko if:answeredQuestion -->
+      <article class="chat-message user"><span>You</span><p data-bind="text:answeredQuestion"></p></article>
+      <!-- /ko -->
       <!-- ko if:answer -->
-      <article class="copilot-answer">
-        <h2>Answer</h2>
+      <article class="chat-message assistant">
+        <span>Compliance Copilot</span>
         <p class="preserve-text" data-bind="policyAnswer:answer().answer"></p>
-        <p class="subtle-note">
-          Review the cited policies before taking any administrative action.
-        </p>
+        <p class="subtle-note">Review the cited policies before taking any administrative action.</p>
+        <!-- ko if:answer().sources.length -->
+        <section class="copilot-sources" aria-label="Source policies">
+          <h3>Source policies</h3>
+          <div data-bind="foreach:answer().sources">
+            <button type="button" class="source-row" data-bind="click:$parents[1].openSource">
+              <strong data-bind="text:title"></strong>
+              <small data-bind="text:'Policy '+policyDocumentId+' · chunk '+chunkNumber"></small>
+              <blockquote data-bind="text:excerpt"></blockquote>
+            </button>
+          </div>
+        </section>
+        <!-- /ko -->
+        <!-- ko ifnot:answer().sources.length -->
+        <p class="empty-state">No policy sources returned. Do not rely on this answer for a decision.</p>
+        <!-- /ko -->
       </article>
       <!-- /ko -->
     </main>
-    <aside class="copilot-sources" aria-label="Source policies">
-      <h2>Source policies</h2>
-      <!-- ko if:answer()&&answer().sources.length -->
-      <div data-bind="foreach:answer().sources">
-        <button type="button" class="source-row" data-bind="click:$parents[1].openSource">
-          <strong data-bind="text:title"></strong
-          ><small data-bind="text:'Policy '+policyDocumentId+' · chunk '+chunkNumber"></small>
-          <blockquote data-bind="text:excerpt"></blockquote>
-        </button>
-      </div>
-      <!-- /ko --><!-- ko if:answer()&&!answer().sources.length -->
-      <p class="empty-state">
-        No policy sources returned. Do not rely on this answer for a decision.
-      </p>
-      <!-- /ko -->
-    </aside>
-  </div>
+
+    <form class="copilot-chat-composer" data-bind="submit:$parent.askCited">
+      <label class="sr-only" for="copilot-question">Policy question</label>
+      <textarea id="copilot-question" rows="2" required data-bind="textInput:question" placeholder="Ask about the applicable policy..."></textarea>
+      <button class="pill dark" data-bind="disable:busy">Send</button>
+    </form>
+  </section>
 </section>
 <!-- /ko -->
