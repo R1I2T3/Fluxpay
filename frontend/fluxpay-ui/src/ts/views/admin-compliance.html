@@ -42,7 +42,10 @@
       aria-live="polite"
       data-bind="text:busy()?'Loading compliance cases.':''"
     ></p>
-    <div class="review-workspace compliance-review-workspace">
+    <div
+      class="review-workspace compliance-review-workspace"
+      data-bind="css:{'has-selection':!!selectedCase()}"
+    >
       <aside class="review-queue" aria-label="Compliance review queue">
         <label
           >Saved view<select data-bind="value:savedCaseView,event:{change:$parent.changeView}">
@@ -74,7 +77,7 @@
           <p>No cases in the <span data-bind="text:savedCaseView"></span> view.</p>
         </div>
       </aside>
-      <main class="record-detail" data-bind="with:selectedCase">
+      <main class="record-detail" data-bind="with:selectedCase,visible:!!selectedCase()">
         <h2 id="compliance-record-heading" tabindex="-1">Compliance case</h2>
         <dl class="detail-grid">
           <div>
@@ -105,7 +108,7 @@
         <h3>Suggested action</h3>
         <p data-bind="text:suggestedAction"></p>
       </main>
-      <aside class="evidence-panel" data-bind="with:selectedCase">
+      <aside class="evidence-panel" data-bind="with:selectedCase,visible:!!selectedCase()">
         <h2>Decision history</h2>
         <dl class="detail-grid">
           <div>

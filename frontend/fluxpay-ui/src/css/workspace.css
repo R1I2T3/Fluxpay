@@ -1,8 +1,5 @@
 /* Visual-only workspace theme. Existing views, bindings and service flows are unchanged. */
-/* Administration is a standalone workspace, not a customer dashboard. */
-.workspace-shell.admin-shell #main {
-  margin-left: 0;
-}
+/* Administration has its own sidebar and main-content offset in admin-console.css. */
 .workspace-shell.admin-shell .sidebar {
   display: none;
 }

@@ -49,7 +49,7 @@
   <!-- /ko -->
 
   <!-- ko if: session.isAdmin() -->
-  <div class="review-workspace">
+  <div class="review-workspace" data-bind="css:{'has-selection':!!selectedTicket()}">
     <aside class="review-queue" aria-label="Support ticket queue">
       <label
         >Saved view<select data-bind="value:savedView,event:{change:changeView},disable:busy">
@@ -98,7 +98,7 @@
         </button>
       </div>
     </aside>
-    <main class="record-detail" data-bind="with:selectedTicket">
+    <main class="record-detail" data-bind="with:selectedTicket,visible:!!selectedTicket()">
       <h2 id="support-record-heading" tabindex="-1" data-bind="text:subject"></h2>
       <h3>Customer statement</h3>
       <p class="preserve-text" data-bind="text:body"></p>
@@ -113,7 +113,7 @@
         </div>
       </dl>
     </main>
-    <aside class="evidence-panel" data-bind="with:selectedTicket">
+    <aside class="evidence-panel" data-bind="with:selectedTicket,visible:!!selectedTicket()">
       <h2>Operational context</h2>
       <dl class="detail-grid">
         <div>

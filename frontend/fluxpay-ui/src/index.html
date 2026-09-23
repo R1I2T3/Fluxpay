@@ -42,7 +42,6 @@
   <div class="global-message" role="alert" data-bind="visible:message,text:message"></div>
   <!-- ko if:isAdminWorkspace -->
   <aside class="admin-sidebar" aria-label="Administrator navigation">
-    <div class="admin-environment" data-bind="attr:{'data-tone':environment.tone}"><i class="fa-solid fa-circle" aria-hidden="true"></i><span data-bind="text:environment.label"></span></div>
     <nav>
       <!-- ko foreach:adminNavGroups -->
       <section class="admin-nav-group"><h2 data-bind="text:label"></h2><div data-bind="foreach:items"><a data-bind="attr:{href:'?ojr='+path,'data-route':path,'aria-current':$root.activeAdminPath()===path?'page':null},css:{active:$root.activeAdminPath()===path}"><i class="fa-solid" aria-hidden="true" data-bind="css:icon"></i><span data-bind="text:label"></span></a></div></section>

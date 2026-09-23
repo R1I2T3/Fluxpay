@@ -35,7 +35,7 @@
     aria-live="polite"
     data-bind="text:busy()?'Loading KYC reviews.':''"
   ></p>
-  <div class="review-workspace">
+  <div class="review-workspace" data-bind="css:{'has-selection':!!review()}">
     <aside class="review-queue" aria-label="KYC review queue">
       <label
         >Saved view<select data-bind="value:savedView,event:{change:changeView},disable:busy">
@@ -96,7 +96,7 @@
         </button>
       </div>
     </aside>
-    <main class="record-detail" data-bind="with:review">
+    <main class="record-detail" data-bind="with:review,visible:!!review()">
       <h2 id="kyc-record-heading" tabindex="-1" data-bind="text:fullName"></h2>
       <p data-bind="text:email"></p>
       <h3>Customer-submitted information</h3>
@@ -133,7 +133,7 @@
         <li>Record the reason code for the decision.</li>
       </ul>
     </main>
-    <aside class="evidence-panel" data-bind="with:review">
+    <aside class="evidence-panel" data-bind="with:review,visible:!!review()">
       <h2>Evidence</h2>
       <div class="kyc-document-grid" data-bind="foreach:documents">
         <button type="button" class="kyc-document-card" data-bind="click:$parents[1].openDocument">

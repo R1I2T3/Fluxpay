@@ -98,11 +98,11 @@
             <td class="mono" data-bind="text:routeCode"></td>
             <td>
               <span data-bind="text:name"></span>
-              <!-- ko if:$root.workspace.routeProtected($data) -->
+              <!-- ko if:$parent.workspace.routeProtected($data) -->
               <span class="protected-badge">System protected</span>
               <!-- /ko -->
             </td>
-            <td data-bind="text:$root.workspace.providerDisplayName(providerId)"></td>
+            <td data-bind="text:$parent.workspace.providerDisplayName(providerId)"></td>
             <td data-bind="text:destinationCountry||'—'"></td>
             <td data-bind="text:payoutCurrency"></td>
             <td data-bind="text:destinationType"></td>
@@ -120,7 +120,7 @@
               ></span>
             </td>
             <td>
-              <button type="button" class="text-button" data-bind="click:$root.workspace.editRoute">
+              <button type="button" class="text-button" data-bind="click:$parent.workspace.editRoute">
                 Edit
               </button>
             </td>
@@ -157,7 +157,7 @@
           <form data-bind="submit:function(){requestRouteSave();return false}">
             <p
               class="form-help"
-              data-bind="text:'Target environment: '+$root.environment.label"
+              data-bind="text:'Target environment: '+$parent.environment.label"
             ></p>
             <div class="form-row">
               <label
@@ -260,7 +260,7 @@
     >
       <section>
         <h2 id="route-change-title">Review route changes</h2>
-        <p data-bind="text:'Target environment: '+$root.environment.label"></p>
+        <p data-bind="text:'Target environment: '+$parent.environment.label"></p>
         <!-- ko with:routeEditTarget -->
         <p
           class="form-help"
@@ -280,7 +280,7 @@
           <button class="pill soft" data-bind="click:cancelSaveReview">Back</button>
           <button
             class="pill dark"
-            data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$root.environment.label"
+            data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$parent.environment.label"
           ></button>
         </div>
       </section>

@@ -310,6 +310,24 @@ test('loading overview metrics never display a false zero', () => {
   page.disconnected();
 });
 
+test('overview metrics always expose complete boolean binding state', async () => {
+  const {page, api} = overviewPage();
+  for (const item of page.metrics()) {
+    assert.equal(typeof item.pending, 'boolean', `${item.id} pending`);
+    assert.equal(typeof item.unavailable, 'boolean', `${item.id} unavailable`);
+  }
+
+  api.adminKyc.resolve([]); api.complianceCases.resolve([]); api.listForAdmin.resolve({items: [], total: 0});
+  api.providers.resolve([]); api.routesAdmin.resolve([]); api.policies.resolve([]);
+  await page.loadOverview();
+
+  for (const item of page.metrics()) {
+    assert.equal(item.pending, false, `${item.id} pending`);
+    assert.equal(item.unavailable, false, `${item.id} unavailable`);
+  }
+  page.disconnected();
+});
+
 test('a provider-source failure suppresses route-derived rows', async () => {
   const {page, api} = overviewPage();
   api.adminKyc.resolve([]); api.complianceCases.resolve([compliance({id: 'high'})]);

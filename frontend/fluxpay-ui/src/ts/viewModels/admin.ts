@@ -43,11 +43,12 @@ class AdminOverviewViewModel {
   metrics = ko.pureComputed(() =>
     this.overview().metrics.map((metric) => {
       const states = metric.sourceKeys.map((key) => (this.sources as any)[key]().status);
+      const readyMetric = { ...metric, unavailable: false, pending: false };
       return states.includes('error')
-        ? { ...metric, value: 'Unavailable', unavailable: true }
+        ? { ...readyMetric, value: 'Unavailable', unavailable: true }
         : states.includes('loading')
-          ? { ...metric, value: 'Loading…', pending: true }
-          : metric;
+          ? { ...readyMetric, value: 'Loading…', pending: true }
+          : readyMetric;
     }),
   );
   rows = ko.pureComputed(() =>

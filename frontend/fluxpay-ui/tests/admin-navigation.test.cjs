@@ -83,15 +83,26 @@ test('environment display cannot change the API base URL', () => {
   assert.doesNotMatch(api,/FLUXPAY_ENVIRONMENT/);
   assert.doesNotMatch(controller,/API_PROXY/);
 });
-test('sidebar markup is guarded to administrator routes and keeps labels visible', () => {
+test('sidebar markup is guarded to administrator routes without an environment badge', () => {
   const html=read('index.html');
   const css=read('css/admin-console.css');
+  const workspaceCss=read('css/workspace.css');
   assert.match(html,/<!-- ko if:isAdminWorkspace -->[\s\S]*class="admin-sidebar"/);
   assert.match(html,/foreach:adminNavGroups/);
   assert.match(html,/'aria-current':\$root\.activeAdminPath\(\)===path\?'page':null/);
-  assert.match(html,/text:environment\.label/);
+  assert.doesNotMatch(html,/class="admin-environment"/);
   assert.doesNotMatch(html,/Audit Log|Governance/);
-  assert.match(css,/\.admin-environment\{[^}]*position:sticky/);
+  assert.doesNotMatch(css,/\.admin-environment/);
+  assert.doesNotMatch(workspaceCss,/\.workspace-shell\.admin-shell #main\s*\{\s*margin-left:\s*0;/);
+});
+
+test('admin workspaces use responsive cards and queue cells wrap their data', () => {
+  const css=read('css/admin-console.css');
+  assert.match(css,/\.review-workspace\s*\{[^}]*gap:\s*16px[^}]*border:\s*0[^}]*background:\s*transparent/);
+  assert.match(css,/\.review-workspace:not\(\.has-selection\)\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*760px\)[^}]*min-height:\s*0/);
+  assert.match(css,/\.copilot-context h2[^}]*font-size:\s*20px/);
+  assert.match(css,/\.dense-table td\s*\{[^}]*white-space:\s*normal[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css,/@media\s*\(max-width:\s*1320px\)\s*\{[\s\S]*?\.review-workspace,\s*\.copilot-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(300px,\s*36%\) minmax\(0,\s*1fr\)/);
 });
 test('environment label follows configuration without changing navigation or API stubs', async () => {
   const sandbox=fixture('admin','ADMIN');await sandbox.settle();

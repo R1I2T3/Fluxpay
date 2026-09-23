@@ -11,7 +11,7 @@ test('shell keeps customer bottom tabs and guards admin sidebar to administrator
   assert.match(html,/<!-- ko if:isAdminWorkspace -->[\s\S]*class="admin-sidebar"/);
   assert.match(html,/foreach:adminNavGroups/);
   assert.match(html,/'aria-current':\$root\.activeAdminPath\(\)===path\?'page':null/);
-  assert.match(html,/text:environment\.label/);
+  assert.doesNotMatch(html,/class="admin-environment"/);
   assert.match(html,/class="skip-link"/);
   assert.doesNotMatch(html,/Audit Log|Governance/);
   assert.match(read('css/mobile-workspace.css'),/@media\(min-width:768px\)\{\.bottom-nav\{display:none !important;/);

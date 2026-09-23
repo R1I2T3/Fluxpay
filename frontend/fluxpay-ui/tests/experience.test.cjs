@@ -154,7 +154,7 @@ test('customer bottom navigation is unchanged and admin sidebar is guarded with 
   assert.match(html,/<span data-bind="text:label"><\/span>/);
   assert.match(html,/class="skip-link"/);
   const adminCss=fs.readFileSync(path.join(root,'../css/admin-console.css'),'utf8');
-  assert.match(adminCss,/\.admin-environment\{[^}]*position:sticky/);
+  assert.doesNotMatch(html,/class="admin-environment"/);
   assert.doesNotMatch(adminCss,/linear-gradient|radial-gradient/);
 });
 
