@@ -1,11 +1,13 @@
 package com.fluxpay.service;
 
 import com.fluxpay.beans.*;
+import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.dto.*;
 import com.fluxpay.exception.*;
 import com.fluxpay.repository.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.*;
 import java.util.*;
 import org.springframework.http.HttpStatus;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.*;
 
 @Service
 public class BankAccountPostingService {
+  private static final BigDecimal USD_DAILY_TOPUP_CAP = new BigDecimal("10000.00");
+
   private final BankAccountRepository accounts;
   private final WalletRepository wallets;
   private final WalletOperationRepository operations;
@@ -21,7 +25,9 @@ public class BankAccountPostingService {
   private final LedgerJournalService journals;
   private final SystemAccountService system;
   private final KycGate kyc;
+  private final FxRateProvider fx;
   private final Clock clock;
+  private final CurrencyScaleService scales;
   private final WalletRequestNormalizer normalize;
 
   public BankAccountPostingService(
@@ -32,7 +38,9 @@ public class BankAccountPostingService {
       LedgerJournalService journals,
       SystemAccountService system,
       KycGate kyc,
+      FxRateProvider fx,
       Clock clock,
+      CurrencyScaleService scales,
       WalletRequestNormalizer normalize) {
     this.accounts = accounts;
     this.wallets = wallets;
@@ -41,7 +49,9 @@ public class BankAccountPostingService {
     this.journals = journals;
     this.system = system;
     this.kyc = kyc;
+    this.fx = fx;
     this.clock = clock;
+    this.scales = scales;
     this.normalize = normalize;
   }
 
@@ -133,15 +143,23 @@ public class BankAccountPostingService {
                   LedgerTransactionCategory.WALLET_TOPUP,
                   start,
                   start.plusSeconds(86400));
-          if (posted.add(amount).compareTo(new BigDecimal("10000.00")) > 0)
+          BigDecimal dailyCap = dailyTopupCap(currency);
+          if (posted.add(amount).compareTo(dailyCap) > 0)
             throw new BusinessException(
                 HttpStatus.CONFLICT,
                 "TOPUP_CAP_EXCEEDED",
-                "Daily top-up cap of 10000.00 exceeded for " + currency);
+                "Daily top-up cap of " + dailyCap.toPlainString() + " exceeded for " + currency);
         });
     WalletResponse response = response(customer, operation);
     complete(operation, response);
     return response;
+  }
+
+  private BigDecimal dailyTopupCap(String currency) {
+    if ("USD".equals(currency)) return USD_DAILY_TOPUP_CAP;
+    return USD_DAILY_TOPUP_CAP
+        .multiply(fx.rate("USD", currency))
+        .setScale(scales.scale(currency), RoundingMode.DOWN);
   }
 
   private BankAccount requireBank(UUID user, UUID id, String currency) {

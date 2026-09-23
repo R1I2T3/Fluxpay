@@ -160,6 +160,8 @@ class WalletTransferTest {
       }
     }
     when(kyc.isVerified(sender)).thenReturn(true);
+    when(quotes.rate("USD", "EUR")).thenReturn(new BigDecimal("0.9000"));
+    when(quotes.rate("USD", "INR")).thenReturn(new BigDecimal("80.0000"));
   }
 
   @Test
@@ -470,7 +472,27 @@ class WalletTransferTest {
         .isInstanceOfSatisfying(
             BusinessException.class, e -> assertThat(e.code()).isEqualTo("TOPUP_CAP_EXCEEDED"));
     banks.topup(
-        sender, bank(sender, "EUR", "VERIFIED"), new BankTopupRequest("10000", null), "euro");
+        sender, bank(sender, "EUR", "VERIFIED"), new BankTopupRequest("9000", null), "euro");
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "INR, 83.4567, 834567.00, 834567.01",
+    "EUR, 0.92345, 9234.50, 9234.51"
+  })
+  void topupCapMatchesTenThousandUsdAtCurrentRate(
+      String currency, String usdRate, String capAmount, String overCapAmount) {
+    when(quotes.rate("USD", currency)).thenReturn(new BigDecimal(usdRate));
+    UUID valid = bank(sender, currency, "VERIFIED");
+
+    banks.topup(sender, valid, new BankTopupRequest(capAmount, null), "at-cap-" + currency);
+
+    assertThatThrownBy(
+            () ->
+                banks.topup(
+                    sender, valid, new BankTopupRequest(overCapAmount, null), "over-cap-" + currency))
+        .isInstanceOfSatisfying(
+            BusinessException.class, exception -> assertThat(exception.code()).isEqualTo("TOPUP_CAP_EXCEEDED"));
   }
 
   @Test
