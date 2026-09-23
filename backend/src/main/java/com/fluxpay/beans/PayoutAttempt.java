@@ -15,11 +15,11 @@ import java.util.UUID;
 /**
  * Payout attempt mapped to {@code payout_attempts} per the V003 fresh-baseline DDL.
  *
- * <p>UUID strategy: {@code id} and {@code payout_route_id} are {@code RAW(16)} UUID storage mapped
- * as {@code UUID}. {@code payment_id} is the business key (e.g. {@code P-001}/{@code P-002}) stored
- * as {@code VARCHAR2(50)} with no FK to {@code payments(id)}. The {@code failure_reason} column
- * carries the terminal error code; the human-readable error message is kept transient for event
- * payloads.
+ * <p>UUID strategy: {@code id} and {@code transfer_route_id} are {@code RAW(16)} UUID storage
+ * mapped as {@code UUID}. {@code payment_id} is the business key (e.g. {@code P-001}/{@code P-002})
+ * stored as {@code VARCHAR2(50)} with no FK to {@code payments(id)}. The {@code failure_reason}
+ * column carries the terminal error code; the human-readable error message is kept transient for
+ * event payloads.
  */
 @Entity
 @Table(
@@ -37,7 +37,7 @@ public class PayoutAttempt {
   @Column(name = "payment_id", columnDefinition = "VARCHAR2(50)", nullable = false)
   private String paymentId;
 
-  @Column(name = "payout_route_id", columnDefinition = "RAW(16)", nullable = false)
+  @Column(name = "transfer_route_id", columnDefinition = "RAW(16)", nullable = false)
   private UUID routeId;
 
   @Column(name = "attempt_number", nullable = false)

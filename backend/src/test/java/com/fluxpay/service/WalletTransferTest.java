@@ -4,10 +4,14 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fluxpay.adapter.transfer.InternalLedgerTransferRail;
 import com.fluxpay.beans.*;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.config.ConversionFeeSchedule;
 import com.fluxpay.domain.ConversionMath;
+import com.fluxpay.domain.DestinationType;
+import com.fluxpay.domain.RailType;
+import com.fluxpay.domain.RouteOutcome;
 import com.fluxpay.dto.*;
 import com.fluxpay.exception.*;
 import com.fluxpay.repository.*;
@@ -43,6 +47,16 @@ import org.springframework.transaction.annotation.*;
 @ContextConfiguration(classes = WalletTransferTest.Config.class)
 @Import({
   WalletTransferService.class,
+  WalletTransferRoutingService.class,
+  InternalLedgerTransferRail.class,
+  SmartRoutingService.class,
+  RailRegistry.class,
+  RouteEligibilityService.class,
+  RouteReliabilityService.class,
+  RouteOutcomeRecorder.class,
+  RoutePricingService.class,
+  RouteRecommender.class,
+  com.fluxpay.domain.QuotePricingPolicy.class,
   WalletPostingService.class,
   BankAccountService.class,
   BankAccountPostingService.class,
@@ -100,6 +114,10 @@ class WalletTransferTest {
   }
 
   @Autowired WalletTransferService transfers;
+  @Autowired WalletTransferRoutingService routed;
+  @Autowired TransferProviderRepository providers;
+  @Autowired TransferRouteRepository transferRoutes;
+  @Autowired TransferRouteOutcomeRepository routeOutcomes;
   @Autowired BankAccountService banks;
   @Autowired WalletRepository wallets;
   @Autowired UserRepository users;
@@ -162,6 +180,108 @@ class WalletTransferTest {
                 transfers.transfer(
                     sender, transfer(recipient, "USD", "USD", "21", "SOURCE"), "same"))
         .isInstanceOf(LedgerIdempotencyConflictException.class);
+  }
+
+  @Test
+  void routedSameCurrencyPersistsDecisionAndReplays() {
+    internalRoute("FLUXPAY_A", "FLUXPAY_USD_A", "USD");
+    var response =
+        routed.transfer(sender, transfer(recipient, "USD", "USD", "20", "SOURCE"), "route-same");
+    assertThat(response.providerCode()).isEqualTo("FLUXPAY_A");
+    assertThat(response.routeCode()).isEqualTo("FLUXPAY_USD_A");
+    assertThat(response.railType()).isEqualTo(RailType.INTERNAL_LEDGER);
+    assertThat(response.effectiveReliability()).isEqualByComparingTo("99.000000");
+    assertThat(balance(source.getId())).isEqualByComparingTo("19980");
+    assertThat(entries.findByJournalReference(response.journalReference())).hasSize(2);
+    assertThat(entries.findByJournalReference(response.journalReference()))
+        .filteredOn(
+            line ->
+                line.getEntryType().equals("DEBIT") && line.getWalletId().equals(source.getId()))
+        .hasSize(1);
+    assertCategory(response.journalReference(), LedgerTransactionCategory.WALLET_TO_WALLET);
+    assertBalanced(response.journalReference());
+    var outcome = routeOutcomes.findByExecutionReference(response.journalReference()).orElseThrow();
+    assertThat(outcome.outcome()).isEqualTo(RouteOutcome.COMPLETED);
+    assertThat(
+            routed.transfer(
+                sender, transfer(recipient, "USD", "USD", "20.00", "SOURCE"), "route-same"))
+        .isEqualTo(response);
+    assertThat(entries.findByJournalReference(response.journalReference())).hasSize(2);
+    assertThatThrownBy(
+            () ->
+                routed.transfer(
+                    sender, transfer(recipient, "USD", "USD", "21", "SOURCE"), "route-same"))
+        .isInstanceOf(LedgerIdempotencyConflictException.class);
+  }
+
+  @Test
+  void routedFxPostsSingleSenderDebitThroughInternalRail() {
+    internalRoute("FLUXPAY_B", "FLUXPAY_INR_B", "INR");
+    quote("USD", "INR", "83.50");
+    var response =
+        routed.transfer(sender, transfer(recipient, "USD", "INR", "100", "SOURCE"), "route-fx");
+    assertThat(response.providerCode()).isEqualTo("FLUXPAY_B");
+    assertThat(response.routeCode()).isEqualTo("FLUXPAY_INR_B");
+    assertThat(response.railType()).isEqualTo(RailType.INTERNAL_LEDGER);
+    assertThat(response.creditedAmount()).isEqualTo("8308.2500");
+    assertThat(response.rate()).isEqualTo("83.50000000");
+    assertThat(balance(source.getId())).isEqualByComparingTo("19900");
+    assertThat(entries.findByJournalReference(response.journalReference())).hasSize(5);
+    assertThat(entries.findByJournalReference(response.journalReference()))
+        .filteredOn(
+            line ->
+                line.getEntryType().equals("DEBIT") && line.getWalletId().equals(source.getId()))
+        .hasSize(1);
+    assertThat(entries.findByJournalReference(response.journalReference()))
+        .allSatisfy(line -> assertThat(line.getQuoteId()).isEqualTo(response.quoteId()));
+    assertBalanced(response.journalReference());
+    assertThat(
+            routeOutcomes
+                .findByExecutionReference(response.journalReference())
+                .orElseThrow()
+                .outcome())
+        .isEqualTo(RouteOutcome.COMPLETED);
+  }
+
+  @Test
+  void routedFxReplayUsesStoredResponseWhenLiveQuoteIsUnavailable() {
+    TransferRoute route = internalRoute("FLUXPAY_REPLAY", "FLUXPAY_INR_REPLAY", "INR");
+    quote("USD", "INR", "83.50");
+    var request = transfer(recipient, "USD", "INR", "100", "SOURCE");
+    var response = routed.transfer(sender, request, "route-fx-replay");
+    int postedEntries = entries.findByJournalReference(response.journalReference()).size();
+
+    route.archive(NOW.plusSeconds(1));
+    transferRoutes.saveAndFlush(route);
+    reset(quotes);
+    when(quotes.snapshot("USD", "INR")).thenThrow(new RequoteRequiredException());
+
+    assertThat(
+            routed.transfer(
+                sender, transfer(recipient, " usd ", "inr", "100.00", "source"), "route-fx-replay"))
+        .isEqualTo(response);
+    assertThat(entries.findByJournalReference(response.journalReference())).hasSize(postedEntries);
+    verifyNoInteractions(quotes);
+    assertThatThrownBy(
+            () ->
+                routed.transfer(
+                    sender, transfer(recipient, "USD", "INR", "101", "SOURCE"), "route-fx-replay"))
+        .isInstanceOf(LedgerIdempotencyConflictException.class);
+  }
+
+  @Test
+  void routedFailureRecordsFailedOutcome() {
+    customer(sender, "EUR", "20000");
+    TransferRoute route = internalRoute("FLUXPAY_C", "FLUXPAY_EUR_C", "EUR");
+    assertThatThrownBy(
+            () ->
+                routed.transfer(
+                    sender, transfer(recipient, "EUR", "EUR", "20001", "SOURCE"), "route-poor"))
+        .isInstanceOf(InsufficientWalletFundsException.class);
+    var counts = routeOutcomes.countByRouteIds(List.of(route.getId()));
+    assertThat(counts).hasSize(1);
+    assertThat(counts.get(0).getFailed()).isEqualTo(1);
+    assertThat(counts.get(0).getCompleted()).isZero();
   }
 
   @Test
@@ -552,6 +672,38 @@ class WalletTransferTest {
   private WalletTransferRequest transfer(
       UUID to, String from, String target, String amount, String mode) {
     return new WalletTransferRequest(to, null, from, target, amount, mode, null);
+  }
+
+  private TransferRoute internalRoute(String providerCode, String routeCode, String payout) {
+    TransferProvider provider =
+        TransferProvider.create(
+            UUID.randomUUID(),
+            providerCode,
+            providerCode + " Ledger",
+            RailType.INTERNAL_LEDGER,
+            true,
+            false,
+            NOW);
+    providers.saveAndFlush(provider);
+    TransferRoute route =
+        TransferRoute.create(
+            UUID.randomUUID(),
+            provider,
+            routeCode,
+            routeCode + " route",
+            DestinationType.INTERNAL_WALLET,
+            null,
+            payout,
+            new BigDecimal("0.0000"),
+            new BigDecimal("0.000000"),
+            5,
+            new BigDecimal("99.00"),
+            null,
+            null,
+            true,
+            false,
+            NOW);
+    return transferRoutes.saveAndFlush(route);
   }
 
   private void assertCategory(String ref, LedgerTransactionCategory category) {

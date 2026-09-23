@@ -1,69 +1,1002 @@
 {
-  "schema_version": 1,
-  "diagram_type": "sequence",
+  "schema_version": 2,
+  "diagram_type": "workflow",
   "meta": {
-    "title": "FluxPay Endpoint Chains — DTO to Response",
+    "title": "FluxPay Requests — UI Call to UI Consumer",
     "quality_profile": "showcase",
-    "viewBox": [1280, 1120],
-    "column_fit": "spread",
     "views": [
-      {"id":"payment-confirm","label":"Confirm payment","focus":["request","controller","payment-service","repository","oracle","response"],"note":"PaymentController.confirm validates, delegates confirmation, and wraps PaymentResponse."},
-      {"id":"wallet-convert","label":"Convert wallet funds","focus":["request","controller","payment-service","repository","oracle","response"],"note":"WalletController.convert passes WalletConvertRequest to the conversion service."},
-      {"id":"policy-index","label":"Index a policy","focus":["request","controller","policy-service","repository","oracle","response"],"note":"PolicyIndexController.index publishes a policy vector generation."},
-      {"id":"copilot-ask","label":"Ask the copilot","focus":["request","controller","policy-service","repository","oracle","response"],"note":"CopilotController.ask retrieves policy matches before returning cited answers."}
+      {
+        "id": "money",
+        "label": "Money journeys",
+        "focus": [
+          "fund-ui",
+          "fund-cons",
+          "move-ui",
+          "move-cons",
+          "draft-ui",
+          "draft-cons",
+          "confirm-ui",
+          "confirm-cons",
+          "payout-ui",
+          "payout-cons"
+        ],
+        "note": "Fund, move, draft, confirm, and payout pipelines."
+      },
+      {
+        "id": "governance",
+        "label": "Governance journeys",
+        "focus": [
+          "policy-ui",
+          "policy-cons",
+          "copilot-ui",
+          "copilot-cons",
+          "cases-ui",
+          "cases-cons",
+          "ticket-ui",
+          "ticket-cons"
+        ],
+        "note": "Policy, copilot, compliance, and ticket pipelines."
+      },
+      {
+        "id": "onboarding",
+        "label": "Onboarding journeys",
+        "focus": [
+          "auth-ui",
+          "auth-cons",
+          "kyc-ui",
+          "kyc-cons",
+          "recip-ui",
+          "recip-cons",
+          "catalog-ui",
+          "catalog-cons"
+        ],
+        "note": "Auth, KYC, recipient, and catalog pipelines."
+      }
     ]
   },
-  "participants": [
-    {"id":"request","type":"external","label":"Request DTO"},
-    {"id":"controller","type":"backend","label":"Controller Method"},
-    {"id":"payment-service","type":"backend","label":"Money Service"},
-    {"id":"policy-service","type":"backend","label":"Policy Service"},
-    {"id":"repository","type":"database","label":"Repository / Adapter"},
-    {"id":"oracle","type":"database","label":"Oracle Storage"},
-    {"id":"response","type":"external","label":"ApiResponse DTO"}
+  "lanes": [
+    { "id": "auth", "label": "Sign up + log in" },
+    { "id": "kyc", "label": "KYC apply + verify" },
+    { "id": "recip", "label": "Add recipient" },
+    { "id": "fund", "label": "Fund wallet" },
+    { "id": "move", "label": "Convert + transfer" },
+    { "id": "draft", "label": "Draft + quotes" },
+    { "id": "confirm", "label": "Confirm + cancel" },
+    { "id": "payout", "label": "Payout + track" },
+    { "id": "catalog", "label": "Catalog admin" },
+    { "id": "policy", "label": "Policy + index" },
+    { "id": "copilot", "label": "Ask copilot" },
+    { "id": "cases", "label": "Decide cases" },
+    { "id": "ticket", "label": "Support tickets" }
   ],
-  "segments": [
-    {"from":150,"to":356,"label":"Payment confirmation"},
-    {"from":376,"to":558,"label":"Wallet conversion"},
-    {"from":578,"to":782,"label":"Policy indexing"},
-    {"from":802,"to":1006,"label":"Compliance Copilot"}
+  "phases": [
+    { "id": "initiate", "label": "Initiate", "fromCol": 0, "toCol": 1 },
+    { "id": "serve", "label": "Serve", "fromCol": 2, "toCol": 3 },
+    { "id": "consume", "label": "Consume", "fromCol": 4, "toCol": 5 }
   ],
-  "messages": [
-    {"from":"request","to":"controller","y":180,"label":"ConfirmPaymentRequest + POST /api/payments/{id}/confirm","variant":"emphasis"},
-    {"from":"controller","to":"payment-service","y":222,"label":"PaymentController.confirm(user, id, request, key)","variant":"security"},
-    {"from":"payment-service","to":"repository","y":264,"label":"PaymentConfirmationService.confirm → lock payment + quote"},
-    {"from":"repository","to":"oracle","y":306,"label":"PaymentRepository / PaymentQuoteRepository"},
-    {"from":"payment-service","to":"controller","y":340,"label":"PaymentResponse (PROCESSING or UNDER_REVIEW)","variant":"return"},
-    {"from":"controller","to":"response","y":372,"label":"ApiResponse<PaymentResponse> · 200 / 202","variant":"return"},
-    {"from":"request","to":"controller","y":410,"label":"WalletConvertRequest + POST /api/wallets/convert","variant":"emphasis"},
-    {"from":"controller","to":"payment-service","y":452,"label":"WalletController.convert(user, request, idempotencyKey)","variant":"security"},
-    {"from":"payment-service","to":"repository","y":494,"label":"WalletConversionService.convert → posting + operation repositories"},
-    {"from":"repository","to":"oracle","y":536,"label":"Wallet / ledger transactional writes"},
-    {"from":"payment-service","to":"controller","y":568,"label":"WalletConvertResponse","variant":"return"},
-    {"from":"controller","to":"response","y":600,"label":"ApiResponse<WalletConvertResponse>","variant":"return"},
-    {"from":"request","to":"controller","y":638,"label":"PathVariable id + POST /api/policies/{id}/index","variant":"emphasis"},
-    {"from":"controller","to":"policy-service","y":680,"label":"PolicyIndexController.index(id)"},
-    {"from":"policy-service","to":"repository","y":722,"label":"PolicyIndexingService.index → document + vector store"},
-    {"from":"repository","to":"oracle","y":764,"label":"PolicyDocumentRepository + OraclePolicyIndexStore"},
-    {"from":"policy-service","to":"controller","y":796,"label":"PolicyIndexResult","variant":"return"},
-    {"from":"controller","to":"response","y":828,"label":"ApiResponse<PolicyIndexResult>","variant":"return"},
-    {"from":"request","to":"controller","y":866,"label":"CopilotRequest + POST /api/copilot/ask","variant":"emphasis"},
-    {"from":"controller","to":"policy-service","y":908,"label":"CopilotController.ask(request) · ADMIN","variant":"security"},
-    {"from":"policy-service","to":"repository","y":940,"label":"CopilotService.ask → PolicySearchPort.search"},
-    {"from":"repository","to":"oracle","y":970,"label":"OraclePolicySearchRepository vector search"},
-    {"from":"policy-service","to":"controller","y":1000,"label":"CopilotAnswerResponse + cited CopilotSource list","variant":"return"},
-    {"from":"controller","to":"response","y":1030,"label":"ApiResponse<CopilotAnswerResponse>","variant":"return"}
+  "mainPath": ["payout-ui", "payout-dto", "payout-ctrl", "payout-db", "payout-resp", "payout-cons"],
+  "semanticChecks": {
+    "allowedRoots": [
+      "auth-ui",
+      "kyc-ui",
+      "recip-ui",
+      "fund-ui",
+      "move-ui",
+      "draft-ui",
+      "confirm-ui",
+      "payout-ui",
+      "catalog-ui",
+      "policy-ui",
+      "copilot-ui",
+      "cases-ui",
+      "ticket-ui"
+    ],
+    "allowedTerminals": [
+      "auth-cons",
+      "kyc-cons",
+      "recip-cons",
+      "fund-cons",
+      "move-cons",
+      "draft-cons",
+      "confirm-cons",
+      "payout-cons",
+      "catalog-cons",
+      "policy-cons",
+      "copilot-cons",
+      "cases-cons",
+      "ticket-cons"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "auth-ui",
+      "lane": "auth",
+      "col": 0,
+      "type": "frontend",
+      "label": "Login view",
+      "sublabel": "signup+login"
+    },
+    {
+      "id": "auth-dto",
+      "lane": "auth",
+      "col": 1,
+      "type": "external",
+      "label": "Auth payloads",
+      "sublabel": "login fields"
+    },
+    {
+      "id": "auth-ctrl",
+      "lane": "auth",
+      "col": 2,
+      "type": "backend",
+      "label": "Auth",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "auth-db",
+      "lane": "auth",
+      "col": 3,
+      "type": "database",
+      "label": "AuthService",
+      "sublabel": "users table"
+    },
+    {
+      "id": "auth-resp",
+      "lane": "auth",
+      "col": 4,
+      "type": "external",
+      "label": "Token 200",
+      "sublabel": "JWT+profile"
+    },
+    {
+      "id": "auth-cons",
+      "lane": "auth",
+      "col": 5,
+      "type": "frontend",
+      "label": "Dashboard",
+      "sublabel": "stored token"
+    },
+    {
+      "id": "kyc-ui",
+      "lane": "kyc",
+      "col": 0,
+      "type": "frontend",
+      "label": "KYC form",
+      "sublabel": "apply + docs"
+    },
+    {
+      "id": "kyc-dto",
+      "lane": "kyc",
+      "col": 1,
+      "type": "external",
+      "label": "Files",
+      "sublabel": "files"
+    },
+    {
+      "id": "kyc-ctrl",
+      "lane": "kyc",
+      "col": 2,
+      "type": "backend",
+      "label": "Kyc",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "kyc-db",
+      "lane": "kyc",
+      "col": 3,
+      "type": "database",
+      "label": "Kyc",
+      "sublabel": "Services"
+    },
+    {
+      "id": "kyc-resp",
+      "lane": "kyc",
+      "col": 4,
+      "type": "external",
+      "label": "201 + status",
+      "sublabel": "my-status"
+    },
+    {
+      "id": "kyc-cons",
+      "lane": "kyc",
+      "col": 5,
+      "type": "frontend",
+      "label": "KYC banner",
+      "sublabel": "VERIFIED"
+    },
+    {
+      "id": "recip-ui",
+      "lane": "recip",
+      "col": 0,
+      "type": "frontend",
+      "label": "Recipients",
+      "sublabel": "add form"
+    },
+    {
+      "id": "recip-dto",
+      "lane": "recip",
+      "col": 1,
+      "type": "external",
+      "label": "Recipient DTO",
+      "sublabel": "name+account"
+    },
+    {
+      "id": "recip-ctrl",
+      "lane": "recip",
+      "col": 2,
+      "type": "backend",
+      "label": "Recipient",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "recip-db",
+      "lane": "recip",
+      "col": 3,
+      "type": "database",
+      "label": "Recipient",
+      "sublabel": "Service"
+    },
+    {
+      "id": "recip-resp",
+      "lane": "recip",
+      "col": 4,
+      "type": "external",
+      "label": "201 recipient",
+      "sublabel": "versioned"
+    },
+    {
+      "id": "recip-cons",
+      "lane": "recip",
+      "col": 5,
+      "type": "frontend",
+      "label": "Draft form",
+      "sublabel": "for draft"
+    },
+    {
+      "id": "fund-ui",
+      "lane": "fund",
+      "col": 0,
+      "type": "frontend",
+      "label": "Wallets",
+      "sublabel": "add money"
+    },
+    {
+      "id": "fund-dto",
+      "lane": "fund",
+      "col": 1,
+      "type": "external",
+      "label": "Topup",
+      "sublabel": "link + topup"
+    },
+    {
+      "id": "fund-ctrl",
+      "lane": "fund",
+      "col": 2,
+      "type": "backend",
+      "label": "BankAccount",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "fund-db",
+      "lane": "fund",
+      "col": 3,
+      "type": "database",
+      "label": "BankAccount",
+      "sublabel": "Service"
+    },
+    {
+      "id": "fund-resp",
+      "lane": "fund",
+      "col": 4,
+      "type": "external",
+      "label": "200 balance",
+      "sublabel": "journal ref"
+    },
+    {
+      "id": "fund-cons",
+      "lane": "fund",
+      "col": 5,
+      "type": "frontend",
+      "label": "Balance",
+      "sublabel": "ledger read"
+    },
+    {
+      "id": "move-ui",
+      "lane": "move",
+      "col": 0,
+      "type": "frontend",
+      "label": "Wallets",
+      "sublabel": "pay + convert"
+    },
+    {
+      "id": "move-dto",
+      "lane": "move",
+      "col": 1,
+      "type": "external",
+      "label": "Move DTO",
+      "sublabel": "SRC·TGT"
+    },
+    {
+      "id": "move-ctrl",
+      "lane": "move",
+      "col": 2,
+      "type": "backend",
+      "label": "Wallet",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "move-db",
+      "lane": "move",
+      "col": 3,
+      "type": "database",
+      "label": "Wallet",
+      "sublabel": "Services"
+    },
+    {
+      "id": "move-resp",
+      "lane": "move",
+      "col": 4,
+      "type": "external",
+      "label": "200 moved",
+      "sublabel": "rate + fee"
+    },
+    {
+      "id": "move-cons",
+      "lane": "move",
+      "col": 5,
+      "type": "frontend",
+      "label": "Balances",
+      "sublabel": "both sides"
+    },
+    {
+      "id": "draft-ui",
+      "lane": "draft",
+      "col": 0,
+      "type": "frontend",
+      "label": "New payment",
+      "sublabel": "draft form"
+    },
+    {
+      "id": "draft-dto",
+      "lane": "draft",
+      "col": 1,
+      "type": "external",
+      "label": "Draft",
+      "sublabel": "amounts"
+    },
+    {
+      "id": "draft-ctrl",
+      "lane": "draft",
+      "col": 2,
+      "type": "backend",
+      "label": "Payment",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "draft-db",
+      "lane": "draft",
+      "col": 3,
+      "type": "database",
+      "label": "Payment",
+      "sublabel": "Services"
+    },
+    {
+      "id": "draft-resp",
+      "lane": "draft",
+      "col": 4,
+      "type": "external",
+      "label": "201 + quotes",
+      "sublabel": "recommended"
+    },
+    {
+      "id": "draft-cons",
+      "lane": "draft",
+      "col": 5,
+      "type": "frontend",
+      "label": "Quotes view",
+      "sublabel": "pick winner"
+    },
+    {
+      "id": "confirm-ui",
+      "lane": "confirm",
+      "col": 0,
+      "type": "frontend",
+      "label": "Quotes view",
+      "sublabel": "pick quote"
+    },
+    {
+      "id": "confirm-dto",
+      "lane": "confirm",
+      "col": 1,
+      "type": "external",
+      "label": "Confirm DTO",
+      "sublabel": "quoteId"
+    },
+    {
+      "id": "confirm-ctrl",
+      "lane": "confirm",
+      "col": 2,
+      "type": "backend",
+      "label": "Payment",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "confirm-db",
+      "lane": "confirm",
+      "col": 3,
+      "type": "database",
+      "label": "PaymentConfirmation",
+      "sublabel": "Service",
+      "width": 150
+    },
+    {
+      "id": "confirm-resp",
+      "lane": "confirm",
+      "col": 4,
+      "type": "external",
+      "label": "200 / 202",
+      "sublabel": "202=review"
+    },
+    {
+      "id": "confirm-cons",
+      "lane": "confirm",
+      "col": 5,
+      "type": "frontend",
+      "label": "Tracking",
+      "sublabel": "watch status"
+    },
+    {
+      "id": "payout-ui",
+      "lane": "payout",
+      "col": 0,
+      "type": "frontend",
+      "label": "Payment page",
+      "sublabel": "submit"
+    },
+    {
+      "id": "payout-dto",
+      "lane": "payout",
+      "col": 1,
+      "type": "external",
+      "label": "Payout DTO",
+      "sublabel": "routeCode"
+    },
+    {
+      "id": "payout-ctrl",
+      "lane": "payout",
+      "col": 2,
+      "type": "backend",
+      "label": "Payout",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "payout-db",
+      "lane": "payout",
+      "col": 3,
+      "type": "database",
+      "label": "PayoutExecution",
+      "sublabel": "Service",
+      "width": 120
+    },
+    {
+      "id": "payout-resp",
+      "lane": "payout",
+      "col": 4,
+      "type": "external",
+      "label": "200 attempt",
+      "sublabel": "provider ref"
+    },
+    {
+      "id": "payout-cons",
+      "lane": "payout",
+      "col": 5,
+      "type": "frontend",
+      "label": "Timeline",
+      "sublabel": "timeline"
+    },
+    {
+      "id": "catalog-ui",
+      "lane": "catalog",
+      "col": 0,
+      "type": "frontend",
+      "label": "Admin routing",
+      "sublabel": "catalog mgmt",
+      "width": 105
+    },
+    {
+      "id": "catalog-dto",
+      "lane": "catalog",
+      "col": 1,
+      "type": "external",
+      "label": "Catalog DTOs",
+      "sublabel": "codes"
+    },
+    {
+      "id": "catalog-ctrl",
+      "lane": "catalog",
+      "col": 2,
+      "type": "backend",
+      "label": "Transfer*",
+      "sublabel": "Admin"
+    },
+    {
+      "id": "catalog-db",
+      "lane": "catalog",
+      "col": 3,
+      "type": "database",
+      "label": "RouteCatalog",
+      "sublabel": "Service"
+    },
+    {
+      "id": "catalog-resp",
+      "lane": "catalog",
+      "col": 4,
+      "type": "external",
+      "label": "200 catalog",
+      "sublabel": "DEL|ARCHIVED"
+    },
+    {
+      "id": "catalog-cons",
+      "lane": "catalog",
+      "col": 5,
+      "type": "frontend",
+      "label": "Admin dash",
+      "sublabel": "reports"
+    },
+    {
+      "id": "policy-ui",
+      "lane": "policy",
+      "col": 0,
+      "type": "frontend",
+      "label": "Policies",
+      "sublabel": "admin docs"
+    },
+    {
+      "id": "policy-dto",
+      "lane": "policy",
+      "col": 1,
+      "type": "external",
+      "label": "Policy DTO",
+      "sublabel": "title"
+    },
+    {
+      "id": "policy-ctrl",
+      "lane": "policy",
+      "col": 2,
+      "type": "backend",
+      "label": "Policy",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "policy-db",
+      "lane": "policy",
+      "col": 3,
+      "type": "database",
+      "label": "Policy",
+      "sublabel": "Services"
+    },
+    {
+      "id": "policy-resp",
+      "lane": "policy",
+      "col": 4,
+      "type": "external",
+      "label": "201 + count",
+      "sublabel": "chunkCount"
+    },
+    {
+      "id": "policy-cons",
+      "lane": "policy",
+      "col": 5,
+      "type": "frontend",
+      "label": "Library",
+      "sublabel": "indexed"
+    },
+    {
+      "id": "copilot-ui",
+      "lane": "copilot",
+      "col": 0,
+      "type": "frontend",
+      "label": "Copilot view",
+      "sublabel": "ask question"
+    },
+    {
+      "id": "copilot-dto",
+      "lane": "copilot",
+      "col": 1,
+      "type": "external",
+      "label": "Ask payload",
+      "sublabel": "POST /ask"
+    },
+    {
+      "id": "copilot-ctrl",
+      "lane": "copilot",
+      "col": 2,
+      "type": "backend",
+      "label": "Copilot",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "copilot-db",
+      "lane": "copilot",
+      "col": 3,
+      "type": "database",
+      "label": "Copilot",
+      "sublabel": "Service"
+    },
+    {
+      "id": "copilot-resp",
+      "lane": "copilot",
+      "col": 4,
+      "type": "external",
+      "label": "answer+cites",
+      "sublabel": "SSE deltas"
+    },
+    {
+      "id": "copilot-cons",
+      "lane": "copilot",
+      "col": 5,
+      "type": "frontend",
+      "label": "Answer view",
+      "sublabel": "cited policy"
+    },
+    {
+      "id": "cases-ui",
+      "lane": "cases",
+      "col": 0,
+      "type": "frontend",
+      "label": "Review queue",
+      "sublabel": "open case"
+    },
+    {
+      "id": "cases-dto",
+      "lane": "cases",
+      "col": 1,
+      "type": "external",
+      "label": "Case DTO",
+      "sublabel": "POST /cases"
+    },
+    {
+      "id": "cases-ctrl",
+      "lane": "cases",
+      "col": 2,
+      "type": "backend",
+      "label": "ComplianceCase",
+      "sublabel": "Controller",
+      "width": 115
+    },
+    {
+      "id": "cases-db",
+      "lane": "cases",
+      "col": 3,
+      "type": "database",
+      "label": "ComplianceCase",
+      "sublabel": "Service",
+      "width": 115
+    },
+    {
+      "id": "cases-resp",
+      "lane": "cases",
+      "col": 4,
+      "type": "external",
+      "label": "201 decided",
+      "sublabel": "OPEN-closed"
+    },
+    {
+      "id": "cases-cons",
+      "lane": "cases",
+      "col": 5,
+      "type": "frontend",
+      "label": "Case view",
+      "sublabel": "pay moves"
+    },
+    {
+      "id": "ticket-ui",
+      "lane": "ticket",
+      "col": 0,
+      "type": "frontend",
+      "label": "Helpdesk",
+      "sublabel": "new ticket"
+    },
+    {
+      "id": "ticket-dto",
+      "lane": "ticket",
+      "col": 1,
+      "type": "external",
+      "label": "Ticket DTO",
+      "sublabel": "new ticket"
+    },
+    {
+      "id": "ticket-ctrl",
+      "lane": "ticket",
+      "col": 2,
+      "type": "backend",
+      "label": "Ticket",
+      "sublabel": "Controller"
+    },
+    {
+      "id": "ticket-db",
+      "lane": "ticket",
+      "col": 3,
+      "type": "database",
+      "label": "Ticket",
+      "sublabel": "Service"
+    },
+    {
+      "id": "ticket-resp",
+      "lane": "ticket",
+      "col": 4,
+      "type": "external",
+      "label": "201 ticket",
+      "sublabel": "paged"
+    },
+    {
+      "id": "ticket-cons",
+      "lane": "ticket",
+      "col": 5,
+      "type": "frontend",
+      "label": "Thread view",
+      "sublabel": "admin closes"
+    }
   ],
-  "activations": [
-    {"participant":"controller","from":174,"to":1032,"type":"backend"},
-    {"participant":"payment-service","from":216,"to":572,"type":"backend"},
-    {"participant":"policy-service","from":674,"to":1004,"type":"backend"},
-    {"participant":"repository","from":258,"to":976,"type":"database"},
-    {"participant":"oracle","from":300,"to":976,"type":"database"}
+  "edges": [
+    {
+      "id": "auth-e1",
+      "from": "auth-ui",
+      "to": "auth-dto",
+      "label": "signup+login",
+      "variant": "emphasis"
+    },
+    { "id": "auth-e2", "from": "auth-dto", "to": "auth-ctrl", "label": "register()·login()" },
+    { "id": "auth-e3", "from": "auth-ctrl", "to": "auth-db", "label": "register()·login()" },
+    { "id": "auth-e4", "from": "auth-db", "to": "auth-resp", "label": "user row" },
+    { "id": "auth-e5", "from": "auth-resp", "to": "auth-cons", "label": "ApiResponse" },
+    {
+      "id": "kyc-e1",
+      "from": "kyc-ui",
+      "to": "kyc-dto",
+      "label": "POST apply",
+      "variant": "emphasis"
+    },
+    { "id": "kyc-e2", "from": "kyc-dto", "to": "kyc-ctrl", "label": "submit()" },
+    {
+      "id": "kyc-e3",
+      "from": "kyc-ctrl",
+      "to": "kyc-db",
+      "label": "submit()·approve()",
+      "variant": "security"
+    },
+    { "id": "kyc-e4", "from": "kyc-db", "to": "kyc-resp", "label": "application row" },
+    { "id": "kyc-e5", "from": "kyc-resp", "to": "kyc-cons", "label": "ApiResponse" },
+    {
+      "id": "recip-e1",
+      "from": "recip-ui",
+      "to": "recip-dto",
+      "label": "recipients",
+      "variant": "emphasis"
+    },
+    { "id": "recip-e2", "from": "recip-dto", "to": "recip-ctrl", "label": "create()·update()" },
+    {
+      "id": "recip-e3",
+      "from": "recip-ctrl",
+      "to": "recip-db",
+      "label": "create()·update()",
+      "variant": "security"
+    },
+    { "id": "recip-e4", "from": "recip-db", "to": "recip-resp", "label": "recipient row" },
+    { "id": "recip-e5", "from": "recip-resp", "to": "recip-cons", "label": "ApiResponse" },
+    {
+      "id": "fund-e1",
+      "from": "fund-ui",
+      "to": "fund-dto",
+      "label": "link+topup",
+      "variant": "emphasis"
+    },
+    { "id": "fund-e2", "from": "fund-dto", "to": "fund-ctrl", "label": "link()·topup()" },
+    {
+      "id": "fund-e3",
+      "from": "fund-ctrl",
+      "to": "fund-db",
+      "label": "link()·topup()",
+      "variant": "security"
+    },
+    { "id": "fund-e4", "from": "fund-db", "to": "fund-resp", "label": "CREDIT row" },
+    { "id": "fund-e5", "from": "fund-resp", "to": "fund-cons", "label": "ApiResponse" },
+    {
+      "id": "move-e1",
+      "from": "move-ui",
+      "to": "move-dto",
+      "label": "move funds",
+      "variant": "emphasis"
+    },
+    { "id": "move-e2", "from": "move-dto", "to": "move-ctrl", "label": "transfer()·convert()" },
+    {
+      "id": "move-e3",
+      "from": "move-ctrl",
+      "to": "move-db",
+      "label": "transfer()·convert()",
+      "variant": "security"
+    },
+    { "id": "move-e4", "from": "move-db", "to": "move-resp", "label": "journal rows" },
+    { "id": "move-e5", "from": "move-resp", "to": "move-cons", "label": "ApiResponse" },
+    {
+      "id": "draft-e1",
+      "from": "draft-ui",
+      "to": "draft-dto",
+      "label": "POST /draft",
+      "variant": "emphasis"
+    },
+    { "id": "draft-e2", "from": "draft-dto", "to": "draft-ctrl", "label": "draft()·quote()" },
+    {
+      "id": "draft-e3",
+      "from": "draft-ctrl",
+      "to": "draft-db",
+      "label": "draft()",
+      "variant": "security"
+    },
+    { "id": "draft-e4", "from": "draft-db", "to": "draft-resp", "label": "quotes rows" },
+    { "id": "draft-e5", "from": "draft-resp", "to": "draft-cons", "label": "ApiResponse" },
+    {
+      "id": "confirm-e1",
+      "from": "confirm-ui",
+      "to": "confirm-dto",
+      "label": "confirm",
+      "variant": "emphasis"
+    },
+    { "id": "confirm-e2", "from": "confirm-dto", "to": "confirm-ctrl", "label": "confirm()" },
+    {
+      "id": "confirm-e3",
+      "from": "confirm-ctrl",
+      "to": "confirm-db",
+      "label": "confirm()",
+      "variant": "security"
+    },
+    { "id": "confirm-e4", "from": "confirm-db", "to": "confirm-resp", "label": "PaymentResponse" },
+    { "id": "confirm-e5", "from": "confirm-resp", "to": "confirm-cons", "label": "ApiResponse" },
+    {
+      "id": "payout-e1",
+      "from": "payout-ui",
+      "to": "payout-dto",
+      "label": "POST /submit",
+      "variant": "emphasis"
+    },
+    { "id": "payout-e2", "from": "payout-dto", "to": "payout-ctrl", "label": "submit()·retry()" },
+    {
+      "id": "payout-e3",
+      "from": "payout-ctrl",
+      "to": "payout-db",
+      "label": "perform()",
+      "variant": "security"
+    },
+    { "id": "payout-e4", "from": "payout-db", "to": "payout-resp", "label": "payout.* event" },
+    { "id": "payout-e5", "from": "payout-resp", "to": "payout-cons", "label": "ApiResponse" },
+    {
+      "id": "catalog-e1",
+      "from": "catalog-ui",
+      "to": "catalog-dto",
+      "label": "catalog",
+      "variant": "emphasis"
+    },
+    {
+      "id": "catalog-e2",
+      "from": "catalog-dto",
+      "to": "catalog-ctrl",
+      "label": "list()·recommend()"
+    },
+    {
+      "id": "catalog-e3",
+      "from": "catalog-ctrl",
+      "to": "catalog-db",
+      "label": "recommend()",
+      "variant": "security"
+    },
+    { "id": "catalog-e4", "from": "catalog-db", "to": "catalog-resp", "label": "catalog rows" },
+    { "id": "catalog-e5", "from": "catalog-resp", "to": "catalog-cons", "label": "ApiResponse" },
+    {
+      "id": "policy-e1",
+      "from": "policy-ui",
+      "to": "policy-dto",
+      "label": "docs+index",
+      "variant": "emphasis"
+    },
+    {
+      "id": "policy-e2",
+      "from": "policy-dto",
+      "to": "policy-ctrl",
+      "label": "create()·addChunk()"
+    },
+    {
+      "id": "policy-e3",
+      "from": "policy-ctrl",
+      "to": "policy-db",
+      "label": "create()·index()",
+      "variant": "security"
+    },
+    { "id": "policy-e4", "from": "policy-db", "to": "policy-resp", "label": "vector rows" },
+    { "id": "policy-e5", "from": "policy-resp", "to": "policy-cons", "label": "ApiResponse" },
+    {
+      "id": "copilot-e1",
+      "from": "copilot-ui",
+      "to": "copilot-dto",
+      "label": "ask+stream",
+      "variant": "emphasis"
+    },
+    { "id": "copilot-e2", "from": "copilot-dto", "to": "copilot-ctrl", "label": "ask()·stream()" },
+    {
+      "id": "copilot-e3",
+      "from": "copilot-ctrl",
+      "to": "copilot-db",
+      "label": "ask()·stream()",
+      "variant": "security"
+    },
+    { "id": "copilot-e4", "from": "copilot-db", "to": "copilot-resp", "label": "sources" },
+    { "id": "copilot-e5", "from": "copilot-resp", "to": "copilot-cons", "label": "ApiResponse" },
+    {
+      "id": "cases-e1",
+      "from": "cases-ui",
+      "to": "cases-dto",
+      "label": "cases",
+      "variant": "emphasis"
+    },
+    { "id": "cases-e2", "from": "cases-dto", "to": "cases-ctrl", "label": "create()·approve()" },
+    {
+      "id": "cases-e3",
+      "from": "cases-ctrl",
+      "to": "cases-db",
+      "label": "create()·approve()",
+      "variant": "security"
+    },
+    { "id": "cases-e4", "from": "cases-db", "to": "cases-resp", "label": "case row" },
+    { "id": "cases-e5", "from": "cases-resp", "to": "cases-cons", "label": "ApiResponse" },
+    {
+      "id": "ticket-e1",
+      "from": "ticket-ui",
+      "to": "ticket-dto",
+      "label": "tickets",
+      "variant": "emphasis"
+    },
+    { "id": "ticket-e2", "from": "ticket-dto", "to": "ticket-ctrl", "label": "create()·update()" },
+    {
+      "id": "ticket-e3",
+      "from": "ticket-ctrl",
+      "to": "ticket-db",
+      "label": "create()",
+      "variant": "security"
+    },
+    { "id": "ticket-e4", "from": "ticket-db", "to": "ticket-resp", "label": "ticket row" },
+    { "id": "ticket-e5", "from": "ticket-resp", "to": "ticket-cons", "label": "ApiResponse" }
   ],
   "cards": [
-    {"dot":"cyan","title":"Controller contract","items":["Each trace begins with the DTO or route parameters accepted by a concrete controller method.","Controllers apply headers, authentication, and validation before delegation."]},
-    {"dot":"emerald","title":"Service and persistence","items":["Services own the use case and call repositories or persistence adapters for durable state.","Each trace names its concrete service and repository/adapter path."]},
-    {"dot":"violet","title":"Response contract","items":["A response DTO returns to the controller.","The controller wraps it in the typed ApiResponse envelope and applicable HTTP status."]}
+    {
+      "dot": "cyan",
+      "title": "One pipeline per request",
+      "items": [
+        "Each lane isolates one request family: UI call, Request DTO, Controller, DB methods, Response DTO, UI consumer.",
+        "Every pipeline starts in a UI view and ends in a UI view — reads end where the user consumes them.",
+        "Phases mark Initiate, Serve, and Consume across all lanes."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Full route inventory",
+      "items": [
+        "Auth+users: POST /api/auth/register, POST /api/auth/login, GET /api/users/me, PUT /api/users/me. Calls: AuthService.register/login, UserService.getProfile/updateProfile.",
+        "KYC: POST /api/kyc/applications multipart+json, GET /my-status, GET /documents/{id}/content, admin list+approve+reject. Uploads via KycUploadService.submit; files land in temp_images; decisions via KycService.approve/reject.",
+        "Recipients, wallets, bank: full CRUD plus transfer, withdraw, convert, receive-demo, link, topup, ledger reads. Calls: RecipientService.create/list/update, BankAccountService.link/list/topup/withdraw, DemoFundingService.receiveDemo, transfers.transfer, WalletConversionService.convert, reads via WalletQueryService.",
+        "Payments: draft, quotes GET+POST, recommend-route, confirm, cancel, list, get, GET /fx/rate. Calls: PaymentService.draft, QuoteService.createOrCurrent/get, PaymentConfirmationService.confirm.",
+        "Payout: submit, retry, switch-route, refund, admin refund+reconcile, timeline read. Submit via execution.perform (PayoutExecutionService); refund via recovery.refundFunded; reconcile via reconciler.reconcile.",
+        "Catalog: routes, rail-types, providers CRUD, routes CRUD, provider-summary report. Reads via RouteCatalogService.listRoutes/metricFor/recommend; writes via TransferProviderService/TransferRouteService; rails via RailRegistry; reports via ReportQueryService.providerSummary.",
+        "Policy: doc+chunk+guidance CRUD plus index. Docs via PolicyDocumentService.create/list/getById/update; chunks via PolicyChunkService.addChunk/list/updateChunk/deleteChunk; guidance via PolicyGuidanceService.add/list/update/delete; removal via PolicyDeletionService.delete; indexing via PolicyIndexingService.index. Compliance: case CRUD plus approve+reject+delete via ComplianceCaseService.create/list/getById/approve/reject/deleteManualCase.",
+        "Copilot: ask plus ask/stream SSE via CopilotService.ask/stream. Tickets: user CRUD plus admin list+update via TicketService.create/getOwned/list/listForAdmin/changeStatus."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Navigate the code",
+      "items": [
+        "Class names wrap across two lines with the .java suffix omitted.",
+        "Controllers live in backend/.../controller, services in the sibling service package.",
+        "Frontend calls live in frontend/fluxpay-ui/src/ts/services/flux-api.ts."
+      ]
+    }
   ]
 }

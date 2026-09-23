@@ -52,7 +52,7 @@ class DbPaymentReaderTest {
             "KES",
             PaymentPurpose.FAMILY_SUPPORT,
             RoutePreference.BALANCED,
-            "{}",
+            "{\"name\":\"A\",\"account\":\"acct\",\"bankName\":\"Bank\",\"country\":\"KE\",\"currency\":\"KES\"}",
             Instant.now());
     when(payments.findById(any())).thenReturn(Optional.of(p));
     UUID clearingId = UUID.randomUUID();
@@ -116,7 +116,7 @@ class DbPaymentReaderTest {
             "KES",
             PaymentPurpose.FAMILY_SUPPORT,
             RoutePreference.BALANCED,
-            "{}",
+            "{\"name\":\"A\",\"account\":\"acct\",\"bankName\":\"Bank\",\"country\":\"KE\",\"currency\":\"KES\"}",
             Instant.now());
     when(payments.findById(any())).thenReturn(Optional.of(p));
     when(recipients.findByIdAndUserId(any(), any())).thenReturn(Optional.of(r));

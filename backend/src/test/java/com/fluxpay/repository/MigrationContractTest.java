@@ -16,21 +16,26 @@ class MigrationContractTest {
   }
 
   @Test
-  void routesAndAttemptsUseRealRouteCodesAndDurableExecutionStates() throws IOException {
+  void transferCatalogueReplacesLegacyRoutes() throws IOException {
     String sql = resource("V003__routing_payments_and_quotes.sql");
     assertThat(sql)
+        .contains("CREATE TABLE transfer_providers (")
+        .contains("CREATE TABLE transfer_routes (")
+        .contains("provider_id RAW(16) NOT NULL REFERENCES transfer_providers(id)")
+        .contains("CREATE TABLE transfer_route_outcomes (")
+        .contains("transfer_route_id RAW(16) NOT NULL REFERENCES transfer_routes(id)")
+        .doesNotContain("CREATE TABLE payout_routes (")
+        .doesNotContain("chk_payout_route_type")
         .contains("route_code VARCHAR2(50) NOT NULL UNIQUE")
         .contains("route_name VARCHAR2(100) NOT NULL")
-        .contains("provider_name VARCHAR2(100) NOT NULL")
-        .contains("route_type VARCHAR2(30) NOT NULL")
         .contains("base_fee NUMBER(19,4) NOT NULL")
         .contains("fx_spread_percentage NUMBER(9,6) NOT NULL")
         .contains("estimated_minutes NUMBER(10) NOT NULL")
-        .contains("success_rate NUMBER(5,2) NOT NULL")
+        .contains("configured_success_rate NUMBER(5,2) NOT NULL")
         .contains("active NUMBER(1) NOT NULL")
         .contains("version NUMBER(10) DEFAULT 0 NOT NULL")
         .contains("payment_id VARCHAR2(50) NOT NULL")
-        .contains("payout_route_id RAW(16) NOT NULL REFERENCES payout_routes(id)")
+        .contains("transfer_route_id RAW(16) NOT NULL REFERENCES transfer_routes(id)")
         .contains("failure_reason VARCHAR2(1000)")
         .contains("provider_reference VARCHAR2(100) UNIQUE")
         .contains("CONSTRAINT uq_payout_attempt UNIQUE (payment_id, attempt_number)")
@@ -45,9 +50,14 @@ class MigrationContractTest {
   void quotesReferenceRealRouteCodesAndPaymentsDeferSelectedQuoteFk() throws IOException {
     String sql = resource("V003__routing_payments_and_quotes.sql");
     assertThat(sql)
+        .doesNotContain("REFERENCES payout_routes (route_code)")
+        .contains("route_id RAW(16) NOT NULL REFERENCES transfer_routes(id)")
+        .contains("route_code VARCHAR2(50) NOT NULL")
+        .contains("provider_id RAW(16) NOT NULL REFERENCES transfer_providers(id)")
+        .contains("effective_reliability NUMBER(9,6) NOT NULL")
+        .contains("ranking_score NUMBER(19,12) NOT NULL")
         .contains(
-            "CONSTRAINT fk_payment_quote_route FOREIGN KEY (route) REFERENCES payout_routes (route_code)")
-        .contains("CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route)")
+            "CONSTRAINT uq_payment_quote_generation UNIQUE (payment_id, generation, route_id)")
         .contains(
             "ALTER TABLE payments ADD CONSTRAINT fk_payment_selected_quote FOREIGN KEY"
                 + " (selected_quote_id) REFERENCES payment_quotes (id)");

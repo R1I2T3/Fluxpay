@@ -189,7 +189,8 @@ final class AccountingDatabase {
     when(journalHeaders.findByJournalReference(any()))
         .thenAnswer(
             call ->
-                jdbc.query(
+                jdbc
+                    .query(
                         "select * from journal_headers where journal=?",
                         (rs, row) -> {
                           String payloadHash = rs.getString("payload_hash");
@@ -197,7 +198,8 @@ final class AccountingDatabase {
                               LedgerTransactionCategory.valueOf(rs.getString("category"));
                           Instant createdAt = rs.getTimestamp("created_at").toInstant();
                           return payloadHash == null
-                              ? LedgerJournal.historical(rs.getString("journal"), category, createdAt)
+                              ? LedgerJournal.historical(
+                                  rs.getString("journal"), category, createdAt)
                               : new LedgerJournal(
                                   rs.getString("journal"), category, payloadHash, createdAt);
                         },
@@ -291,9 +293,7 @@ final class AccountingDatabase {
 
   int journalCount(String journalReference) {
     return jdbc.queryForObject(
-        "select count(*) from journal_headers where journal=?",
-        Integer.class,
-        journalReference);
+        "select count(*) from journal_headers where journal=?", Integer.class, journalReference);
   }
 
   int entryCount(String journalReference) {

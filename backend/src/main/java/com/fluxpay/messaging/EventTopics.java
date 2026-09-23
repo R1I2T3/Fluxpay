@@ -10,6 +10,8 @@ public final class EventTopics {
   public static final String PAYMENT_SCREENING_COMPLETED = "payment.screening.completed";
   public static final String PAYOUT_SUBMITTED = "payout.submitted";
   public static final String PAYOUT_FAILED = "payout.failed";
+  public static final String PAYOUT_RETRY = "payout.retry";
+  public static final String PAYOUT_REFUND = "payout.refund";
   public static final String PAYOUT_COMPLETED = "payout.completed";
   public static final String PAYMENT_REFUNDED = "payment.refunded";
   public static final String PAYMENT_REVIEW_REQUESTED = "payment.review.requested";
@@ -21,6 +23,8 @@ public final class EventTopics {
           PAYMENT_SCREENING_COMPLETED,
           PAYOUT_SUBMITTED,
           PAYOUT_FAILED,
+          PAYOUT_RETRY,
+          PAYOUT_REFUND,
           PAYOUT_COMPLETED,
           PAYMENT_REFUNDED,
           PAYMENT_REVIEW_REQUESTED);

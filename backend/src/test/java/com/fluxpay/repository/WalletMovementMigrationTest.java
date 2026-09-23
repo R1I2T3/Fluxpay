@@ -20,7 +20,7 @@ class WalletMovementMigrationTest {
         "CREATE TABLE wallet_operations(operation_type VARCHAR2(20) NOT NULL, CONSTRAINT chk_wallet_operation_type CHECK(operation_type IN ('RECEIVE_DEMO', 'CONVERT')))");
     jdbc.update("INSERT INTO wallet_operations VALUES ('RECEIVE_DEMO'), ('CONVERT')");
     new ResourceDatabasePopulator(
-            new ClassPathResource("db/migration/V606__wallet_transfer_bank_operations.sql"))
+            new ClassPathResource("db/migration/V614__wallet_transfer_bank_operations.sql"))
         .execute(datasource);
     for (String type : List.of("TRANSFER", "WITHDRAW", "BANK_LINK", "BANK_TOPUP"))
       jdbc.update("INSERT INTO wallet_operations VALUES (?)", type);

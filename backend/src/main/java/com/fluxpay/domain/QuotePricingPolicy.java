@@ -31,11 +31,4 @@ public class QuotePricingPolicy {
     }
     return new PricedRoute(net, offered, recipient);
   }
-
-  /** Existing express customer surcharge, frozen at quote creation rather than provider submit. */
-  public BigDecimal customerFee(String routeCode, BigDecimal baseFee) {
-    return baseFee
-        .add("INSTANT_PAYOUT".equals(routeCode) ? new BigDecimal("2.50") : BigDecimal.ZERO)
-        .setScale(4, RoundingMode.HALF_EVEN);
-  }
 }

@@ -91,7 +91,8 @@ public class WalletTransferService {
                 null,
                 note,
                 canonical,
-                key);
+                key,
+                null);
           if (accepted.get() == null)
             accepted.set(validator.accept(quotes.snapshot(from, to), from, to));
           FxSnapshot quote = accepted.get();
@@ -109,7 +110,8 @@ public class WalletTransferService {
               quote,
               note,
               canonical,
-              key);
+              key,
+              null);
         });
   }
 }

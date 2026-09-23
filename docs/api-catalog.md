@@ -12,7 +12,7 @@ All wallet/bank writes below require a bearer token and `Idempotency-Key`. Bank-
 | `POST /api/bank-accounts/link` | `{bankName:"Example Bank",accountLast4:"4321",currency:"USD"}`. Exactly four digits; no full bank number. | Wallets / Add money → Link bank |
 | `POST /api/bank-accounts/{id}/topup` | `{amount:"25.00",note:"Monthly savings"}`. Bank must be owned, verified, and currency-matched. Verified KYC required; daily cap 10,000 per currency. | Add money → Linked bank account → Review |
 | `POST /api/wallets/withdraw` | `{bankAccountId:"<uuid>",currency:"USD",amount:"10.00",note:"Savings"}`. Requires available balance and matching verified bank. | Wallets → Withdraw to bank |
-| `POST /api/wallets/transfer` | `{toEmail:"recipient@example.test",fromCurrency:"USD",toCurrency:"INR",amount:"10.00",amountMode:"SOURCE",note:"Lunch"}`. Supply exactly one of `toEmail` or `toUserId`. `SOURCE` sets sender amount; `TARGET` sets recipient amount. | Wallets → Pay a FluxPay wallet |
+| `POST /api/wallets/transfer` | `{toEmail:"recipient@example.test",fromCurrency:"USD",toCurrency:"INR",amount:"10.00",amountMode:"SOURCE",note:"Lunch"}`. Supply exactly one of `toEmail` or `toUserId`. `SOURCE` sets sender amount; `TARGET` sets recipient amount. The 200 response also returns the winning internal route decision (`providerCode`, `routeCode`, `railType`, `effectiveReliability`); replays return the stored decision. | Wallets → Pay a FluxPay wallet |
 | `PUT /api/policies/{id}` | `{title,category,content,clearExistingChunks}`; clearing/replacing content invalidates the search index. | Administration → Policy library → Edit |
 | `PUT /api/policies/{id}/chunks/{chunkId}` | `{content}`; manual chunks only. | Policy library → Advanced settings |
 | `DELETE /api/policies/{id}/chunks/{chunkId}` | Deletes a chunk. Reindexing can recreate generated chunks. | Policy library → Advanced settings |
@@ -121,7 +121,7 @@ Recipient status values are `ACTIVE` and `BLOCKED`. The `country` field must be 
 | # | Method and URL | Auth / headers | Request body / parameters | Status and sample output |
 |---:|---|---|---|---|
 | 18 | `POST {{baseUrl}}/api/payments/draft` | Bearer + Idempotency-Key | `{"sourceWalletId":"{{walletId}}","recipientId":"{{recipientId}}","sourceAmount":"100.0000","sourceCurrency":"USD","payoutCurrency":"INR","purpose":"FAMILY_SUPPORT","preference":"BALANCED"}` | **201** `{"correlationId":"...","data":{"id":"<payment-uuid>","sourceWalletId":"<wallet-uuid>","recipientId":"<recipient-uuid>","sourceAmount":"100.0000","sourceCurrency":"USD","payoutCurrency":"INR","status":"DRAFT","selectedQuoteId":null,"createdAt":"2026-09-15T10:00:00Z"}}` |
-| 19 | `POST {{baseUrl}}/api/payments/{{paymentId}}/quotes` | Bearer + Idempotency-Key | No body | **201** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","recommendedQuoteId":"<quote-uuid>","recommendationReason":"preference BALANCED","expiresAt":"2026-09-15T10:10:00Z","serverTime":"2026-09-15T10:00:00Z","quotes":[{"id":"<quote-uuid>","route":"STANDARD_BANK","marketRate":"83.50","offeredRate":"83.0825","feeAmount":"5.0000","recipientAmount":"7892.8375","estimatedMinutes":240,"recommended":true}]}}` |
+| 19 | `POST {{baseUrl}}/api/payments/{{paymentId}}/quotes` | Bearer + Idempotency-Key | No body | **201** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","recommendedQuoteId":"<quote-uuid>","recommendationReason":"preference BALANCED","expiresAt":"2026-09-15T10:10:00Z","serverTime":"2026-09-15T10:00:00Z","quotes":[{"id":"<quote-uuid>","routeCode":"HDFC_INR_STANDARD","route":"HDFC_INR_STANDARD","routeId":"<route-uuid>","providerId":"<provider-uuid>","marketRate":"83.50","offeredRate":"83.0825","feeAmount":"1.0000","recipientAmount":"8225.1675","estimatedMinutes":60,"recommended":true,"effectiveReliability":"99.000000","rankingScore":"0.69491...","rankingPosition":1}]}}`. A generation persists at most the three top-ranked eligible quotes, and several winners may belong to the same provider. |
 | 20 | `GET {{baseUrl}}/api/payments/{{paymentId}}/quotes` | Bearer token | None | **200** Same quote response shape as endpoint 19. |
 | 21 | `POST {{baseUrl}}/api/payments/{{paymentId}}/confirm` | Bearer + Idempotency-Key | `{"quoteId":"{{quoteId}}"}` | **200** or **202** `{"correlationId":"...","data":{"id":"<payment-uuid>","sourceWalletId":"<wallet-uuid>","recipientId":"<recipient-uuid>","sourceAmount":"100.0000","sourceCurrency":"USD","payoutCurrency":"INR","status":"PROCESSING","selectedQuoteId":"<quote-uuid>","createdAt":"2026-09-15T10:00:00Z"}}` |
 | 22 | `POST {{baseUrl}}/api/payments/{{paymentId}}/cancel` | Bearer + Idempotency-Key | No body | **200** `{"correlationId":"...","data":{"id":"<payment-uuid>","sourceWalletId":"<uuid>","recipientId":"<uuid>","sourceAmount":"100.0000","sourceCurrency":"USD","payoutCurrency":"INR","status":"CANCELLED","selectedQuoteId":null,"createdAt":"2026-09-15T10:00:00Z"}}` |
@@ -134,23 +134,48 @@ Route preferences are `CHEAPEST`, `FASTEST`, and `BALANCED`.
 
 Payment states are `DRAFT`, `QUOTED`, `UNDER_REVIEW`, `PROCESSING`, `COMPLETED`, `FAILED`, `REFUNDED`, `REJECTED`, and `CANCELLED`.
 
-## Route APIs
+## Transfer routing admin APIs
+
+Rail types are code-shipped: `INTERNAL_LEDGER` delivers to another FluxPay wallet while
+`BANK_NETWORK`, `REAL_TIME_NETWORK`, and `PARTNER_NETWORK` deliver to external accounts. One
+provider selects one rail type and owns many routes; many providers may share the same rail.
+Administrators configure provider/route identity, eligibility, and commercials only — never
+executable code, endpoints, scripts, credentials, or secrets. Codes are uppercase, unique, and
+immutable; rail/provider bindings freeze after first use; used and system-protected records
+archive instead of deleting. Every admin write requires Spring `ADMIN` authorization plus the
+persistent role check.
 
 | # | Method and URL | Auth / headers | Request body | Status and sample output |
 |---:|---|---|---|---|
-| 25 | `GET {{baseUrl}}/api/routes` | Bearer token | None | **200** `{"correlationId":"...","data":{"routes":[{"routeId":"<uuid>","routeCode":"STANDARD_BANK","routeName":"Standard bank","providerName":"Simulated standard bank","routeType":"STANDARD","baseFee":5.0000,"fxSpreadPercentage":0.500000,"estimatedMinutes":240,"successRate":99.50,"active":true,"version":0,"successCount":0,"totalAttempts":0}]}}` |
-| 26 | `POST {{baseUrl}}/api/payments/{{paymentId}}/recommend-route` | Bearer token; owner only | `{"preference":"BALANCED"}`. Body may be omitted; the default is `BALANCED`. | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","recommendedRouteId":"<route-uuid>","recommendationReason":"preference BALANCED over 3 active routes","quotes":[{"routeId":"<route-uuid>","routeName":"Standard bank","marketRate":83.50,"offeredRate":83.0825,"feeAmount":5.0000,"recipientAmount":7892.8375,"estimatedMinutes":240,"recommended":true}]}}` |
-| 27 | `PUT {{baseUrl}}/api/admin/routes/{{routeId}}` | Admin token | `{"baseFee":5.0000,"fxSpreadPercentage":0.500000,"estimatedMinutes":120,"successRate":99.00,"active":true,"version":0}` | **200** `{"correlationId":"...","data":{"routeId":"<uuid>","routeCode":"STANDARD_BANK","routeName":"Standard bank","providerName":"Simulated standard bank","routeType":"STANDARD","baseFee":5.0000,"fxSpreadPercentage":0.500000,"estimatedMinutes":120,"successRate":99.00,"active":true,"version":1,"successCount":0,"totalAttempts":0}}` |
+| 25 | `GET {{baseUrl}}/api/admin/rail-types` | Admin token | None | **200** `{"correlationId":"...","data":{"railTypes":[{"railType":"BANK_NETWORK","supportedDestinations":["EXTERNAL_ACCOUNT"]}]}}` |
+| 26 | `GET {{baseUrl}}/api/admin/rail-types/BANK_NETWORK` | Admin token | None | **200** Same single-rail shape as endpoint 25. |
+| 27 | `GET {{baseUrl}}/api/admin/providers` | Admin token | None | **200** `{"correlationId":"...","data":{"providers":[{"id":"<uuid>","providerCode":"HDFC_BANK","providerName":"HDFC Bank","railType":"BANK_NETWORK","active":true,"systemProtected":false,"archivedAt":null,"version":0}]}}` |
+| 28 | `POST {{baseUrl}}/api/admin/providers` | Admin token | `{"providerCode":"HDFC_BANK","providerName":"HDFC Bank","railType":"BANK_NETWORK","active":true}` | **201** Same provider shape as endpoint 27. Duplicate codes return **409** `PROVIDER_CODE_CONFLICT`. |
+| 29 | `PUT {{baseUrl}}/api/admin/providers/{{providerId}}` | Admin token | `{"providerName":"HDFC Bank","railType":"BANK_NETWORK","active":true,"version":0}` | **200** Same provider shape as endpoint 27 with `version:1`. Stale versions return **409** `STALE_PROVIDER`; a used binding change returns **409** `ROUTING_BINDING_IMMUTABLE`. |
+| 30 | `DELETE {{baseUrl}}/api/admin/providers/{{providerId}}?version=0` | Admin token | None | **200** `{"correlationId":"...","data":{"disposition":"DELETED"}}` (unused, non-system) or `{"disposition":"ARCHIVED"}` (used or system-protected). Providers with child routes return **409** `PROVIDER_HAS_ROUTES`. |
+| 31 | `GET {{baseUrl}}/api/admin/routes` | Admin token | None | **200** `{"correlationId":"...","data":{"routes":[{"id":"<uuid>","providerId":"<uuid>","routeCode":"HDFC_INR_STANDARD","name":"HDFC INR Standard","destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"IN","payoutCurrency":"INR","baseFee":"1.0000","fxSpreadPercentage":"0.500000","estimatedMinutes":60,"configuredSuccessRate":"99.00","effectiveSuccessRate":"99.000000","completedCount":0,"failedCount":0,"minimumRecipientAmount":null,"maximumRecipientAmount":null,"active":true,"systemProtected":false,"archivedAt":null,"version":0}]}}` |
+| 32 | `POST {{baseUrl}}/api/admin/routes` | Admin token | `{"providerId":"<uuid>","routeCode":"HDFC_INR_STANDARD","name":"HDFC INR Standard","destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"IN","payoutCurrency":"INR","baseFee":1,"fxSpreadPercentage":0.5,"estimatedMinutes":60,"configuredSuccessRate":99,"minimumRecipientAmount":null,"maximumRecipientAmount":null,"active":true}` | **201** Same route shape as endpoint 31. Incompatible rail/destination returns **400** `INVALID_TRANSFER_ROUTE`; duplicate codes return **409** `ROUTE_CODE_CONFLICT`. |
+| 33 | `PUT {{baseUrl}}/api/admin/routes/{{routeId}}` | Admin token | Same fields as endpoint 32 minus `routeCode`, plus `version`. | **200** Same route shape as endpoint 31 with a bumped `version`. Stale versions return **409** `STALE_ROUTE`. |
+| 34 | `DELETE {{baseUrl}}/api/admin/routes/{{routeId}}?version=0` | Admin token | None | **200** Same disposition shape as endpoint 30. |
+| 35 | `GET {{baseUrl}}/api/routes` | Bearer token | None | **200** `{"correlationId":"...","data":{"routes":[{"routeId":"<uuid>","routeCode":"HDFC_INR_STANDARD","routeName":"HDFC INR Standard","providerName":"HDFC Bank","routeType":"BANK_NETWORK","baseFee":"1.0000","fxSpreadPercentage":"0.500000","estimatedMinutes":60,"successRate":"99.00","active":true,"version":0,"successCount":0,"totalAttempts":0}]}}` (informational catalogue; quoting and execution never trust it). |
+| 36 | `POST {{baseUrl}}/api/payments/{{paymentId}}/recommend-route` | Bearer token; owner only | `{"preference":"BALANCED"}`. Body may be omitted; the default is `BALANCED`. | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","recommendedRouteId":"<route-uuid>","recommendationReason":"BALANCED selected HDFC_INR_STANDARD ... showing top 3.","quotes":[{"routeId":"<route-uuid>","routeCode":"HDFC_INR_STANDARD","routeName":"HDFC INR Standard","providerId":"<provider-uuid>","providerName":"HDFC Bank","marketRate":83.50,"offeredRate":83.0825,"feeAmount":1.0000,"recipientAmount":8225.1675,"estimatedMinutes":60,"effectiveReliability":99.000000,"rankingScore":0.6949...,"rankingPosition":1,"recommended":true}]}}` |
 
-Seeded route codes are `STANDARD_BANK`, `INSTANT_PAYOUT`, and `LOCAL_PARTNER`.
+Seeded catalogue: protected `FLUXPAY` (`INTERNAL_LEDGER`) with `FLUXPAY_INTERNAL`, plus one inactive
+demonstration provider per external rail (`DEMO_BANK_ALPHA`, `DEMO_REAL_TIME`, `DEMO_PARTNER`)
+with representative `IN`/`INR` routes.
+
+Route preferences are `CHEAPEST`, `FASTEST`, and `BALANCED`. Eligibility keeps routes whose
+provider and route are active and unarchived, whose destination corridor matches, and whose rail
+is installed and compatible. Learned reliability blends the configured success rate (a 20-attempt
+prior) with terminal `COMPLETED`/`FAILED` outcomes; processing or uncertain outcomes are ignored.
 
 ## Payout, recovery, and timeline APIs
 
 | # | Method and URL | Auth / headers | Request body | Status and sample output |
 |---:|---|---|---|---|
-| 28 | `POST {{baseUrl}}/api/payments/{{paymentId}}/submit-payout` | Bearer + Idempotency-Key; owner only | `{"routeCode":"STANDARD_BANK"}` | **200** `{"correlationId":"...","data":{"attemptNumber":1,"routeCode":"STANDARD_BANK","status":"COMPLETED","providerRef":"provider-123","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"STANDARD_BANK","feeAmount":5.0000,"netSourceAmount":95.0000,"offeredRate":83.0825,"recipientAmount":7892.8375}}}` |
-| 29 | `POST {{baseUrl}}/api/payments/{{paymentId}}/retry-payout` | Bearer + Idempotency-Key; owner only | `{"quoteId":"{{quoteId}}"}`; body is technically optional | **200** `{"correlationId":"...","data":{"attemptNumber":2,"routeCode":"STANDARD_BANK","status":"COMPLETED","providerRef":"provider-456","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"STANDARD_BANK","feeAmount":5.0000,"netSourceAmount":95.0000,"offeredRate":83.0825,"recipientAmount":7892.8375}}}` |
-| 30 | `POST {{baseUrl}}/api/payments/{{paymentId}}/switch-route` | Bearer + Idempotency-Key; owner only | `{"routeCode":"LOCAL_PARTNER","quoteId":"{{quoteId}}"}` | **200** `{"correlationId":"...","data":{"attemptNumber":2,"routeCode":"LOCAL_PARTNER","status":"COMPLETED","providerRef":"provider-789","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"LOCAL_PARTNER","feeAmount":2.0000,"netSourceAmount":98.0000,"offeredRate":83.29125,"recipientAmount":8162.5425}}}` |
+| 28 | `POST {{baseUrl}}/api/payments/{{paymentId}}/submit-payout` | Bearer + Idempotency-Key; owner only | `{"routeCode":"HDFC_INR_STANDARD"}` | **200** `{"correlationId":"...","data":{"attemptNumber":1,"routeCode":"HDFC_INR_STANDARD","status":"COMPLETED","providerRef":"provider-123","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"HDFC_INR_STANDARD","feeAmount":5.0000,"netSourceAmount":95.0000,"offeredRate":83.0825,"recipientAmount":7892.8375}}}` |
+| 29 | `POST {{baseUrl}}/api/payments/{{paymentId}}/retry-payout` | Bearer + Idempotency-Key; owner only | `{"quoteId":"{{quoteId}}"}`; body is technically optional | **200** `{"correlationId":"...","data":{"attemptNumber":2,"routeCode":"HDFC_INR_STANDARD","status":"COMPLETED","providerRef":"provider-456","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"HDFC_INR_STANDARD","feeAmount":5.0000,"netSourceAmount":95.0000,"offeredRate":83.0825,"recipientAmount":7892.8375}}}` |
+| 30 | `POST {{baseUrl}}/api/payments/{{paymentId}}/switch-route` | Bearer + Idempotency-Key; owner only | `{"routeCode":"SBI_INR_STANDARD","quoteId":"{{quoteId}}"}` | **200** `{"correlationId":"...","data":{"attemptNumber":2,"routeCode":"SBI_INR_STANDARD","status":"COMPLETED","providerRef":"provider-789","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"SBI_INR_STANDARD","feeAmount":2.0000,"netSourceAmount":98.0000,"offeredRate":83.29125,"recipientAmount":8162.5425}}}` |
 | 31 | `POST {{baseUrl}}/api/payments/{{paymentId}}/refund` | Bearer + Idempotency-Key; owner only | No body | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","eventId":"<event-uuid>","idempotentReplay":false}}` |
 | 32 | `GET {{baseUrl}}/api/payments/{{paymentId}}/timeline` | Bearer token; owner only | None | **200** `{"correlationId":"...","data":[{"eventId":"<event-uuid>","paymentId":"<payment-uuid>","eventType":"payment.initiated","kafkaTopic":"payment.initiated","correlationId":"bruno-test-001","payload":{"schemaVersion":1,"aggregateSequence":1},"occurredAt":"2026-09-15T10:00:00Z"}]}` |
 
@@ -202,7 +227,7 @@ The copilot returns an empty `sources` array and a scoped fallback answer when n
 | Compliance confirmation | Real provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true` |
 | Policy indexing | Requires Ollama embeddings and Oracle vector storage | Configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_POLICY_CHUNKER_VERSION` settings |
 | Compliance Copilot | Requires an indexed policy corpus, Ollama embeddings/chat, and Oracle vector search | Index at least one policy and configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_COPILOT_*` settings |
-| Payout submission | Real payout provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true` |
+| Payout submission | Real payout provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true`; external demo providers stay inactive until an administrator activates them after the flag is enabled |
 | FX calls | Depend on the configured HTTP FX provider | Configure `FX_PROVIDER_URL` and network access |
 | Draft payment | User must be KYC verified | Approve KYC using an admin token first |
 | Draft payment | Wallet must have funds | Call `receive-demo` before drafting |
@@ -229,17 +254,19 @@ The copilot returns an empty `sources` array and a scoped fallback answer when n
 |---:|---|---|
 | 1 | Register or log in as a customer | `token` |
 | 2 | Log in as the seeded administrator | `adminToken` |
-| 3 | Submit and approve KYC | `kycApplicationId` |
-| 4 | Receive demo funds and list wallets | `walletId` |
-| 5 | Create a recipient | `recipientId` |
-| 6 | Create a draft payment | `paymentId` |
-| 7 | Create payment quotes | `quoteId` |
-| 8 | Confirm the quote | None |
-| 9 | Submit the payout | None |
-| 10 | Read payment details and timeline | None |
-| 11 | Create a policy document | `policyDocumentId` |
-| 12 | Add or list policy chunks, then index the policy | None |
-| 13 | Ask the Compliance Copilot a policy question | None |
-| 14 | Create or list compliance cases | `complianceCaseId` |
-| 15 | Approve, reject, or delete the compliance case as appropriate | None |
+| 3 | List rail types, then create providers and routes (for example HDFC/SBI sharing `BANK_NETWORK`) | `providerId`, `routeId` |
+| 4 | Submit and approve KYC | `kycApplicationId` |
+| 5 | Receive demo funds and list wallets | `walletId` |
+| 6 | Create a recipient | `recipientId` |
+| 7 | Create a draft payment | `paymentId` |
+| 8 | Create payment quotes (at most the top three eligible routes) | `quoteId` |
+| 9 | Confirm the quote | None |
+| 10 | Submit the payout | None |
+| 11 | Read payment details and timeline | None |
+| 12 | Transfer between FluxPay wallets | None |
+| 13 | Create a policy document | `policyDocumentId` |
+| 14 | Add or list policy chunks, then index the policy | None |
+| 15 | Ask the Compliance Copilot a policy question | None |
+| 16 | Create or list compliance cases | `complianceCaseId` |
+| 17 | Approve, reject, or delete the compliance case as appropriate | None |
 
