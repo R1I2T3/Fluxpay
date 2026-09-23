@@ -84,6 +84,12 @@ test('review workspaces hide detail cards until a record is selected', () => {
     const html = read(file);
     const selection = ko.observable();
     const context = moduleContext({ [property]: selection });
+    if (file === 'ts/views/admin-kyc.html') {
+      assert.match(html, /class="review-list-row"/);
+      assert.match(html, /<!-- ko if:review -->[\s\S]*admin-workflow-modal/);
+      assert.match(html, /adminDialog:\{initialFocus:'#kyc-record-heading'\}/);
+      continue;
+    }
     const workspaceBinding = openingTagForClass(html, 'review-workspace').match(
       /data-bind="([^"]+)"/,
     );

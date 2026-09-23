@@ -32,8 +32,9 @@ const ViewModel=load('ts/viewModels/admin-kyc.ts', {
   knockout:ko,
   '../services/page':{Page:PageStub},
   '../services/admin-console':helpers,
-  '../services/session':{navigate:()=>{}}
-});
+  '../services/session':{navigate:()=>{}},
+  '../services/admin-dialog':{}
+}, {window:{requestAnimationFrame:callback=>callback()}});
 
 test('KYC decisions require a reason code and compose the existing reason string', () => {
   const vm=new ViewModel({params:{view:'PENDING'}});
@@ -44,12 +45,28 @@ test('KYC decisions require a reason code and compose the existing reason string
   assert.equal(vm.reviewReason(),'DOCUMENT_UNREADABLE — Upload a clearer image.');
 });
 
-test('KYC template is a three-pane manual review and makes no OCR claim', () => {
+test('KYC uses full-row controls and keeps every review action in one dialog', () => {
   const html=read('ts/views/admin-kyc.html');
-  for(const token of ['review-workspace','review-queue','record-detail','evidence-panel','sticky-decision-bar','Customer-submitted information','Manual document checklist']) assert.ok(html.includes(token), token);
+  assert.match(html,/class="review-list-row"[^>]*data-bind="[^"]*selectReview/);
+  assert.doesNotMatch(html,/>\s*Open\s*<\/button>/);
+  assert.match(html,/<!-- ko if:review -->[\s\S]*class="[^"]*admin-confirmation[^"]*"[\s\S]*adminDialog:/);
+  assert.match(html,/<!-- ko if:reviewDecision -->[\s\S]*confirmDecision/);
+  assert.match(html,/<!-- ko if:documentPreview -->[\s\S]*closeReviewDocument/);
+  assert.ok(html.indexOf('sticky-decision-bar')>html.indexOf('admin-workflow-modal'));
   assert.match(html,/maskDocument\(docNumber\)/);
   assert.doesNotMatch(html,/OCR|automated mismatch|AI match/i);
   assert.doesNotMatch(html,/copy document|reveal document/i);
+});
+
+test('KYC document mode restores focus to the triggering evidence card', () => {
+  const vm=new ViewModel({params:{view:'PENDING'}});
+  let focused=false;
+  const trigger={focus:()=>{focused=true;}};
+  vm.openDocument=()=>Promise.resolve();
+  vm.closeDocument=()=>{};
+  vm.openReviewDocument({id:'document-1'},{currentTarget:trigger});
+  vm.closeReviewDocument();
+  assert.equal(focused,true);
 });
 
 test('AGING view shows only pending reviews older than 24 hours', () => {
@@ -153,7 +170,7 @@ test('KYC list arriving after logout is cleared immediately', () => {
 
 test('KYC template keeps read-only preview, empty state and terminal decisions explicit', () => {
   const html=read('ts/views/admin-kyc.html');
-  for (const token of ['kycPdfPreview','openDocument','closeDocument','decidedAt','rejectReason','No further KYC decision is available for this state.']) assert.ok(html.includes(token), token);
+  for (const token of ['kycPdfPreview','openReviewDocument','closeReviewDocument','documentPreview','decidedAt','rejectReason']) assert.ok(html.includes(token), token);
   assert.ok(html.includes('savedView'));
   assert.match(html,/Reset filters/i);
 });

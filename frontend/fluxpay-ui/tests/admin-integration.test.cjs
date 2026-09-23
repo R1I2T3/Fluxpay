@@ -73,9 +73,13 @@ test('review queues use native open buttons and keyboard focus targets',()=>{
   for(const [route,heading] of reviews){
     const html=read(`ts/views/${route}.html`);
     const viewModel=read(`ts/viewModels/${route}.ts`);
-    // The repository pre-commit hook wraps long button markup across lines, so the
-    // plan's exact `>Open</button>` sequence is asserted whitespace-tolerantly.
-    assert.match(html,/>\s*Open\s*<\/button>/);
+    if(route==='admin-kyc') {
+      assert.match(html,/class="review-list-row"/);
+      assert.doesNotMatch(html,/>\s*Open\s*<\/button>/);
+      assert.match(viewModel,/openReviewDocument/);
+    } else {
+      assert.match(html,/>\s*Open\s*<\/button>/);
+    }
     assert.match(html,new RegExp(`id="${heading}"[^>]*tabindex="-1"`));
     assert.match(viewModel,/focusRecordHeading/);
   }

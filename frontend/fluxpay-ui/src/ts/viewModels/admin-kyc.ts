@@ -8,6 +8,7 @@ import {
   maskIdentifier,
   prioritizeKycReviews,
 } from '../services/admin-console';
+import '../services/admin-dialog';
 import { navigate } from '../services/session';
 
 type KycView = 'PENDING' | 'AGING' | 'DOCUMENTS_UNAVAILABLE' | 'VERIFIED' | 'REJECTED';
@@ -43,6 +44,7 @@ class AdminKycViewModel extends Page {
     }),
   );
   maskDocument = maskIdentifier;
+  private documentTrigger?: HTMLElement;
 
   constructor(params: any) {
     super('admin', params);
@@ -75,6 +77,18 @@ class AdminKycViewModel extends Page {
     this.reasonCode('VERIFIED_DOCUMENTS');
     this.notes('');
     if (event) focusRecordHeading(event, 'kyc-record-heading');
+  };
+  openReviewDocument = (file: any, event: Event) => {
+    this.documentTrigger = event.currentTarget as HTMLElement;
+    void this.openDocument(file);
+  };
+  closeReviewDocument = () => {
+    this.closeDocument();
+    window.requestAnimationFrame(() => this.documentTrigger?.focus());
+  };
+  closeReviewModal = () => {
+    this.documentTrigger = undefined;
+    this.closeReview();
   };
   prepareDecision = () => {
     const approve = this.decision() === 'approve';
