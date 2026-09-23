@@ -1,5 +1,5 @@
 // viewModels/admin-policies.ts
-import { resolveAdminEnvironment } from '../services/admin-console';
+import { copyAdminIdentifier, resolveAdminEnvironment } from '../services/admin-console';
 import '../services/admin-dialog';
 import { ComplianceWorkspace } from '../services/compliance-workspace';
 import { navigate, session } from '../services/session';
@@ -27,6 +27,19 @@ class AdminPoliciesViewModel {
       await this.workspace.openPolicy({ id: this.policyId });
   }
   changeSavedView = () => navigate('admin-policies', { view: this.workspace.policySavedView() });
+  copyIdentifier = async (value: string | null | undefined, label: string) => {
+    this.workspace.error('');
+    this.workspace.notice('');
+    try {
+      this.workspace.notice(await copyAdminIdentifier(value, label, navigator.clipboard));
+    } catch (error: any) {
+      this.workspace.error(error.message || 'Unable to copy ' + label.toLowerCase() + '.');
+    }
+  };
+  copyGuidanceCaseId = () =>
+    this.copyIdentifier(this.workspace.guidanceCaseViewer()?.id, 'Case ID');
+  copyGuidancePaymentId = () =>
+    this.copyIdentifier(this.workspace.guidanceCaseViewer()?.paymentId, 'Payment ID');
   disconnected() {
     this.workspace.dispose();
   }

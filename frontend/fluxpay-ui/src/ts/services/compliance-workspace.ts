@@ -173,6 +173,7 @@ export class ComplianceWorkspace {
   pagedCases = ko.pureComputed(()=>this.filteredCases().slice(this.casePage()*this.casePageSize,(this.casePage()+1)*this.casePageSize));
   casePageCount = ko.pureComputed(()=>Math.max(1,Math.ceil(this.filteredCases().length/this.casePageSize)));
   completedCases = ko.pureComputed(()=>this.cases().filter(item=>item.status!=='OPEN'));
+  completedCaseLabel = (item:ComplianceCase)=>item.risk+' · '+item.status+' · '+this.date(item.decidedAt||item.createdAt);
   savedCases = ko.pureComputed(()=>this.filteredCases().filter(item=>{
     const view = this.savedCaseView();
     if(view==='HIGH_RISK')return item.status==='OPEN'&&item.risk==='HIGH';

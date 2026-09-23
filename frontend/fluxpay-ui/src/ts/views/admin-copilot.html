@@ -29,20 +29,8 @@
 
   <section class="copilot-chat" aria-label="Compliance Copilot chat">
     <header class="copilot-chat-toolbar">
-      <label class="copilot-context-select">
-        Case / payment context
-        <select data-bind="options:$parent.caseOptions,optionsText:'label',optionsValue:'id',value:$parent.selectedCaseId,event:{change:$parent.selectCaseContext}"></select>
-      </label>
-      <!-- ko if:$parent.caseContext -->
-      <dl class="copilot-selected-context" data-bind="with:$parent.caseContext">
-        <div><dt>Risk</dt><dd data-bind="text:risk"></dd></div>
-        <div><dt>Status</dt><dd data-bind="text:status"></dd></div>
-        <div><dt>Payment</dt><dd data-bind="text:paymentId"></dd></div>
-      </dl>
-      <!-- /ko -->
-      <div class="copilot-manual-context" data-bind="visible:$parent.manualPaymentContext">
-        <label>Payment ID (optional)<input aria-label="Payment ID" data-bind="textInput:copilotPaymentId" placeholder="Paste a payment UUID" /></label>
-      </div>
+      <label class="copilot-payment-context">Payment ID (optional)<input aria-label="Payment ID" data-bind="textInput:copilotPaymentId" placeholder="Paste a payment UUID" /></label>
+      <p>Use a payment ID when the policy question relates to a specific transaction.</p>
     </header>
 
     <main class="copilot-transcript" aria-live="polite">

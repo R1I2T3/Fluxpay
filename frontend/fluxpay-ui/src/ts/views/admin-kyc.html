@@ -62,43 +62,50 @@
         <div><span class="eyebrow">KYC REVIEW</span><h2 id="kyc-record-heading" tabindex="-1" data-bind="text:review().fullName"></h2><p data-bind="text:review().email"></p></div>
         <button class="close-button" aria-label="Close KYC review" title="Close" data-bind="click:closeReviewModal,disable:busy">&times;</button>
       </header>
-      <div class="admin-modal-body kyc-review-body" data-bind="with:review">
-        <h3>Customer-submitted information</h3>
-        <dl class="detail-grid">
-          <div><dt>Document type</dt><dd data-bind="text:docType"></dd></div>
-          <div><dt>Document number</dt><dd class="mono" data-bind="text:$parent.maskDocument(docNumber)"></dd></div>
-          <div><dt>Submitted</dt><dd data-bind="text:$parent.date(submittedAt)"></dd></div>
-          <!-- ko if:decidedAt --><div><dt>Decided</dt><dd data-bind="text:$parent.date(decidedAt)"></dd></div><!-- /ko -->
-        </dl>
-        <!-- ko if:rejectReason --><div class="kyc-review-note"><strong>Reason shared with customer</strong><p data-bind="text:rejectReason"></p></div><!-- /ko -->
-        <h3>Manual document checklist</h3>
-        <ul><li>Confirm the name and identifier manually.</li><li>Confirm the document is readable and current.</li><li>Record the reason code for the decision.</li></ul>
-        <h3>Evidence</h3>
-        <div class="kyc-document-grid" data-bind="foreach:documents">
-          <button type="button" class="kyc-document-card" data-bind="click:$parents[1].openReviewDocument">
-            <strong data-bind="text:fileName"></strong><small data-bind="text:available?'Open original':'Original unavailable'"></small>
-          </button>
+      <div class="admin-modal-workspace kyc-modal-workspace">
+        <div class="admin-modal-body admin-modal-info-pane kyc-review-body" data-bind="with:review">
+          <h3>Customer-submitted information</h3>
+          <dl class="detail-grid kyc-inline-details">
+            <div><dt>Document type:</dt><dd data-bind="text:docType"></dd></div>
+            <div><dt>Document number:</dt><dd class="mono" data-bind="text:$parent.maskDocument(docNumber)"></dd></div>
+            <div><dt>Submitted:</dt><dd data-bind="text:$parent.date(submittedAt)"></dd></div>
+            <!-- ko if:decidedAt --><div><dt>Decided:</dt><dd data-bind="text:$parent.date(decidedAt)"></dd></div><!-- /ko -->
+          </dl>
+          <!-- ko if:rejectReason --><div class="kyc-review-note"><strong>Reason shared with customer</strong><p data-bind="text:rejectReason"></p></div><!-- /ko -->
+          <h3>Manual document checklist</h3>
+          <ul><li>Confirm the name and identifier manually.</li><li>Confirm the document is readable and current.</li><li>Record the reason code for the decision.</li></ul>
+          <h3>Evidence</h3>
+          <div class="kyc-document-grid" data-bind="foreach:documents">
+            <button type="button" class="kyc-document-card" data-bind="click:$parents[1].openReviewDocument">
+              <strong data-bind="text:fileName"></strong><small data-bind="text:available?'Open original':'Original unavailable'"></small>
+            </button>
+          </div>
         </div>
+        <aside class="admin-modal-action-pane" aria-label="KYC review decision">
+          <!-- ko ifnot:reviewDecision -->
+          <div><span class="eyebrow">ACTION</span><h3>Review decision</h3><p class="subtle-note">Record the outcome after checking the submitted evidence.</p></div>
+          <form class="kyc-decision-form" data-bind="visible:review().status==='PENDING',submit:function(){prepareDecision();return false}">
+            <label>Decision<select data-bind="value:decision"><option value="approve">Approve</option><option value="reject">Reject</option></select></label>
+            <label>Reason code<select data-bind="options:reasonCodes[decision()],optionsText:'label',optionsValue:'value',value:reasonCode"></select></label>
+            <label>Notes<textarea maxlength="500" rows="4" data-bind="textInput:notes"></textarea></label>
+            <label class="checkbox-label"><input type="checkbox" data-bind="checked:reviewConsent,disable:decision()==='reject'" />Manual evidence review completed</label>
+            <button class="pill dark" data-bind="disable:busy">Review decision</button>
+          </form>
+          <p class="form-help" data-bind="visible:review().status!=='PENDING'">Decision complete — no further review action is available.</p>
+          <!-- /ko -->
+          <!-- ko if:reviewDecision -->
+          <div class="modal-action-confirmation" aria-live="polite">
+            <span class="eyebrow">CONFIRM ACTION</span>
+            <h3 data-bind="text:reviewDecision()==='approve'?'Approve this KYC review?':'Reject this KYC review?'"></h3>
+            <p class="preserve-text" data-bind="text:reviewReason"></p>
+            <div class="modal-action-buttons">
+              <button type="button" class="pill soft" data-bind="click:function(){reviewDecision('')},disable:busy">Back</button>
+              <button type="button" class="pill dark" data-bind="click:confirmDecision,disable:busy,text:reviewDecision()==='approve'?'Approve':'Reject'"></button>
+            </div>
+          </div>
+          <!-- /ko -->
+        </aside>
       </div>
-      <!-- ko ifnot:reviewDecision -->
-      <form class="admin-modal-footer sticky-decision-bar" data-bind="visible:review().status==='PENDING',submit:function(){prepareDecision();return false}">
-        <label>Decision<select data-bind="value:decision"><option value="approve">Approve</option><option value="reject">Reject</option></select></label>
-        <label>Reason code<select data-bind="options:reasonCodes[decision()],optionsText:'label',optionsValue:'value',value:reasonCode"></select></label>
-        <label>Notes<textarea maxlength="500" rows="2" data-bind="textInput:notes"></textarea></label>
-        <label class="checkbox-label"><input type="checkbox" data-bind="checked:reviewConsent,disable:decision()==='reject'" />Manual evidence review completed</label>
-        <button class="pill dark" data-bind="disable:busy">Review decision</button>
-      </form>
-      <!-- /ko -->
-      <!-- ko if:reviewDecision -->
-      <section class="admin-modal-body" aria-live="polite">
-        <h3 data-bind="text:reviewDecision()==='approve'?'Approve this KYC review?':'Reject this KYC review?'"></h3>
-        <p class="preserve-text" data-bind="text:reviewReason"></p>
-      </section>
-      <footer class="admin-modal-footer">
-        <button class="pill soft" data-bind="click:function(){reviewDecision('')},disable:busy">Back</button>
-        <button class="pill dark" data-bind="click:confirmDecision,disable:busy,text:reviewDecision()==='approve'?'Approve':'Reject'"></button>
-      </footer>
-      <!-- /ko -->
       <!-- /ko -->
       <!-- ko if:documentPreview -->
       <header class="admin-modal-header">

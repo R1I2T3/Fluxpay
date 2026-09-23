@@ -16,6 +16,22 @@ test('environment values are case-insensitive and hostname fallback is determini
   assert.equal(helpers.resolveAdminEnvironment('', 'admin.fluxpay.example').name, 'PRODUCTION');
 });
 
+test('admin identifiers copy through one clipboard boundary without exposing their value', async () => {
+  assert.equal(typeof helpers.copyAdminIdentifier, 'function');
+  const writes = [];
+  const notice = await helpers.copyAdminIdentifier(
+    '00000000-0000-0000-0000-000000005d01',
+    'Payment ID',
+    {writeText: async value => writes.push(value)}
+  );
+  assert.deepEqual(writes, ['00000000-0000-0000-0000-000000005d01']);
+  assert.equal(notice, 'Payment ID copied.');
+  await assert.rejects(
+    () => helpers.copyAdminIdentifier('hidden-id', 'Case ID', undefined),
+    /Clipboard access is unavailable/
+  );
+});
+
 test('invalid timestamps sort last and never count as older than 24 hours', () => {
   const rows = helpers.prioritizeKycReviews([
     {applicationId: 'invalid', submittedAt: 'not-a-date', documents: [{available: true}]},

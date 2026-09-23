@@ -136,25 +136,16 @@
     <section class="panel admin-workflow-modal route-editor-modal">
       <!-- ko with:workspace -->
       <!-- ko if:saveReview()!=='route' -->
-        <section>
-          <div class="panel-heading">
-            <h2
-              id="route-editor-title"
-              data-bind="text:routeEditTarget()?'Edit route':'New route'"
-            ></h2>
-            <button
-              class="close-button"
-              aria-label="Close route editor"
-              data-bind="click:closeRouteEditor,disable:busy"
-            >
-              ×
-            </button>
+        <header class="admin-modal-header">
+          <div>
+            <span class="eyebrow">PAYOUT ROUTE</span>
+            <h2 id="route-editor-title" tabindex="-1" data-bind="text:routeEditTarget()?'Edit route':'New route'"></h2>
+            <p data-bind="text:'Target environment: '+$parent.environment.label"></p>
           </div>
-          <form data-bind="submit:function(){requestRouteSave();return false}">
-            <p
-              class="form-help"
-              data-bind="text:'Target environment: '+$parent.environment.label"
-            ></p>
+          <button type="button" class="close-button" aria-label="Close route editor" title="Close" data-bind="click:closeRouteEditor,disable:busy">&#10005;</button>
+        </header>
+        <div class="admin-modal-body route-edit-body">
+          <form id="route-edit-form" class="admin-modal-form route-edit-form" data-bind="submit:function(){requestRouteSave();return false}">
             <div class="form-row">
               <label
                 >Provider<select
@@ -241,9 +232,11 @@
               ><input type="checkbox" data-bind="checked:routeActive" />Active</label
             >
             <p class="alert error" role="alert" data-bind="visible:routeError,text:routeError"></p>
-            <button class="pill dark" data-bind="disable:busy">Review changes</button>
           </form>
-        </section>
+        </div>
+        <footer class="admin-modal-footer">
+          <button type="submit" form="route-edit-form" class="pill dark" data-bind="disable:busy">Review changes</button>
+        </footer>
       <!-- /ko -->
       <!-- ko if:saveReview()==='route' -->
       <header class="admin-modal-header">

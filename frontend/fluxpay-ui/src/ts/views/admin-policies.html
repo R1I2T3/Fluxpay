@@ -316,20 +316,20 @@
           <p>Add a draft or adjust the filters.</p>
         </div>
       </section>
-      <aside class="configuration-editor admin-confirmation modal-backdrop admin-workflow-modal policy-detail-modal" role="dialog" aria-modal="true" aria-labelledby="policy-detail-title" data-bind="with:policy,visible:policyModalMode()==='detail',adminDialog:{initialFocus:'#policy-detail-title'}">
-        <h2 id="policy-detail-title" tabindex="-1" data-bind="text:title"></h2>
-        <dl class="detail-grid">
-          <div>
-            <dt>Document hash</dt>
-            <dd class="mono" data-bind="text:documentHash"></dd>
+      <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="policy-detail-title" data-bind="with:policy,visible:policyModalMode()==='detail',adminDialog:{initialFocus:'#policy-detail-title'}">
+        <section class="panel admin-workflow-modal policy-detail-modal">
+          <header class="admin-modal-header">
+            <div><span class="eyebrow">POLICY DOCUMENT</span><h2 id="policy-detail-title" tabindex="-1" data-bind="text:title"></h2></div>
+            <button type="button" class="close-button" aria-label="Close policy details" title="Close" data-bind="click:$parent.closePolicy,disable:$parent.busy">&#10005;</button>
+          </header>
+          <div class="admin-modal-body">
+            <dl class="detail-grid">
+              <div><dt>Created</dt><dd data-bind="text:$parent.date(createdAt)"></dd></div>
+            </dl>
+            <p class="preserve-text" data-bind="text:content"></p>
+            <label>Details view<select data-bind="value:$parent.policyView"><option value="policy">Policy</option><option value="advanced">Advanced</option></select></label>
           </div>
-          <div>
-            <dt>Created</dt>
-            <dd data-bind="text:$parent.date(createdAt)"></dd>
-          </div>
-        </dl>
-        <p class="preserve-text" data-bind="text:content"></p>
-        <div class="action-row">
+          <footer class="admin-modal-footer">
           <button class="pill soft" data-bind="click:$parent.openPolicyEdit">
             Edit current document
           </button>
@@ -337,40 +337,21 @@
             Rebuild index
           </button>
           <button class="pill soft" data-bind="click:$parent.closePolicy,disable:$parent.busy">Close</button>
-        </div>
-        <label
-          >Details view<select data-bind="value:$parent.policyView">
-            <option value="policy">Policy</option>
-            <option value="advanced">Advanced</option>
-          </select></label
-        >
-      </aside>
+          </footer>
+        </section>
+      </div>
       <!-- ko if:policy()&&policyView()==='advanced' -->
-      <section class="configuration-advanced admin-confirmation modal-backdrop admin-workflow-modal policy-advanced-modal" role="dialog" aria-modal="true" aria-labelledby="policy-advanced-title" data-bind="visible:policyModalMode()==='advanced',adminDialog:{initialFocus:'#policy-advanced-title'}">
-        <button
-          class="modal-back"
-          type="button"
-          data-bind="click:function(){policyView('policy')},disable:busy"
-        >
-          ← Policy
-        </button>
-        <div class="action-row">
-          <button
-            class="pill dark"
-            data-bind="click:function(){askConfirmation('index')},disable:busy"
-          >
-            Rebuild search index
-          </button>
-          <button class="pill soft" data-bind="click:function(){openPolicy(policy())},disable:busy">
-            ↻ Refresh document
-          </button>
-          <button class="pill soft" data-bind="click:closePolicy,disable:busy">Close</button>
-        </div>
+      <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="policy-advanced-title" data-bind="visible:policyModalMode()==='advanced',adminDialog:{initialFocus:'#policy-advanced-title'}">
+        <section class="panel admin-workflow-modal policy-advanced-modal">
+          <header class="admin-modal-header">
+            <div><button class="modal-back" type="button" data-bind="click:function(){policyView('policy')},disable:busy">&larr; Policy</button><h2 id="policy-advanced-title" tabindex="-1">Advanced policy material</h2></div>
+            <button type="button" class="close-button" aria-label="Close advanced policy details" title="Close" data-bind="click:closePolicy,disable:busy">&#10005;</button>
+          </header>
+          <div class="admin-modal-body">
         <p class="subtle-note">
           Indexing rebuilds chunks from the original document and replaces the active index; manual
           chunks are not appended to the document.
         </p>
-        <h2 id="policy-advanced-title" tabindex="-1">Advanced policy material</h2>
         <h3 data-bind="text:'Document chunks · '+chunks().length"></h3>
         <div class="policy-chunks" data-bind="foreach:chunks">
           <details>
@@ -422,7 +403,7 @@
         </p>
         <div class="policy-chunks" data-bind="foreach:guidance">
           <details>
-            <summary data-bind="text:'Case guidance · '+complianceCaseId"></summary>
+            <summary data-bind="text:'Case guidance · '+$parent.date(createdAt)"></summary>
             <p class="preserve-text" data-bind="text:content"></p>
             <div class="chunk-meta">
               <small data-bind="text:$parent.date(createdAt)"></small>
@@ -463,7 +444,7 @@
             <label
               >Completed case<select
                 required
-                data-bind="options:completedCases,optionsText:function(item){return item.paymentId+' · '+item.risk+' · '+item.status},optionsValue:'id',value:guidanceCaseId,optionsCaption:'Choose a completed case'"
+                data-bind="options:completedCases,optionsText:completedCaseLabel,optionsValue:'id',value:guidanceCaseId,optionsCaption:'Choose a completed case'"
               ></select></label
             ><button
               type="button"
@@ -484,7 +465,13 @@
           </label>
           <button class="pill soft" data-bind="disable:busy">Add guidance</button>
         </form>
-      </section>
+          </div>
+          <footer class="admin-modal-footer">
+            <button class="pill soft" data-bind="click:function(){openPolicy(policy())},disable:busy">Refresh document</button>
+            <button class="pill dark" data-bind="click:function(){askConfirmation('index')},disable:busy">Rebuild search index</button>
+          </footer>
+        </section>
+      </div>
       <!-- /ko -->
     </div>
     <!-- ko if:policyModalMode()==='edit' -->
@@ -697,7 +684,7 @@
         <div class="panel-heading">
           <div>
             <span class="eyebrow">COMPLETED COMPLIANCE CASE</span>
-            <h2 id="guidance-case-title" data-bind="text:guidanceCaseViewer().paymentId"></h2>
+            <h2 id="guidance-case-title">Completed compliance case</h2>
           </div>
           <button
             class="close-button"
@@ -705,6 +692,18 @@
             data-bind="click:closeGuidanceCase,disable:busy"
           >
             ×
+          </button>
+        </div>
+        <div class="detail-line">
+          <span>Case ID</span>
+          <button type="button" class="icon-action" aria-label="Copy case ID" title="Copy case ID" data-bind="click:$parent.copyGuidanceCaseId">
+            <i class="fa-solid fa-copy" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="detail-line">
+          <span>Payment ID</span>
+          <button type="button" class="icon-action" aria-label="Copy payment ID" title="Copy payment ID" data-bind="click:$parent.copyGuidancePaymentId">
+            <i class="fa-solid fa-copy" aria-hidden="true"></i>
           </button>
         </div>
         <div class="detail-line">

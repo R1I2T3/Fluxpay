@@ -64,7 +64,10 @@
           <strong data-bind="text:subject"></strong>
           <small data-bind="text:$parent.ticketAge($data)"></small>
         </span>
-        <span data-bind="text:assigneeAdminId?'Assigned':'Unassigned'"></span>
+        <span>
+          <span data-bind="visible:assigneeAdminId">Assigned</span>
+          <span data-bind="visible:!assigneeAdminId">Unassigned</span>
+        </span>
         <span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span>
         <span class="row-chevron" aria-hidden="true">&#8250;</span>
       </button>
@@ -108,15 +111,38 @@
           <section>
             <h3>Customer and payment</h3>
             <dl class="detail-grid">
-              <div><dt>Customer</dt><dd data-bind="text:userId"></dd></div>
-              <div><dt>Payment</dt><dd data-bind="text:paymentId||'Not linked'"></dd></div>
+              <div>
+                <dt>Customer ID</dt>
+                <dd class="identifier-copy">
+                  <button type="button" class="icon-action" aria-label="Copy customer ID" title="Copy customer ID" data-bind="click:function(){$parent.copyIdentifier(userId,'Customer ID')}">
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt>Payment ID</dt>
+                <dd class="identifier-copy">
+                  <span data-bind="visible:!paymentId">Not linked</span>
+                  <button type="button" class="icon-action" aria-label="Copy payment ID" title="Copy payment ID" data-bind="visible:paymentId,click:function(){$parent.copyIdentifier(paymentId,'Payment ID')}">
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                  </button>
+                </dd>
+              </div>
             </dl>
           </section>
           <section>
             <h3>Operational context</h3>
             <dl class="detail-grid">
               <div><dt>Status</dt><dd data-bind="text:$parent.label(status)"></dd></div>
-              <div><dt>Assignee</dt><dd data-bind="text:assigneeAdminId||'Unassigned'"></dd></div>
+              <div>
+                <dt>Assignee ID</dt>
+                <dd class="identifier-copy">
+                  <span data-bind="visible:!assigneeAdminId">Unassigned</span>
+                  <button type="button" class="icon-action" aria-label="Copy assignee ID" title="Copy assignee ID" data-bind="visible:assigneeAdminId,click:function(){$parent.copyIdentifier(assigneeAdminId,'Assignee ID')}">
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                  </button>
+                </dd>
+              </div>
               <div><dt>Age</dt><dd data-bind="text:$parent.ticketAge($data)"></dd></div>
             </dl>
           </section>

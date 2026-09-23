@@ -77,7 +77,8 @@ test('policy table is wide, scrollable and uses accessible icon actions', () => 
 
 test('policy template exposes only current API metadata and hides document deletion', () => {
   const html = read('ts/views/admin-policies.html');
-  for (const token of ['Current document', 'documentHash', 'createdAt', 'Indexed chunks', 'Advanced']) assert.ok(html.includes(token), token);
+  for (const token of ['Current document', 'createdAt', 'Indexed chunks', 'Advanced']) assert.ok(html.includes(token), token);
+  assert.doesNotMatch(html, /Document hash|text:documentHash/);
   assert.doesNotMatch(html, /Policy version|Effective date|Publication status|Index failure|Policy owner/i);
   assert.doesNotMatch(html, /delete-policy|deletePolicy|Delete policy/i);
 });
@@ -226,15 +227,11 @@ test('case context pre-fills a cited question without inventing payment details'
   page.disconnected();
 });
 
-test('Copilot loads case choices and applies selected payment context', async () => {
-  const {page, calls} = copilotPage({params: {}}, {complianceCases: async () => [openCase]});
+test('Copilot accepts direct payment context without loading the compliance queue', async () => {
+  const {page, calls} = copilotPage({params: {paymentId: openCase.paymentId}});
   await page.ready;
-  assert.equal(page.caseOptions().length, 2);
-  page.selectedCaseId(openCase.id);
-  await page.selectCaseContext();
   assert.equal(page.workspace.copilotPaymentId(), openCase.paymentId);
-  assert.match(page.workspace.question(), /Risk level: HIGH/);
-  assert.ok(calls.some(call => call[0] === 'complianceCases'));
+  assert.ok(!calls.some(call => call[0] === 'complianceCases'));
   page.disconnected();
 });
 

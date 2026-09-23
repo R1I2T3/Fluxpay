@@ -173,7 +173,7 @@ test('policy drafts use one compact table and policy editing provides direct adv
   const html=read('ts/views/admin-policies.html');
   assert.match(html,/class="table-scroll policy-draft-table"[\s\S]*foreach:policyDrafts/);
   assert.match(html,/openAdvancedFromEdit/);
-  assert.match(html,/class="modal-back"[\s\S]*← Policy/);
+  assert.match(html,/class="modal-back"[\s\S]*&larr; Policy/);
   assert.match(html,/class="manual-chunk-form"/);
 });
 test('policy-draft preview truncates before the fixed action column',()=>{
@@ -183,7 +183,7 @@ test('policy-draft preview truncates before the fixed action column',()=>{
 });
 test('opening a compliance case uses a confirmation dialog rather than an inline panel below the list',()=>{
   const html=read('ts/views/admin-compliance.html');
-  assert.match(html,/<!-- ko if:selectedCase -->[\s\S]*class="admin-confirmation modal-backdrop"[\s\S]*class="admin-workflow-modal"/);
+  assert.match(html,/<!-- ko if:selectedCase -->[\s\S]*class="admin-confirmation modal-backdrop"[\s\S]*class="[^"]*admin-workflow-modal[^"]*"/);
   assert.match(html,/<!-- ko if:confirmation -->/);
   assert.match(html,/click:\$parent\.confirmDecision/);
   assert.match(html,/data-bind="text:decisionReason"/);

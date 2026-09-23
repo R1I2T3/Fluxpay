@@ -121,23 +121,25 @@ function complianceViewModel({clipboard} = {}) {
   return {vm: new ViewModel({params: {view: 'OPEN'}}), workspace};
 }
 
-test('compliance payment copy reports success and keeps the visible ID', async () => {
+test('compliance identifier copy reports success while the UUID remains hidden by the template', async () => {
   const writes = [];
   const {vm, workspace} = complianceViewModel({clipboard: {writeText: async value => writes.push(value)}});
   workspace.selectedCase(makeCase());
-  await vm.copyPaymentId();
+  assert.equal(typeof vm.copyIdentifier, 'function');
+  await vm.copyIdentifier(paymentId, 'Payment ID');
   assert.deepEqual(writes, [paymentId]);
   assert.match(workspace.notice(), /copied/i);
-  assert.equal(workspace.selectedCase().paymentId, paymentId);
+  assert.doesNotMatch(read('ts/views/admin-compliance.html'), /text:paymentId/);
   vm.disconnected();
 });
 
-test('compliance payment copy reports a manual-copy fallback when clipboard is unavailable', async () => {
+test('compliance identifier copy reports unavailable clipboard without asking for a visible UUID', async () => {
   const {vm, workspace} = complianceViewModel({clipboard: undefined});
   workspace.selectedCase(makeCase());
-  await vm.copyPaymentId();
-  assert.equal(workspace.selectedCase().paymentId, paymentId);
-  assert.match(workspace.error(), /select the visible ID and copy it manually/i);
+  assert.equal(typeof vm.copyIdentifier, 'function');
+  await vm.copyIdentifier(paymentId, 'Payment ID');
+  assert.match(workspace.error(), /clipboard access is unavailable/i);
+  assert.doesNotMatch(workspace.error(), /visible ID/i);
   vm.disconnected();
 });
 
@@ -146,7 +148,7 @@ test('compliance renders a full-row queue and one modal workflow', () => {
   assert.match(html, /class="review-list-row"/);
   assert.match(html, /aria-label="Copy payment ID"/);
   assert.match(html, /Ask Copilot about this case/);
-  assert.match(html, /class="admin-modal-footer"[\s\S]*Review decision/);
+  assert.match(html, /class="[^"]*admin-modal-action-pane[^"]*"[\s\S]*Review decision/);
   assert.doesNotMatch(html, />\s*Open\s*<\/button>/);
   assert.equal((html.match(/class="admin-confirmation/g) || []).length, 1);
 });
@@ -194,7 +196,7 @@ function ticket(overrides = {}) {
   };
 }
 
-function ticketWorkspaceWithDeferredLoad({adminId = 'admin-1', params = {}} = {}) {
+function ticketWorkspaceWithDeferredLoad({adminId = 'admin-1', params = {}, clipboard} = {}) {
   const user = ko.observable({id: adminId, role: 'ADMIN'});
   const session = {
     user,
@@ -250,7 +252,7 @@ function ticketWorkspaceWithDeferredLoad({adminId = 'admin-1', params = {}} = {}
     '../services/admin-console': helpers,
     '../services/flux-api': {ticketApi},
     '../services/session': {navigate: (path, target) => navigations.push([path, target]), session}
-  }, {window: {setTimeout: () => 0}});
+  }, {window: {setTimeout: () => 0}, navigator: clipboard === undefined ? {} : {clipboard}});
   const page = new ViewModel({params});
   const finish = result => {
     resolvers.splice(0).forEach(resolve => resolve(result));
@@ -310,6 +312,19 @@ test('support copy says age and customer statement, never SLA or latest message'
   for (const token of ['review-queue', 'review-list-row', 'admin-confirmation', 'admin-workflow-modal', 'Assign to me']) assert.ok(html.includes(token), token);
   assert.doesNotMatch(html, />\s*Open\s*<\/button>/);
   assert.equal((html.match(/class="admin-confirmation/g) || []).length, 1);
+});
+
+test('support identifiers copy without rendering the UUID in ticket details', async () => {
+  const writes = [];
+  const {page} = ticketWorkspaceWithDeferredLoad({
+    clipboard: {writeText: async value => writes.push(value)}
+  });
+  assert.equal(typeof page.copyIdentifier, 'function');
+  await page.copyIdentifier('00000000-0000-0000-0000-000000005d01', 'Payment ID');
+  assert.deepEqual(writes, ['00000000-0000-0000-0000-000000005d01']);
+  assert.match(page.notice(), /Payment ID copied/);
+  assert.doesNotMatch(read('ts/views/admin-tickets.html'), /text:paymentId/);
+  page.disconnected();
 });
 
 test('support ASSIGNED_TO_ME view shows only my open tickets', async () => {

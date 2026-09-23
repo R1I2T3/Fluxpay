@@ -1,6 +1,6 @@
 // viewModels/admin-compliance.ts
 import * as ko from 'knockout';
-import { focusRecordHeading } from '../services/admin-console';
+import { copyAdminIdentifier, focusRecordHeading } from '../services/admin-console';
 import '../services/admin-dialog';
 import { ComplianceWorkspace } from '../services/compliance-workspace';
 import { navigate, session } from '../services/session';
@@ -27,15 +27,13 @@ class AdminComplianceViewModel {
     await this.workspace.openCase(item);
     focusRecordHeading(event, 'compliance-record-heading');
   };
-  copyPaymentId = async () => {
-    const paymentId = this.workspace.selectedCase()?.paymentId;
-    if (!paymentId) return;
+  copyIdentifier = async (value: string | null | undefined, label: string) => {
+    this.workspace.error('');
+    this.workspace.notice('');
     try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
-      await navigator.clipboard.writeText(paymentId);
-      this.workspace.notice('Payment ID copied.');
-    } catch {
-      this.workspace.error('Unable to copy the payment ID. Select the visible ID and copy it manually.');
+      this.workspace.notice(await copyAdminIdentifier(value, label, navigator.clipboard));
+    } catch (error: any) {
+      this.workspace.error(error.message || 'Unable to copy ' + label.toLowerCase() + '.');
     }
   };
   confirmDecision = async () => {

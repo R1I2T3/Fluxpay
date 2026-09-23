@@ -52,7 +52,7 @@ test('KYC uses full-row controls and keeps every review action in one dialog', (
   assert.match(html,/<!-- ko if:review -->[\s\S]*class="[^"]*admin-confirmation[^"]*"[\s\S]*adminDialog:/);
   assert.match(html,/<!-- ko if:reviewDecision -->[\s\S]*confirmDecision/);
   assert.match(html,/<!-- ko if:documentPreview -->[\s\S]*closeReviewDocument/);
-  assert.ok(html.indexOf('sticky-decision-bar')>html.indexOf('admin-workflow-modal'));
+  assert.ok(html.indexOf('kyc-decision-form')>html.indexOf('admin-workflow-modal'));
   assert.match(html,/maskDocument\(docNumber\)/);
   assert.doesNotMatch(html,/OCR|automated mismatch|AI match/i);
   assert.doesNotMatch(html,/copy document|reveal document/i);

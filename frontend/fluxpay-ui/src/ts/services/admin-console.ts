@@ -7,6 +7,17 @@ export interface AdminEnvironment {
   label: string;
   tone: 'critical' | 'warning' | 'info';
 }
+
+export async function copyAdminIdentifier(
+  value: string | null | undefined,
+  label: string,
+  clipboard?: { writeText(value: string): Promise<void> },
+): Promise<string> {
+  if (!value) throw new Error(label + ' is unavailable.');
+  if (!clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+  await clipboard.writeText(value);
+  return label + ' copied.';
+}
 export interface FieldChange {
   field: string;
   label: string;

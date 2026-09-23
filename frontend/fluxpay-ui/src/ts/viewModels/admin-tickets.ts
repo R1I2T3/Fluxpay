@@ -1,6 +1,7 @@
 import * as ko from 'knockout';
 import { ticketApi, TicketResponse } from '../services/flux-api';
 import {
+  copyAdminIdentifier,
   focusRecordHeading,
   isOlderThanHours,
   nextTicketAction,
@@ -117,6 +118,16 @@ class AdminTicketsViewModel extends Page {
 
   closeTicket = () => {
     if (!this.busy()) this.selectedTicket(undefined);
+  };
+
+  copyIdentifier = async (value: string | null | undefined, label: string) => {
+    this.error('');
+    this.notice('');
+    try {
+      this.notice(await copyAdminIdentifier(value, label, navigator.clipboard));
+    } catch (error: any) {
+      this.error(error.message || 'Unable to copy ' + label.toLowerCase() + '.');
+    }
   };
 
   ticketAge = (ticket: TicketResponse) => {
