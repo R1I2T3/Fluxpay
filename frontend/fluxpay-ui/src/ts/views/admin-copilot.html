@@ -1,0 +1,78 @@
+<!-- ko if: !session.user() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">&#8594;</span>
+  <h2>Sign in to ask the Compliance Copilot.</h2>
+  <p>Only administrators can ask policy questions with citations.</p>
+  <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+</div>
+<!-- /ko -->
+<!-- ko if: session.user() && !session.isAdmin() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">!</span>
+  <h2>Administrator access required.</h2>
+  <p>Your account cannot ask policy questions with citations.</p>
+</div>
+<!-- /ko -->
+<!-- ko if: session.isAdmin() -->
+<section class="admin-page copilot-page" data-bind="with:workspace">
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">POLICY &amp; AI</span>
+      <h1>Compliance Copilot</h1>
+      <p>Ask policy questions and inspect every returned source.</p>
+    </div>
+    <span class="advisory-badge"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Advisory only</span>
+  </header>
+  <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
+  <div class="alert success" role="status" aria-live="polite" data-bind="visible:notice,text:notice"></div>
+  <p class="sr-only admin-loading-status" role="status" aria-live="polite" data-bind="text:busy()?'Loading Compliance Copilot.':''"></p>
+
+  <section class="copilot-chat" aria-label="Compliance Copilot chat">
+    <header class="copilot-chat-toolbar">
+      <label class="copilot-payment-context">Payment ID (optional)<input aria-label="Payment ID" data-bind="textInput:copilotPaymentId" placeholder="Paste a payment UUID" /></label>
+      <p>Use a payment ID when the policy question relates to a specific transaction.</p>
+    </header>
+
+    <main class="copilot-transcript" aria-live="polite">
+      <!-- ko ifnot:answer -->
+      <div class="empty-state copilot-welcome">
+        <span class="copilot-avatar" aria-hidden="true"><i class="fa-solid fa-robot"></i></span>
+        <h2>Ask a policy question</h2>
+        <p>Answers include the policy sources returned by FluxPay. Copilot is advisory only.</p>
+      </div>
+      <!-- /ko -->
+      <!-- ko if:answeredQuestion -->
+      <article class="chat-message user"><span>You</span><p data-bind="text:answeredQuestion"></p></article>
+      <!-- /ko -->
+      <!-- ko if:answer -->
+      <article class="chat-message assistant">
+        <span>Compliance Copilot</span>
+        <p class="preserve-text" data-bind="policyAnswer:answer().answer"></p>
+        <p class="subtle-note">Review the cited policies before taking any administrative action.</p>
+        <!-- ko if:answer().sources.length -->
+        <section class="copilot-sources" aria-label="Source policies">
+          <h3>Source policies</h3>
+          <div data-bind="foreach:answer().sources">
+            <button type="button" class="source-row" data-bind="click:$parents[1].openSource">
+              <strong data-bind="text:title"></strong>
+              <small data-bind="text:'Policy '+policyDocumentId+' · chunk '+chunkNumber"></small>
+              <blockquote data-bind="text:excerpt"></blockquote>
+            </button>
+          </div>
+        </section>
+        <!-- /ko -->
+        <!-- ko ifnot:answer().sources.length -->
+        <p class="empty-state">No policy sources returned. Do not rely on this answer for a decision.</p>
+        <!-- /ko -->
+      </article>
+      <!-- /ko -->
+    </main>
+
+    <form class="copilot-chat-composer" data-bind="submit:$parent.askCited">
+      <label class="sr-only" for="copilot-question">Policy question</label>
+      <textarea id="copilot-question" rows="2" required data-bind="textInput:question" placeholder="Ask about the applicable policy..."></textarea>
+      <button class="pill dark" data-bind="disable:busy">Send</button>
+    </form>
+  </section>
+</section>
+<!-- /ko -->

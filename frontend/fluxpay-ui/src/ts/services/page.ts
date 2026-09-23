@@ -293,7 +293,7 @@ export class Page {
   decide=(approve:boolean)=>this.run(async()=>{
     if(!this.review()||this.review().status!=='PENDING')throw new Error('This application has already been reviewed. Refresh the list.');
     if(approve&&(!this.reviewConsent()||!this.reviewDocumentsAvailable()))throw new Error('Confirm you have checked the uploaded documents.');
-    if(!approve&&!this.reviewReason().trim())throw new Error('Add a rejection reason before saving the decision.');
+    if(!approve&&!this.reviewReason().trim())throw new Error('Add a standardized reason and notes before saving the decision.');
     const b={expectedVersion:this.review().version,reason:this.reviewReason().trim()};
     if(approve)await api.approve(this.review().applicationId,b);else await api.reject(this.review().applicationId,b);
     this.review(undefined);this.reviewDecision('');this.cases(await api.adminKyc(this.adminStatus(),this.adminPage()));

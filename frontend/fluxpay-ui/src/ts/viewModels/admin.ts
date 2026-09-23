@@ -1,69 +1,164 @@
-import { Page } from '../services/page';
+// viewModels/admin.ts
 import * as ko from 'knockout';
-import { ComplianceWorkspace } from '../services/compliance-workspace';
-import { RoutingWorkspace } from '../services/routing-workspace';
-class ViewModel extends Page {
-  workspace = new ComplianceWorkspace();
-  routing = new RoutingWorkspace();
-  adminTab = ko.observable('operations');
-  tabs = [
-    { id: 'operations', label: 'Verification & routes' },
-    { id: 'routing', label: 'Transfer routing' },
-    { id: 'compliance', label: 'Compliance cases' },
-    { id: 'policies', label: 'Policy library' },
-    { id: 'copilot', label: 'Compliance Copilot' },
-  ];
-  constructor(params: any) {
-    super('admin', params);
+import { deriveAdminOverview } from '../services/admin-overview';
+import { fluxApi, ticketApi } from '../services/flux-api';
+import { navigate, session } from '../services/session';
+
+type SourceStatus<T> = { status: 'loading' | 'ready' | 'error'; data: T; error: string };
+type SourceKey = 'kyc' | 'compliance' | 'tickets' | 'providers' | 'routes' | 'policies';
+const source = <T>(empty: T) =>
+  ko.observable<SourceStatus<T>>({ status: 'loading', data: empty, error: '' });
+
+class AdminOverviewViewModel {
+  session = session;
+  private epoch = 0;
+  private disposed = false;
+  private sourceEpoch: Record<SourceKey, number> = {
+    kyc: 0,
+    compliance: 0,
+    tickets: 0,
+    providers: 0,
+    routes: 0,
+    policies: 0,
+  };
+  sources = {
+    kyc: source<any[]>([]),
+    compliance: source<any[]>([]),
+    tickets: source<any[]>([]),
+    providers: source<any[]>([]),
+    routes: source<any[]>([]),
+    policies: source<any[]>([]),
+  };
+  overview = ko.pureComputed(() =>
+    deriveAdminOverview({
+      kyc: this.sources.kyc().data,
+      cases: this.sources.compliance().data,
+      tickets: this.sources.tickets().data,
+      providers: this.sources.providers().data,
+      routes: this.sources.routes().data,
+      policies: this.sources.policies().data,
+      now: Date.now(),
+    }),
+  );
+  metrics = ko.pureComputed(() =>
+    this.overview().metrics.map((metric) => {
+      const states = metric.sourceKeys.map((key) => (this.sources as any)[key]().status);
+      const readyMetric = { ...metric, unavailable: false, pending: false };
+      return states.includes('error')
+        ? { ...readyMetric, value: 'Unavailable', unavailable: true }
+        : states.includes('loading')
+          ? { ...readyMetric, value: 'Loading…', pending: true }
+          : readyMetric;
+    }),
+  );
+  rows = ko.pureComputed(() =>
+    this.overview().rows.filter((row) =>
+      row.sourceKeys.every((key) => (this.sources as any)[key]().status === 'ready'),
+    ),
+  );
+  sourceEntries = ko.pureComputed(() => Object.entries(this.sources));
+  loadAnnouncement = ko.pureComputed(() => {
+    const states = this.sourceEntries().map((entry) => entry[1]().status);
+    return states.includes('loading')
+      ? 'Loading administrator attention data.'
+      : states.includes('error')
+        ? 'Overview loaded with unavailable sources.'
+        : 'Overview data loaded.';
+  });
+  private sessionChanged = session.user.subscribe((user) => {
+    if (!user) {
+      this.epoch++;
+      (Object.values(this.sources) as Array<ko.Observable<SourceStatus<any[]>>>).forEach((target) =>
+        target({ status: 'loading', data: [], error: '' }),
+      );
+    }
+  });
+  constructor() {
+    void this.loadOverview();
   }
-  refreshAdmin = () => {
-    if (this.workspace.busy() || this.routing.busy()) return;
-    if (this.adminTab() === 'policies') void this.workspace.loadPolicies();
-    else if (this.adminTab() === 'compliance') void this.workspace.loadCases();
-    else if (this.adminTab() === 'routing') void this.routing.loadAll();
-    else if (this.adminTab() === 'operations') this.refresh();
-    else this.workspace.notice('Ask a new question to refresh the policy response.');
-  };
-  selectTab = (tab: { id: string }) => {
-    if (this.workspace.busy() || this.routing.busy() || !this.session.isAdmin()) return;
-    this.adminTab(tab.id);
-    this.workspace.resetSearch();
-    this.routing.resetSearch();
-    if (tab.id === 'policies') void this.workspace.loadPolicies();
-    if (tab.id === 'compliance') void this.workspace.loadCases();
-    if (tab.id === 'routing') void this.routing.loadAll();
-  };
-  askAboutCase = () => {
-    const c = this.workspace.selectedCase();
-    if (!c) return;
-    const reasons = c.riskReasons.filter(Boolean).join('; ') || 'No risk reasons recorded.';
-    const suggestedAction = c.suggestedAction.trim() || 'No suggested action recorded.';
-    const question = [
-      'Which policies are relevant to this payment review?',
-      '',
-      'Case context:',
-      `- Risk level: ${c.risk}`,
-      `- Risk reasons: ${reasons}`,
-      `- Suggested action: ${suggestedAction}`,
-      '',
-      'Use this case context to identify the relevant policy checks before deciding.',
-    ].join('\n');
-    this.workspace.copilotPaymentId(c.paymentId);
-    this.workspace.question(question);
-    this.workspace.closeCase();
-    this.selectTab({ id: 'copilot' });
-  };
-  openSource = async (source: { policyDocumentId: string }) => {
-    if (this.workspace.busy()) return;
-    this.adminTab('policies');
-    this.workspace.resetSearch();
-    await this.workspace.loadPolicies();
-    await this.workspace.openPolicy({ id: source.policyDocumentId });
+  async loadOverview() {
+    if (!session.user()) await session.restore();
+    if (!session.isAdmin()) return;
+    const epoch = ++this.epoch;
+    (Object.values(this.sources) as Array<ko.Observable<SourceStatus<any[]>>>).forEach((target) =>
+      target({ ...target(), status: 'loading', error: '' }),
+    );
+    const requests: Array<Promise<any[]>> = [
+      fluxApi.adminKyc('PENDING', 0, 100),
+      fluxApi.complianceCases('OPEN'),
+      ticketApi.listForAdmin('ALL', 0, 100).then((result) => result.items || []),
+      fluxApi.providers(),
+      fluxApi.routesAdmin(),
+      fluxApi.policies(),
+    ];
+    const keys = ['kyc', 'compliance', 'tickets', 'providers', 'routes', 'policies'] as const;
+    const results = await Promise.allSettled(requests);
+    if (this.disposed || epoch !== this.epoch || !session.isAdmin()) return;
+    results.forEach((result, index) => {
+      const target = this.sources[keys[index]] as ko.Observable<SourceStatus<any[]>>;
+      target(
+        result.status === 'fulfilled'
+          ? { status: 'ready' as const, data: result.value, error: '' }
+          : {
+              status: 'error' as const,
+              data: [],
+              error: (result.reason as any)?.message || 'This source is unavailable.',
+            },
+      );
+    });
+  }
+  async retrySource(key: SourceKey) {
+    if (!session.isAdmin()) return;
+    const epoch = this.epoch,
+      sourceEpoch = ++this.sourceEpoch[key],
+      target = this.sources[key];
+    target({ ...target(), status: 'loading', error: '' });
+    try {
+      const data =
+        key === 'kyc'
+          ? await fluxApi.adminKyc('PENDING', 0, 100)
+          : key === 'compliance'
+            ? await fluxApi.complianceCases('OPEN')
+            : key === 'tickets'
+              ? (await ticketApi.listForAdmin('ALL', 0, 100)).items || []
+              : key === 'providers'
+                ? await fluxApi.providers()
+                : key === 'routes'
+                  ? await fluxApi.routesAdmin()
+                  : await fluxApi.policies();
+      if (
+        !this.disposed &&
+        epoch === this.epoch &&
+        sourceEpoch === this.sourceEpoch[key] &&
+        session.isAdmin()
+      )
+        target({ status: 'ready', data, error: '' });
+    } catch (error: any) {
+      if (
+        !this.disposed &&
+        epoch === this.epoch &&
+        sourceEpoch === this.sourceEpoch[key] &&
+        session.isAdmin()
+      )
+        target({
+          status: 'error',
+          data: [],
+          error: error.message || 'This source is unavailable.',
+        });
+    }
+  }
+  open = (item: {
+    path: string;
+    params: Record<string, string>;
+    unavailable?: boolean;
+    pending?: boolean;
+  }) => {
+    if (!item.unavailable && !item.pending) navigate(item.path, item.params);
   };
   disconnected() {
-    super.disconnected();
-    this.workspace.dispose();
-    this.routing.dispose();
+    this.disposed = true;
+    this.epoch++;
+    this.sessionChanged.dispose();
   }
 }
-export = ViewModel;
+export = AdminOverviewViewModel;

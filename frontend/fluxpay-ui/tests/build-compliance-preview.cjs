@@ -38,7 +38,7 @@ window.fetch=async function(url,options={}){
 };
 require.config({baseUrl:'js',paths:{knockout:'libs/knockout/knockout-3.5.1.debug'}});
 define('services/session',['knockout'],function(ko){const user=ko.observable({fullName:'QA Administrator',role:'ADMIN'});return {session:{user,isAdmin:ko.pureComputed(()=>user()?.role==='ADMIN'),restore:async()=>{}},navigate:()=>{}};});
-require(['knockout','viewModels/admin'],function(ko,Admin){const page=new Admin({});ko.applyBindings(page,document.querySelector('main'));page.selectTab({id:'compliance'});window.addEventListener('pagehide',()=>page.disconnected());});
+require(['knockout','viewModels/admin'],function(ko,Admin){const page=new Admin({});ko.applyBindings(page,document.querySelector('main'));void page.loadOverview();window.addEventListener('pagehide',()=>page.disconnected());});
 `;
 fs.writeFileSync(path.join(stage,'compliance-preview.html'),`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FluxPay compliance · isolated QA</title>${styles}<style>body{margin:0;background:#f3f6fc}.qa-banner{padding:15px 24px;background:#18375b;color:#fff;font:12px Arial}.workspace-shell main{padding:30px;max-width:1400px;margin:auto}@media(max-width:600px){.workspace-shell main{padding:16px}}</style></head><body><div class="qa-banner">FluxPay / ISOLATED QA · Synthetic data · No real API writes</div><div class="workspace-shell admin-shell"><main>${html}</main></div><script src="js/libs/require/require.js"></script><script>${fixture}</script></body></html>`);
 console.log('Generated web-dev/compliance-preview.html; all API requests are isolated in memory.');

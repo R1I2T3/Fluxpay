@@ -1,0 +1,131 @@
+<!-- ko if: !session.user() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">→</span>
+  <h2>Sign in to review KYC.</h2>
+  <p>Only administrators can review customer identity documents.</p>
+  <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+</div>
+<!-- /ko -->
+<!-- ko if: session.user() && !session.isAdmin() -->
+<div class="sign-in-gate">
+  <span class="gate-icon">!</span>
+  <h2>Administrator access required.</h2>
+  <p>Your account cannot review customer identity documents.</p>
+</div>
+<!-- /ko -->
+<section class="admin-page review-page" data-bind="if:session.isAdmin()">
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">OPERATIONS</span>
+      <h1>KYC reviews</h1>
+      <p>Review submitted information beside the original evidence.</p>
+    </div>
+    <button class="pill soft" data-bind="click:refresh,disable:busy">Refresh</button>
+  </header>
+  <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
+  <div class="alert success" role="status" aria-live="polite" data-bind="visible:notice,text:notice"></div>
+  <p class="sr-only admin-loading-status" role="status" aria-live="polite" data-bind="text:busy()?'Loading KYC reviews.':''"></p>
+  <div class="admin-list-surface review-queue" aria-label="KYC review queue">
+    <div class="filter-row">
+      <label>Saved view<select data-bind="value:savedView,event:{change:changeView},disable:busy">
+        <option value="PENDING">Pending</option>
+        <option value="AGING">Waiting over 24 hours</option>
+        <option value="DOCUMENTS_UNAVAILABLE">Documents unavailable</option>
+        <option value="VERIFIED">Verified</option>
+        <option value="REJECTED">Rejected</option>
+      </select></label>
+      <label>Search<input type="search" data-bind="textInput:search" aria-label="Search by name, email, or application ID" /></label>
+    </div>
+    <div class="review-list" role="list">
+      <div class="review-list-heading" aria-hidden="true"><span>Applicant</span><span>Submitted</span><span>Status</span><span></span></div>
+      <!-- ko foreach:visibleReviews -->
+      <button type="button" class="review-list-row" data-bind="click:$parent.selectReview,attr:{'aria-label':fullName+' · '+$parent.label(status),'aria-current':$parent.review()===$data?'true':undefined}">
+        <span><strong data-bind="text:fullName"></strong><small data-bind="text:email"></small></span>
+        <span data-bind="text:$parent.date(submittedAt)"></span>
+        <span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span>
+        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+      </button>
+      <!-- /ko -->
+    </div>
+    <div class="empty-state" data-bind="visible:!busy()&&!visibleReviews().length">
+      <h3>No matching reviews</h3>
+      <p>No applications in the <span data-bind="text:savedView"></span> view match the current search.</p>
+      <button type="button" class="pill soft" data-bind="click:function(){search('');savedView('PENDING');changeView();}">Reset filters</button>
+    </div>
+  </div>
+
+  <!-- ko if:review -->
+  <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="kyc-record-heading" data-bind="adminDialog:{initialFocus:'#kyc-record-heading'}">
+    <article class="panel admin-workflow-modal kyc-review-modal">
+      <!-- ko ifnot:documentPreview -->
+      <header class="admin-modal-header">
+        <div><span class="eyebrow">KYC REVIEW</span><h2 id="kyc-record-heading" tabindex="-1" data-bind="text:review().fullName"></h2><p data-bind="text:review().email"></p></div>
+        <button class="close-button" aria-label="Close KYC review" title="Close" data-bind="click:closeReviewModal,disable:busy">&times;</button>
+      </header>
+      <div class="admin-modal-workspace kyc-modal-workspace">
+        <div class="admin-modal-body admin-modal-info-pane kyc-review-body" data-bind="with:review">
+          <h3>Customer-submitted information</h3>
+          <dl class="detail-grid kyc-inline-details">
+            <div><dt>Document type:</dt><dd data-bind="text:docType"></dd></div>
+            <div><dt>Document number:</dt><dd class="mono" data-bind="text:$parent.maskDocument(docNumber)"></dd></div>
+            <div><dt>Submitted:</dt><dd data-bind="text:$parent.date(submittedAt)"></dd></div>
+            <!-- ko if:decidedAt --><div><dt>Decided:</dt><dd data-bind="text:$parent.date(decidedAt)"></dd></div><!-- /ko -->
+          </dl>
+          <!-- ko if:rejectReason --><div class="kyc-review-note"><strong>Reason shared with customer</strong><p data-bind="text:rejectReason"></p></div><!-- /ko -->
+          <h3>Manual document checklist</h3>
+          <ul><li>Confirm the name and identifier manually.</li><li>Confirm the document is readable and current.</li><li>Record the reason code for the decision.</li></ul>
+          <h3>Evidence</h3>
+          <div class="kyc-document-grid" data-bind="foreach:documents">
+            <button type="button" class="kyc-document-card" data-bind="click:$parents[1].openReviewDocument">
+              <strong data-bind="text:fileName"></strong><small data-bind="text:available?'Open original':'Original unavailable'"></small>
+            </button>
+          </div>
+        </div>
+        <aside class="admin-modal-action-pane" aria-label="KYC review decision">
+          <!-- ko ifnot:reviewDecision -->
+          <div><span class="eyebrow">ACTION</span><h3>Review decision</h3><p class="subtle-note">Record the outcome after checking the submitted evidence.</p></div>
+          <form class="kyc-decision-form" data-bind="visible:review().status==='PENDING',submit:function(){prepareDecision();return false}">
+            <label>Decision<select data-bind="value:decision"><option value="approve">Approve</option><option value="reject">Reject</option></select></label>
+            <label>Reason code<select data-bind="options:reasonCodes[decision()],optionsText:'label',optionsValue:'value',value:reasonCode"></select></label>
+            <label>Notes<textarea maxlength="500" rows="4" data-bind="textInput:notes"></textarea></label>
+            <label class="checkbox-label"><input type="checkbox" data-bind="checked:reviewConsent,disable:decision()==='reject'" />Manual evidence review completed</label>
+            <button class="pill dark" data-bind="disable:busy">Review decision</button>
+          </form>
+          <p class="form-help" data-bind="visible:review().status!=='PENDING'">Decision complete — no further review action is available.</p>
+          <!-- /ko -->
+          <!-- ko if:reviewDecision -->
+          <div class="modal-action-confirmation" aria-live="polite">
+            <span class="eyebrow">CONFIRM ACTION</span>
+            <h3 data-bind="text:reviewDecision()==='approve'?'Approve this KYC review?':'Reject this KYC review?'"></h3>
+            <p class="preserve-text" data-bind="text:reviewReason"></p>
+            <div class="modal-action-buttons">
+              <button type="button" class="pill soft" data-bind="click:function(){reviewDecision('')},disable:busy">Back</button>
+              <button type="button" class="pill dark" data-bind="click:confirmDecision,disable:busy,text:reviewDecision()==='approve'?'Approve':'Reject'"></button>
+            </div>
+          </div>
+          <!-- /ko -->
+        </aside>
+      </div>
+      <!-- /ko -->
+      <!-- ko if:documentPreview -->
+      <header class="admin-modal-header">
+        <button class="modal-back" data-bind="click:closeReviewDocument">&larr; Back to review</button>
+        <h2 id="kyc-preview-title" data-bind="text:documentPreview().fileName"></h2>
+      </header>
+      <div class="admin-modal-body">
+        <p class="muted" data-bind="visible:previewLoading">Opening your document&hellip;</p>
+        <p class="alert error" role="alert" data-bind="visible:previewError,text:previewError"></p>
+        <!-- ko if:documentPreview().url -->
+        <div class="kyc-preview-canvas">
+          <!-- ko if:documentPreview().fileType==='application/pdf' --><div class="kyc-pdf-viewer" data-bind="kycPdfPreview:documentPreview().url"></div><!-- /ko -->
+          <!-- ko if:documentPreview().fileType!=='application/pdf' --><img alt="Uploaded identity document" data-bind="attr:{src:documentPreview().url}" /><!-- /ko -->
+        </div>
+        <div class="kyc-preview-footer"><span>Read-only &middot; Keep this document private</span><a class="pill soft" data-bind="attr:{href:documentPreview().url,download:documentPreview().fileName}">Download document</a></div>
+        <p class="form-help">Use the page controls to read a PDF. You can also download the original file.</p>
+        <!-- /ko -->
+      </div>
+      <!-- /ko -->
+    </article>
+  </div>
+  <!-- /ko -->
+</section>

@@ -321,24 +321,91 @@ test('rapid duplicate actions are blocked and logout clears late responses',asyn
   page.dispose();
 });
 
-test('routing tab renders providers and routes with text bindings and alertdialog confirmations',()=>{
+test('route workspace renders catalogue, matrix, comparison and preview without deletion controls',()=>{
+  const providersHtml=read('ts/views/admin-providers.html');
+  const routesHtml=read('ts/views/admin-routes.html');
   const html=read('ts/views/admin.html');
-  assert.ok(html.includes("adminTab()==='routing'"));
-  assert.ok(html.includes('with:routing'));
-  for(const binding of ['filteredProviders','filteredRoutes','newProvider','saveProvider','newRoute','saveRoute','requestDeleteProvider','requestDeleteRoute','providerFilter','destinationFilter','countryFilter','currencyFilter','statusFilter','providerProtected','routeProtected'])assert.ok(html.includes(binding),`missing ${binding}`);
-  assert.ok(html.includes('role="alertdialog"'));
-  assert.ok(html.includes('System protected'));
-  assert.ok(html.includes("optionsText:'displayLabel',optionsValue:'railType'"));
-  assert.ok(html.includes('text:$parent.railDisplayLabel(railType)'));
-  assert.ok(!html.includes('data-bind="text:railType"'));
-  assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html));
+  assert.ok(html.includes('attention-metrics'));
+  assert.ok(html.includes('source-health'));
+  assert.ok(html.includes('Open filtered queue'));
+  for(const binding of ['filteredProviders','newProvider','requestProviderSave','providerChanges','confirmProviderSave','providerProtected'])assert.ok(providersHtml.includes(binding),`missing ${binding}`);
+  for(const view of ['CATALOGUE','MATRIX','COMPARE','PREVIEW'])assert.ok(routesHtml.includes(view),`missing ${view}`);
+  assert.ok(routesHtml.includes('Workspace view'));
+  assert.ok(routesHtml.includes('event:{change:changeMode}'));
+  assert.ok(routesHtml.includes('configuration-workspace'));
+  assert.ok(routesHtml.includes('type="search"'));
+  for(const binding of ['workspace.search','workspace.providerFilter','workspace.destinationFilter','workspace.countryFilter','workspace.currencyFilter','workspace.statusFilter'])assert.ok(routesHtml.includes(binding),`missing ${binding}`);
+  for(const binding of ['catalogueRoutes','comparison','matrix','preview','previewCountry','previewCurrency','previewAmount','previewDestination','runPreview','requestRouteSave','routeChanges','confirmRouteSave','providerDisplayName','routeProtected','attentionOnly'])assert.ok(routesHtml.includes(binding),`missing ${binding}`);
+  assert.ok(routesHtml.includes('Attention only'));
+  assert.ok(routesHtml.includes('Available · '));
+  assert.ok(routesHtml.includes('Unavailable · 0 routes'));
+  for(const heading of ['Base fee','Spread','ETA','Configured reliability','Effective reliability'])assert.ok(routesHtml.includes(heading),`missing ${heading}`);
+  assert.ok(routesHtml.includes('destinationCountry'));
+  assert.ok(routesHtml.includes('payoutCurrency'));
+  assert.ok(routesHtml.includes('destinationType'));
+  assert.ok(routesHtml.includes('Apply in '));
+  assert.ok(routesHtml.includes('environment.label'));
+  assert.ok(routesHtml.includes('if:session.isAdmin()'));
+  assert.ok(routesHtml.replace(/\s+/g, ' ').includes('Configuration preview only. This does not create a payment, calculate proceeds, call smart routing, or recommend a winner.'));
+  assert.ok(routesHtml.includes('role="dialog"'));
+  assert.ok(!/requestDeleteRoute|deleteRoute|Delete route|Remove route/i.test(routesHtml));
+  const withoutDisclaimer=routesHtml.replace(/Configuration preview only\.[^<]*/,'');
+  assert.ok(!/winner|recommend|proceeds|score|rank/i.test(withoutDisclaimer));
+  assert.ok(html.includes('role="alert"'));
+  assert.ok(providersHtml.includes('role="dialog"'));
+  assert.ok(providersHtml.includes('System protected'));
+  assert.ok(routesHtml.includes('System protected'));
+  assert.ok(providersHtml.includes("optionsText:'displayLabel',optionsValue:'railType'"));
+  assert.ok(providersHtml.includes('text:$parent.railDisplayLabel(railType)'));
+  assert.ok(!providersHtml.includes('data-bind="text:railType"'));
+  assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(providersHtml));
+  assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(routesHtml));
+  assert.ok(!/requestDeleteProvider|deleteProvider|Delete provider|Remove provider/i.test(providersHtml));
 });
 
-test('admin view model exposes the transfer-routing tab and workspace',()=>{
+test('admin routes view model parses mode, attention status and preview state',async()=>{
+  const analysisContext={exports:{}};
+  vm.runInNewContext(compile('ts/services/route-analysis.ts'),analysisContext);
+  const adminConsoleContext={exports:{}};
+  vm.runInNewContext(compile('ts/services/admin-console.ts'),adminConsoleContext);
+  const navigations=[];
+  const user=ko.observable({role:'ADMIN'});
+  const session={user,isAdmin:ko.pureComputed(()=>user()?.role==='ADMIN'),restore:async()=>{}};
+  class FakeWorkspace {
+    filteredRoutes=ko.observableArray([]);
+    providers=ko.observableArray([]);
+    routes=ko.observableArray([]);
+    railTypes=ko.observableArray([]);
+    async loadAll(){}
+    editRoute(){}
+    dispose(){}
+  }
+  const context={exports:{},module:{exports:{}},window:{FLUXPAY_ENVIRONMENT:'STAGING',location:{hostname:'app.example'}},require:name=>name==='knockout'?ko:name==='../services/admin-console'?adminConsoleContext.exports:name==='../services/routing-workspace'?{RoutingWorkspace:FakeWorkspace}:name==='../services/route-analysis'?analysisContext.exports:name==='../services/session'?{session,navigate:(path,params)=>navigations.push([path,params])}:{}};
+  vm.runInNewContext(compile('ts/viewModels/admin-routes.ts'),context);
+  const ViewModel=context.module.exports;
+  const page=new ViewModel({params:{view:'preview',status:'ATTENTION'}});
+  assert.equal(page.mode(),'PREVIEW');
+  assert.equal(page.attentionOnly(),true);
+  assert.equal(page.environment.label,'Staging');
+  assert.equal(page.previewSubmitted(),false);
+  assert.equal(page.runPreview(),false);
+  assert.equal(page.previewSubmitted(),true);
+  assert.deepEqual(JSON.parse(JSON.stringify(page.preview())),{inputErrors:['Enter an amount greater than zero.','Enter a two-letter destination country.','Enter a three-letter payout currency.'],routes:[]});
+  page.mode('MATRIX');
+  page.changeMode();
+  assert.deepEqual(JSON.parse(JSON.stringify(navigations)),[['admin-routes',{view:'MATRIX',status:'ATTENTION'}]]);
+  const fallback=new ViewModel({params:{view:'bogus'}});
+  assert.equal(fallback.mode(),'CATALOGUE');
+  assert.equal(fallback.attentionOnly(),false);
+  page.disconnected();fallback.disconnected();
+});
+
+test('admin view model exposes the risk-prioritized overview entry',()=>{
   const source=read('ts/viewModels/admin.ts');
-  assert.match(source,/\{\s*id:\s*'routing',\s*label:\s*'Transfer routing'\s*\}/);
-  assert.ok(source.includes('RoutingWorkspace'));
-  assert.ok(source.includes('routing'));
+  assert.match(source,/deriveAdminOverview/);
+  assert.ok(source.includes('loadOverview'));
+  assert.ok(source.includes('retrySource'));
+  assert.ok(!source.includes('RoutingWorkspace'));
 });
 
 test('page no longer owns the legacy payout route editor',()=>{

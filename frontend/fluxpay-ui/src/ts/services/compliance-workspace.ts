@@ -1,5 +1,6 @@
 import * as ko from 'knockout';
 import { fluxApi as api, PolicyDocument, PolicyChunk, PolicyGuidance, ComplianceCase, CopilotAnswer } from './flux-api';
+import { composeDecisionReason, diffFields, prioritizeComplianceCases, FieldChange } from './admin-console';
 import { session } from './session';
 import {feedbackObservable} from './notifications';
 
@@ -50,23 +51,6 @@ export function parsePolicyImport(raw:unknown):PolicyDraft[]{
   });
 }
 
-// Keep keyboard focus inside destructive-action confirmations and return it on close.
-ko.bindingHandlers.adminDialog = {
-  init(element:HTMLElement){
-    const previous=document.activeElement as HTMLElement|null;
-    const controls=()=>Array.from(element.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),[tabindex="0"]'));
-    const focus=window.setTimeout(()=>controls()[0]?.focus(),0);
-    const trap=(event:KeyboardEvent)=>{
-      if(event.key!=='Tab')return;
-      const items=controls(),first=items[0],last=items[items.length-1];
-      if(!first){event.preventDefault();return;}
-      if(event.shiftKey&&(document.activeElement===first||!element.contains(document.activeElement))){event.preventDefault();last.focus();}
-      else if(!event.shiftKey&&(document.activeElement===last||!element.contains(document.activeElement))){event.preventDefault();first.focus();}
-    };
-    element.addEventListener('keydown',trap);
-    ko.utils.domNodeDisposal.addDisposeCallback(element,()=>{clearTimeout(focus);element.removeEventListener('keydown',trap);if(previous?.isConnected)previous.focus();});
-  }
-};
 ko.bindingHandlers.adminReveal = {
   update(element:HTMLElement,valueAccessor:()=>unknown){
     ko.unwrap(valueAccessor());
@@ -109,6 +93,7 @@ export class ComplianceWorkspace {
   chunkEdit = ko.observable<PolicyChunk>();
   chunkEditContent = ko.observable('');
   pendingChunk = ko.observable<PolicyChunk>();
+  pendingGuidance = ko.observable<PolicyGuidance>();
   policyEditClearChunks = ko.pureComputed<boolean>({
     read:()=>this.policyEdit()?.clearExistingChunks()??true,
     write:(value:boolean)=>{const draft=this.policyEdit();if(draft)draft.clearExistingChunks(value);}
@@ -147,14 +132,40 @@ export class ComplianceWorkspace {
   reasons = ko.observable('');
   suggestedAction = ko.observable('');
   decisionReason = ko.observable('');
-  confirmation = ko.observable<'approve'|'reject'|'delete-case'|'delete-policy'|'delete-chunk'|'index'|''>('');
+  pendingDecision = ko.observable<'approve'|'reject'>('approve');
+  decisionCode = ko.observable('RULES_SATISFIED');
+  decisionNotes = ko.observable('');
+  savedCaseView = ko.observable<'HIGH_RISK'|'REQUOTE_REQUIRED'|'REVIEW_EXPIRING'|'OPEN'|'COMPLETED'>('OPEN');
+  readonly decisionCodes = {
+    approve: [{value:'RULES_SATISFIED',label:'Rules satisfied'},{value:'EVIDENCE_VERIFIED',label:'Evidence verified'},{value:'OTHER',label:'Other'}],
+    reject: [{value:'POLICY_VIOLATION',label:'Policy violation'},{value:'INSUFFICIENT_EVIDENCE',label:'Insufficient evidence'},{value:'RISK_NOT_ACCEPTABLE',label:'Risk not acceptable'},{value:'OTHER',label:'Other'}]
+  };
+  confirmation = ko.observable<'approve'|'reject'|'delete-case'|'delete-policy'|'delete-chunk'|'delete-guidance'|'index'|''>('');
   question = ko.observable('');
   copilotPaymentId = ko.observable('');
   answer = ko.observable<CopilotAnswer>();
   answeredQuestion = ko.observable('');
+  policyChanges = ko.observableArray<FieldChange>([]);
+  policyChangeReview = ko.observable(false);
+  draftPublishReview = ko.observable(false);
+  policyModalMode = ko.pureComputed<''|'detail'|'advanced'|'edit'|'review'|'chunk-edit'|'guidance-edit'|'case-view'|'confirmation'>(()=>{
+    if(this.policyChangeReview())return 'review';
+    if(this.policyEdit())return 'edit';
+    if(this.chunkEdit())return 'chunk-edit';
+    if(this.guidanceEdit())return 'guidance-edit';
+    if(this.guidanceCaseViewer())return 'case-view';
+    if(this.confirmation()&&this.policy())return 'confirmation';
+    return this.policy()?(this.policyView()==='advanced'?'advanced':'detail'):'';
+  });
+  policySavedView = ko.observable<'ALL'|'UNINDEXED'>('ALL');
+  savedPolicies = ko.pureComputed(()=>this.filteredPolicies().filter(item=>this.policySavedView()==='ALL'||!(item.chunks||[]).some(chunk=>!chunk.manual)));
+  visiblePolicies = ko.pureComputed(()=>{
+    const filtered=this.savedPolicies();
+    return filtered.slice(this.policyPage()*this.policyPageSize,(this.policyPage()+1)*this.policyPageSize);
+  });
   filteredPolicies = ko.pureComputed(()=>this.policies().filter(p=>(this.categoryFilter()==='ALL'||p.category===this.categoryFilter())&&(p.title+' '+p.content).toLowerCase().includes(this.search().toLowerCase())));
   pagedPolicies = ko.pureComputed(()=>this.filteredPolicies().slice(this.policyPage()*this.policyPageSize,(this.policyPage()+1)*this.policyPageSize));
-  policyPageCount = ko.pureComputed(()=>Math.max(1,Math.ceil(this.filteredPolicies().length/this.policyPageSize)));
+  policyPageCount = ko.pureComputed(()=>Math.max(1,Math.ceil(this.savedPolicies().length/this.policyPageSize)));
   filteredCases = ko.pureComputed(()=>{
     const rank:{[key:string]:number}={LOW:1,MEDIUM:2,HIGH:3};
     const result=this.cases().filter(c=>(this.status()==='ALL'||c.status===this.status())&&(this.riskFilter()==='ALL'||c.risk===this.riskFilter())&&(this.originFilter()==='ALL'||(this.originFilter()==='PAYMENT_REVIEW'?!!c.reviewReference:!c.reviewReference))&&(c.id+' '+c.paymentId+' '+c.risk+' '+c.riskReasons.join(' ')).toLowerCase().includes(this.search().toLowerCase()));
@@ -163,6 +174,18 @@ export class ComplianceWorkspace {
   pagedCases = ko.pureComputed(()=>this.filteredCases().slice(this.casePage()*this.casePageSize,(this.casePage()+1)*this.casePageSize));
   casePageCount = ko.pureComputed(()=>Math.max(1,Math.ceil(this.filteredCases().length/this.casePageSize)));
   completedCases = ko.pureComputed(()=>this.cases().filter(item=>item.status!=='OPEN'));
+  completedCaseLabel = (item:ComplianceCase)=>item.risk+' · '+item.status+' · '+this.date(item.decidedAt||item.createdAt);
+  savedCases = ko.pureComputed(()=>this.filteredCases().filter(item=>{
+    const view = this.savedCaseView();
+    if(view==='HIGH_RISK')return item.status==='OPEN'&&item.risk==='HIGH';
+    if(view==='REQUOTE_REQUIRED')return item.status==='OPEN'&&item.requoteRequired;
+    if(view==='REVIEW_EXPIRING'){
+      const expires = Date.parse(item.reviewExpiresAt||'');
+      return item.status==='OPEN'&&Number.isFinite(expires)&&expires>=Date.now()&&expires-Date.now()<=24*60*60*1000;
+    }
+    return view==='COMPLETED'?item.status!=='OPEN':item.status==='OPEN';
+  }));
+  prioritizedCases = ko.pureComputed(()=>prioritizeComplianceCases(this.savedCases()));
   canDeleteCase = ko.pureComputed(()=>this.selectedCase()?.status==='OPEN'&&!this.selectedCase()?.reviewReference);
   date = (value:string|null)=>value?new Date(value).toLocaleString():'—';
   private disposed = false;
@@ -171,10 +194,11 @@ export class ComplianceWorkspace {
   private streamAbort?:AbortController;
   private epoch = 0;
   private sessionChanged = session.user.subscribe(()=>{this.streamAbort?.abort();this.epoch++;this.clear();});
+  private policySavedViewChanged = this.policySavedView.subscribe(()=>{this.policyPage(0);});
   private noticeChanged = this.notice.subscribe(value=>this.dismissToast(this.notice,value));
   private errorChanged = this.error.subscribe(value=>this.dismissToast(this.error,value));
-  private clear(){this.policies([]);this.policyDrafts([]);this.draftEditor(undefined);this.draftEditorTarget(undefined);this.draftViewer(undefined);this.policyEdit(undefined);this.chunkEdit(undefined);this.chunkEditContent('');this.pendingChunk(undefined);this.policyImportError('');this.cases([]);this.policy(undefined);this.selectedCase(undefined);this.chunks([]);this.guidance([]);this.guidanceCaseViewer(undefined);this.policyView('policy');this.guidanceCaseId('');this.guidanceContent('');this.answer(undefined);this.confirmation('');this.decisionReason('');this.question('');this.copilotPaymentId('');this.answeredQuestion('');this.title('');this.content('');this.chunkContent('');this.paymentId('');this.reasons('');this.suggestedAction('');this.policyForm(false);this.caseForm(false);this.casePage(0);this.policyPage(0);this.error('');this.notice('');}
-  dispose(){this.streamAbort?.abort();this.disposed=true;this.epoch++;this.clear();this.sessionChanged.dispose();this.noticeChanged.dispose();this.errorChanged.dispose();}
+  private clear(){this.policies([]);this.policyDrafts([]);this.draftEditor(undefined);this.draftEditorTarget(undefined);this.draftViewer(undefined);this.policyEdit(undefined);this.policyChanges([]);this.policyChangeReview(false);this.draftPublishReview(false);this.chunkEdit(undefined);this.chunkEditContent('');this.pendingChunk(undefined);this.pendingGuidance(undefined);this.policySavedView('ALL');this.policyImportError('');this.cases([]);this.policy(undefined);this.selectedCase(undefined);this.chunks([]);this.guidance([]);this.guidanceCaseViewer(undefined);this.policyView('policy');this.guidanceCaseId('');this.guidanceContent('');this.answer(undefined);this.confirmation('');this.decisionReason('');this.pendingDecision('approve');this.decisionCode('RULES_SATISFIED');this.decisionNotes('');this.question('');this.copilotPaymentId('');this.answeredQuestion('');this.title('');this.content('');this.chunkContent('');this.paymentId('');this.reasons('');this.suggestedAction('');this.policyForm(false);this.caseForm(false);this.casePage(0);this.policyPage(0);this.error('');this.notice('');}
+  dispose(){this.streamAbort?.abort();this.disposed=true;this.epoch++;this.clear();this.sessionChanged.dispose();this.policySavedViewChanged.dispose();this.noticeChanged.dispose();this.errorChanged.dispose();}
   private dismissToast(target:ko.Observable<string>,value:string){
     if(!value||typeof window==='undefined'||!window.setTimeout)return;
     window.setTimeout(()=>{if(!this.disposed&&target()===value)target('');},5000);
@@ -196,9 +220,9 @@ export class ComplianceWorkspace {
   nextCasePage = ()=>this.casePage(Math.min(this.casePageCount()-1,this.casePage()+1));
   toggleRiskSort = ()=>{this.caseSort(this.caseSort()==='risk-desc'?'risk-asc':'risk-desc');this.casePage(0);};
   toggleCreatedSort = ()=>{this.caseSort(this.caseSort()==='created-desc'?'created-asc':'created-desc');this.casePage(0);};
-  openPolicy = (p:{id:string})=>this.run(()=>this.readPolicy(p.id));
+  openPolicy = (p:{id:string})=>{this.policyView('policy');return this.run(()=>this.readPolicy(p.id));};
   private async readPolicy(id:string){const [p,c,g,allCases]=await Promise.all([api.policy(id),api.policyChunks(id),api.policyGuidance(id),api.complianceCases('ALL')]);this.policy(p);this.chunks(c);this.guidance(g);this.cases(allCases);this.chunkContent('');}
-  closePolicy = ()=>{if(!this.busy()){this.policy(undefined);this.confirmation('');}};
+  closePolicy = ()=>{if(!this.busy()){this.policy(undefined);this.policyView('policy');this.confirmation('');}};
   loadPolicyJson = (contextOrEvent:unknown,event?:Event)=>{
     const input=(event??contextOrEvent as Event).target as HTMLInputElement;
     const files=Array.from(input.files??[]);
@@ -243,6 +267,13 @@ export class ComplianceWorkspace {
     if(!title||title.length>200||!content||!this.categories.includes(category))throw new Error('Enter a title (up to 200 characters), category and policy content.');
     return {title,category,content};
   }
+  requestPolicyDraftPublish=()=>{
+    if(this.busy()||!this.policyDrafts().length)return;
+    try{this.policyDrafts().forEach(draft=>this.policyDraftPayload(draft));}
+    catch(error:any){this.policyImportError(error.message);return;}
+    this.draftPublishReview(true);
+  };
+  confirmPolicyDraftPublish=async()=>{if(!this.draftPublishReview())return;this.draftPublishReview(false);await this.createPolicyDrafts();};
   createPolicyDrafts = ()=>this.run(async()=>{
     const completed=new Set<string>();
     for(const draft of this.policyDrafts()){
@@ -258,6 +289,21 @@ export class ComplianceWorkspace {
   openPolicyEdit = (policy:Pick<PolicyDocument,'id'|'title'|'category'|'content'>)=>{
     if(!this.busy()){this.error('');const draft=new PolicyDraft(policy);this.policyEdit(draft);this.policyEditSnapshot(JSON.stringify({title:draft.title(),category:draft.category(),content:draft.content(),clearExistingChunks:draft.clearExistingChunks()}));}
   };
+  requestPolicyEditSave=()=>{
+    const draft=this.policyEdit();
+    if(this.busy()||!draft)return;
+    let payload:{title:string;category:string;content:string;clearExistingChunks:boolean};
+    try{payload={...this.policyDraftPayload(draft),clearExistingChunks:draft.clearExistingChunks()};}
+    catch(error:any){draft.error(error.message);return;}
+    const current=this.policies().find(item=>item.id===draft.id)||this.policy();
+    const baseline={...(current||{}),clearExistingChunks:true};
+    this.policyChanges(diffFields(baseline,payload,{
+      title:'Title',category:'Category',content:'Content',clearExistingChunks:'Clear existing chunks'
+    },['title','category','content','clearExistingChunks']));
+    if(!this.policyChanges().length){draft.error('No policy changes to review.');return;}
+    this.policyChangeReview(true);
+  };
+  confirmPolicyEditSave=async()=>{if(!this.policyChangeReview())return;this.policyChangeReview(false);await this.savePolicyEdit();};
   savePolicyEdit = ()=>this.run(async()=>{
     const draft=this.policyEdit();
     if(!draft)throw new Error('Select a policy to edit.');
@@ -270,7 +316,7 @@ export class ComplianceWorkspace {
       this.notice(body.clearExistingChunks?'Policy updated. Rebuild its index before asking Copilot.':'Policy updated. Existing chunks and index were retained.');
     }catch(e:any){draft.error(e.message||'The policy could not be updated.');}
   });
-  closePolicyEdit = ()=>{const draft=this.policyEdit();if(this.busy()||!draft)return;const current=JSON.stringify({title:draft.title(),category:draft.category(),content:draft.content(),clearExistingChunks:draft.clearExistingChunks()});if(current!==this.policyEditSnapshot()&&!window.confirm('Discard unsaved policy changes?'))return;this.policyEdit(undefined);this.policyEditSnapshot('');};
+  closePolicyEdit = ()=>{const draft=this.policyEdit();if(this.busy()||!draft)return;const current=JSON.stringify({title:draft.title(),category:draft.category(),content:draft.content(),clearExistingChunks:draft.clearExistingChunks()});if(current!==this.policyEditSnapshot()&&!window.confirm('Discard unsaved policy changes?'))return;this.policyEdit(undefined);this.policyEditSnapshot('');this.policyChanges([]);this.policyChangeReview(false);};
   openAdvancedFromEdit = ()=>{
     const draft=this.policyEdit();
     if(this.busy()||!draft)return;
@@ -315,6 +361,7 @@ export class ComplianceWorkspace {
   closeGuidanceEdit = ()=>{if(!this.busy()){this.guidanceEdit(undefined);this.guidanceEditContent('');}};
   saveGuidanceEdit = ()=>this.run(async()=>{const policy=this.policy(),item=this.guidanceEdit(),content=this.guidanceEditContent().trim();if(!policy||!item||!content)throw new Error('Guidance text cannot be blank.');await api.updatePolicyGuidance(policy.id,item.id,content);this.guidanceEdit(undefined);this.guidanceEditContent('');await this.readPolicy(policy.id);this.notice('Policy guidance updated. Rebuild the index to update Copilot.');});
   deleteGuidance = (item:PolicyGuidance)=>this.run(async()=>{const policy=this.policy();if(!policy||!window.confirm('Delete this policy guidance?'))return;await api.deletePolicyGuidance(policy.id,item.id);await this.readPolicy(policy.id);this.notice('Policy guidance deleted.');});
+  requestDeleteGuidance=(item:PolicyGuidance)=>{if(!this.busy()){this.pendingGuidance(item);this.confirmation('delete-guidance');}};
   openGuidanceCase = (item:PolicyGuidance)=>this.openGuidanceCaseById(item.complianceCaseId);
   openSelectedGuidanceCase = ()=>this.openGuidanceCaseById(this.guidanceCaseId().trim());
   private openGuidanceCaseById(caseId:string){
@@ -324,8 +371,8 @@ export class ComplianceWorkspace {
     this.run(async()=>{const item=await api.complianceCase(caseId);if(!item?.id)throw new Error('The completed compliance case could not be loaded.');this.guidanceCaseViewer(item);});
   }
   closeGuidanceCase = ()=>{if(!this.busy())this.guidanceCaseViewer(undefined);};
-  openCase = (c:{id:string})=>this.run(async()=>{this.selectedCase(await api.complianceCase(c.id));this.decisionReason('');this.confirmation('');});
-  closeCase = ()=>{if(!this.busy()){this.selectedCase(undefined);this.confirmation('');}};
+  openCase = (c:{id:string})=>this.run(async()=>{this.selectedCase(await api.complianceCase(c.id));this.decisionReason('');this.pendingDecision('approve');this.decisionCode('RULES_SATISFIED');this.decisionNotes('');this.confirmation('');});
+  closeCase = ()=>{if(!this.busy()){this.selectedCase(undefined);this.confirmation('');this.pendingDecision('approve');this.decisionCode('RULES_SATISFIED');this.decisionNotes('');}};
   newCase = ()=>{this.selectedCase(undefined);this.paymentId('');this.risk('MEDIUM');this.reasons('');this.suggestedAction('');this.caseForm(true);};
   private uuid(value:string){return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);}
   saveCase = ()=>this.run(async()=>{
@@ -336,7 +383,12 @@ export class ComplianceWorkspace {
     this.cases(await api.complianceCases(this.status()));
   });
   askConfirmation = (action:'approve'|'reject'|'delete-case'|'delete-policy'|'index')=>{if(!this.busy()){this.error('');this.confirmation(action);}};
-  cancelConfirmation = ()=>{if(!this.busy()){this.confirmation('');this.pendingChunk(undefined);}};
+  prepareDecision = (action:'approve'|'reject')=>{
+    try{this.decisionReason(composeDecisionReason(this.decisionCode(),this.decisionNotes()));}
+    catch(error:any){this.error(error.message);return;}
+    this.askConfirmation(action);
+  };
+  cancelConfirmation = ()=>{if(!this.busy()){this.confirmation('');this.pendingChunk(undefined);this.pendingGuidance(undefined);}};
   confirm = ()=>this.run(async()=>{
     const action=this.confirmation(),c=this.selectedCase(),p=this.policy();
     if(action==='approve'||action==='reject'){
@@ -355,6 +407,10 @@ export class ComplianceWorkspace {
       const chunk=this.pendingChunk();
       if(!p||!chunk)throw new Error('Select a policy chunk to delete.');
       await api.deletePolicyChunk(p.id,chunk.id);this.pendingChunk(undefined);this.confirmation('');await this.readPolicy(p.id);this.notice(chunk.manual?'Manual chunk deleted.':'Indexed chunk deleted. Rebuilding the index will restore indexed chunks from the policy document.');
+    }else if(action==='delete-guidance'){
+      const item=this.pendingGuidance();
+      if(!p||!item)throw new Error('Select policy guidance to delete.');
+      await api.deletePolicyGuidance(p.id,item.id);this.pendingGuidance(undefined);this.confirmation('');await this.readPolicy(p.id);this.notice('Policy guidance deleted.');
     }else if(action==='index'){
       if(!p)throw new Error('Select a policy first.');
       const result=await api.indexPolicy(p.id);this.confirmation('');this.notice('Index published: '+result.chunkCount+' chunks.');await this.readPolicy(p.id);

@@ -1,20 +1,27 @@
-<section class="workspace-page">
-  <div class="page-heading">
+<section class="admin-page review-page">
+  <!-- ko if: session.isAdmin() -->
+  <header class="admin-page-heading">
     <div>
-      <span class="eyebrow">SUPPORT OPERATIONS</span>
-      <h1>Ticket review.</h1>
-      <p>Assign, investigate, resolve, and reopen customer support tickets.</p>
+      <span class="eyebrow">OPERATIONS</span>
+      <h1>Support tickets</h1>
+      <p>Prioritized by state, assignment, and age.</p>
     </div>
     <button class="pill soft" data-bind="click:loadTickets,disable:busy">Refresh</button>
-  </div>
+  </header>
+  <!-- /ko -->
 
-  <div class="alert error" role="alert" data-bind="visible:error"><span>!</span><p data-bind="text:error"></p></div>
-  <div class="alert success" role="status" data-bind="visible:notice"><span>✓</span><p data-bind="text:notice"></p></div>
+  <div class="alert error" role="alert" data-bind="visible:error">
+    <span>!</span><p data-bind="text:error"></p>
+  </div>
+  <div class="alert success" role="status" aria-live="polite" data-bind="visible:notice">
+    <span>&#10003;</span><p data-bind="text:notice"></p>
+  </div>
   <div class="loading-line" role="progressbar" aria-label="Loading ticket queue" data-bind="visible:busy"></div>
+  <p class="sr-only admin-loading-status" role="status" aria-live="polite" data-bind="text:busy()?'Loading support tickets.':''"></p>
 
   <!-- ko if: !session.user() -->
   <div class="sign-in-gate">
-    <span class="gate-icon">→</span>
+    <span class="gate-icon">&#8594;</span>
     <h2>Sign in to review tickets.</h2>
     <p>Only administrators can manage support work.</p>
     <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
@@ -30,71 +37,139 @@
   <!-- /ko -->
 
   <!-- ko if: session.isAdmin() -->
-  <article class="panel">
-    <div class="admin-toolbar">
-      <label>
-        Ticket status
-        <select data-bind="value:status,event:{change:changeFilter},disable:busy">
-          <option value="ALL">All tickets</option>
-          <option value="OPEN">Open</option>
-          <option value="IN_PROGRESS">In progress</option>
-          <option value="RESOLVED">Resolved</option>
-          <option value="CLOSED">Closed</option>
-        </select>
-      </label>
-      <button class="pill soft" data-bind="click:loadTickets,disable:busy">Refresh queue</button>
+  <section class="admin-list-surface review-queue" aria-label="Support ticket queue">
+    <div class="filter-row">
+      <label>Saved view<select data-bind="value:savedView,event:{change:changeView},disable:busy">
+        <option value="OPEN">Open work</option>
+        <option value="UNASSIGNED">Unassigned</option>
+        <option value="ASSIGNED_TO_ME">Assigned to me</option>
+        <option value="AGING">Waiting over 24 hours</option>
+        <option value="RESOLVED">Resolved</option>
+        <option value="CLOSED">Closed</option>
+      </select></label>
+      <label>Search<input type="search" data-bind="textInput:search" aria-label="Search support tickets" /></label>
     </div>
-
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Customer / request</th>
-            <th>Status</th>
-            <th>Assigned</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody data-bind="foreach:tickets">
-          <tr>
-            <td>
-              <strong data-bind="text:subject"></strong>
-              <small data-bind="text:body"></small>
-              <small class="mono" data-bind="text:'Customer: '+userId"></small>
-              <!-- ko if: paymentId --><small class="mono" data-bind="text:'Payment: '+paymentId"></small><!-- /ko -->
-            </td>
-            <td><span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span></td>
-            <td>
-              <!-- ko if: assigneeAdminId --><span data-bind="text:assigneeAdminId===$parent.currentAdminId()?'You':'Another administrator'"></span><!-- /ko -->
-              <!-- ko ifnot: assigneeAdminId --><span class="muted">Unassigned</span><!-- /ko -->
-            </td>
-            <td data-bind="text:$parent.date(createdAt)"></td>
-            <td>
-              <div class="action-row">
-                <button class="pill soft" data-bind="visible:status!=='CLOSED' && assigneeAdminId!==$parent.currentAdminId(),click:function(){ $parent.assignToMe($data) },disable:$parent.busy">Assign to me</button>
-                <button class="pill dark" data-bind="visible:status==='OPEN',click:function(){ $parent.moveTo($data,'IN_PROGRESS') },disable:$parent.busy">Start</button>
-                <button class="pill dark" data-bind="visible:status==='IN_PROGRESS',click:function(){ $parent.moveTo($data,'RESOLVED') },disable:$parent.busy">Resolve</button>
-                <button class="pill dark" data-bind="visible:status==='RESOLVED',click:function(){ $parent.moveTo($data,'CLOSED') },disable:$parent.busy">Close</button>
-                <button class="pill soft" data-bind="visible:status==='CLOSED',click:function(){ $parent.moveTo($data,'OPEN') },disable:$parent.busy">Reopen</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="review-list" role="list" aria-label="Support tickets">
+      <div class="review-list-heading" aria-hidden="true">
+        <span>Ticket</span><span>Assignment</span><span>Status</span><span></span>
+      </div>
+      <!-- ko foreach:visibleTickets -->
+      <button
+        type="button"
+        class="review-list-row"
+        role="listitem"
+        data-bind="click:$parent.selectTicket,attr:{'aria-label':'Open support ticket '+subject}"
+      >
+        <span class="review-list-primary">
+          <strong data-bind="text:subject"></strong>
+          <small data-bind="text:$parent.ticketAge($data)"></small>
+        </span>
+        <span>
+          <span data-bind="visible:assigneeAdminId">Assigned</span>
+          <span data-bind="visible:!assigneeAdminId">Unassigned</span>
+        </span>
+        <span class="status" data-bind="text:$parent.label(status),attr:{'data-status':status}"></span>
+        <span class="row-chevron" aria-hidden="true">&#8250;</span>
+      </button>
+      <!-- /ko -->
     </div>
-
-    <div class="empty-state" data-bind="visible:!busy()&&tickets().length===0">
-      <span>○</span>
-      <h3>No matching tickets</h3>
-      <p>Choose another status filter or refresh the queue.</p>
+    <div class="empty-state" data-bind="visible:!busy()&&visibleTickets().length===0">
+      <span>&#9675;</span>
+      <h3>No tickets in this view</h3>
+      <p data-bind="text:'There are no tickets in the '+label(savedView())+' view. Choose another saved view or refresh the queue.'"></p>
     </div>
-
     <div class="pagination">
-      <button data-bind="click:previousPage,disable:busy()||ticketPage()===0">← Previous</button>
-      <span data-bind="text:'Page '+(ticketPage()+1)+' · '+total()+' total'"></span>
-      <button data-bind="click:nextPage,disable:busy()||(ticketPage()+1)*20>=total()">Next →</button>
+      <button data-bind="click:previousPage,disable:busy()||ticketPage()===0">&#8592; Previous</button>
+      <span data-bind="text:'Page '+(ticketPage()+1)+' &#183; '+total()+' total'"></span>
+      <button data-bind="click:nextPage,disable:busy()||(ticketPage()+1)*20>=total()">Next &#8594;</button>
     </div>
-  </article>
+  </section>
+
+  <!-- ko if:selectedTicket -->
+  <div
+    class="admin-confirmation modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="support-record-heading"
+    data-bind="adminDialog:{initialFocus:'#support-record-heading'}"
+  >
+    <article class="panel admin-workflow-modal support-ticket-modal">
+      <header class="admin-modal-header">
+        <div>
+          <span class="eyebrow">SUPPORT TICKET</span>
+          <h2 id="support-record-heading" tabindex="-1" data-bind="text:selectedTicket().subject"></h2>
+          <p data-bind="text:label(selectedTicket().status)"></p>
+        </div>
+        <button type="button" class="close-button" aria-label="Close ticket" title="Close" data-bind="click:closeTicket,disable:busy">&#10005;</button>
+      </header>
+      <div class="admin-modal-body" data-bind="with:selectedTicket">
+        <section>
+          <h3>Customer statement</h3>
+          <p class="preserve-text" data-bind="text:body"></p>
+        </section>
+        <div class="modal-detail-grid ticket-detail-grid">
+          <section>
+            <h3>Customer and payment</h3>
+            <dl class="detail-grid">
+              <div>
+                <dt>Customer ID</dt>
+                <dd class="identifier-copy">
+                  <button type="button" class="icon-action" aria-label="Copy customer ID" title="Copy customer ID" data-bind="click:function(){$parent.copyIdentifier(userId,'Customer ID')}">
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt>Payment ID</dt>
+                <dd class="identifier-copy">
+                  <span data-bind="visible:!paymentId">Not linked</span>
+                  <button type="button" class="icon-action" aria-label="Copy payment ID" title="Copy payment ID" data-bind="visible:paymentId,click:function(){$parent.copyIdentifier(paymentId,'Payment ID')}">
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                  </button>
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <section>
+            <h3>Operational context</h3>
+            <dl class="detail-grid">
+              <div><dt>Status</dt><dd data-bind="text:$parent.label(status)"></dd></div>
+              <div>
+                <dt>Assignee ID</dt>
+                <dd class="identifier-copy">
+                  <span data-bind="visible:!assigneeAdminId">Unassigned</span>
+                  <button type="button" class="icon-action" aria-label="Copy assignee ID" title="Copy assignee ID" data-bind="visible:assigneeAdminId,click:function(){$parent.copyIdentifier(assigneeAdminId,'Assignee ID')}">
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                  </button>
+                </dd>
+              </div>
+              <div><dt>Age</dt><dd data-bind="text:$parent.ticketAge($data)"></dd></div>
+            </dl>
+          </section>
+          <section>
+            <h3>Timeline</h3>
+            <dl class="detail-grid">
+              <div><dt>Created</dt><dd data-bind="text:$parent.date(createdAt)"></dd></div>
+              <div><dt>Updated</dt><dd data-bind="text:$parent.date(updatedAt)"></dd></div>
+            </dl>
+          </section>
+        </div>
+      </div>
+      <footer class="admin-modal-footer">
+        <button
+          type="button"
+          class="pill soft"
+          data-bind="visible:selectedTicket().status!=='CLOSED'&&selectedTicket().assigneeAdminId!==currentAdminId(),click:function(){assignToMe(selectedTicket())},disable:busy"
+        >Assign to me</button>
+        <button
+          type="button"
+          class="pill dark"
+          data-bind="visible:selectedNextAction,click:runNextAction,disable:busy,text:selectedNextAction()&&selectedNextAction().label"
+        ></button>
+        <span class="form-help" data-bind="visible:!selectedNextAction()">No further action is available for this ticket.</span>
+      </footer>
+    </article>
+  </div>
+  <!-- /ko -->
   <!-- /ko -->
 </section>
