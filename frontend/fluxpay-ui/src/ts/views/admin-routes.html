@@ -75,7 +75,7 @@
       Attention only: showing routes that need attention.
     </p>
     <div class="table-scroll">
-      <table class="dense-table">
+      <table class="dense-table admin-wide-table route-catalogue-table">
         <thead>
           <tr>
             <th>Code</th>
@@ -90,7 +90,7 @@
             <th>Reliability</th>
             <th>Limits</th>
             <th>Status</th>
-            <th></th>
+            <th class="sticky-action"></th>
           </tr>
         </thead>
         <tbody data-bind="foreach:catalogueRoutes">
@@ -119,10 +119,8 @@
                 data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"
               ></span>
             </td>
-            <td>
-              <button type="button" class="text-button" data-bind="click:$parent.workspace.editRoute">
-                Edit
-              </button>
+            <td class="sticky-action">
+              <button type="button" class="icon-action" aria-label="Edit payout route" title="Edit payout route" data-bind="click:$parent.workspace.editRoute"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
             </td>
           </tr>
         </tbody>
@@ -133,13 +131,11 @@
       <p>No routes match the current filters.</p>
     </div>
   </section>
-  <!-- ko with:workspace -->
-    <aside class="configuration-editor">
-      <div class="empty-state" data-bind="visible:!routeForm()">
-        <h2>Select a payout route</h2>
-        <p>Choose a route to edit, or create a new route.</p>
-      </div>
-      <!-- ko if:routeForm -->
+  <!-- ko if:workspace.routeForm -->
+  <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="route-editor-title" data-bind="adminDialog:{initialFocus:'#route-editor-title'}">
+    <section class="panel admin-workflow-modal route-editor-modal">
+      <!-- ko with:workspace -->
+      <!-- ko if:saveReview()!=='route' -->
         <section>
           <div class="panel-heading">
             <h2
@@ -249,18 +245,12 @@
           </form>
         </section>
       <!-- /ko -->
-    </aside>
-    <!-- ko if:saveReview()==='route' -->
-    <div
-      class="admin-confirmation"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="route-change-title"
-      data-bind="adminDialog:true"
-    >
-      <section>
-        <h2 id="route-change-title">Review route changes</h2>
-        <p data-bind="text:'Target environment: '+$parent.environment.label"></p>
+      <!-- ko if:saveReview()==='route' -->
+      <header class="admin-modal-header">
+        <div><span class="eyebrow">REVIEW CHANGES</span><h2 id="route-editor-title" tabindex="-1">Review route changes</h2><p data-bind="text:'Target environment: '+$parent.environment.label"></p></div>
+        <button type="button" class="close-button" aria-label="Close route editor" title="Close" data-bind="click:closeRouteEditor,disable:busy">&#10005;</button>
+      </header>
+      <div class="admin-modal-body">
         <!-- ko with:routeEditTarget -->
         <p
           class="form-help"
@@ -276,16 +266,15 @@
             </tr>
           </tbody>
         </table>
-        <div class="action-row">
-          <button class="pill soft" data-bind="click:cancelSaveReview">Back</button>
-          <button
-            class="pill dark"
-            data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$parent.environment.label"
-          ></button>
-        </div>
-      </section>
-    </div>
-    <!-- /ko -->
+      </div>
+      <footer class="admin-modal-footer">
+        <button type="button" class="pill soft" data-bind="click:cancelSaveReview,disable:busy">Back</button>
+        <button type="button" class="pill dark" data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$parent.environment.label"></button>
+      </footer>
+      <!-- /ko -->
+      <!-- /ko -->
+    </section>
+  </div>
   <!-- /ko -->
   </div>
   <!-- /ko -->

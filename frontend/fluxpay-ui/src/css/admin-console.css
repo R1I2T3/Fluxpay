@@ -646,6 +646,15 @@
   white-space: nowrap;
 }
 
+.route-catalogue-table {
+  min-width: 1320px;
+}
+
+.route-catalogue-table :is(.mono, .sticky-action) {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .review-list-heading {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(110px, 0.65fr) minmax(110px, 0.55fr) 24px;

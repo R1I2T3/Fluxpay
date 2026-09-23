@@ -133,6 +133,16 @@ test('provider modal bindings work with a null Oracle JET outer root', () => {
   assert.match(html, /saveReview\(\)==='provider'/);
 });
 
+test('route catalogue scrolls horizontally and keeps a labeled edit icon', () => {
+  const html = read('ts/views/admin-routes.html');
+  const css = read('css/admin-console.css');
+  assert.match(html, /class="dense-table admin-wide-table route-catalogue-table"/);
+  assert.match(html, /class="sticky-action"/);
+  assert.match(html, /aria-label="Edit payout route"/);
+  assert.match(css, /\.route-catalogue-table\s*\{[^}]*min-width:\s*1320px/);
+  assert.doesNotMatch(html, /class="text-button"[^>]*editRoute/);
+});
+
 test('providers page keeps the admin gate, protection copy and environment label', async () => {
   const html = read('ts/views/admin-providers.html');
   assert.ok(html.includes('if:session.isAdmin()'));
