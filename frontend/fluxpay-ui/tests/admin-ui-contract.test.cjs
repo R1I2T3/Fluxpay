@@ -38,3 +38,22 @@ test('overview metric CSS is a compact single scrolling row', () => {
   assert.match(css, /\.attention-metric\s*\{[^}]*min-height:\s*80px[^}]*text-align:\s*center/);
   assert.match(css, /\.attention-metric-label\s*\{[^}]*white-space:\s*nowrap/);
 });
+
+test('admin record workflows are modal-only and icon actions are named', () => {
+  const reviewRoutes = ['admin-kyc', 'admin-compliance', 'admin-tickets'];
+  for (const route of reviewRoutes) {
+    const html = read(`ts/views/${route}.html`);
+    assert.match(html, /class="review-list-row"/);
+    assert.match(html, /class="admin-confirmation/);
+    assert.match(html, /class="[^"]*admin-workflow-modal/);
+    assert.doesNotMatch(html, /class="record-detail"|class="evidence-panel"/);
+    assert.doesNotMatch(html, />\s*Open\s*<\/button>/);
+  }
+  for (const route of ['admin-providers', 'admin-routes', 'admin-policies']) {
+    const html = read(`ts/views/${route}.html`);
+    for (const tag of html.matchAll(/<button[^>]*class="[^"]*icon-action[^"]*"[^>]*>/g)) {
+      assert.match(tag[0], /aria-label="[^"]+"/);
+      assert.match(tag[0], /title="[^"]+"/);
+    }
+  }
+});
