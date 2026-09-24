@@ -51,6 +51,25 @@ test('policy import parser accepts a single object or array and rejects invalid 
   assert.equal(many.length,2);assert.notEqual(many[0].id,many[1].id);
   for(const value of ['{',{title:'',category:'AML',content:'Text'},{title:'Valid',category:'INVALID',content:'Text'},[{title:'Same',category:'AML',content:'Text'},{title:' same ',category:'AML',content:' text '}],null])assert.throws(()=>parse(value));
 });
+test('policy library sorts title and created values in either direction before pagination',()=>{
+  const {page}=workspace();
+  page.policies([
+    {...policy,id:'00000000-0000-4000-8000-000000000001',title:'Zulu',createdAt:'2026-09-19T10:00:00Z'},
+    {...policy,id:'00000000-0000-4000-8000-000000000002',title:'Alpha',createdAt:'2026-09-17T10:00:00Z'},
+    {...policy,id:'00000000-0000-4000-8000-000000000003',title:'Lima',createdAt:'2026-09-18T10:00:00Z'}
+  ]);
+  page.policyPage(1);
+  page.togglePolicyTitleSort();
+  assert.equal(page.policyPage(),0);
+  assert.equal(JSON.stringify(page.visiblePolicies().map(item=>item.title)),JSON.stringify(['Alpha','Lima','Zulu']));
+  page.togglePolicyTitleSort();
+  assert.equal(JSON.stringify(page.visiblePolicies().map(item=>item.title)),JSON.stringify(['Zulu','Lima','Alpha']));
+  page.togglePolicyCreatedSort();
+  assert.equal(JSON.stringify(page.visiblePolicies().map(item=>item.title)),JSON.stringify(['Alpha','Lima','Zulu']));
+  page.togglePolicyCreatedSort();
+  assert.equal(JSON.stringify(page.visiblePolicies().map(item=>item.title)),JSON.stringify(['Zulu','Lima','Alpha']));
+  page.dispose();
+});
 test('selecting the provided policy JSON appends all three policies to the visible draft list',async()=>{
   class Reader { readAsText(file){this.result=file.text;Promise.resolve().then(()=>this.onload());} }
   const {page}=workspace({},true,{FileReader:Reader});
@@ -112,12 +131,14 @@ test('a failed policy edit retains the selected chunk retention choice',async()=
   assert.equal(page.policyEditClearChunks(),false);assert.match(page.policyEdit().error(),/rejected/);page.dispose();
 });
 test('non-admin cannot load or mutate global compliance data',async()=>{const {page,calls}=workspace({},false);await page.loadCases();await page.savePolicy();await page.ask();assert.equal(calls.length,0);assert.match(page.error(),/administrator/);page.dispose();});
-test('policy create, detail, chunks and index flow has no bound policy delete action',async()=>{
+test('policy detail exposes a confirmed delete action for the selected policy',async()=>{
   const {page,calls}=workspace();page.title(' QA policy ');page.content(' Policy text ');await page.savePolicy();assert.equal(page.policy().id,id);assert.equal(page.policyForm(),false);
   await page.openPolicy({id});page.chunkContent(' Extra passage ');await page.addChunk();assert.equal(page.chunkContent(),'');
   page.askConfirmation('index');assert.equal(calls.filter(c=>c[0]==='indexPolicy').length,0);await page.confirm();assert.match(page.notice(),/2 chunks/);
-  assert.equal(calls.filter(c=>c[0]==='deletePolicy').length,0);
-  assert.doesNotMatch(read('ts/views/admin-policies.html'),/askConfirmation\('delete-policy'\)|deletePolicy|Delete policy/i);
+  page.askConfirmation('delete-policy');await page.confirm();
+  assert.equal(calls.filter(c=>c[0]==='deletePolicy').length,1);
+  assert.equal(page.policy(),undefined);
+  assert.match(read('ts/views/admin-policies.html'),/askConfirmation\('delete-policy'\)/);
   page.dispose();
 });
 test('policy deletion endpoint wrapper issues an authorized DELETE',async()=>{
@@ -136,13 +157,24 @@ test('payment-linked approval and rejection use server-authored identity only',a
 test('expired review leaves case open and displays server reason',async()=>{const {page}=workspace({decideComplianceCase:async()=>{throw Error('The selected quote has expired during review.');}});page.selectedCase({...manual,reviewReference:'review-1'});page.askConfirmation('approve');await page.confirm();assert.equal(page.selectedCase().status,'OPEN');assert.match(page.error(),/expired/);assert.equal(page.notice(),'');page.dispose();});
 test('only open manual cases can be deleted',async()=>{for(const value of [{...manual,reviewReference:'auto-review'},{...manual,status:'APPROVED'}]){const {page,calls}=workspace();page.selectedCase(value);page.askConfirmation('delete-case');await page.confirm();assert.equal(calls.length,0);assert.match(page.error(),/Only open manual/);page.dispose();}const {page,calls}=workspace();page.selectedCase(manual);page.askConfirmation('delete-case');await page.confirm();assert.equal(page.selectedCase(),undefined);assert.equal(calls[0][0],'deleteComplianceCase');page.dispose();});
 test('Copilot handles citations, optional UUID, no-source fallback and provider errors',async()=>{const {page,calls}=workspace({askCopilot:async()=>({answer:'Review is required.',sources:[{policyDocumentId:id,title:'Policy',chunkNumber:1,excerpt:'Review clause'}]})});page.question(' What requires review? ');await page.ask();assert.equal(calls[0][2],undefined);assert.equal(page.answer().sources[0].policyDocumentId,id);page.copilotPaymentId('invalid');await page.ask();assert.match(page.error(),/UUID/);assert.equal(calls.length,1);page.dispose();const second=workspace({askCopilot:async()=>{throw Error('Compliance Copilot is temporarily unavailable.');}});second.page.question('Question');await second.page.ask();assert.equal(second.page.answer(),undefined);assert.match(second.page.error(),/unavailable/);second.page.dispose();});
+test('Copilot keeps a pending transcript entry until its cited answer arrives',async()=>{
+ let resolveAnswer;const {page}=workspace({askCopilot:()=>new Promise(resolve=>{resolveAnswer=resolve;})});
+ page.question('Which policy applies?');const request=page.ask();
+ assert.equal(page.copilotHistory().length,1);assert.equal(page.copilotHistory()[0].question,'Which policy applies?');assert.equal(page.copilotHistory()[0].pending(),true);
+ resolveAnswer({answer:'Review the policy.',sources:[{policyDocumentId:id,title:'High-value payment review',chunkNumber:1,excerpt:'Review first.'}]});await request;
+ assert.equal(page.copilotHistory()[0].pending(),false);assert.equal(page.copilotHistory()[0].answer().answer,'Review the policy.');
+ page.dispose();assert.equal(page.copilotHistory().length,1);
+});
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
 test('admin templates render untrusted policy and AI text with text bindings, never HTML',()=>{const files=['ts/views/admin.html','ts/views/admin-policies.html','ts/views/admin-compliance.html','ts/views/admin-copilot.html'];for(const file of files)assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(read(file)),file);const policies=read('ts/views/admin-policies.html');for(const action of ['savePolicy','addChunk','confirm'])assert.ok(policies.includes(action),action);const compliance=read('ts/views/admin-compliance.html');for(const action of ['prepareDecision','confirm'])assert.ok(compliance.includes(action),action);const copilot=read('ts/views/admin-copilot.html');assert.ok(copilot.includes('askCited'));assert.ok(policies.includes('role="alertdialog"'));assert.ok(compliance.includes('maxlength="500"'));assert.ok(policies.includes('maxlength="200"'));});
 test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
   const html=read('ts/views/admin-copilot.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
-  assert.match(html,/policyAnswer:answer\(\)\.answer/);
+  assert.match(html,/foreach:copilotHistory/);
+  assert.match(html,/Referring to relevant policies/);
+  assert.match(html,/policyAnswer:\{text:answer\(\)\.answer,sources:answer\(\)\.sources\}/);
   assert.ok(!html.includes('<h3 data-bind="text:answeredQuestion"></h3>'));
   assert.match(source,/ko\.bindingHandlers\.policyAnswer/);
+  assert.match(source,/sourceTitles/);
   assert.match(source,/document\.createTextNode/);
   assert.match(source,/document\.createElement\('strong'\)/);
   assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:\s*15px;/);
@@ -162,6 +194,8 @@ test('policy library template provides draft creation and compact accessible det
   assert.match(html,/data-bind="text:content"/);
   assert.match(html,/type="checkbox"\s+data-bind="checked:policyEditClearChunks,disable:busy"/);
   assert.match(html,/Retaining existing chunks can leave Copilot using older material\./);
+  assert.match(html,/<!-- ko if:draftEditor -->[\s\S]*class="admin-confirmation modal-backdrop"[\s\S]*class="panel modal small policy-edit-dialog"/);
+  assert.match(html,/<!-- ko if:draftViewer -->[\s\S]*class="admin-confirmation modal-backdrop"[\s\S]*class="panel modal small policy-edit-dialog"/);
 });
 test('policy import picker accepts a batch of JSON files and appends their parsed drafts',()=>{
   const html=read('ts/views/admin-policies.html');
@@ -180,7 +214,15 @@ test('policy drafts use one compact table and policy editing provides direct adv
 test('policy-draft preview truncates before the fixed action column',()=>{
   const css=read('css/workspace.css');
   assert.match(css,/\.policy-draft-table td\.draft-preview\s*\{[^}]*overflow:\s*hidden;[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s);
-  assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:\s*118px;/);
+  assert.match(css,/\.policy-draft-table td:last-child\s*\{\s*width:\s*190px;/);
+  assert.match(css,/\.policy-draft-table \.draft-row-actions\s*\{[^}]*display:\s*flex;[^}]*gap:\s*12px;/s);
+  assert.match(css,/\.admin-page \.chunk-meta\s*\{[^}]*gap:\s*12px;/s);
+  assert.match(css,/\.admin-page \.admin-confirmation\s*\{[^}]*position:\s*fixed;/s);
+});
+test('duplicate draft errors stay inside the title column and header actions align',()=>{
+  const css=read('css/workspace.css');
+  assert.match(css,/\.admin-page \.policy-draft-table \.draft-error\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+  assert.match(css,/\.admin-page label\.file-picker\s*\{[^}]*margin-bottom:\s*0;/s);
 });
 test('opening a compliance case uses a confirmation dialog rather than an inline panel below the list',()=>{
   const html=read('ts/views/admin-compliance.html');

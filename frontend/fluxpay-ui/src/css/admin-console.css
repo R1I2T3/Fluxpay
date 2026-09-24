@@ -200,7 +200,7 @@
 .admin-page label:not(.checkbox-label) {
   display: grid;
   gap: 7px;
-  margin-bottom: 16px;
+  /* margin-bottom: 16px; */
 }
 
 .admin-page input:not([type='checkbox']),
@@ -395,6 +395,39 @@
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   align-items: end;
+}
+
+.policy-library-surface .filter-row .policy-refresh-button {
+  align-self: start;
+  min-height: 52px;
+  margin-top: 30px;
+  padding-block: 10px;
+}
+
+.policy-delete-button {
+  border-color: #f1d4d4 !important;
+  background: #fff4f4 !important;
+  color: #a43838 !important;
+}
+
+.table-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.table-sort-button:hover,
+.table-sort-button:focus-visible {
+  color: var(--admin-accent);
 }
 
 .admin-shell .source-row {
@@ -896,7 +929,8 @@
 .copilot-chat {
   display: grid;
   grid-template-rows: auto minmax(360px, 1fr) auto;
-  min-height: 620px;
+  height: min(720px, calc(100dvh - 150px));
+  min-height: 0;
   border: 1px solid var(--admin-card-border);
   border-radius: 18px;
   background: #fff;
@@ -992,6 +1026,31 @@
   margin-top: 12px;
 }
 
+.copilot-pending {
+  color: var(--muted);
+}
+
+.copilot-loading-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.copilot-loading-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: copilot-loading 1s ease-in-out infinite;
+}
+
+.copilot-loading-dots i:nth-child(2) { animation-delay: 0.15s; }
+.copilot-loading-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes copilot-loading {
+  50% { opacity: 0.25; transform: translateY(-3px); }
+}
+
 .chat-message .copilot-sources {
   display: grid;
   gap: 8px;
@@ -1023,7 +1082,8 @@
 
 @media (max-width: 640px) {
   .copilot-chat {
-    min-height: 560px;
+    height: min(560px, calc(100dvh - 120px));
+    min-height: 0;
   }
 
   .copilot-chat-toolbar,

@@ -2,6 +2,7 @@
 import { ComplianceWorkspace } from '../services/compliance-workspace';
 import { fluxApi } from '../services/flux-api';
 import { copilotQuestionForCase } from '../services/admin-console';
+import { consumeCopilotCaseContext, CopilotCaseContext } from '../services/copilot-handoff';
 import { navigate, session } from '../services/session';
 
 class AdminCopilotViewModel {
@@ -9,16 +10,23 @@ class AdminCopilotViewModel {
   workspace = new ComplianceWorkspace();
   private caseId: string;
   private paymentId: string;
+  private handoff?: CopilotCaseContext;
   ready: Promise<void>;
   constructor(params: any) {
-    this.caseId = String(params?.params?.caseId || '');
-    this.paymentId = String(params?.params?.paymentId || '');
+    const routeParams = params?.params ?? params ?? {};
+    this.handoff = consumeCopilotCaseContext();
+    this.caseId = String(routeParams.caseId || this.handoff?.id || '');
+    this.paymentId = String(routeParams.paymentId || this.handoff?.paymentId || '');
     this.ready = this.activate();
   }
   private async activate() {
     if (!session.user()) await session.restore();
     if (!session.isAdmin()) return;
     this.workspace.copilotPaymentId(this.paymentId);
+    if (this.handoff) {
+      this.workspace.question(copilotQuestionForCase(this.handoff));
+      return;
+    }
     if (this.caseId) {
       await this.workspace.run(async () => {
         const item = await fluxApi.complianceCase(this.caseId);

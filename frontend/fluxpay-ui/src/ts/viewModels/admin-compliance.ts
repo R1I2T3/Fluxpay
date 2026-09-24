@@ -1,6 +1,7 @@
 // viewModels/admin-compliance.ts
 import * as ko from 'knockout';
 import { copyAdminIdentifier, focusRecordHeading } from '../services/admin-console';
+import { stageCopilotCaseContext } from '../services/copilot-handoff';
 import '../services/admin-dialog';
 import { ComplianceWorkspace } from '../services/compliance-workspace';
 import { navigate, session } from '../services/session';
@@ -44,7 +45,10 @@ class AdminComplianceViewModel {
   };
   navigateToCopilot = () => {
     const selected = this.workspace.selectedCase();
-    if (selected) navigate('admin-copilot', { caseId: selected.id, paymentId: selected.paymentId });
+    if (selected) {
+      stageCopilotCaseContext(selected);
+      navigate('admin-copilot', { caseId: selected.id, paymentId: selected.paymentId });
+    }
   };
   disconnected() {
     this.workspace.dispose();
