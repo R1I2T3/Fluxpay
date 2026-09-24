@@ -11,5 +11,6 @@ public interface LedgerJournalRepository extends Repository<LedgerJournal, Strin
 
   Optional<LedgerJournal> findByJournalReference(String journalReference);
 
-  List<LedgerJournal> findByJournalReferenceIn(Collection<String> references);
+  List<LedgerJournal> findByJournalReferenceInOrderByJournalReferenceAsc(
+      Collection<String> references);
 }

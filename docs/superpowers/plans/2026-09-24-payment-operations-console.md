@@ -782,7 +782,7 @@ List<PayoutAttempt> findByPaymentIdOrderByAttemptNumberAsc(String paymentId);
 List<PaymentOperation> findByPaymentIdOrderByCreatedAtAscIdAsc(UUID paymentId);
 
 // LedgerJournalRepository
-List<LedgerJournal> findByJournalReferenceIn(Collection<String> references);
+List<LedgerJournal> findByJournalReferenceInOrderByJournalReferenceAsc(Collection<String> references);
 
 // LedgerEntryRepository
 List<LedgerEntry> findByJournalReferenceInOrderByCreatedAtAscIdAsc(
@@ -949,7 +949,7 @@ public PaymentOperationsResponse get(String paymentId) {
   var operationEntities =
       operations.findByPaymentIdOrderByCreatedAtAscIdAsc(id);
   var journalReferences = ledgerReferences(id);
-  journals.findByJournalReferenceIn(journalReferences);
+  journals.findByJournalReferenceInOrderByJournalReferenceAsc(journalReferences);
   var ledgerEntities =
       ledgerEntries.findByJournalReferenceInOrderByCreatedAtAscIdAsc(journalReferences);
   var routeCatalogue = routes.findAllByOrderByRouteCodeAsc();
