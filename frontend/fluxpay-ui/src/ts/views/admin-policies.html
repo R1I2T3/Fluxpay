@@ -21,9 +21,6 @@
         <h1>Policy Library</h1>
         <p>Maintain the current policy documents and their indexed source material.</p>
       </div>
-      <button class="pill dark" data-bind="click:addManualPolicyDraft,disable:busy">
-        New policy
-      </button>
     </header>
     <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
     <div
@@ -44,13 +41,18 @@
           <span class="eyebrow">CREATE OR IMPORT</span>
           <h2>Policy drafts</h2>
         </div>
-        <label class="pill soft file-picker"
-          >Import JSON<input
-            type="file"
-            multiple
-            accept=".json,application/json"
-            data-bind="event:{change:loadPolicyJson},disable:busy"
-        /></label>
+        <div class="policy-draft-header-actions">
+          <button type="button" class="pill dark" data-bind="click:addManualPolicyDraft,disable:busy">
+            ＋ Add draft
+          </button>
+          <label class="pill soft file-picker"
+            >Import JSON<input
+              type="file"
+              multiple
+              accept=".json,application/json"
+              data-bind="event:{change:loadPolicyJson},disable:busy"
+          /></label>
+        </div>
       </div>
       <p class="subtle-note">
         Select one or more JSON files, review every imported draft here, then publish them together.
@@ -76,11 +78,11 @@
             <tr>
               <td>
                 <strong data-bind="text:title"></strong>
-                <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
+                <p class="error-text draft-error" role="alert" data-bind="visible:error,text:error"></p>
               </td>
               <td><span class="eyebrow" data-bind="text:category().replace(/_/g,' ')"></span></td>
               <td class="draft-preview" data-bind="text:content()"></td>
-              <td>
+              <td class="draft-row-actions">
                 <button
                   type="button"
                   class="text-button"
@@ -108,9 +110,6 @@
         </table>
       </div>
       <div class="action-row policy-draft-actions">
-        <button type="button" class="pill soft" data-bind="click:addManualPolicyDraft,disable:busy">
-          ＋ Add draft
-        </button>
         <button
           type="button"
           class="pill dark"
@@ -123,7 +122,7 @@
     </article>
     <!-- ko if:draftEditor -->
     <div
-      class="admin-confirmation"
+      class="admin-confirmation modal-backdrop policy-edit-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="draft-editor-title"
@@ -183,7 +182,7 @@
     <!-- /ko -->
     <!-- ko if:draftViewer -->
     <div
-      class="admin-confirmation"
+      class="admin-confirmation modal-backdrop policy-edit-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="draft-view-title"
@@ -273,15 +272,15 @@
               <option value="UNINDEXED">Without indexed chunks</option>
             </select></label
           >
-          <button class="pill soft" data-bind="click:loadPolicies,disable:busy">↻ Refresh</button>
+          <button class="pill soft policy-refresh-button" data-bind="click:loadPolicies,disable:busy">↻ Refresh</button>
         </div>
         <table class="dense-table admin-wide-table policy-library-table">
           <thead>
             <tr>
-              <th>Title</th>
+              <th data-bind="attr:{'aria-sort':policySort().startsWith('title')?(policySort()==='title-asc'?'ascending':'descending'):'none'}"><button type="button" class="table-sort-button" data-bind="click:togglePolicyTitleSort">Title <span aria-hidden="true" data-bind="text:policySort()==='title-asc'?'↑':policySort()==='title-desc'?'↓':'↕'"></span></button></th>
               <th>Category</th>
               <th>Document</th>
-              <th>Created</th>
+              <th data-bind="attr:{'aria-sort':policySort().startsWith('created')?(policySort()==='created-asc'?'ascending':'descending'):'none'}"><button type="button" class="table-sort-button" data-bind="click:togglePolicyCreatedSort">Created <span aria-hidden="true" data-bind="text:policySort()==='created-asc'?'↑':policySort()==='created-desc'?'↓':'↕'"></span></button></th>
               <th>Indexed chunks</th>
               <th class="sticky-action"></th>
             </tr>
@@ -335,6 +334,9 @@
           </button>
           <button class="pill dark" data-bind="click:function(){$parent.askConfirmation('index')}">
             Rebuild index
+          </button>
+          <button class="pill soft policy-delete-button" data-bind="click:function(){$parent.askConfirmation('delete-policy')},disable:$parent.busy">
+            Delete policy
           </button>
           <button class="pill soft" data-bind="click:$parent.closePolicy,disable:$parent.busy">Close</button>
           </footer>
@@ -753,7 +755,7 @@
           </button>
         </div>
         <p
-          data-bind="text:confirmation()==='delete-guidance'?'This permanently deletes this guidance. Rebuild the search index to update Copilot answers.':confirmation()==='delete-chunk'?(pendingChunk()?.manual?'This permanently deletes this manually added chunk.':'This permanently deletes this indexed chunk. Rebuilding the index later will create indexed chunks again from the policy document.'):'This rebuilds searchable chunks from the original policy text and publishes a new index generation.'"
+          data-bind="text:confirmation()==='delete-policy'?'This permanently deletes this policy and its indexed content.':confirmation()==='delete-guidance'?'This permanently deletes this guidance. Rebuild the search index to update Copilot answers.':confirmation()==='delete-chunk'?(pendingChunk()?.manual?'This permanently deletes this manually added chunk.':'This permanently deletes this indexed chunk. Rebuilding the index later will create indexed chunks again from the policy document.'):'This rebuilds searchable chunks from the original policy text and publishes a new index generation.'"
         ></p>
         <p class="error-text" role="alert" data-bind="visible:error,text:error"></p>
         <button

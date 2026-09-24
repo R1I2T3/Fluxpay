@@ -1393,6 +1393,163 @@
 .workspace-page .policy-creation-panel {
   border: 1px solid #c8d7ee;
 }
+.admin-page .policy-creation-panel {
+  border: 1px solid #c8d7ee;
+}
+.admin-page .policy-draft-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+.admin-page .file-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-page label.file-picker {
+  display: inline-flex;
+  margin-bottom: 0;
+}
+
+.admin-page .policy-chunks {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+.admin-page .policy-chunks details {
+  margin: 0;
+  padding: 16px 20px;
+  background: #f5f8fd;
+  border: 1px solid #dfe8f5;
+  border-radius: 15px;
+}
+
+.admin-page .chunk-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-page .chunk-meta > small,
+.admin-page .chunk-meta > span {
+  flex: 0 0 auto;
+}
+
+.admin-page .chunk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.admin-page .chunk-actions .icon-action {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.admin-page .manual-chunk-form {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e0e7f2;
+}
+
+.admin-page .admin-confirmation {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #10213b77;
+  backdrop-filter: blur(7px);
+}
+
+.admin-page .admin-confirmation .modal {
+  max-height: 90dvh;
+  overflow: auto;
+}
+
+.admin-page .policy-edit-dialog {
+  inline-size: min(680px, calc(100vw - 40px));
+  max-height: 90dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.admin-page .policy-edit-dialog .policy-content {
+  overflow-wrap: anywhere;
+}
+.admin-page .file-picker input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.admin-page .policy-draft-table {
+  margin: 16px 0;
+  overflow: hidden;
+  border: 1px solid #dce6f4;
+  border-radius: 14px;
+}
+.admin-page .policy-draft-table table {
+  width: 100%;
+  table-layout: fixed;
+}
+.admin-page .policy-draft-table th,
+.admin-page .policy-draft-table td {
+  padding: 10px 12px;
+}
+.admin-page .policy-draft-table th:nth-child(1) {
+  width: 22%;
+}
+.admin-page .policy-draft-table th:nth-child(2) {
+  width: 16%;
+}
+.admin-page .policy-draft-table th:last-child,
+.admin-page .policy-draft-table td:last-child {
+  width: 190px;
+}
+.admin-page .policy-draft-table td.draft-preview {
+  min-width: 0;
+  overflow: hidden;
+  color: #66768c;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-page .policy-draft-table .draft-error {
+  margin: 6px 0 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.admin-page .policy-draft-table .draft-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  white-space: nowrap;
+}
+.workspace-page .policy-draft-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
 .workspace-page .file-picker {
   position: relative;
   display: inline-flex;
@@ -1465,9 +1622,11 @@
   margin: 16px 0;
   border: 1px solid #dce6f4;
   border-radius: 14px;
+  overflow-x: hidden;
   overflow: hidden;
 }
 .workspace-page .policy-draft-table table {
+  width: 100%;
   table-layout: fixed;
 }
 .workspace-page .policy-draft-table th {
@@ -1483,10 +1642,17 @@
   width: 16%;
 }
 .workspace-page .policy-draft-table th:last-child {
-  width: 118px;
+  width: 190px;
 }
 .workspace-page .policy-draft-table td:last-child {
-  width: 118px;
+  width: 190px;
+}
+.workspace-page .policy-draft-table .draft-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  white-space: nowrap;
 }
 .workspace-page .policy-draft-table .error-text {
   margin: 5px 0 0;

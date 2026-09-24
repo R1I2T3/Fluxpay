@@ -34,20 +34,22 @@
     </header>
 
     <main class="copilot-transcript" aria-live="polite">
-      <!-- ko ifnot:answer -->
+      <!-- ko ifnot:copilotHistory().length -->
       <div class="empty-state copilot-welcome">
         <span class="copilot-avatar" aria-hidden="true"><i class="fa-solid fa-robot"></i></span>
         <h2>Ask a policy question</h2>
         <p>Answers include the policy sources returned by FluxPay. Copilot is advisory only.</p>
       </div>
       <!-- /ko -->
-      <!-- ko if:answeredQuestion -->
-      <article class="chat-message user"><span>You</span><p data-bind="text:answeredQuestion"></p></article>
+      <!-- ko foreach:copilotHistory -->
+      <article class="chat-message user"><span>You</span><p data-bind="text:question"></p></article>
+      <!-- ko if:pending -->
+      <article class="chat-message assistant copilot-pending" role="status"><span>Compliance Copilot</span><p>Referring to relevant policies<span class="copilot-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span></p></article>
       <!-- /ko -->
       <!-- ko if:answer -->
       <article class="chat-message assistant">
         <span>Compliance Copilot</span>
-        <p class="preserve-text" data-bind="policyAnswer:answer().answer"></p>
+        <p class="preserve-text" data-bind="policyAnswer:{text:answer().answer,sources:answer().sources}"></p>
         <p class="subtle-note">Review the cited policies before taking any administrative action.</p>
         <!-- ko if:answer().sources.length -->
         <section class="copilot-sources" aria-label="Source policies">
@@ -66,11 +68,15 @@
         <!-- /ko -->
       </article>
       <!-- /ko -->
+      <!-- ko if:error -->
+      <article class="chat-message assistant"><span>Compliance Copilot</span><p class="error-text" data-bind="text:error"></p></article>
+      <!-- /ko -->
+      <!-- /ko -->
     </main>
 
     <form class="copilot-chat-composer" data-bind="submit:$parent.askCited">
       <label class="sr-only" for="copilot-question">Policy question</label>
-      <textarea id="copilot-question" rows="2" required data-bind="textInput:question" placeholder="Ask about the applicable policy..."></textarea>
+      <textarea id="copilot-question" rows="1" required data-bind="textInput:question,autoResize:question" placeholder="Ask about the applicable policy..."></textarea>
       <button class="pill dark" data-bind="disable:busy">Send</button>
     </form>
   </section>

@@ -6,6 +6,15 @@ import {feedbackObservable} from './notifications';
 
 const policyCategories = ['KYC','AML','PAYMENT_REVIEW','COUNTRY_RULE','SUPPORT'];
 let nextPolicyDraftId = 0;
+type CopilotTranscriptEntry = {
+  question:string;
+  answer:ko.Observable<CopilotAnswer|undefined>;
+  pending:ko.Observable<boolean>;
+  error:ko.Observable<string>;
+};
+// Module state intentionally lasts while the single-page app remains loaded. A browser refresh
+// starts a fresh transcript; signing out clears it for the next administrator.
+const copilotHistoryStore=ko.observableArray<CopilotTranscriptEntry>([]);
 
 export class PolicyDraft {
   readonly id:string;
@@ -58,19 +67,54 @@ ko.bindingHandlers.adminReveal = {
   }
 };
 
+// Keeps a prefilled case question readable and grows with later edits without allowing the
+// composer to take over the chat. The binding's update also covers observable changes made
+// before the textarea receives user input.
+ko.bindingHandlers.autoResize = {
+  init(element: HTMLTextAreaElement) {
+    const resize = () => {
+      const maximumHeight = 264;
+      element.style.height = 'auto';
+      const height = Math.min(element.scrollHeight, maximumHeight);
+      element.style.height = `${height}px`;
+      element.style.overflowY = element.scrollHeight > maximumHeight ? 'auto' : 'hidden';
+    };
+    element.addEventListener('input', resize);
+    ko.utils.domNodeDisposal.addDisposeCallback(element, () => element.removeEventListener('input', resize));
+  },
+  update(element: HTMLTextAreaElement, valueAccessor: () => unknown) {
+    ko.unwrap(valueAccessor());
+    const resize = () => {
+      if (!element.isConnected) return;
+      const maximumHeight = 264;
+      element.style.height = 'auto';
+      const height = Math.min(element.scrollHeight, maximumHeight);
+      element.style.height = `${height}px`;
+      element.style.overflowY = element.scrollHeight > maximumHeight ? 'auto' : 'hidden';
+    };
+    if (typeof window !== 'undefined' && window.requestAnimationFrame) window.requestAnimationFrame(resize);
+    else resize();
+  }
+};
+
 // The model output is untrusted. This intentionally supports only **bold** and constructs every
 // node as text, rather than rendering model-provided HTML.
 ko.bindingHandlers.policyAnswer = {
   update(element:HTMLElement,valueAccessor:()=>unknown){
-    const value=String(ko.unwrap(valueAccessor())??'');
+    const raw=ko.unwrap(valueAccessor()) as string|{text?:string;sources?:CopilotAnswer['sources']}|undefined;
+    const value=typeof raw==='string'?raw:String(raw?.text??'');
+    const sourceTitles=new Set((typeof raw==='string'?[]:raw?.sources??[]).map(source=>source.title.trim()).filter(Boolean));
     element.replaceChildren();
-    const bold=/\*\*([^*\n]+)\*\*/g;
+    const emphasis=/\*\*([^*\n]+)\*\*|\[([^\]\n]+)\]/g;
     let cursor=0,match:RegExpExecArray|null;
-    while((match=bold.exec(value))!==null){
+    while((match=emphasis.exec(value))!==null){
       element.append(document.createTextNode(value.slice(cursor,match.index)));
-      const strong=document.createElement('strong');
-      strong.textContent=match[1];
-      element.append(strong);
+      const boldText=match[1],sourceTitle=match[2];
+      if(boldText||sourceTitles.has(sourceTitle)){
+        const strong=document.createElement('strong');
+        strong.textContent=boldText||match[0];
+        element.append(strong);
+      }else element.append(document.createTextNode(match[0]));
       cursor=match.index+match[0].length;
     }
     element.append(document.createTextNode(value.slice(cursor)));
@@ -145,6 +189,7 @@ export class ComplianceWorkspace {
   copilotPaymentId = ko.observable('');
   answer = ko.observable<CopilotAnswer>();
   answeredQuestion = ko.observable('');
+  copilotHistory = copilotHistoryStore;
   policyChanges = ko.observableArray<FieldChange>([]);
   policyChangeReview = ko.observable(false);
   draftPublishReview = ko.observable(false);
@@ -158,9 +203,18 @@ export class ComplianceWorkspace {
     return this.policy()?(this.policyView()==='advanced'?'advanced':'detail'):'';
   });
   policySavedView = ko.observable<'ALL'|'UNINDEXED'>('ALL');
+  policySort = ko.observable<'title-asc'|'title-desc'|'created-asc'|'created-desc'>('created-desc');
   savedPolicies = ko.pureComputed(()=>this.filteredPolicies().filter(item=>this.policySavedView()==='ALL'||!(item.chunks||[]).some(chunk=>!chunk.manual)));
+  sortedPolicies = ko.pureComputed(()=>{
+    const sort=this.policySort();
+    const direction=sort.endsWith('desc')?-1:1;
+    return this.savedPolicies().slice().sort((left,right)=>{
+      if(sort.startsWith('title'))return left.title.localeCompare(right.title,undefined,{sensitivity:'base'})*direction;
+      return (Date.parse(left.createdAt)-Date.parse(right.createdAt))*direction;
+    });
+  });
   visiblePolicies = ko.pureComputed(()=>{
-    const filtered=this.savedPolicies();
+    const filtered=this.sortedPolicies();
     return filtered.slice(this.policyPage()*this.policyPageSize,(this.policyPage()+1)*this.policyPageSize);
   });
   filteredPolicies = ko.pureComputed(()=>this.policies().filter(p=>(this.categoryFilter()==='ALL'||p.category===this.categoryFilter())&&(p.title+' '+p.content).toLowerCase().includes(this.search().toLowerCase())));
@@ -193,11 +247,11 @@ export class ComplianceWorkspace {
   streamedAnswer=ko.observable(false);
   private streamAbort?:AbortController;
   private epoch = 0;
-  private sessionChanged = session.user.subscribe(()=>{this.streamAbort?.abort();this.epoch++;this.clear();});
+  private sessionChanged = session.user.subscribe(()=>{this.streamAbort?.abort();this.epoch++;this.clear(true);});
   private policySavedViewChanged = this.policySavedView.subscribe(()=>{this.policyPage(0);});
   private noticeChanged = this.notice.subscribe(value=>this.dismissToast(this.notice,value));
   private errorChanged = this.error.subscribe(value=>this.dismissToast(this.error,value));
-  private clear(){this.policies([]);this.policyDrafts([]);this.draftEditor(undefined);this.draftEditorTarget(undefined);this.draftViewer(undefined);this.policyEdit(undefined);this.policyChanges([]);this.policyChangeReview(false);this.draftPublishReview(false);this.chunkEdit(undefined);this.chunkEditContent('');this.pendingChunk(undefined);this.pendingGuidance(undefined);this.policySavedView('ALL');this.policyImportError('');this.cases([]);this.policy(undefined);this.selectedCase(undefined);this.chunks([]);this.guidance([]);this.guidanceCaseViewer(undefined);this.policyView('policy');this.guidanceCaseId('');this.guidanceContent('');this.answer(undefined);this.confirmation('');this.decisionReason('');this.pendingDecision('approve');this.decisionCode('RULES_SATISFIED');this.decisionNotes('');this.question('');this.copilotPaymentId('');this.answeredQuestion('');this.title('');this.content('');this.chunkContent('');this.paymentId('');this.reasons('');this.suggestedAction('');this.policyForm(false);this.caseForm(false);this.casePage(0);this.policyPage(0);this.error('');this.notice('');}
+  private clear(clearCopilotHistory=false){this.policies([]);this.policyDrafts([]);this.draftEditor(undefined);this.draftEditorTarget(undefined);this.draftViewer(undefined);this.policyEdit(undefined);this.policyChanges([]);this.policyChangeReview(false);this.draftPublishReview(false);this.chunkEdit(undefined);this.chunkEditContent('');this.pendingChunk(undefined);this.pendingGuidance(undefined);this.policySavedView('ALL');this.policyImportError('');this.cases([]);this.policy(undefined);this.selectedCase(undefined);this.chunks([]);this.guidance([]);this.guidanceCaseViewer(undefined);this.policyView('policy');this.guidanceCaseId('');this.guidanceContent('');this.answer(undefined);this.confirmation('');this.decisionReason('');this.pendingDecision('approve');this.decisionCode('RULES_SATISFIED');this.decisionNotes('');this.question('');this.copilotPaymentId('');this.answeredQuestion('');this.title('');this.content('');this.chunkContent('');this.paymentId('');this.reasons('');this.suggestedAction('');this.policyForm(false);this.caseForm(false);this.casePage(0);this.policyPage(0);this.error('');this.notice('');if(clearCopilotHistory)this.copilotHistory([]);}
   dispose(){this.streamAbort?.abort();this.disposed=true;this.epoch++;this.clear();this.sessionChanged.dispose();this.policySavedViewChanged.dispose();this.noticeChanged.dispose();this.errorChanged.dispose();}
   private dismissToast(target:ko.Observable<string>,value:string){
     if(!value||typeof window==='undefined'||!window.setTimeout)return;
@@ -215,6 +269,8 @@ export class ComplianceWorkspace {
   loadPolicies = ()=>this.run(async()=>{this.policies(await api.policies());this.policyPage(0);});
   previousPolicyPage = ()=>this.policyPage(Math.max(0,this.policyPage()-1));
   nextPolicyPage = ()=>this.policyPage(Math.min(this.policyPageCount()-1,this.policyPage()+1));
+  togglePolicyTitleSort = ()=>{this.policySort(this.policySort()==='title-asc'?'title-desc':'title-asc');this.policyPage(0);};
+  togglePolicyCreatedSort = ()=>{this.policySort(this.policySort()==='created-asc'?'created-desc':'created-asc');this.policyPage(0);};
   loadCases = ()=>this.run(async()=>{this.cases(await api.complianceCases('ALL'));this.casePage(0);});
   previousCasePage = ()=>this.casePage(Math.max(0,this.casePage()-1));
   nextCasePage = ()=>this.casePage(Math.min(this.casePageCount()-1,this.casePage()+1));
@@ -420,12 +476,19 @@ export class ComplianceWorkspace {
     const question=this.question().trim(),paymentId=this.copilotPaymentId().trim();
     if(!question)throw new Error('Enter a policy question.');
     if(paymentId&&!this.uuid(paymentId))throw new Error('Enter a valid payment UUID or leave it blank.');
-    this.answer(undefined);this.answeredQuestion(question);this.streamedAnswer(this.liveResponse());
-    if(!this.liveResponse()){this.answer(await api.askCopilot(question,paymentId||undefined));return;}
-    const epoch=this.epoch;this.streamAbort=new AbortController();this.answer({answer:'',sources:[]});
-    try{await api.streamCopilot(question,paymentId||undefined,delta=>{if(!this.disposed&&epoch===this.epoch&&session.isAdmin())this.answer({answer:(this.answer()?.answer||'')+delta,sources:[]});},this.streamAbort.signal);}
-    catch(e:any){if(e.name==='AbortError')this.notice('Live response stopped. Request a cited answer when you are ready.');else throw e;}
-    finally{this.streamAbort=undefined;}
+    const entry:CopilotTranscriptEntry={question,answer:ko.observable(),pending:ko.observable(true),error:ko.observable('')};
+    this.answer(undefined);this.answeredQuestion(question);this.copilotHistory.push(entry);this.streamedAnswer(this.liveResponse());
+    try{
+      if(!this.liveResponse()){
+        const result=await api.askCopilot(question,paymentId||undefined);
+        entry.answer(result);this.answer(result);return;
+      }
+      const epoch=this.epoch;this.streamAbort=new AbortController();const live={answer:'',sources:[]};entry.answer(live);this.answer(live);
+      try{await api.streamCopilot(question,paymentId||undefined,delta=>{if(!this.disposed&&epoch===this.epoch&&session.isAdmin()){const result={answer:(entry.answer()?.answer||'')+delta,sources:[]};entry.answer(result);this.answer(result);}},this.streamAbort.signal);}
+      catch(e:any){if(e.name==='AbortError')this.notice('Live response stopped. Request a cited answer when you are ready.');else throw e;}
+      finally{this.streamAbort=undefined;}
+    }catch(e:any){entry.error(e.message||'Compliance Copilot could not answer this question.');throw e;}
+    finally{entry.pending(false);}
   });
   stopLiveResponse=()=>this.streamAbort?.abort();
   getCitedAnswer=()=>{if(!this.busy()){this.liveResponse(false);void this.ask();}};

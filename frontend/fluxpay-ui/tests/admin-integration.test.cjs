@@ -17,13 +17,13 @@ test('every approved administrator route has a view model and template',()=>{
   }
 });
 
-test('unsupported governance and destructive resource controls are absent',()=>{
+test('unsupported governance and unrelated destructive resource controls are absent',()=>{
   const joined=templates.join('\n');
   assert.doesNotMatch(joined,/Audit Log|Governance/);
   assert.doesNotMatch(read('ts/views/admin-compliance.html'),/delete-case|Delete manual case/);
   assert.doesNotMatch(read('ts/views/admin-providers.html'),/requestDeleteProvider|Delete provider|Remove provider/i);
   assert.doesNotMatch(read('ts/views/admin-routes.html'),/requestDeleteRoute|Delete route|Remove route/i);
-  assert.doesNotMatch(read('ts/views/admin-policies.html'),/delete-policy|Delete policy/i);
+  assert.match(read('ts/views/admin-policies.html'),/askConfirmation\('delete-policy'\)/);
 });
 
 test('templates use safe bindings and accessible status text',()=>{

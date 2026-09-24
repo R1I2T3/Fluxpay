@@ -76,12 +76,12 @@ test('policy table is wide, scrollable and uses accessible icon actions', () => 
   assert.doesNotMatch(html, /\$root\.environment/);
 });
 
-test('policy template exposes only current API metadata and hides document deletion', () => {
+test('policy template exposes current API metadata and a confirmed document delete action', () => {
   const html = read('ts/views/admin-policies.html');
   for (const token of ['Current document', 'createdAt', 'Indexed chunks', 'Advanced']) assert.ok(html.includes(token), token);
   assert.doesNotMatch(html, /Document hash|text:documentHash/);
   assert.doesNotMatch(html, /Policy version|Effective date|Publication status|Index failure|Policy owner/i);
-  assert.doesNotMatch(html, /delete-policy|deletePolicy|Delete policy/i);
+  assert.match(html, /askConfirmation\('delete-policy'\)/);
 });
 
 test('policy draft publish waits for confirmation before creating policies', async () => {
@@ -209,6 +209,7 @@ function copilotPage(routeParams = {params: {}}, overrides = {}) {
     '../services/compliance-workspace': workspaceContext.exports,
     '../services/flux-api': {fluxApi: api},
     '../services/admin-console': adminConsole,
+    '../services/copilot-handoff': {consumeCopilotCaseContext: () => overrides.handoff},
     '../services/session': {navigate, session}
   });
   return {page: new ViewModel(routeParams), calls, navigations, session};
@@ -218,6 +219,17 @@ async function settlePage(page, done) {
   for (let i = 0; i < 50 && !done(); i++) await new Promise(resolve => setImmediate(resolve));
 }
 
+test('popup handoff pre-fills Copilot even when the route drops its parameters', async () => {
+  const {page, calls} = copilotPage({params: {}}, {handoff: openCase});
+  await page.ready;
+  assert.equal(page.workspace.copilotPaymentId(), openCase.paymentId);
+  assert.match(page.workspace.question(), /Risk level: HIGH/);
+  assert.match(page.workspace.question(), /QA reason/);
+  assert.match(page.workspace.question(), /Review records/);
+  assert.ok(!calls.some(call => call[0] === 'complianceCase'));
+  page.disconnected();
+});
+
 test('case context pre-fills a cited question without inventing payment details', async () => {
   const {page, calls} = copilotPage({params: {caseId: openCase.id, paymentId: openCase.paymentId}});
   await page.ready;
@@ -225,6 +237,17 @@ test('case context pre-fills a cited question without inventing payment details'
   assert.match(page.workspace.question(), /Risk level: HIGH/);
   assert.match(page.workspace.question(), /Triggered reasons:/);
   assert.doesNotMatch(page.workspace.question(), /customer country|amount|currency/i);
+  page.disconnected();
+});
+
+test('case context also accepts direct route parameters from the compliance handoff', async () => {
+  const {page, calls} = copilotPage({caseId: openCase.id, paymentId: openCase.paymentId});
+  await page.ready;
+  assert.ok(calls.some(call => call[0] === 'complianceCase'));
+  assert.equal(page.workspace.copilotPaymentId(), openCase.paymentId);
+  assert.match(page.workspace.question(), /Risk level: HIGH/);
+  assert.match(page.workspace.question(), /QA reason/);
+  assert.match(page.workspace.question(), /Review records/);
   page.disconnected();
 });
 
@@ -238,12 +261,21 @@ test('Copilot accepts direct payment context without loading the compliance queu
 
 test('Copilot template keeps citations visible and exposes no decision action', () => {
   const html = read('ts/views/admin-copilot.html');
-  assert.match(html, /policyAnswer:answer\(\)\.answer/);
+  assert.match(html, /policyAnswer:\{text:answer\(\)\.answer,sources:answer\(\)\.sources\}/);
+  assert.match(html, /click:\$parents\[1\]\.openSource/);
   for (const field of ['policyDocumentId', 'title', 'chunkNumber', 'excerpt']) assert.ok(html.includes(field), field);
   assert.match(html, /Advisory only/);
   assert.doesNotMatch(html, /Approve|Reject|Activate|Publish/);
   assert.doesNotMatch(html, /policy version/i);
   assert.doesNotMatch(html, /data-bind="[^"]*\bhtml\s*:/);
+});
+
+test('Copilot composer auto-resizes for prefilled case context', () => {
+  const html = read('ts/views/admin-copilot.html');
+  const source = read('ts/services/compliance-workspace.ts');
+  assert.match(html, /autoResize:question/);
+  assert.match(source, /ko\.bindingHandlers\.autoResize/);
+  assert.match(source, /scrollHeight/);
 });
 
 test('askCited requests only a cited answer without the live response', async () => {

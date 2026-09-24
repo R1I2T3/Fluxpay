@@ -111,6 +111,7 @@ function complianceViewModel({clipboard} = {}) {
   const ViewModel = load('ts/viewModels/admin-compliance.ts', {
     knockout: ko,
     '../services/admin-console': helpers,
+    '../services/copilot-handoff': {stageCopilotCaseContext: () => {}},
     '../services/admin-dialog': {},
     '../services/compliance-workspace': {ComplianceWorkspace: function FakeWorkspace() { return workspace; }},
     '../services/session': {
@@ -155,6 +156,7 @@ test('compliance renders a full-row queue and one modal workflow', () => {
 
 test('navigateToCopilot dispatches admin-copilot with the selected case and payment IDs', async () => {
   const navigateCalls = [];
+  const handoffs = [];
   const selected = makeCase();
   const FakeWorkspace = function () {
     this.savedCaseView = ko.observable('OPEN');
@@ -166,6 +168,7 @@ test('navigateToCopilot dispatches admin-copilot with the selected case and paym
   const ViewModel = load('ts/viewModels/admin-compliance.ts', {
     knockout: ko,
     '../services/admin-console': helpers,
+    '../services/copilot-handoff': {stageCopilotCaseContext: value => handoffs.push(value)},
     '../services/admin-dialog': {},
     '../services/compliance-workspace': {ComplianceWorkspace: FakeWorkspace},
     '../services/session': {
@@ -177,6 +180,7 @@ test('navigateToCopilot dispatches admin-copilot with the selected case and paym
   await new Promise(resolve => setImmediate(resolve));
   vm.navigateToCopilot();
   assert.equal(JSON.stringify(navigateCalls), JSON.stringify([['admin-copilot', {caseId: selected.id, paymentId: selected.paymentId}]]));
+  assert.equal(JSON.stringify(handoffs), JSON.stringify([selected]));
   vm.disconnected();
 });
 
