@@ -27,7 +27,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
       com.fluxpay.controller.TransferProviderAdminController.class,
       com.fluxpay.controller.TransferRouteAdminController.class,
       com.fluxpay.controller.TransferRailAdminController.class,
-      com.fluxpay.controller.TimelineController.class
+      com.fluxpay.controller.TimelineController.class,
+      com.fluxpay.controller.PaymentOperationsAdminController.class
     })
 public class PayoutApiExceptionHandler {
 
