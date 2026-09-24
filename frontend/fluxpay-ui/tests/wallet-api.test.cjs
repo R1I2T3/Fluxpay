@@ -44,3 +44,8 @@ test('KYC preview is authenticated, not cached, and rejects non-document respons
  let captured;const client=api(async(url,options)=>{captured={url,...options};return {ok:true,status:200,blob:async()=>new Blob(['x'],{type:'text/html'})};});
  await assert.rejects(client.kycDocument('doc-id'),/cannot be previewed/);assert.equal(captured.url,'/api/kyc/documents/doc-id/content');assert.equal(captured.cache,'no-store');assert.equal(captured.headers.Authorization,'Bearer test');
 });
+test('admin payment operations is an encoded read-only request without idempotency',async()=>{
+ let captured;const client=api(async(url,options)=>{captured={url,...options};return {ok:true,status:200,json:async()=>({data:{payment:{id:'payment/id'}}})};});
+ const result=await client.adminPaymentOperations('payment/id');
+ assert.equal(captured.url,'/api/admin/payments/payment%2Fid/operations');assert.equal(captured.method,'GET');assert.equal(captured.body,undefined);assert.equal(captured.headers['Idempotency-Key'],undefined);assert.deepEqual(result,{payment:{id:'payment/id'}});
+});

@@ -78,7 +78,7 @@ test('admin shell exposes the approved grouped routes and no Governance group', 
   const f=fixture('admin','ADMIN');await f.settle();
   assert.deepEqual(Array.from(f.root.adminNavGroups,group=>[group.label,Array.from(group.items,item=>item.path)]),[
     ['Overview',['admin']],
-    ['Operations',['admin-kyc','admin-compliance','admin-tickets']],
+    ['Operations',['admin-kyc','admin-compliance','admin-tickets','admin-payment-operations']],
     ['Money Movement',['admin-providers','admin-routes']],
     ['Policy & AI',['admin-policies','admin-copilot']]
   ]);
