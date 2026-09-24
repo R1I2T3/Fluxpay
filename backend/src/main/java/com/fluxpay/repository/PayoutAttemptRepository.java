@@ -13,6 +13,8 @@ public interface PayoutAttemptRepository extends JpaRepository<PayoutAttempt, UU
 
   Optional<PayoutAttempt> findFirstByPaymentIdOrderByAttemptNumberDesc(String paymentId);
 
+  long countByPaymentIdAndRouteId(String paymentId, UUID routeId);
+
   List<PayoutAttempt> findByRouteId(UUID routeId);
 
   boolean existsByRouteId(UUID routeId);
