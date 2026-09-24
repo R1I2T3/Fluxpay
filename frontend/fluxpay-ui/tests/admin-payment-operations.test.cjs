@@ -7,6 +7,38 @@ const { load } = require('./helpers/load-typescript.cjs');
 
 const read = (file) => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
 
+test('admin payment operations renders accessible read-only lifecycle evidence', () => {
+  const html = read('ts/views/admin-payment-operations.html');
+  const css = read('css/admin-console.css');
+
+  assert.match(html, /Administrator access required/);
+  assert.match(html, /session\.isAdmin\(\)/);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /<details>/);
+  assert.match(html, /<summary>/);
+  assert.match(
+    html,
+    /class="event-payload" data-bind="text:\$parent\.json\(payload\)"/,
+  );
+  assert.match(html, /text:\$parent\.label\(payment\.status\)/);
+  assert.match(html, /text:payment\.id/);
+  assert.match(html, /text:payment\.eventSequence/);
+  assert.match(html, /text:recovery\.decision/);
+  assert.match(html, /delivery \? delivery\.state : 'UNKNOWN'/);
+  assert.match(html, /delivery \? delivery\.attemptCount : 0/);
+  assert.match(html, /delivery && delivery\.nextAttemptAt/);
+  assert.match(html, /delivery && delivery\.lastError/);
+  assert.doesNotMatch(html, /payment\(\)\.|recovery\(\)\.|delivery\(\)/);
+  assert.doesNotMatch(html, /data-bind="[^"]*\bhtml\s*:/);
+  assert.doesNotMatch(html, /Simulate|Trigger retry|Trigger refund|Reconcile payout/);
+  assert.match(css, /\.operations-flow\s*\{[^}]*display:\s*grid/);
+  assert.match(css, /\[data-state='PENDING'\]/);
+  assert.match(css, /\[data-state='SENDING'\]/);
+  assert.match(css, /\[data-state='SENT'\]/);
+  assert.doesNotMatch(css, /linear-gradient|radial-gradient/);
+});
+
 test('admin payment operations exposes the typed read-only operations request', () => {
   const api = read('ts/services/flux-api.ts');
   assert.match(
