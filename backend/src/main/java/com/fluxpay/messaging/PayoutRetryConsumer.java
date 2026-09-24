@@ -2,6 +2,7 @@ package com.fluxpay.messaging;
 
 import com.fluxpay.beans.PaymentOperation.Namespace;
 import com.fluxpay.beans.PayoutAttemptStatus;
+import com.fluxpay.config.DevelopmentPayoutSimulationProperties;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.repository.*;
 import com.fluxpay.service.*;
@@ -24,6 +25,7 @@ public class PayoutRetryConsumer {
   private final PayoutOutboxService outbox;
   private final EventEnvelopeCodec codec;
   private final Clock clock;
+  private final int recoveryDelaySeconds;
 
   public PayoutRetryConsumer(
       PaymentOperationService operations,
@@ -34,7 +36,8 @@ public class PayoutRetryConsumer {
       RecoveryService recovery,
       PayoutOutboxService outbox,
       EventEnvelopeCodec codec,
-      Clock clock) {
+      Clock clock,
+      DevelopmentPayoutSimulationProperties development) {
     this.operations = operations;
     this.operationRepository = operationRepository;
     this.payments = payments;
@@ -44,6 +47,7 @@ public class PayoutRetryConsumer {
     this.outbox = outbox;
     this.codec = codec;
     this.clock = clock;
+    this.recoveryDelaySeconds = development.recoveryDelaySeconds();
   }
 
   @KafkaListener(
@@ -83,7 +87,8 @@ public class PayoutRetryConsumer {
                   id, Namespace.INTERNAL, "AUTO_RETRY");
           boolean terminal = completedRetries >= 5;
           int ordinal = terminal ? 5 : (int) completedRetries + 1;
-          var nextRun = terminal ? latest.completedAt() : latest.completedAt().plusSeconds(120);
+          long nextRunDelaySeconds = terminal ? 0 : recoveryDelaySeconds;
+          var nextRun = latest.completedAt().plusSeconds(nextRunDelaySeconds);
           var eventId =
               outbox.enqueue(
                   payment,
