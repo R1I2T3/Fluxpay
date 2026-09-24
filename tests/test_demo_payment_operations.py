@@ -2,11 +2,13 @@ import contextlib
 import importlib.util
 import io
 import json
+import pathlib
 import sys
 import unittest
 from pathlib import Path
 from unittest import mock
 
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -100,6 +102,24 @@ class DemoPaymentOperationsTests(unittest.TestCase):
                 },
             )
         raise AssertionError(f"unexpected request: {method} {path}")
+
+    def test_readme_contains_complete_payment_operations_runbook(self):
+        readme = (ROOT / "README.md").read_text()
+        required = (
+            "scripts/demo-payment-operations.py retry-success",
+            "scripts/demo-payment-operations.py refund-exhaustion",
+            "FLUXPAY_DEVELOPMENT_RECOVERY_DELAY_SECONDS=5",
+            "BANK_STANDARD",
+            "BANK_EXPRESS",
+            "Admin → Payment Operations",
+            "5–8 minute",
+            "verified KYC",
+            "funded USD wallet",
+            "active INR recipient",
+            "skipped integration tests are not acceptance",
+        )
+        for text in required:
+            self.assertIn(text, readme)
 
     def test_create_demo_payment_uses_exact_quote_and_unique_idempotency_keys(self):
         with mock.patch.object(self.script.urllib.request, "urlopen", side_effect=self.response_for):
