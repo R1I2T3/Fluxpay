@@ -11,7 +11,6 @@ from urllib.parse import urlsplit
 
 from platform_commands import load_env
 
-
 AUTHORIZED_SCHEMAS = frozenset(("FLUXPAY", "FLUXPAY_TEST"))
 FLUXPAY_TOPICS = (
     "payment.initiated",
@@ -20,6 +19,8 @@ FLUXPAY_TOPICS = (
     "payment.review.requested",
     "payout.submitted",
     "payout.failed",
+    "payout.retry",
+    "payout.refund",
     "payout.completed",
     "payment.refunded",
     "payout.recovery.dlt",
@@ -138,6 +139,7 @@ def inspect_compose_topics():
         capture_output=True,
         text=True,
         timeout=20,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError("could not inspect the Compose Kafka topic inventory")
@@ -150,7 +152,7 @@ def reset_compose_topics(existing=None):
     base = _compose_topics_command()
     for topic in owned:
         result = subprocess.run(
-            [*base, "--delete", "--topic", topic], capture_output=True, text=True, timeout=20
+            [*base, "--delete", "--topic", topic], capture_output=True, text=True, timeout=20, check=False
         )
         if result.returncode != 0:
             raise RuntimeError(f"could not delete FluxPay topic {topic}")
@@ -170,6 +172,7 @@ def reset_compose_topics(existing=None):
             capture_output=True,
             text=True,
             timeout=20,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(f"could not recreate FluxPay topic {topic}")
@@ -222,11 +225,7 @@ def main():
             )
             if args.execute:
                 reset_schema(connection, target, schema_password)
-                removed_topics = (
-                    reset_compose_topics(existing_topics)
-                    if infrastructure_mode == "compose"
-                    else []
-                )
+                removed_topics = reset_compose_topics(existing_topics) if infrastructure_mode == "compose" else []
                 print(f"RESET COMPLETE: schema={target}; no export was created")
                 if infrastructure_mode == "compose":
                     print(

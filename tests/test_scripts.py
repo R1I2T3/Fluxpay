@@ -1,12 +1,10 @@
 import importlib.util
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
@@ -81,12 +79,28 @@ class ScriptCommandTests(unittest.TestCase):
 
         self.assertEqual(commands[0], ["docker", "compose", "up", "-d", "oracle", "kafka"])
         topic_commands = [command for command in commands if "--create" in command]
-        self.assertEqual(len(topic_commands), 9)
-        self.assertTrue(
-            all(command[:5] == ["docker", "compose", "exec", "-T", "kafka"] for command in topic_commands)
+        self.assertEqual(len(topic_commands), 11)
+        self.assertTrue(all(command[:5] == ["docker", "compose", "exec", "-T", "kafka"] for command in topic_commands))
+        created_topics = [command[command.index("--topic") + 1] for command in topic_commands]
+        self.assertEqual(
+            created_topics,
+            [
+                "payment.initiated",
+                "payment.route.selected",
+                "payment.screening.completed",
+                "payment.review.requested",
+                "payout.submitted",
+                "payout.failed",
+                "payout.retry",
+                "payout.refund",
+                "payout.completed",
+                "payment.refunded",
+                "payout.recovery.dlt",
+            ],
         )
-        created_topics = {command[command.index("--topic") + 1] for command in topic_commands}
         self.assertIn("payment.review.requested", created_topics)
+        self.assertIn("payout.retry", created_topics)
+        self.assertIn("payout.refund", created_topics)
         self.assertIn("payout.recovery.dlt", created_topics)
 
     def test_external_infrastructure_is_probed_but_never_started_or_stopped(self):
@@ -422,31 +436,31 @@ class ScriptCommandTests(unittest.TestCase):
             )
             return CompletedProcess()
 
-        with tempfile.TemporaryDirectory() as directory:
-            with (
-                mock.patch.dict(
-                    script.os.environ,
-                    {
-                        "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
-                        "USERPROFILE": r"C:\Users\Ritesh Jha",
-                    },
-                    clear=True,
-                ),
-                mock.patch.object(script.sys, "platform", "win32"),
-                mock.patch.object(
-                    sys,
-                    "argv",
-                    [
-                        "test-all.py",
-                        "--suite",
-                        "backend",
-                        "--env-file",
-                        str(Path(directory) / "missing.env"),
-                    ],
-                ),
-                mock.patch.object(script.subprocess, "run", side_effect=run),
-            ):
-                self.assertEqual(script.main(), 0)
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(
+                script.os.environ,
+                {
+                    "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
+                    "USERPROFILE": r"C:\Users\Ritesh Jha",
+                },
+                clear=True,
+            ),
+            mock.patch.object(script.sys, "platform", "win32"),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "test-all.py",
+                    "--suite",
+                    "backend",
+                    "--env-file",
+                    str(Path(directory) / "missing.env"),
+                ],
+            ),
+            mock.patch.object(script.subprocess, "run", side_effect=run),
+        ):
+            self.assertEqual(script.main(), 0)
 
         self.assertEqual(
             observed_settings,

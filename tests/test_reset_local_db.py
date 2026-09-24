@@ -2,12 +2,11 @@ import contextlib
 import importlib.util
 import io
 import os
-import sys
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
@@ -80,6 +79,11 @@ class ResetLocalDbTests(unittest.TestCase):
                 )
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
+        self.assertEqual(len(script.FLUXPAY_TOPICS), 11)
+        self.assertEqual(
+            script.FLUXPAY_TOPICS[5:8],
+            ("payout.failed", "payout.retry", "payout.refund"),
+        )
         with mock.patch.object(script.subprocess, "run", side_effect=run):
             removed = script.reset_compose_topics()
 
@@ -89,6 +93,10 @@ class ResetLocalDbTests(unittest.TestCase):
         self.assertIn("payment.initiated", deleted_arguments)
         self.assertIn("payout.recovery.dlt", deleted_arguments)
         self.assertNotIn("unrelated.orders", deleted_arguments)
+        created = [command[command.index("--topic") + 1] for command in commands if "--create" in command]
+        self.assertEqual(len(created), 11)
+        self.assertIn("payout.retry", created)
+        self.assertIn("payout.refund", created)
         self.assertNotIn("--volumes", " ".join(" ".join(command) for command in commands))
 
     def test_dry_run_resolves_metadata_without_executing_destructive_sql(self):

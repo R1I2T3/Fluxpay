@@ -12,7 +12,6 @@ from urllib.parse import urlsplit
 
 from platform_commands import PROJECT_ROOT, load_env
 
-
 TOPICS = [
     "payment.initiated",
     "payment.route.selected",
@@ -20,6 +19,8 @@ TOPICS = [
     "payment.review.requested",
     "payout.submitted",
     "payout.failed",
+    "payout.retry",
+    "payout.refund",
     "payout.completed",
     "payment.refunded",
     "payout.recovery.dlt",
@@ -32,7 +33,7 @@ DEFAULT_ORACLE = "jdbc:oracle:thin:@//localhost:1521/FREEPDB1"
 def run(cmd, verbose=False):
     if verbose:
         print("+", " ".join(cmd))
-    return subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=not verbose)
+    return subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=not verbose, check=False)
 
 
 def split_host_port(value, default_port):
@@ -114,9 +115,7 @@ def main():
 
     if not args.skip_oracle:
         try:
-            oracle_host, oracle_port = oracle_host_port(
-                os.environ.get("ORACLE_JDBC_URL", DEFAULT_ORACLE)
-            )
+            oracle_host, oracle_port = oracle_host_port(os.environ.get("ORACLE_JDBC_URL", DEFAULT_ORACLE))
         except ValueError as exception:
             print(f"oracle configuration failed: {exception}")
             return 2
@@ -151,10 +150,7 @@ def main():
     else:
         topics_script = kafka_script("kafka-topics")
         if topics_script is None:
-            print(
-                "external Kafka topic provisioning needs kafka-topics; "
-                "set KAFKA_HOME or use --skip-topics"
-            )
+            print("external Kafka topic provisioning needs kafka-topics; set KAFKA_HOME or use --skip-topics")
             return 2
         base_command = [topics_script, "--bootstrap-server", bootstrap]
 
