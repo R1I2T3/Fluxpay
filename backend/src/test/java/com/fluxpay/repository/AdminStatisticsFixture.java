@@ -164,7 +164,7 @@ class AdminStatisticsFixture {
   void compliance(UUID paymentId, String risk, String status, Instant createdAt) {
     jdbc.update(
         "INSERT INTO compliance_cases(payment_id,risk,status,risk_reasons,suggested_action,created_at) "
-            + "VALUES (?,?, '{}','Review statistics fixture',?)",
+            + "VALUES (?,?,?,'{}','Review statistics fixture',?)",
         raw(paymentId),
         risk,
         status,

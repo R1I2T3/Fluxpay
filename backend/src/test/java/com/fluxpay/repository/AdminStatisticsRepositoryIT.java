@@ -32,8 +32,8 @@ import org.springframework.test.context.ActiveProfiles;
 class AdminStatisticsRepositoryIT {
   private static final Instant CUTOFF = Instant.parse("2026-09-25T12:00:00Z");
   private static final Instant INSIDE = Instant.parse("2026-09-10T08:00:00Z");
-  private static final Instant PAYMENT_FROM = Instant.parse("2026-09-10T00:00:00Z");
-  private static final Instant PAYMENT_TO = Instant.parse("2026-09-11T00:00:00Z");
+  private static final Instant PAYMENT_FROM = Instant.parse("2026-09-09T18:30:00Z");
+  private static final Instant PAYMENT_TO = Instant.parse("2026-09-10T18:30:00Z");
   private static final AdminStatisticsQuery INR_QUERY =
       new AdminStatisticsQuery(
           LocalDate.parse("2026-09-10"),
@@ -83,6 +83,7 @@ class AdminStatisticsRepositoryIT {
             .map(AdminStatisticsRepository.PaymentBucket::completedAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     fixture.payment("INR", "100.00", PaymentStatus.COMPLETED, INSIDE);
+    fixture.payment("INR", "50.00", PaymentStatus.COMPLETED, PAYMENT_FROM);
     fixture.payment("USD", "999.00", PaymentStatus.COMPLETED, INSIDE);
     fixture.payment("INR", "88.00", PaymentStatus.FAILED, INSIDE);
     fixture.payment("INR", "15.00", PaymentStatus.COMPLETED, PAYMENT_FROM.minusSeconds(1));
@@ -90,14 +91,15 @@ class AdminStatisticsRepositoryIT {
 
     List<AdminStatisticsRepository.PaymentBucket> buckets = repository.paymentBuckets(INR_QUERY);
     assertThat(count(buckets, PaymentStatus.COMPLETED))
-        .isEqualTo(count(beforeBuckets, PaymentStatus.COMPLETED) + 1);
+        // The in-range payment and the payment at Kolkata midnight are both included.
+        .isEqualTo(count(beforeBuckets, PaymentStatus.COMPLETED) + 2);
     assertThat(count(buckets, PaymentStatus.FAILED))
         .isEqualTo(count(beforeBuckets, PaymentStatus.FAILED) + 1);
     assertThat(
             buckets.stream()
                 .map(AdminStatisticsRepository.PaymentBucket::completedAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add))
-        .isEqualByComparingTo(before.add(new BigDecimal("100.00")));
+        .isEqualByComparingTo(before.add(new BigDecimal("150.00")));
     assertThat(buckets)
         .anySatisfy(
             bucket -> {
@@ -180,7 +182,7 @@ class AdminStatisticsRepositoryIT {
     fixture.ticket("IN_PROGRESS", CUTOFF.plusSeconds(1));
 
     var after = repository.workload(CUTOFF);
-    assertThat(after.kycPending()).isEqualTo(before.kycPending() + 106);
+    assertThat(after.kycPending()).isEqualTo(before.kycPending() + 104);
     assertThat(after.kycOver24h()).isEqualTo(before.kycOver24h() + 1);
     assertThat(after.kycPending()).isGreaterThan(100);
     assertThat(after.complianceOpen()).isEqualTo(before.complianceOpen() + 2);
