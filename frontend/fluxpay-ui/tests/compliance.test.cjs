@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const ts=require('typescript');
 const ko=require('knockout');
 const notifications=require('./notification-fixture.cjs')();
+const statisticsHelpers={statisticsSearch:query=>new URLSearchParams(query).toString()};
 const read=file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8');
 const compile=file=>ts.transpileModule(read(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const id='11111111-1111-4111-8111-111111111111';
@@ -21,7 +22,7 @@ function workspace(overrides={},admin=true,runtime={}){
 }
 test('all 15 new endpoints use correct URLs, verbs, bodies and auth; DELETE accepts 204',async()=>{
   const calls=[];
-  const context={exports:{},window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>({data:[]})};}};
+  const context={exports:{},require:()=>statisticsHelpers,URLSearchParams,window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>({data:[]})};}};
   vm.runInNewContext(compile('ts/services/flux-api.ts'),context);const api=context.exports.fluxApi;
   await api.policies();await api.policy(id);await api.createPolicy({title:'Policy',category:'AML',content:'Text'});await api.updatePolicy(id,{title:'Updated policy',category:'AML',content:'Updated text'});await api.policyChunks(id);await api.addPolicyChunk(id,'Chunk');await api.indexPolicy(id);await api.deletePolicy(id);
   await api.complianceCases('OPEN');await api.complianceCase(id);await api.createComplianceCase({paymentId:id,risk:'LOW',riskReasons:['Reason'],suggestedAction:'Review'});await api.decideComplianceCase(id,'approve','Approved');await api.decideComplianceCase(id,'reject','Rejected');await api.deleteComplianceCase(id);await api.askCopilot('Question',id);
@@ -143,7 +144,7 @@ test('policy detail exposes a confirmed delete action for the selected policy',a
 });
 test('policy deletion endpoint wrapper issues an authorized DELETE',async()=>{
   const calls=[];
-  const context={exports:{},window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:204,json:async()=>({})};}};
+  const context={exports:{},require:()=>statisticsHelpers,URLSearchParams,window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:204,json:async()=>({})};}};
   vm.runInNewContext(compile('ts/services/flux-api.ts'),context);
   await context.exports.fluxApi.deletePolicy(id);
   assert.deepEqual(calls.map(([url,options])=>[options.method,url]),[['DELETE',`/api/policies/${id}`]]);
@@ -246,7 +247,7 @@ test('case-to-Copilot handoff includes the risk, reasons, and suggested action',
 });
 test('policy chunk maintenance keeps editing manual-only while allowing any chunk to be deleted',async()=>{
   const calls=[];
-  const context={exports:{},window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>({data:{id,manual:true}})};}};
+  const context={exports:{},require:()=>statisticsHelpers,URLSearchParams,window:{},sessionStorage:{getItem:()=> 'test-token'},crypto:{randomUUID:()=>id},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>({data:{id,manual:true}})};}};
   vm.runInNewContext(compile('ts/services/flux-api.ts'),context);
   await context.exports.fluxApi.updatePolicyChunk(id,'chunk-1','Corrected guidance');
   await context.exports.fluxApi.deletePolicyChunk(id,'chunk-1');
@@ -263,7 +264,7 @@ test('policy chunk maintenance keeps editing manual-only while allowing any chun
 });
 
 function paymentPage(api){
-  const helpers={exports:{},window:{}};vm.runInNewContext(compile('ts/services/flux-api.ts'),helpers);
+  const helpers={exports:{},require:()=>statisticsHelpers,URLSearchParams,window:{}};vm.runInNewContext(compile('ts/services/flux-api.ts'),helpers);
   const context={exports:{},require:name=>name==='knockout'?ko:name==='./notifications'?notifications:name==='./flux-api'?{...helpers.exports,fluxApi:api}:{session:{user:ko.observable({role:'USER'})},navigate:()=>{}},window:{setInterval:()=>1,addEventListener:()=>{},removeEventListener:()=>{}},sessionStorage:{getItem:()=>null},clearInterval:()=>{},setInterval:()=>1,document:{visibilityState:'visible'}};
   vm.runInNewContext(compile('ts/services/page.ts'),context);const page=new context.exports.Page('payments-new');
   page.paymentId(id);page.payment({id,status:'QUOTED'});page.quotes([{id:'quote',routeCode:'BANK_TRANSFER'}]);page.selectedQuote({id:'quote',routeCode:'BANK_TRANSFER'});page.quoteExpires(new Date(Date.now()+600000).toISOString());page.confirmAction('confirm');return page;

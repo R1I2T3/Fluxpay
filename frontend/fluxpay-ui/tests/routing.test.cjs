@@ -19,7 +19,7 @@ function fixture(){
     if(url.endsWith('?version=3'))return {disposition:'ARCHIVED',id:routeId};
     return {};
   };
-  const context={exports:{},window:{},sessionStorage:{getItem:()=>'test-token'},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:200,json:async()=>({data:dataFor(url)})};}};
+  const context={exports:{},require:()=>({statisticsSearch:query=>new URLSearchParams(query).toString()}),URLSearchParams,window:{},sessionStorage:{getItem:()=>'test-token'},fetch:async(url,options)=>{calls.push([url,options]);return {ok:true,status:200,json:async()=>({data:dataFor(url)})};}};
   vm.runInNewContext(compile('ts/services/flux-api.ts'),context);
   return {api:context.exports.fluxApi,calls};
 }
