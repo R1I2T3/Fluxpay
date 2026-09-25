@@ -42,7 +42,7 @@ function transactionFeedback(path: string, method: string, body: any, data: any,
     currency = '',
     identity = key;
   const payment = path.match(
-    /^\/api\/payments\/([^/]+)(?:\/(submit-payout|retry-payout|switch-route|refund))?$/,
+    /^\/api\/payments\/([^/]+)(?:\/(submit-payout|retry-payout|switch-route))?$/,
   );
   if (payment) {
     const id = payment[1],
@@ -65,14 +65,11 @@ function transactionFeedback(path: string, method: string, body: any, data: any,
       );
       return;
     }
-    if (data.status !== (action === 'refund' ? 'REFUNDED' : 'COMPLETED')) return;
+    if (data.status !== 'COMPLETED') return;
     awaitedPayments.delete(id);
     identity = id + ':' + data.status;
-    title = action === 'refund' ? 'Money refunded' : 'Money sent';
-    description =
-      action === 'refund'
-        ? 'Your refund has been completed.'
-        : 'Your transfer has been completed successfully.';
+    title = 'Money sent';
+    description = 'Your transfer has been completed successfully.';
     amount = data.sourceAmount;
     currency = data.sourceCurrency;
   } else if (method === 'POST' && data.journalReference) {
@@ -127,7 +124,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown, idem = f
   }
   const paymentAction =
     method === 'POST' &&
-    path.match(/^\/api\/payments\/([^/]+)\/(submit-payout|retry-payout|switch-route|refund)$/);
+    path.match(/^\/api\/payments\/([^/]+)\/(submit-payout|retry-payout|switch-route)$/);
   if (paymentAction) {
     awaitedPayments.set(paymentAction[1], paymentAction[2]);
     if (awaitedPayments.size > 200)
@@ -253,6 +250,93 @@ export async function streamCopilot(
     reader.releaseLock();
   }
 }
+export type PaymentOutboxState = 'PENDING' | 'SENDING' | 'SENT';
+export type RecoveryDecision =
+  | 'NOT_REQUIRED'
+  | 'RETRY_SCHEDULED'
+  | 'REFUND_SCHEDULED'
+  | 'REFUNDED'
+  | 'RECONCILIATION_REQUIRED'
+  | 'STALE';
+
+export interface PaymentOperationsPayment {
+  id: string;
+  status: string;
+  selectedQuoteId: string | null;
+  eventSequence: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface PaymentOperationsAttempt {
+  id: string;
+  attemptNumber: number;
+  status: 'INITIATED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  routeCode: string | null;
+  providerCode: string | null;
+  providerReference: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  initiatedAt: string;
+  completedAt: string | null;
+}
+export interface PaymentOperationsDelivery {
+  state: PaymentOutboxState;
+  attemptCount: number;
+  nextAttemptAt: string;
+  sentAt: string | null;
+  lastError: string | null;
+}
+export interface PaymentOperationsOutboxEvent {
+  eventId: string;
+  eventType: string;
+  aggregateSequence: number;
+  createdAt: string;
+  payload: unknown;
+  delivery: PaymentOperationsDelivery;
+}
+export interface PaymentOperationsTimelineEvent {
+  eventId: string;
+  eventType: string;
+  kafkaTopic: string;
+  correlationId: string;
+  payload: unknown;
+  occurredAt: string;
+}
+export interface PaymentOperationsOperation {
+  id: string;
+  namespace: 'PUBLIC' | 'INTERNAL' | string;
+  operationType: string;
+  clientKey: string;
+  status: 'IN_PROGRESS' | 'COMPLETED' | string;
+  outcomeStatus: number | null;
+  response: unknown;
+  createdAt: string;
+}
+export interface PaymentOperationsLedgerEntry {
+  id: string;
+  journalReference: string;
+  idempotencyKey: string;
+  entryType: string;
+  amount: string;
+  currency: string;
+  narration: string;
+  createdAt: string;
+}
+export interface PaymentOperationsRecovery {
+  automatedRetryCount: number;
+  decision: RecoveryDecision;
+  nextRun: string | null;
+}
+export interface PaymentOperationsResponse {
+  payment: PaymentOperationsPayment;
+  attempts: PaymentOperationsAttempt[];
+  outboxEvents: PaymentOperationsOutboxEvent[];
+  timelineEvents: PaymentOperationsTimelineEvent[];
+  operations: PaymentOperationsOperation[];
+  ledgerEntries: PaymentOperationsLedgerEntry[];
+  recovery: PaymentOperationsRecovery;
+}
+
 export const fluxApi = {
   uploadKyc: (docType: string, docNumber: string, files: File[]) => {
     const body = new FormData();
@@ -327,6 +411,10 @@ export const fluxApi = {
     request<any>(`/api/payments/${id}/confirm`, 'POST', { quoteId: q }, true),
   cancel: (id: string) => request<any>(`/api/payments/${id}/cancel`, 'POST', undefined, true),
   timeline: (id: string) => request<any[]>(`/api/payments/${id}/timeline`),
+  adminPaymentOperations: (id: string) =>
+    request<PaymentOperationsResponse>(
+      `/api/admin/payments/${encodeURIComponent(id)}/operations`,
+    ),
   routes: () => request<any>('/api/routes'),
   recommend: (id: string, p: string) =>
     request<any>(`/api/payments/${id}/recommend-route`, 'POST', { preference: p }),
@@ -346,7 +434,6 @@ export const fluxApi = {
       { routeCode: requireQuoteRoute({ routeCode: r }), quoteId: q },
       true,
     ),
-  refund: (id: string) => request<any>(`/api/payments/${id}/refund`, 'POST', undefined, true),
   adminKyc: (status = 'PENDING', page = 0, size = 20) =>
     request<KycAdminRow[]>(
       `/api/admin/kyc/applications?status=${encodeURIComponent(status)}&page=${page}&size=${size}`,

@@ -5,7 +5,7 @@ const path=require('node:path');
 const root=path.join(__dirname,'../src');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
-const routes=['admin','admin-kyc','admin-compliance','admin-tickets','admin-providers','admin-routes','admin-policies','admin-copilot'];
+const routes=['admin','admin-kyc','admin-compliance','admin-tickets','admin-payment-operations','admin-providers','admin-routes','admin-policies','admin-copilot'];
 const templates=routes.map(route=>read(`ts/views/${route}.html`));
 
 test('every approved administrator route has a view model and template',()=>{
@@ -45,6 +45,7 @@ test('every administrator workspace announces its loading state politely',()=>{
     'admin-kyc':'Loading KYC reviews',
     'admin-compliance':'Loading compliance cases',
     'admin-tickets':'Loading support tickets',
+    'admin-payment-operations':'Loading payment operations',
     'admin-providers':'Loading providers',
     'admin-routes':'Loading payout routes',
     'admin-policies':'Loading policies',

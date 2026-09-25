@@ -857,6 +857,13 @@ class PayoutLifecycleIntegrationTest {
   }
 
   com.fluxpay.messaging.PayoutRetryConsumer recoveryConsumer() {
+    return recoveryConsumer(120);
+  }
+
+  com.fluxpay.messaging.PayoutRetryConsumer recoveryConsumer(int recoveryDelaySeconds) {
+    var development =
+        new com.fluxpay.config.DevelopmentPayoutSimulationProperties(
+            recoveryDelaySeconds != 120, null, 0, null, 0, recoveryDelaySeconds);
     return new com.fluxpay.messaging.PayoutRetryConsumer(
         operationService,
         operations,
@@ -866,7 +873,8 @@ class PayoutLifecycleIntegrationTest {
         recovery,
         outbox,
         new com.fluxpay.messaging.EventEnvelopeCodec(mapper),
-        clock);
+        clock,
+        development);
   }
 
   @Test
@@ -949,27 +957,44 @@ class PayoutLifecycleIntegrationTest {
   }
 
   void completeAutomaticRecovery() {
-    var consumer = recoveryConsumer();
+    var consumer = recoveryConsumer(5);
+    var codec = new com.fluxpay.messaging.EventEnvelopeCodec(mapper);
     for (int retry = 1; retry <= 5; retry++) {
+      var failedAt =
+          attempts
+              .findFirstByPaymentIdOrderByAttemptNumberDesc(id.toString())
+              .orElseThrow()
+              .completedAt();
       var failure = recoveryEvent("payout.failed", "attempt", retry);
       consumer.onEvent(failure.payload(), failure.topic());
       consumer.onEvent(failure.payload(), failure.topic());
-      var command = recoveryEvent("payout.retry", "attemptCount", retry);
-      assertThat(deliveries.findById(command.id()).orElseThrow().nextAttemptAt())
-          .isEqualTo(NOW.plusSeconds(120L * retry));
-      now.set(NOW.plusSeconds(120L * retry));
-      consumer.onEvent(command.payload(), command.topic());
-      consumer.onEvent(command.payload(), command.topic());
+      var retryEvent = recoveryEvent("payout.retry", "attemptCount", retry);
+      var retryCommand = codec.read(retryEvent.payload());
+      assertThat(retryCommand.payload())
+          .containsEntry("nextRun", failedAt.plusSeconds(5).toString());
+      assertThat(deliveries.findById(retryEvent.id()).orElseThrow().nextAttemptAt())
+          .isEqualTo(failedAt.plusSeconds(5));
+      now.set(failedAt.plusSeconds(5));
+      consumer.onEvent(retryEvent.payload(), retryEvent.topic());
+      consumer.onEvent(retryEvent.payload(), retryEvent.topic());
       assertThat(calls.get()).isEqualTo(retry + 1);
       assertThat(attempts.findAll()).hasSize(retry + 1);
     }
+    var finalFailureAt =
+        attempts
+            .findFirstByPaymentIdOrderByAttemptNumberDesc(id.toString())
+            .orElseThrow()
+            .completedAt();
     var failure = recoveryEvent("payout.failed", "attempt", 6);
     consumer.onEvent(failure.payload(), failure.topic());
     consumer.onEvent(failure.payload(), failure.topic());
     var refund = events.findAll().stream().filter(e -> e.topic().equals("payout.refund")).toList();
     assertThat(refund).hasSize(1);
-    consumer.onEvent(refund.get(0).payload(), "payout.refund");
-    consumer.onEvent(refund.get(0).payload(), "payout.refund");
+    var refundEvent = refund.get(0);
+    var refundCommand = codec.read(refundEvent.payload());
+    assertThat(refundCommand.payload()).containsEntry("nextRun", finalFailureAt.toString());
+    consumer.onEvent(refundEvent.payload(), "payout.refund");
+    consumer.onEvent(refundEvent.payload(), "payout.refund");
     assertThat(payments.findById(id).orElseThrow().status()).isEqualTo(PaymentStatus.REFUNDED);
     assertThat(wallets.findById(wallet).orElseThrow().getBalance()).isEqualByComparingTo("1000");
     assertThat(wallets.findById(clearing).orElseThrow().getBalance()).isEqualByComparingTo("0");

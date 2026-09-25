@@ -9,7 +9,6 @@ import uuid
 from pathlib import Path
 from unittest import mock
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -38,7 +37,217 @@ class HttpResponse:
         return self.body
 
 
+class RouteCursor:
+    def __init__(self, rows):
+        self.rows = {row[0]: row for row in rows if row is not None}
+        self.execute = mock.Mock()
+        self.fetchone = mock.Mock(side_effect=self._fetchone)
+
+    def _fetchone(self):
+        call = self.execute.call_args
+        statement = call.args[0]
+        if "SELECT r.route_code" in statement:
+            return self.rows.get(call.kwargs.get("route_code"))
+        raise AssertionError(f"unexpected fetch after {statement}")
+
+    @staticmethod
+    def row(
+        route_code,
+        provider_id,
+        destination_type="EXTERNAL_ACCOUNT",
+        route_active=0,
+        route_archived_at=None,
+        provider_code="BANK_ALPHA",
+        rail_type="BANK_NETWORK",
+        provider_active=0,
+        provider_archived_at=None,
+    ):
+        return (
+            route_code,
+            provider_id,
+            destination_type,
+            route_active,
+            route_archived_at,
+            provider_code,
+            rail_type,
+            provider_active,
+            provider_archived_at,
+        )
+
+
 class SeedLocalTests(unittest.TestCase):
+    def test_no_demo_configuration_keeps_seed_insert_only(self):
+        script = load_script()
+        cursor = RouteCursor([])
+
+        self.assertEqual(script.load_demo_route_policies({}), ())
+        script.activate_demo_routes(cursor, ())
+
+        self.assertFalse(cursor.execute.called)
+
+    def test_configured_bank_routes_activate_only_selected_inactive_records(self):
+        script = load_script()
+        environment = {
+            "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+            "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "BANK_STANDARD",
+            "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "2",
+            "FLUXPAY_DEVELOPMENT_REFUND_ROUTE_CODE": "BANK_EXPRESS",
+            "FLUXPAY_DEVELOPMENT_REFUND_FAILURE_ATTEMPTS": "6",
+        }
+        cursor = RouteCursor(
+            [
+                RouteCursor.row("BANK_STANDARD", b"bank-alpha-provider"),
+                RouteCursor.row("BANK_EXPRESS", b"bank-alpha-provider"),
+            ]
+        )
+
+        policies = script.load_demo_route_policies(environment)
+        metadata = script.activate_demo_routes(cursor, policies)
+
+        self.assertEqual(
+            policies,
+            (
+                script.DemoRoutePolicy("retry-success", "BANK_STANDARD", 2, "BANK_ALPHA"),
+                script.DemoRoutePolicy("refund", "BANK_EXPRESS", 6, "BANK_ALPHA"),
+            ),
+        )
+        self.assertEqual(
+            metadata,
+            [
+                {
+                    "scenario": "retry-success",
+                    "routeCode": "BANK_STANDARD",
+                    "failureAttempts": 2,
+                    "providerCode": "BANK_ALPHA",
+                },
+                {
+                    "scenario": "refund",
+                    "routeCode": "BANK_EXPRESS",
+                    "failureAttempts": 6,
+                    "providerCode": "BANK_ALPHA",
+                },
+            ],
+        )
+        statements = [call.args[0] for call in cursor.execute.call_args_list]
+        provider_updates = [statement for statement in statements if "UPDATE transfer_providers" in statement]
+        route_updates = [statement for statement in statements if "UPDATE transfer_routes" in statement]
+        self.assertEqual(len(provider_updates), 1)
+        self.assertIn("BANK_ALPHA", str(cursor.execute.call_args_list))
+        self.assertEqual(len(route_updates), 2)
+        for statement in provider_updates:
+            normalized = " ".join(statement.split())
+            self.assertIn("version = version + 1", normalized)
+            self.assertIn("active = 0", normalized)
+            self.assertIn("archived_at IS NULL", normalized)
+        for statement in route_updates:
+            normalized = " ".join(statement.split())
+            self.assertIn("version = version + 1", normalized)
+            self.assertIn("provider_id = :provider_id", normalized)
+            self.assertIn("active = 0", normalized)
+            self.assertIn("archived_at IS NULL", normalized)
+
+    def test_demo_policy_validation_rejects_unsafe_configuration_before_activation(self):
+        script = load_script()
+        cases = {
+            "unknown": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "DOES_NOT_EXIST",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "1",
+            },
+            "duplicate": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "BANK_STANDARD",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "1",
+                "FLUXPAY_DEVELOPMENT_REFUND_ROUTE_CODE": " BANK_STANDARD ",
+                "FLUXPAY_DEVELOPMENT_REFUND_FAILURE_ATTEMPTS": "1",
+            },
+            "internal": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "FLUXPAY_INTERNAL",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "1",
+            },
+            "non-bank": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "REALTIME_INR",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "1",
+            },
+            "negative": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "BANK_STANDARD",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "-1",
+            },
+            "non-integer": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "BANK_STANDARD",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "not-an-integer",
+            },
+            "blank-integer": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "BANK_STANDARD",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "",
+            },
+            "simulation-disabled": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "false",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "BANK_STANDARD",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "0",
+            },
+            "positive-count-without-route": {
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+                "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": "1",
+            },
+        }
+
+        for name, environment in cases.items():
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                script.load_demo_route_policies(environment)
+
+    def test_zero_count_route_is_validated_but_returns_no_policy(self):
+        script = load_script()
+        environment = {
+            "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED": "true",
+            "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE": "  BANK_STANDARD  ",
+            "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS": " 0 ",
+        }
+        self.assertEqual(script.load_demo_route_policies(environment), ())
+
+    def test_activation_validates_every_persisted_row_before_any_update(self):
+        script = load_script()
+        policies = (
+            script.DemoRoutePolicy("retry-success", "BANK_STANDARD", 2, "BANK_ALPHA"),
+            script.DemoRoutePolicy("refund", "BANK_EXPRESS", 6, "BANK_ALPHA"),
+        )
+        invalid_rows = {
+            "missing": None,
+            "archived-route": RouteCursor.row("BANK_EXPRESS", b"bank-alpha-provider", route_archived_at="archived"),
+            "archived-provider": RouteCursor.row(
+                "BANK_EXPRESS", b"bank-alpha-provider", provider_archived_at="archived"
+            ),
+            "rebound": RouteCursor.row("BANK_EXPRESS", b"other-provider", provider_code="OTHER_PROVIDER"),
+            "non-external": RouteCursor.row("BANK_EXPRESS", b"bank-alpha-provider", destination_type="INTERNAL_WALLET"),
+            "non-bank": RouteCursor.row("BANK_EXPRESS", b"bank-alpha-provider", rail_type="PARTNER_NETWORK"),
+        }
+
+        for name, second_row in invalid_rows.items():
+            with self.subTest(name=name):
+                cursor = RouteCursor([RouteCursor.row("BANK_STANDARD", b"bank-alpha-provider"), second_row])
+                with self.assertRaises(RuntimeError):
+                    script.activate_demo_routes(cursor, policies)
+                statements = [call.args[0] for call in cursor.execute.call_args_list]
+                self.assertFalse(any("UPDATE transfer_providers" in statement for statement in statements))
+                self.assertFalse(any("UPDATE transfer_routes" in statement for statement in statements))
+
+    def test_activation_does_not_touch_already_active_records(self):
+        script = load_script()
+        cursor = RouteCursor(
+            [
+                RouteCursor.row("BANK_STANDARD", b"bank-alpha-provider", route_active=1, provider_active=1),
+            ]
+        )
+        policies = (script.DemoRoutePolicy("retry-success", "BANK_STANDARD", 2, "BANK_ALPHA"),)
+        script.activate_demo_routes(cursor, policies)
+        self.assertEqual(cursor.execute.call_count, 1)
+        self.assertIn("SELECT r.route_code", cursor.execute.call_args.args[0])
+
     def test_provisions_every_system_currency_role_with_insert_only_merges_on_rerun(self):
         script = load_script()
         system_id = "11111111-1111-1111-1111-111111111111"
@@ -139,6 +348,12 @@ class SeedLocalTests(unittest.TestCase):
                     self.assertIn("WHEN NOT MATCHED THEN INSERT", sql)
                     self.assertNotIn("WHEN MATCHED THEN", sql)
                     self.assertNotIn("payout_routes", sql)
+                self.assertFalse(
+                    any(
+                        "UPDATE transfer_providers" in call.args[0] or "UPDATE transfer_routes" in call.args[0]
+                        for call in cursor.execute.call_args_list
+                    )
+                )
         self.assertEqual(connection.commit.call_count, 2)
 
     def test_registers_full_contract_without_client_controlled_role_and_reports_actual_counts(self):
@@ -165,10 +380,12 @@ class SeedLocalTests(unittest.TestCase):
             "providers": 4,
             "routes": 13,
             "systemUserId": "11111111-1111-1111-1111-111111111111",
+            "demoRoutes": [],
         }
         output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
                 {
@@ -194,8 +411,56 @@ class SeedLocalTests(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("users=4 system-wallets=15 providers=4 routes=13", text)
         self.assertNotIn("policies=", text)
+        self.assertIn("demo-routes=none active-flags-unchanged", text)
         self.assertNotIn("secret", text)
         self.assertNotIn("Pass123", text)
+
+    def test_main_prints_each_configured_demo_route_without_secrets(self):
+        script = load_script()
+        result = {
+            "users": 4,
+            "systemWallets": 15,
+            "providers": 4,
+            "routes": 13,
+            "systemUserId": "11111111-1111-1111-1111-111111111111",
+            "demoRoutes": [
+                {
+                    "scenario": "retry-success",
+                    "routeCode": "BANK_STANDARD",
+                    "failureAttempts": 2,
+                    "providerCode": "BANK_ALPHA",
+                }
+            ],
+        }
+        output = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(script, "load_env"),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "SEED_SYSTEM_PASSWORD": "SystemPass123!",
+                    "SEED_ADMIN_PASSWORD": "AdminPass123!",
+                    "SEED_CUSTOMER_PASSWORD": "CustomerPass123!",
+                },
+                clear=True,
+            ),
+            mock.patch.object(
+                script,
+                "register_or_login",
+                return_value={"id": "11111111-1111-1111-1111-111111111111"},
+            ),
+            mock.patch.object(script, "provision_local_database", return_value=result),
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(script.main(), 0)
+
+        text = output.getvalue()
+        self.assertIn("demo-route=retry-success", text)
+        self.assertIn("route=BANK_STANDARD", text)
+        self.assertIn("failure-attempts=2", text)
+        self.assertIn("provider=BANK_ALPHA", text)
+        self.assertNotIn("SystemPass123", text)
 
     def test_duplicate_registration_logs_in_and_remains_idempotent(self):
         script = load_script()

@@ -2,8 +2,16 @@ package com.fluxpay.development;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.fluxpay.common.contracts.TransferRail;
+import com.fluxpay.config.DevelopmentPayoutSimulationProperties;
 import com.fluxpay.domain.DestinationType;
 import com.fluxpay.domain.ExternalAccountDestination;
 import com.fluxpay.domain.RailType;
@@ -11,6 +19,7 @@ import com.fluxpay.dto.TransferProviderSnapshot;
 import com.fluxpay.dto.TransferRailCommand;
 import com.fluxpay.dto.TransferRailResult;
 import com.fluxpay.dto.TransferRouteSnapshot;
+import com.fluxpay.repository.PayoutAttemptRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -23,7 +32,23 @@ import org.junit.jupiter.api.Test;
 class TransferRailSimulationTest {
 
   private TransferRailCommand command(UUID transferId, String amount, String fee) {
+    return command(transferId, "DEMO_BANK_KE", UUID.randomUUID(), 1, amount, fee);
+  }
+
+  private TransferRailCommand command(
+      UUID transferId, String routeCode, UUID routeId, int attemptNumber) {
+    return command(transferId, routeCode, routeId, attemptNumber, "1000.00", "5.00");
+  }
+
+  private TransferRailCommand command(
+      UUID transferId,
+      String routeCode,
+      UUID routeId,
+      int attemptNumber,
+      String amount,
+      String fee) {
     UUID attempt = UUID.randomUUID();
+    UUID providerId = UUID.randomUUID();
     return new TransferRailCommand(
         transferId,
         attempt,
@@ -32,11 +57,10 @@ class TransferRailSimulationTest {
         "USD",
         new BigDecimal("7600"),
         "KES",
-        new TransferProviderSnapshot(UUID.randomUUID(), "DEMO_BANK", RailType.BANK_NETWORK),
-        new TransferRouteSnapshot(
-            UUID.randomUUID(), "DEMO_BANK_KE", DestinationType.EXTERNAL_ACCOUNT, UUID.randomUUID()),
+        new TransferProviderSnapshot(providerId, "DEMO_BANK", RailType.BANK_NETWORK),
+        new TransferRouteSnapshot(routeId, routeCode, DestinationType.EXTERNAL_ACCOUNT, providerId),
         new ExternalAccountDestination("AC-123", "Demo Bank", "KE", "KES"),
-        1,
+        attemptNumber,
         new BigDecimal(fee),
         new BigDecimal("80"),
         "payout:" + attempt);
@@ -71,6 +95,74 @@ class TransferRailSimulationTest {
     assertThat(rail.execute(command(transferId, "1000.00", "5.00")).success()).isFalse();
     assertThat(rail.execute(command(transferId, "1000.00", "5.00")).success()).isFalse();
     assertThat(rail.execute(command(transferId, "1000.00", "5.00")).success()).isTrue();
+  }
+
+  @Test
+  void configuredRouteFailsDefinitiveCountThenCompletes() {
+    var attempts = mock(PayoutAttemptRepository.class);
+    var properties =
+        new DevelopmentPayoutSimulationProperties(true, "BANK_STANDARD", 2, null, 0, 120);
+    var rail = new SimulatedBankNetworkRail(properties, attempts, () -> null);
+    var routeId = UUID.randomUUID();
+    when(attempts.countByPaymentIdAndRouteId(anyString(), eq(routeId))).thenReturn(1L, 2L, 3L);
+
+    var first = rail.execute(command(UUID.randomUUID(), "BANK_STANDARD", routeId, 1));
+    var second = rail.execute(command(UUID.randomUUID(), "BANK_STANDARD", routeId, 2));
+    var third = rail.execute(command(UUID.randomUUID(), "BANK_STANDARD", routeId, 3));
+
+    assertThat(first.outcome()).isEqualTo(TransferRailResult.Outcome.FAILED);
+    assertThat(second.outcome()).isEqualTo(TransferRailResult.Outcome.FAILED);
+    assertThat(third.outcome()).isEqualTo(TransferRailResult.Outcome.COMPLETED);
+    assertThat(first.errorCode()).isEqualTo("SIMULATED_PROVIDER_FAILURE");
+    assertThat(first.errorMessage()).contains("BANK_STANDARD");
+    assertThat(first.providerFee()).isEqualByComparingTo("5.00");
+  }
+
+  @Test
+  void configuredDefinitivePolicyPrecedesLegacyUncertainProbe() {
+    var attempts = mock(PayoutAttemptRepository.class);
+    var routeId = UUID.randomUUID();
+    when(attempts.countByPaymentIdAndRouteId(anyString(), eq(routeId))).thenReturn(1L);
+    var properties = new DevelopmentPayoutSimulationProperties(true, "BANK_EXPRESS", 6, null, 0, 5);
+    var rail = new SimulatedBankNetworkRail(properties, attempts, () -> "BANK_NETWORK");
+
+    var result = rail.execute(command(UUID.randomUUID(), "BANK_EXPRESS", routeId, 1));
+
+    assertThat(result.outcome()).isEqualTo(TransferRailResult.Outcome.FAILED);
+  }
+
+  @Test
+  void sameProviderKeyReplaysWithoutConsumingAnotherFailure() {
+    var attempts = mock(PayoutAttemptRepository.class);
+    var routeId = UUID.randomUUID();
+    when(attempts.countByPaymentIdAndRouteId(anyString(), eq(routeId))).thenReturn(1L);
+    var rail =
+        new SimulatedBankNetworkRail(
+            new DevelopmentPayoutSimulationProperties(true, "BANK_STANDARD", 2, null, 0, 120),
+            attempts,
+            () -> null);
+    var command = command(UUID.randomUUID(), "BANK_STANDARD", routeId, 1);
+
+    var first = rail.execute(command);
+    var replay = rail.execute(command);
+
+    assertThat(replay).isEqualTo(first);
+    verify(attempts, times(1)).countByPaymentIdAndRouteId(anyString(), eq(routeId));
+  }
+
+  @Test
+  void nonmatchingBankRouteSucceeds() {
+    var attempts = mock(PayoutAttemptRepository.class);
+    var rail =
+        new SimulatedBankNetworkRail(
+            new DevelopmentPayoutSimulationProperties(true, "BANK_STANDARD", 2, null, 0, 120),
+            attempts,
+            () -> null);
+
+    var result = rail.execute(command(UUID.randomUUID(), "BANK_OTHER", UUID.randomUUID(), 1));
+
+    assertThat(result.outcome()).isEqualTo(TransferRailResult.Outcome.COMPLETED);
+    verifyNoInteractions(attempts);
   }
 
   @Test

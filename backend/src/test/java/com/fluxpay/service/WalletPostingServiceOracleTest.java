@@ -65,6 +65,7 @@ import org.springframework.transaction.support.TransactionTemplate;
   DemoFundingService.class,
   WalletOperationService.class,
   WalletPostingService.class,
+  FxQuoteValidator.class,
   LedgerJournalService.class,
   PersistentLedgerWriter.class,
   LedgerPostingContext.class

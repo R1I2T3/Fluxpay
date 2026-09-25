@@ -17,6 +17,7 @@ import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
 import com.fluxpay.common.security.JwtUtil;
+import com.fluxpay.common.security.MethodSecurityConfig;
 import com.fluxpay.common.security.SecurityConfig;
 import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
@@ -52,10 +53,12 @@ import org.springframework.test.web.servlet.MockMvc;
   RouteController.class,
   TransferRouteAdminController.class,
   TimelineController.class,
+  PaymentOperationsAdminController.class,
   PayoutController.class
 })
 @Import({
   SecurityConfig.class,
+  MethodSecurityConfig.class,
   JwtAuthFilter.class,
   CorrelationIdFilter.class,
   PayoutApiExceptionHandler.class,
@@ -84,6 +87,7 @@ class AuthorizationContractTest {
 
   @MockBean private PaymentReader reader;
   @MockBean private com.fluxpay.service.PaymentOperationService operations;
+  @MockBean private com.fluxpay.service.PaymentOperationsService paymentOperations;
   @MockBean private RouteCatalogService catalog;
   @MockBean private TransferRouteService routeAdmin;
   @MockBean private RouteReliabilityService reliability;
@@ -142,6 +146,16 @@ class AuthorizationContractTest {
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
     verify(routeAdmin, never()).update(any(), any());
+  }
+
+  @Test
+  void paymentOperationsRejectsCustomer() throws Exception {
+    mvc.perform(
+            get("/api/admin/payments/{paymentId}/operations", OTHER_ID)
+                .header("Authorization", MockSecurity.bearer(OTHER_ID, "CUSTOMER")))
+        .andExpect(status().isForbidden());
+
+    verify(paymentOperations, never()).get(anyString());
   }
 
   @Test

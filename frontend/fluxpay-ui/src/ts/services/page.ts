@@ -275,7 +275,6 @@ export class Page {
       if(!this.selectedQuote()||!this.quoteValid())throw new Error('Choose a current quote.');
       await this.acceptQuote();
     } else if(action==='cancel')await api.cancel(id);
-    else if(action==='refund')await api.refund(id);
     else {
       const q=this.selectedQuote() || this.quotes().find(q=>q.id===this.payment()?.selectedQuoteId);
       if(!q)throw new Error('Select a quote before continuing.');

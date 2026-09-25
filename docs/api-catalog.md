@@ -1,6 +1,62 @@
 # FluxPay Bruno API Catalog
 
-This catalog documents the original 46 HTTP API endpoints, followed by the September 20 integration additions below.
+This catalog documents the original 46 HTTP API endpoints, followed by the September 20
+integration additions and the payment-operations read API below.
+
+## Payment operations event topics
+
+The local scripts explicitly provision these eleven Kafka topics, in this order:
+
+1. `payment.initiated`
+2. `payment.route.selected`
+3. `payment.screening.completed`
+4. `payment.review.requested`
+5. `payout.submitted`
+6. `payout.failed`
+7. `payout.retry`
+8. `payout.refund`
+9. `payout.completed`
+10. `payment.refunded`
+11. `payout.recovery.dlt`
+
+`payout.retry` and `payout.refund` are internal recovery commands. They are visible in
+the admin operations read model, but are not customer timeline events. A delivery state
+of `SENT` proves Kafka publication only; a matching row in `timelineEvents` proves that
+the timeline consumer persisted the lifecycle event.
+
+### Local payment-operations demo contract
+
+The local-only configuration for the two scenarios is:
+
+```dotenv
+FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true
+FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE=BANK_STANDARD
+FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS=2
+FLUXPAY_DEVELOPMENT_REFUND_ROUTE_CODE=BANK_EXPRESS
+FLUXPAY_DEVELOPMENT_REFUND_FAILURE_ATTEMPTS=6
+FLUXPAY_DEVELOPMENT_RECOVERY_DELAY_SECONDS=5
+```
+
+The existing seeded customer must have **verified KYC**, a **funded USD wallet**, and
+an **active INR recipient** before either command runs. In other words, the runbook
+requires a verified KYC session, a funded USD wallet, and an active INR recipient.
+Prepare those prerequisites
+through the existing UI or APIs; the script never fabricates them. From a running
+stack, run:
+
+```bash
+python3 -B scripts/demo-payment-operations.py retry-success
+python3 -B scripts/demo-payment-operations.py refund-exhaustion
+```
+
+`BANK_STANDARD` must show two definitive failures followed by a successful automatic
+retry, `payout.completed`, and final `COMPLETED`. `BANK_EXPRESS` must show six failed
+attempts, five `AUTO_RETRY` operations, an immediate `payout.refund`, refund ledger
+entries, `payment.refunded`, and final `REFUNDED`. Both `payout.retry` and
+`payout.refund` outbox deliveries reach `SENT`; lifecycle rows prove timeline
+consumer persistence separately. The complete startup/reset/Flyway/seed sequence,
+evidence interpretation, 5–8 minute presenter target, and verification commands are
+in the [README runbook](../README.md#payment-operations-event-flow-demonstration).
 
 ## September 20 integration additions
 
@@ -161,8 +217,12 @@ persistent role check.
 | 36 | `POST {{baseUrl}}/api/payments/{{paymentId}}/recommend-route` | Bearer token; owner only | `{"preference":"BALANCED"}`. Body may be omitted; the default is `BALANCED`. | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","recommendedRouteId":"<route-uuid>","recommendationReason":"BALANCED selected HDFC_INR_STANDARD ... showing top 3.","quotes":[{"routeId":"<route-uuid>","routeCode":"HDFC_INR_STANDARD","routeName":"HDFC INR Standard","providerId":"<provider-uuid>","providerName":"HDFC Bank","marketRate":83.50,"offeredRate":83.0825,"feeAmount":1.0000,"recipientAmount":8225.1675,"estimatedMinutes":60,"effectiveReliability":99.000000,"rankingScore":0.6949...,"rankingPosition":1,"recommended":true}]}}` |
 
 Seeded catalogue: protected `FLUXPAY` (`INTERNAL_LEDGER`) with wallet routes in `INR`/`USD`/`EUR`,
-plus one inactive provider per external rail (`BANK_ALPHA`, `REAL_TIME`, `PARTNER`) with
-representative `IN`/`INR`, `US`/`USD`, and `DE`/`EUR` routes.
+plus one initially inactive provider per external rail (`BANK_ALPHA`, `REAL_TIME`, `PARTNER`) with
+representative `IN`/`INR`, `US`/`USD`, and `DE`/`EUR` routes. For the local payment-operations
+demonstration, the selected seeded `BANK_STANDARD` and `BANK_EXPRESS` routes are activated by
+`scripts/seed-local.py` when the development simulation policy is enabled; the seed validates
+all selected rows first and changes no unrelated active flags. A normal seed with no demo policy
+is insert-only.
 
 Route preferences are `CHEAPEST`, `FASTEST`, and `BALANCED`. Eligibility keeps routes whose
 provider and route are active and unarchived, whose destination corridor matches, and whose rail
@@ -176,8 +236,102 @@ prior) with terminal `COMPLETED`/`FAILED` outcomes; processing or uncertain outc
 | 28 | `POST {{baseUrl}}/api/payments/{{paymentId}}/submit-payout` | Bearer + Idempotency-Key; owner only | `{"routeCode":"HDFC_INR_STANDARD"}` | **200** `{"correlationId":"...","data":{"attemptNumber":1,"routeCode":"HDFC_INR_STANDARD","status":"COMPLETED","providerRef":"provider-123","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"HDFC_INR_STANDARD","feeAmount":5.0000,"netSourceAmount":95.0000,"offeredRate":83.0825,"recipientAmount":7892.8375}}}` |
 | 29 | `POST {{baseUrl}}/api/payments/{{paymentId}}/retry-payout` | Bearer + Idempotency-Key; owner only | `{"quoteId":"{{quoteId}}"}`; body is technically optional | **200** `{"correlationId":"...","data":{"attemptNumber":2,"routeCode":"HDFC_INR_STANDARD","status":"COMPLETED","providerRef":"provider-456","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"HDFC_INR_STANDARD","feeAmount":5.0000,"netSourceAmount":95.0000,"offeredRate":83.0825,"recipientAmount":7892.8375}}}` |
 | 30 | `POST {{baseUrl}}/api/payments/{{paymentId}}/switch-route` | Bearer + Idempotency-Key; owner only | `{"routeCode":"SBI_INR_STANDARD","quoteId":"{{quoteId}}"}` | **200** `{"correlationId":"...","data":{"attemptNumber":2,"routeCode":"SBI_INR_STANDARD","status":"COMPLETED","providerRef":"provider-789","error":null,"allowed":[],"alreadyConfirmed":false,"originalEventId":"<event-uuid>","selectedQuote":{"quoteId":"<quote-uuid>","routeCode":"SBI_INR_STANDARD","feeAmount":2.0000,"netSourceAmount":98.0000,"offeredRate":83.29125,"recipientAmount":8162.5425}}}` |
-| 31 | `POST {{baseUrl}}/api/payments/{{paymentId}}/refund` | Bearer + Idempotency-Key; owner only | No body | **200** `{"correlationId":"...","data":{"paymentId":"<payment-uuid>","eventId":"<event-uuid>","idempotentReplay":false}}` |
+| 31 | `POST {{baseUrl}}/api/payments/{{paymentId}}/refund` | Bearer token | No body | **403** `{"error":{"code":"FORBIDDEN","message":"Refunds require an administrator"}}`. The customer path is intentionally unavailable; automatic `payout.refund` recovery and `POST /api/admin/payments/{{paymentId}}/refund` (admin + `Idempotency-Key`) are the supported refund paths. |
 | 32 | `GET {{baseUrl}}/api/payments/{{paymentId}}/timeline` | Bearer token; owner only | None | **200** `{"correlationId":"...","data":[{"eventId":"<event-uuid>","paymentId":"<payment-uuid>","eventType":"payment.initiated","kafkaTopic":"payment.initiated","correlationId":"bruno-test-001","payload":{"schemaVersion":1,"aggregateSequence":1},"occurredAt":"2026-09-15T10:00:00Z"}]}` |
+
+## Payment operations admin API
+
+The following endpoint is an `ADMIN`-only, read-only aggregate over persisted payment
+state. It has no POST, PUT, PATCH, DELETE, simulation, retry, refund, or reconciliation
+write mapping. The customer owner timeline remains the separate owner-only API above.
+
+```http
+GET /api/admin/payments/{paymentId}/operations
+Authorization: Bearer <admin-token>
+```
+
+| Method and URL | Auth / headers | Request | Status and behavior |
+|---|---|---|---|
+| `GET {{baseUrl}}/api/admin/payments/{{paymentId}}/operations` | `ADMIN` bearer token; no request body and no `Idempotency-Key` | None | **200** returns one correlated evidence snapshot; malformed or unknown payment IDs return the standard **404** envelope; unauthenticated/non-admin requests return **401**/**403** |
+
+A successful response has the standard `{correlationId,data}` envelope. The `data`
+object contains ordered `payment`, `attempts`, `outboxEvents`, `timelineEvents`,
+`operations`, `ledgerEntries`, and `recovery` fields. Outbox entries include the event
+ID/type, aggregate sequence, payload, and delivery state/attempt metadata. Timeline
+entries include the exact event ID, Kafka topic, correlation ID, payload, and
+occurrence time. Recovery entries expose the persisted decision and automated retry
+count; refund ledger entries expose the original funding and reversal journals.
+
+```json
+{
+  "correlationId": "bruno-test-001",
+  "data": {
+    "payment": {
+      "id": "<payment-uuid>",
+      "status": "PROCESSING",
+      "selectedQuoteId": "<quote-uuid>",
+      "eventSequence": 4,
+      "createdAt": "2026-09-24T10:00:00Z",
+      "updatedAt": "2026-09-24T10:00:05Z"
+    },
+    "attempts": [
+      {
+        "id": "<attempt-uuid>",
+        "attemptNumber": 1,
+        "status": "FAILED",
+        "routeCode": "BANK_STANDARD",
+        "providerCode": "BANK_ALPHA",
+        "providerReference": null,
+        "errorCode": "SIMULATED_PROVIDER_FAILURE",
+        "errorMessage": "Simulated definitive failure for BANK_STANDARD",
+        "initiatedAt": "2026-09-24T10:00:00Z",
+        "completedAt": "2026-09-24T10:00:01Z"
+      }
+    ],
+    "outboxEvents": [
+      {
+        "eventId": "<event-uuid>",
+        "eventType": "payout.failed",
+        "aggregateSequence": 4,
+        "createdAt": "2026-09-24T10:00:01Z",
+        "payload": {"attempt": 1},
+        "delivery": {
+          "state": "SENT",
+          "attemptCount": 0,
+          "nextAttemptAt": "2026-09-24T10:00:01Z",
+          "sentAt": "2026-09-24T10:00:01Z",
+          "lastError": null
+        }
+      }
+    ],
+    "timelineEvents": [
+      {
+        "eventId": "<event-uuid>",
+        "eventType": "payout.failed",
+        "kafkaTopic": "payout.failed",
+        "correlationId": "<correlation-uuid>",
+        "payload": {"attempt": 1},
+        "occurredAt": "2026-09-24T10:00:01Z"
+      }
+    ],
+    "operations": [],
+    "ledgerEntries": [],
+    "recovery": {
+      "automatedRetryCount": 0,
+      "decision": "RETRY_SCHEDULED",
+      "nextRun": "2026-09-24T10:00:06Z"
+    }
+  }
+}
+```
+
+For the two-payment local demonstration, use `BANK_STANDARD` for `retry-success` and
+`BANK_EXPRESS` for `refund-exhaustion` with the exact variables documented in the
+[README payment-operations runbook](../README.md#payment-operations-event-flow-demonstration).
+The selected seeded routes are activated by `scripts/seed-local.py` only when the
+local simulation policy is enabled; administrators do not manually activate them for
+this run. The full flow, evidence distinctions, and presenter timing are maintained
+in that runbook.
 
 ## Policy APIs
 
@@ -227,7 +381,7 @@ The copilot returns an empty `sources` array and a scoped fallback answer when n
 | Compliance confirmation | Real provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true` |
 | Policy indexing | Requires Ollama embeddings and Oracle vector storage | Configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_POLICY_CHUNKER_VERSION` settings |
 | Compliance Copilot | Requires an indexed policy corpus, Ollama embeddings/chat, and Oracle vector search | Index at least one policy and configure the `FLUXPAY_OLLAMA_*` and `FLUXPAY_COPILOT_*` settings |
-| Payout submission | Real payout provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true`; external demo providers stay inactive until an administrator activates them after the flag is enabled |
+| Payout submission | Real payout provider is unavailable | `FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true`; with the demo policy configured, `scripts/seed-local.py` validates and activates only the selected seeded `BANK_STANDARD`/`BANK_EXPRESS` routes and their `BANK_ALPHA` provider. With no demo policy, the seed is insert-only and active flags are unchanged |
 | FX calls | Depend on the configured HTTP FX provider | Configure `FX_PROVIDER_URL` and network access |
 | Draft payment | User must be KYC verified | Approve KYC using an admin token first |
 | Draft payment | Wallet must have funds | Call `receive-demo` before drafting |

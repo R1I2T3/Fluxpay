@@ -86,6 +86,14 @@ public class OutboxDelivery {
     return claimToken;
   }
 
+  public Instant sentAt() {
+    return sentAt;
+  }
+
+  public String lastError() {
+    return lastError;
+  }
+
   public void claim(String token, Instant leaseExpiry) {
     this.state = "SENDING";
     this.claimToken = token;

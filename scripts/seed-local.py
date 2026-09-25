@@ -10,10 +10,10 @@ import sys
 import urllib.error
 import urllib.request
 import uuid
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from platform_commands import load_env
-
 
 IDENTITIES = (
     ("system", "SEED_SYSTEM_EMAIL", "fluxpay.system@gmail.com", "SEED_SYSTEM_PASSWORD", "FluxPay System"),
@@ -223,6 +223,183 @@ ROUTES = (
 )
 
 
+@dataclass(frozen=True)
+class DemoRoutePolicy:
+    scenario: str
+    route_code: str
+    failure_attempts: int
+    provider_code: str
+
+
+DEMO_ROUTE_POLICY_ENV = (
+    (
+        "retry-success",
+        "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE",
+        "FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS",
+    ),
+    (
+        "refund",
+        "FLUXPAY_DEVELOPMENT_REFUND_ROUTE_CODE",
+        "FLUXPAY_DEVELOPMENT_REFUND_FAILURE_ATTEMPTS",
+    ),
+)
+
+DEMO_ROUTE_LOOKUP_SQL = """SELECT r.route_code,
+       r.provider_id,
+       r.destination_type,
+       r.active AS route_active,
+       r.archived_at AS route_archived_at,
+       p.provider_code,
+       p.rail_type,
+       p.active AS provider_active,
+       p.archived_at AS provider_archived_at
+  FROM transfer_routes r
+  JOIN transfer_providers p ON p.id = r.provider_id
+ WHERE r.route_code = :route_code"""
+
+DEMO_PROVIDER_ACTIVATION_SQL = """UPDATE transfer_providers
+   SET active = 1, version = version + 1, updated_at = SYSTIMESTAMP
+ WHERE provider_code = :provider_code AND active = 0 AND archived_at IS NULL"""
+
+DEMO_ROUTE_ACTIVATION_SQL = """UPDATE transfer_routes
+   SET active = 1, version = version + 1, updated_at = SYSTIMESTAMP
+ WHERE route_code = :route_code AND provider_id = :provider_id
+   AND active = 0 AND archived_at IS NULL"""
+
+
+def _trimmed_environment_value(environ, key):
+    value = environ.get(key)
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def load_demo_route_policies(environ):
+    """Parse and validate the opt-in local simulated-payout route policies."""
+    route_catalog = {route[0]: route for route in ROUTES}
+    provider_catalog = {provider[0]: provider for provider in PROVIDERS}
+    simulation_enabled = (
+        _trimmed_environment_value(environ, "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED").lower() == "true"
+    )
+    policies = []
+    configured_routes = set()
+
+    for scenario, route_key, attempts_key in DEMO_ROUTE_POLICY_ENV:
+        route_code = _trimmed_environment_value(environ, route_key)
+        raw_attempts = environ.get(attempts_key)
+        if raw_attempts is None:
+            failure_attempts = 0
+        else:
+            try:
+                failure_attempts = int(str(raw_attempts).strip())
+            except ValueError as exception:
+                raise ValueError(f"{attempts_key} must be an integer") from exception
+        if failure_attempts < 0:
+            raise ValueError(f"{attempts_key} must not be negative")
+        if failure_attempts > 0 and not route_code:
+            raise ValueError(f"{attempts_key} requires {route_key}")
+        if not route_code:
+            continue
+        if not simulation_enabled:
+            raise ValueError(f"{route_key} requires FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true")
+        if route_code in configured_routes:
+            raise ValueError(f"demo failure route codes must be distinct: {route_code}")
+        configured_routes.add(route_code)
+
+        route = route_catalog.get(route_code)
+        if route is None:
+            raise ValueError(f"unknown demo route code: {route_code}")
+        provider_code = route[2]
+        provider = provider_catalog.get(provider_code)
+        if provider is None or route[3] != "EXTERNAL_ACCOUNT" or provider[2] != "BANK_NETWORK":
+            raise ValueError(f"demo route {route_code} must be an external-account route on a BANK_NETWORK provider")
+        if failure_attempts > 0:
+            policies.append(
+                DemoRoutePolicy(
+                    scenario=scenario,
+                    route_code=route_code,
+                    failure_attempts=failure_attempts,
+                    provider_code=provider_code,
+                )
+            )
+
+    return tuple(policies)
+
+
+def _activation_row(cursor, policy):
+    cursor.execute(DEMO_ROUTE_LOOKUP_SQL, route_code=policy.route_code)
+    row = cursor.fetchone()
+    if row is None:
+        raise RuntimeError(f"demo route {policy.route_code} is missing from the seeded catalogue")
+    try:
+        (
+            route_code,
+            provider_id,
+            destination_type,
+            route_active,
+            route_archived_at,
+            provider_code,
+            rail_type,
+            provider_active,
+            provider_archived_at,
+        ) = row
+    except (TypeError, ValueError) as exception:
+        raise RuntimeError(f"demo route {policy.route_code} returned an invalid catalogue row") from exception
+    if route_code != policy.route_code:
+        raise RuntimeError(f"demo route {policy.route_code} was rebound in the catalogue")
+    if route_archived_at is not None:
+        raise RuntimeError(f"demo route {policy.route_code} is archived")
+    if provider_archived_at is not None:
+        raise RuntimeError(f"demo provider {policy.provider_code} for {policy.route_code} is archived")
+    if provider_code != policy.provider_code:
+        raise RuntimeError(
+            f"demo route {policy.route_code} is bound to {provider_code}, expected {policy.provider_code}"
+        )
+    if destination_type != "EXTERNAL_ACCOUNT":
+        raise RuntimeError(f"demo route {policy.route_code} is not an external-account route")
+    if rail_type != "BANK_NETWORK":
+        raise RuntimeError(f"demo route {policy.route_code} is not on a BANK_NETWORK provider")
+    if provider_id is None:
+        raise RuntimeError(f"demo route {policy.route_code} has no provider binding")
+    return provider_id, route_active, provider_active
+
+
+def _is_inactive(value):
+    return value in (0, False) or (isinstance(value, str) and value.strip().lower() in ("0", "false"))
+
+
+def activate_demo_routes(cursor, policies):
+    """Validate every selected persisted row, then activate only inactive records."""
+    validated = []
+    providers = {}
+    for policy in policies:
+        provider_id, route_active, provider_active = _activation_row(cursor, policy)
+        validated.append((policy, provider_id, route_active))
+        providers.setdefault(policy.provider_code, provider_active)
+
+    for provider_code, provider_active in providers.items():
+        if _is_inactive(provider_active):
+            cursor.execute(DEMO_PROVIDER_ACTIVATION_SQL, provider_code=provider_code)
+
+    for policy, provider_id, route_active in validated:
+        if _is_inactive(route_active):
+            cursor.execute(
+                DEMO_ROUTE_ACTIVATION_SQL,
+                route_code=policy.route_code,
+                provider_id=provider_id,
+            )
+
+    return [
+        {
+            "scenario": policy.scenario,
+            "routeCode": policy.route_code,
+            "failureAttempts": policy.failure_attempts,
+            "providerCode": policy.provider_code,
+        }
+        for policy, _, _ in validated
+    ]
+
+
 def request_json(base_url, path, body):
     request = urllib.request.Request(
         base_url.rstrip("/") + path,
@@ -293,6 +470,8 @@ def provision_local_database(identities):
     dsn = require_local_oracle(jdbc_url)
     if username.upper() != "FLUXPAY":
         raise ValueError("local provisioning is restricted to the FLUXPAY application schema")
+
+    policies = load_demo_route_policies(os.environ)
 
     try:
         import oracledb
@@ -398,6 +577,8 @@ def provision_local_database(identities):
                     system_protected=system_protected,
                 )
 
+            demo_routes = activate_demo_routes(cursor, policies)
+
             cursor.execute(
                 "SELECT COUNT(*) FROM wallets WHERE user_id = :user_id AND account_role <> 'CUSTOMER'",
                 user_id=system_id,
@@ -415,6 +596,7 @@ def provision_local_database(identities):
         "providers": provider_count,
         "routes": route_count,
         "systemUserId": str(uuid.UUID(identities["system"]["id"])),
+        "demoRoutes": demo_routes,
     }
 
 
@@ -447,6 +629,15 @@ def main():
         f"providers={result['providers']} routes={result['routes']}"
     )
     print(f"system-user-id={result['systemUserId']} (set FLUXPAY_SYSTEM_USER_ID before backend restart)")
+    demo_routes = result.get("demoRoutes", [])
+    if demo_routes:
+        for demo_route in demo_routes:
+            print(
+                f"demo-route={demo_route['scenario']} route={demo_route['routeCode']} "
+                f"failure-attempts={demo_route['failureAttempts']} provider={demo_route['providerCode']}"
+            )
+    else:
+        print("demo-routes=none active-flags-unchanged")
     return 0
 
 

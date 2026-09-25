@@ -1,10 +1,12 @@
 package com.fluxpay.development;
 
 import com.fluxpay.common.contracts.TransferRail;
+import com.fluxpay.config.DevelopmentPayoutSimulationProperties;
 import com.fluxpay.domain.DestinationType;
 import com.fluxpay.domain.RailType;
 import com.fluxpay.dto.TransferRailCommand;
 import com.fluxpay.dto.TransferRailResult;
+import com.fluxpay.repository.PayoutAttemptRepository;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -30,13 +32,30 @@ public class SimulatedBankNetworkRail implements TransferRail {
   private final java.util.concurrent.ConcurrentHashMap<String, TransferRailResult> outcomes =
       new java.util.concurrent.ConcurrentHashMap<>();
 
+  private final DevelopmentPayoutSimulationProperties properties;
+  private final PayoutAttemptRepository attempts;
   private final Supplier<String> failureProbe;
   private final java.util.concurrent.ConcurrentHashMap<
           java.util.UUID, java.util.concurrent.atomic.AtomicInteger>
       failureCounts = new java.util.concurrent.ConcurrentHashMap<>();
 
-  public SimulatedBankNetworkRail(Supplier<String> failureProbe) {
+  @org.springframework.beans.factory.annotation.Autowired
+  public SimulatedBankNetworkRail(
+      DevelopmentPayoutSimulationProperties properties, PayoutAttemptRepository attempts) {
+    this(properties, attempts, () -> System.getenv("SIMULATE_FAILURE"));
+  }
+
+  public SimulatedBankNetworkRail(
+      DevelopmentPayoutSimulationProperties properties,
+      PayoutAttemptRepository attempts,
+      Supplier<String> failureProbe) {
+    this.properties = properties;
+    this.attempts = attempts;
     this.failureProbe = Objects.requireNonNull(failureProbe, "failureProbe must not be null");
+  }
+
+  public SimulatedBankNetworkRail(Supplier<String> failureProbe) {
+    this(null, null, failureProbe);
   }
 
   public SimulatedBankNetworkRail() {
@@ -60,6 +79,25 @@ public class SimulatedBankNetworkRail implements TransferRail {
   }
 
   private TransferRailResult deliver(TransferRailCommand command) {
+    if (properties != null) {
+      var policy = properties.failurePolicyFor(command.route().code());
+      if (policy.isPresent()) {
+        long attemptCount =
+            attempts.countByPaymentIdAndRouteId(
+                command.transferId().toString(), command.route().id());
+        if (attemptCount <= policy.get().failureAttempts()) {
+          return TransferRailResult.failed(
+              "SIMULATED_PROVIDER_FAILURE",
+              "Simulated definitive failure for " + command.route().code(),
+              command.customerFee());
+        }
+        return TransferRailResult.completed("BANK-" + command.attemptId(), command.customerFee());
+      }
+    }
+    return legacyDelivery(command);
+  }
+
+  private TransferRailResult legacyDelivery(TransferRailCommand command) {
     String probe = failureProbe.get();
     if (probe == null) {
       return TransferRailResult.completed("BANK-" + command.attemptId(), command.customerFee());

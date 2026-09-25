@@ -1,6 +1,7 @@
 package com.fluxpay.repository;
 
 import com.fluxpay.beans.LedgerEntry;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +16,8 @@ public interface LedgerEntryRepository extends Repository<LedgerEntry, UUID> {
   Optional<LedgerEntry> findByIdempotencyKey(String idempotencyKey);
 
   List<LedgerEntry> findByJournalReference(String journalReference);
+
+  List<LedgerEntry> findByJournalReferenceInOrderByCreatedAtAscIdAsc(Collection<String> references);
 
   Page<LedgerEntry> findByWalletIdOrderByCreatedAtDescIdDesc(UUID walletId, Pageable pageable);
 }

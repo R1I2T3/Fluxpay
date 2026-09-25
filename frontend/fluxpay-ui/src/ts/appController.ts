@@ -36,7 +36,7 @@ class RootViewModel {
   ];
   adminNavGroups=[
     {label:'Overview',items:[{path:'admin',label:'Overview',icon:'fa-gauge-high'}]},
-    {label:'Operations',items:[{path:'admin-kyc',label:'KYC Reviews',icon:'fa-id-card'},{path:'admin-compliance',label:'Compliance Cases',icon:'fa-shield-halved'},{path:'admin-tickets',label:'Support Tickets',icon:'fa-headset'}]},
+    {label:'Operations',items:[{path:'admin-kyc',label:'KYC Reviews',icon:'fa-id-card'},{path:'admin-compliance',label:'Compliance Cases',icon:'fa-shield-halved'},{path:'admin-tickets',label:'Support Tickets',icon:'fa-headset'},{path:'admin-payment-operations',label:'Payment Operations',icon:'fa-wave-square'}]},
     {label:'Money Movement',items:[{path:'admin-providers',label:'Providers',icon:'fa-building-columns'},{path:'admin-routes',label:'Payout Routes',icon:'fa-route'}]},
     {label:'Policy & AI',items:[{path:'admin-policies',label:'Policy Library',icon:'fa-book'},{path:'admin-copilot',label:'Compliance Copilot',icon:'fa-robot'}]}
   ];
