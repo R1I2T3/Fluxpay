@@ -349,7 +349,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("test-all")
         observed_settings = []
 
-        def run(command, cwd):
+        def run(command, cwd, env=None, check=False):
             observed_settings.append(
                 (
                     command,
@@ -357,6 +357,7 @@ class ScriptCommandTests(unittest.TestCase):
                     script.os.environ.get("ORACLE_TESTS_ACTIVE"),
                     script.os.environ.get("ORACLE_TEST_JDBC_URL"),
                     script.os.environ.get("ORACLE_TEST_USERNAME"),
+                    env,
                 )
             )
             return CompletedProcess()
@@ -368,13 +369,22 @@ class ScriptCommandTests(unittest.TestCase):
                 "ORACLE_TESTS_ACTIVE=true\n"
                 "ORACLE_TEST_JDBC_URL=jdbc:oracle:thin:@//db.test:1521/FREEPDB1\n"
                 "ORACLE_TEST_USERNAME=FLUXPAY_TEST\n"
-                "ORACLE_TEST_PASSWORD=test-secret\n",
+                "ORACLE_TEST_PASSWORD=test-secret\n"
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true\n"
+                "FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true\n"
+                "JWT_SECRET=demo-only-secret\n"
+                "SERVER_PORT=8083\n",
                 encoding="utf-8",
             )
             with (
                 mock.patch.dict(
                     script.os.environ,
-                    {"COMSPEC": os.environ.get("COMSPEC", "cmd.exe")},
+                    {
+                        "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
+                        "PATH": "tool-path",
+                        "MAVEN_USER_HOME": "test-maven-home",
+                        "MAVEN_OPTS": "-Duser.home=test-user",
+                    },
                     clear=True,
                 ),
                 mock.patch.object(
@@ -388,7 +398,7 @@ class ScriptCommandTests(unittest.TestCase):
 
         self.assertEqual(len(observed_settings), 1)
         self.assertEqual(
-            observed_settings[0][1:],
+            observed_settings[0][1:5],
             (
                 "kafka.test:9092",
                 "true",
@@ -398,6 +408,23 @@ class ScriptCommandTests(unittest.TestCase):
         )
         self.assertIn("-Pintegration", observed_settings[0][0])
         self.assertEqual(observed_settings[0][0][-1], "verify")
+        child_env = observed_settings[0][5]
+        self.assertIsNotNone(child_env)
+        self.assertEqual(child_env["PATH"], "tool-path")
+        self.assertEqual(child_env["MAVEN_USER_HOME"], "test-maven-home")
+        self.assertEqual(child_env["MAVEN_OPTS"], "-Duser.home=test-user")
+        self.assertEqual(child_env["ORACLE_TESTS_ACTIVE"], "true")
+        self.assertEqual(child_env["KAFKA_BOOTSTRAP_SERVERS"], "kafka.test:9092")
+        self.assertEqual(child_env["ORACLE_TEST_JDBC_URL"], "jdbc:oracle:thin:@//db.test:1521/FREEPDB1")
+        self.assertEqual(child_env["ORACLE_TEST_USERNAME"], "FLUXPAY_TEST")
+        self.assertEqual(child_env["ORACLE_TEST_PASSWORD"], "test-secret")
+        for name in (
+            "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED",
+            "FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED",
+            "JWT_SECRET",
+            "SERVER_PORT",
+        ):
+            self.assertNotIn(name, child_env)
 
     def test_test_all_fails_when_requested_integration_credentials_are_incomplete(self):
         script = load_script("test-all")
@@ -448,7 +475,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("test-all")
         observed_settings = []
 
-        def run(command, cwd):
+        def run(command, cwd, env=None, check=False):
             observed_settings.append(
                 (
                     script.os.environ.get("MAVEN_USER_HOME"),
