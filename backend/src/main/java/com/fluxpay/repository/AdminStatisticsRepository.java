@@ -103,6 +103,41 @@ public class AdminStatisticsRepository {
                 LocalDate.parse(rs.getString("created_day")), rs.getLong("registrations")));
   }
 
+  public List<ProviderAggregate> providers(AdminStatisticsQuery query) {
+    String sql =
+        "SELECT v.id AS provider_id, v.provider_code, v.provider_name, "
+            + "COUNT(*) AS total_attempts, "
+            + "SUM(CASE WHEN a.status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_attempts, "
+            + "SUM(CASE WHEN a.status = 'FAILED' THEN 1 ELSE 0 END) AS failed_attempts, "
+            + "SUM(CASE WHEN a.status IN ('INITIATED', 'PROCESSING') THEN 1 ELSE 0 END) "
+            + "AS in_progress_attempts "
+            + "FROM payments p "
+            + "JOIN payout_attempts a ON REPLACE(UPPER(TRIM(a.payment_id)), '-', '') = RAWTOHEX(p.id) "
+            + "JOIN transfer_routes r ON r.id = a.transfer_route_id "
+            + "JOIN transfer_providers v ON v.id = r.provider_id "
+            + "WHERE p.created_at >= ? AND p.created_at < ? AND p.currency = ? "
+            + "AND a.initiated_at < ? "
+            + "GROUP BY v.id, v.provider_code, v.provider_name "
+            + "ORDER BY total_attempts DESC, v.provider_code";
+    return jdbc.query(
+        sql,
+        statement -> {
+          bindTimestamp(statement, 1, query.fromInclusive());
+          bindTimestamp(statement, 2, query.toExclusive());
+          statement.setString(3, query.currency());
+          statement.setObject(4, query.generatedAt().atOffset(ZoneOffset.UTC));
+        },
+        (rs, row) ->
+            new ProviderAggregate(
+                uuid(rs.getBytes("provider_id")),
+                rs.getString("provider_code"),
+                rs.getString("provider_name"),
+                rs.getLong("total_attempts"),
+                rs.getLong("completed_attempts"),
+                rs.getLong("failed_attempts"),
+                rs.getLong("in_progress_attempts")));
+  }
+
   public AdminStatisticsResponse.Workload workload(Instant cutoff) {
     Instant agedCutoff = cutoff.minusSeconds(24 * 60 * 60L);
     long[] kyc =
@@ -180,4 +215,18 @@ public class AdminStatisticsRepository {
       LocalDate date, PaymentStatus status, long count, BigDecimal completedAmount) {}
 
   public record CustomerBucket(LocalDate date, long count) {}
+
+  public record ProviderAggregate(
+      java.util.UUID providerId,
+      String providerCode,
+      String providerName,
+      long totalAttempts,
+      long completedAttempts,
+      long failedAttempts,
+      long inProgressAttempts) {}
+
+  private static java.util.UUID uuid(byte[] bytes) {
+    java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(bytes);
+    return new java.util.UUID(buffer.getLong(), buffer.getLong());
+  }
 }

@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fluxpay.beans.User;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.AdminStatisticsQuery;
+import com.fluxpay.dto.ProviderRow;
+import com.fluxpay.service.ReportQueryService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -28,7 +30,7 @@ import org.springframework.test.context.ActiveProfiles;
     properties = {"spring.flyway.enabled=false", "spring.jpa.hibernate.ddl-auto=validate"})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("oracle-it")
-@Import(AdminStatisticsRepository.class)
+@Import({AdminStatisticsRepository.class, ReportQueryService.class})
 class AdminStatisticsRepositoryIT {
   private static final Instant CUTOFF = Instant.parse("2026-09-25T12:00:00Z");
   private static final Instant INSIDE = Instant.parse("2026-09-10T08:00:00Z");
@@ -47,6 +49,7 @@ class AdminStatisticsRepositoryIT {
   @Autowired AdminStatisticsRepository repository;
   @Autowired JdbcTemplate jdbc;
   @Autowired EntityManager entityManager;
+  @Autowired ReportQueryService legacyReports;
 
   private AdminStatisticsFixture fixture;
 
@@ -190,6 +193,119 @@ class AdminStatisticsRepositoryIT {
     assertThat(after.complianceOver24h()).isEqualTo(before.complianceOver24h() + 1);
     assertThat(after.ticketsOpen()).isEqualTo(before.ticketsOpen() + 2);
     assertThat(after.ticketsOver24h()).isEqualTo(before.ticketsOver24h() + 1);
+  }
+
+  @Test
+  void groupsProviderAttemptsByPaymentCreationCohortAndAttemptCutoff() {
+    var paymentBucketsBefore = repository.paymentBuckets(INR_QUERY);
+    var amountsBefore =
+        paymentBucketsBefore.stream()
+            .map(AdminStatisticsRepository.PaymentBucket::completedAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    var countsBefore = count(paymentBucketsBefore, PaymentStatus.COMPLETED);
+
+    UUID providerId = fixture.provider("STAT", true, "Archived statistics provider");
+    UUID routeId = fixture.route(providerId);
+    UUID paymentId = fixture.payment("INR", "25.00", PaymentStatus.COMPLETED, INSIDE);
+    Instant afterPaymentRange = PAYMENT_TO.plusSeconds(1);
+    fixture.attempt(paymentId, routeId, 1, "FAILED", INSIDE.plusSeconds(60));
+    fixture.attempt(paymentId, routeId, 2, "COMPLETED", afterPaymentRange);
+
+    var paymentBucketsAfterTarget = repository.paymentBuckets(INR_QUERY);
+    assertThat(count(paymentBucketsAfterTarget, PaymentStatus.COMPLETED) - countsBefore)
+        .isEqualTo(1);
+    assertThat(
+            paymentBucketsAfterTarget.stream()
+                .map(AdminStatisticsRepository.PaymentBucket::completedAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add))
+        .isEqualByComparingTo(amountsBefore.add(new BigDecimal("25.00")));
+
+    UUID processingProvider = fixture.provider("PROC", true, "Processing statistics provider");
+    UUID processingRoute = fixture.route(processingProvider);
+    UUID processingPayment =
+        fixture.payment("INR", "3.00", PaymentStatus.COMPLETED, INSIDE.plusSeconds(1));
+    fixture.attempt(processingPayment, processingRoute, 1, "PROCESSING", INSIDE.plusSeconds(2));
+
+    UUID usdProvider = fixture.provider("USD", true, "USD statistics provider");
+    UUID usdRoute = fixture.route(usdProvider);
+    UUID usdPayment = fixture.payment("USD", "7.00", PaymentStatus.COMPLETED, INSIDE);
+    fixture.attempt(usdPayment, usdRoute, 1, "COMPLETED", INSIDE.plusSeconds(2));
+    fixture.standaloneAttempt("P-NON-UUID", routeId, INSIDE.plusSeconds(120));
+
+    var row =
+        repository.providers(INR_QUERY).stream()
+            .filter(item -> item.providerId().equals(providerId))
+            .findFirst()
+            .orElseThrow();
+    assertThat(row.providerCode()).contains("STAT_");
+    assertThat(row.providerName()).isEqualTo("Archived statistics provider");
+    assertThat(row.totalAttempts()).isEqualTo(2);
+    assertThat(row.completedAttempts()).isEqualTo(1);
+    assertThat(row.failedAttempts()).isEqualTo(1);
+    assertThat(row.inProgressAttempts()).isZero();
+
+    var processing =
+        repository.providers(INR_QUERY).stream()
+            .filter(item -> item.providerId().equals(processingProvider))
+            .findFirst()
+            .orElseThrow();
+    assertThat(processing.totalAttempts()).isEqualTo(1);
+    assertThat(processing.inProgressAttempts()).isEqualTo(1);
+    assertThat(repository.providers(INR_QUERY))
+        .noneMatch(item -> item.providerId().equals(usdProvider));
+  }
+
+  @Test
+  void keepsSameNamedProvidersSeparateInNewApiAndGroupsThemInLegacyApi() {
+    String sharedName = "Same name " + UUID.randomUUID();
+    UUID firstProvider = fixture.provider("SAME_A", false, sharedName);
+    UUID secondProvider = fixture.provider("SAME_B", false, sharedName);
+    UUID firstRoute = fixture.route(firstProvider);
+    UUID secondRoute = fixture.route(secondProvider);
+    UUID payment = fixture.payment("INR", "1.00", PaymentStatus.COMPLETED, INSIDE);
+    fixture.attempt(payment, firstRoute, 1, "FAILED", INSIDE.plusSeconds(10));
+    fixture.attempt(payment, secondRoute, 2, "COMPLETED", INSIDE.plusSeconds(20));
+
+    var providerRows =
+        repository.providers(INR_QUERY).stream()
+            .filter(row -> row.providerName().equals(sharedName))
+            .toList();
+    assertThat(providerRows).hasSize(2);
+    assertThat(providerRows)
+        .extracting(AdminStatisticsRepository.ProviderAggregate::providerId)
+        .containsExactlyInAnyOrder(firstProvider, secondProvider);
+
+    Instant legacyFrom = INSIDE;
+    Instant legacyTo = INSIDE.plusSeconds(15);
+    List<ProviderRow> legacyRows = legacyReports.providerSummary(legacyFrom, legacyTo);
+    assertThat(legacyRows.stream().filter(row -> row.providerName().equals(sharedName)))
+        .containsExactly(new ProviderRow(sharedName, 1, 0, 1));
+  }
+
+  @Test
+  void legacyProviderReportReturnsEmptyProvidersAndHonorsAttemptTimeBounds() {
+    UUID providerId =
+        fixture.provider("EMPTY", false, "Provider with no routes " + UUID.randomUUID());
+    String legacyProviderName = "Legacy interval " + UUID.randomUUID();
+    String providerName =
+        jdbc.queryForObject(
+            "SELECT provider_name FROM transfer_providers WHERE id = HEXTORAW(?)",
+            String.class,
+            providerId.toString().replace("-", ""));
+    UUID withAttempts = fixture.provider("LEGACY", false, legacyProviderName);
+    UUID routeId = fixture.route(withAttempts);
+    UUID paymentId = fixture.payment("INR", "1.00", PaymentStatus.COMPLETED, INSIDE);
+    fixture.attempt(paymentId, routeId, 1, "FAILED", INSIDE.plusSeconds(10));
+    fixture.attempt(paymentId, routeId, 2, "COMPLETED", INSIDE.plusSeconds(20));
+
+    Instant from = INSIDE;
+    Instant to = INSIDE.plusSeconds(15);
+    List<ProviderRow> rows = legacyReports.providerSummary(from, to);
+    assertThat(rows).contains(new ProviderRow(providerName, 0, 0, 0));
+    assertThat(rows).contains(new ProviderRow(legacyProviderName, 1, 0, 1));
+    assertThat(rows.stream().filter(row -> row.providerName().equals(legacyProviderName)))
+        .singleElement()
+        .satisfies(row -> assertThat(row.totalAttempts()).isEqualTo(1));
   }
 
   private List<AdminStatisticsRepository.CustomerBucket>

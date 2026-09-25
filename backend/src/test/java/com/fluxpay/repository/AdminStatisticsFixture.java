@@ -74,6 +74,10 @@ class AdminStatisticsFixture {
   }
 
   UUID provider(String code, boolean archived) {
+    return provider(code, archived, "Statistics provider");
+  }
+
+  UUID provider(String code, boolean archived, String name) {
     String suffix = UUID.randomUUID().toString().replace("-", "").toUpperCase();
     UUID id = UUID.randomUUID();
     Instant now = Instant.parse("2026-09-01T00:00:00Z");
@@ -82,7 +86,7 @@ class AdminStatisticsFixture {
             + "VALUES (?,?,?,'BANK_NETWORK',?,0,0,?,?,?)",
         raw(id),
         code + "_" + suffix,
-        "Statistics provider",
+        name,
         archived ? 0 : 1,
         OffsetDateTime.ofInstant(now, java.time.ZoneOffset.UTC),
         OffsetDateTime.ofInstant(now, java.time.ZoneOffset.UTC),
