@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -34,6 +35,7 @@ class OracleAuthKycApiIntegrationTest {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
   @Autowired private UserRepository users;
+  @Autowired private JdbcTemplate jdbc;
   @Autowired private KycCaseRepository kycCases;
   @Autowired private KycDocumentRepository kycDocuments;
   @Autowired private com.fluxpay.service.KycDocumentStorage documentStorage;
@@ -53,6 +55,8 @@ class OracleAuthKycApiIntegrationTest {
       kycCases.flush();
     }
     if (userId != null) {
+      jdbc.update(
+          "DELETE FROM wallets WHERE user_id=HEXTORAW(?)", userId.toString().replace("-", ""));
       users.deleteById(userId);
       users.flush();
     }

@@ -236,7 +236,7 @@ class FreshBaselineOracleTest {
   }
 
   @Test
-  void quotePersistenceEnforcesRealRouteCodeReference() throws Exception {
+  void quotePersistenceEnforcesRealRouteReference() throws Exception {
     migrateIsolatedSchema();
     JdbcTemplate jdbc = new JdbcTemplate(new SingleConnectionDataSource(connect(), false));
     String user = UUID.randomUUID().toString().replace("-", "");
@@ -244,8 +244,11 @@ class FreshBaselineOracleTest {
     String wallet = UUID.randomUUID().toString().replace("-", "");
     String recipient = UUID.randomUUID().toString().replace("-", "");
     String provider = UUID.randomUUID().toString().replace("-", "");
+    String providerCode =
+        "QP_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
     String route = UUID.randomUUID().toString().replace("-", "");
-    String routeCode = "RT_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    String routeCode =
+        "RT_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
     jdbc.update(
         "INSERT INTO users(id,email,password_hash,full_name) VALUES (HEXTORAW(?),"
             + "?,'!ORACLE_TEST_NO_LOGIN!','Quote fixture')",
@@ -269,9 +272,10 @@ class FreshBaselineOracleTest {
         recipient);
     jdbc.update(
         "INSERT INTO transfer_providers(id,provider_code,provider_name,rail_type,active,"
-            + "system_protected,created_at,updated_at) VALUES (HEXTORAW(?),'QUOTE_PROVIDER',"
+            + "system_protected,created_at,updated_at) VALUES (HEXTORAW(?),?,"
             + "'Provider','BANK_NETWORK',1,0,SYSTIMESTAMP,SYSTIMESTAMP)",
-        provider);
+        provider,
+        providerCode);
     jdbc.update(
         "INSERT INTO transfer_routes(id,provider_id,route_code,route_name,destination_type,"
             + "destination_country,payout_currency,base_fee,fx_spread_percentage,estimated_minutes,"
@@ -282,24 +286,31 @@ class FreshBaselineOracleTest {
         provider,
         routeCode);
     jdbc.update(
-        "INSERT INTO payment_quotes(id,payment_id,generation,route,market_rate,spread_percent,"
-            + "offered_rate,fee_amount,recipient_amount,estimated_minutes,recommended,"
-            + "policy_version,created_at,expires_at) VALUES (HEXTORAW(?),HEXTORAW(?),1,?,83.5,0.5,"
-            + "83.1,0.5,8308,240,1,'source-fee-v1',SYSTIMESTAMP,SYSTIMESTAMP)",
+        "INSERT INTO payment_quotes(id,payment_id,generation,route_id,route_code,provider_id,"
+            + "market_rate,spread_percent,offered_rate,fee_amount,recipient_amount,"
+            + "estimated_minutes,effective_reliability,ranking_score,ranking_position,"
+            + "recommended,policy_version,created_at,expires_at) VALUES (HEXTORAW(?),"
+            + "HEXTORAW(?),1,HEXTORAW(?),?,HEXTORAW(?),83.5,0.5,83.1,0.5,8308,240,99,1,1,1,"
+            + "'source-fee-v1',SYSTIMESTAMP,SYSTIMESTAMP)",
         UUID.randomUUID().toString().replace("-", ""),
         payment,
-        routeCode);
+        route,
+        routeCode,
+        provider);
     assertThrows(
         DataIntegrityViolationException.class,
         () ->
             jdbc.update(
-                "INSERT INTO payment_quotes(id,payment_id,generation,route,market_rate,"
-                    + "spread_percent,offered_rate,fee_amount,recipient_amount,estimated_minutes,"
-                    + "recommended,policy_version,created_at,expires_at) VALUES (HEXTORAW(?),"
-                    + "HEXTORAW(?),1,'MISSING_ROUTE',83.5,0.5,83.1,0.5,8308,240,1,"
-                    + "'source-fee-v1',SYSTIMESTAMP,SYSTIMESTAMP)",
+                "INSERT INTO payment_quotes(id,payment_id,generation,route_id,route_code,"
+                    + "provider_id,market_rate,spread_percent,offered_rate,fee_amount,"
+                    + "recipient_amount,estimated_minutes,effective_reliability,ranking_score,"
+                    + "ranking_position,recommended,policy_version,created_at,expires_at) VALUES "
+                    + "(HEXTORAW(?),HEXTORAW(?),1,HEXTORAW(?),'MISSING_ROUTE',HEXTORAW(?),83.5,"
+                    + "0.5,83.1,0.5,8308,240,99,1,1,1,'source-fee-v1',SYSTIMESTAMP,SYSTIMESTAMP)",
                 UUID.randomUUID().toString().replace("-", ""),
-                payment));
+                payment,
+                UUID.randomUUID().toString().replace("-", ""),
+                provider));
   }
 
   @Test
