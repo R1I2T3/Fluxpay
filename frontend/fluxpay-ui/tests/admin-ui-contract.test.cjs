@@ -93,7 +93,7 @@ test('KYC and compliance keep scrollable evidence beside stationary decision con
     assert.match(html, /class="[^"]*admin-modal-info-pane[^"]*"/, route + ' information pane');
     assert.match(html, /class="[^"]*admin-modal-action-pane[^"]*"/, route + ' action pane');
   }
-  assert.match(css, /\.admin-modal-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.65fr\)\s+minmax\(280px,\s*\.85fr\)[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.admin-modal-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.65fr\)\s+minmax\(280px,\s*0?\.85fr\)[^}]*overflow:\s*hidden/s);
   assert.match(css, /\.admin-modal-info-pane\s*\{[^}]*overflow-y:\s*auto/s);
   assert.match(css, /\.admin-modal-action-pane\s*\{[^}]*border-left:[^}]*overflow-y:\s*auto/s);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*\.admin-modal-workspace\s*\{[^}]*grid-template-columns:\s*1fr/s);
@@ -140,7 +140,7 @@ test('short admin workflows stay compact instead of stretching across the viewpo
   const css = read('css/admin-console.css');
   assert.match(css, /\.compliance-review-queue\s*\{[^}]*max-width:\s*860px[^}]*margin:\s*0 auto/s);
   assert.match(css, /\.compliance-review-queue\s*>\s*label\s*\{[^}]*max-width:\s*360px/s);
-  assert.match(css, /\.compliance-review-queue\s+:is\(\.review-list-heading,\s*\.review-list-row\)\s*\{[^}]*grid-template-columns:\s*minmax\(90px,\s*\.45fr\) minmax\(220px,\s*1\.5fr\) minmax\(100px,\s*\.55fr\) 24px/s);
+  assert.match(css, /\.compliance-review-queue\s+:is\(\.review-list-heading,\s*\.review-list-row\)\s*\{[^}]*grid-template-columns:\s*minmax\(90px,\s*0?\.45fr\) minmax\(220px,\s*1\.5fr\) minmax\(100px,\s*0?\.55fr\) 24px/s);
   assert.match(css, /\.provider-editor-modal\s*\{[^}]*width:\s*min\(760px,\s*calc\(100vw - 40px\)\)/s);
   assert.match(css, /\.provider-editor-body\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(css, /\.route-editor-modal\s*\{[^}]*width:\s*min\(900px,\s*calc\(100vw - 40px\)\)/s);
