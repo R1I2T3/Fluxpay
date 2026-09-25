@@ -18,6 +18,8 @@ test('loads options before one initial summary and parameter-only navigation rel
   });
   f.vm.parametersChanged({ from: '2026-08-27', to: '2026-09-25', currency: 'INR' });
   assert.equal(f.calls.filter((call) => call.type === 'summary').length, 1);
+  f.vm.applyFilters();
+  assert.equal(f.calls.filter((call) => call.type === 'summary').length, 1);
   f.vm.from('2026-09-01');
   f.vm.applyFilters();
   await f.vm.ready;
@@ -131,7 +133,9 @@ test('summary failures are reported independently from options and list state', 
 test('applying unchanged filters retries a failed summary request', async () => {
   let shouldFail = true;
   let attempts = 0;
+  const route = { from: '2026-09-01', to: '2026-09-25', currency: 'INR' };
   const f = makePage({
+    params: route,
     summary: async (query) => {
       attempts++;
       if (shouldFail) throw new Error('Summary offline');
@@ -141,12 +145,16 @@ test('applying unchanged filters retries a failed summary request', async () => 
   await f.settle();
   await f.vm.ready;
   assert.equal(f.vm.error(), 'Summary offline');
+  f.navigate('admin-statistics', route);
+  assert.equal(f.parameterUpdates, 0);
   shouldFail = false;
+  const navigationsBeforeRetry = f.navigateCalls.length;
   f.vm.applyFilters();
   await f.vm.ready;
   assert.equal(attempts, 2);
   assert.equal(f.vm.error(), '');
   assert.ok(f.vm.snapshot());
+  assert.equal(f.navigateCalls.length, navigationsBeforeRetry);
 });
 
 test('options loading finishes independently while the initial summary remains pending', async () => {
@@ -319,13 +327,40 @@ test('template renders accessible summary sections with safe text bindings and n
   assert.match(html, /text:\$root\.paymentCountTicks\(\)\[0\]/);
   assert.match(html, /text:\$root\.paymentAmountTicks\(\)\[0\]/);
   assert.match(html, /text:\$root\.customerRegistrationTicks\(\)\[0\]/);
+  assert.match(html, /d="M32 8H568M32 85H568M32 162H568"/);
+  assert.equal((html.match(/transform="translate\(24 0\)"/g) || []).length, 3);
+  assert.match(html, /text:\$root\.snapshot\(\)\.meta\.from/);
+  assert.match(html, /text:\$root\.snapshot\(\)\.meta\.to/);
+  assert.doesNotMatch(html, /text:\$root\.from\(\)|text:\$root\.to\(\)/);
   assert.equal(
     f.calls.some((call) => call.type === 'payments'),
     false,
   );
 });
 
+test('chart date ticks bind to the displayed snapshot rather than unsubmitted controls', () => {
+  const html = fs.readFileSync(
+    path.join(__dirname, '../src/ts/views/admin-statistics.html'),
+    'utf8',
+  );
+  assert.equal((html.match(/text:\$root\.snapshot\(\)\.meta\.from/g) || []).length, 3);
+  assert.equal((html.match(/text:\$root\.snapshot\(\)\.meta\.to/g) || []).length, 3);
+  assert.doesNotMatch(html, /text:\$root\.from\(\)|text:\$root\.to\(\)/);
+});
+
 test('rates retain the backend two-decimal precision', () => {
   const f = makePage();
   assert.equal(f.vm.formatRate(12.34, 'No outcomes'), '12.34%');
+});
+
+test('chart tick values use the same minimum scale as their paths', async () => {
+  const f = makePage();
+  await f.settle();
+  const snapshot = f.vm.snapshot();
+  snapshot.paymentTrend = [{ date: '2026-09-25', paymentCount: 1, completedAmount: '0.50' }];
+  f.vm.snapshot(snapshot);
+  assert.deepEqual(Array.from(f.vm.paymentCountTicks()), ['1', '0.5', '0']);
+  assert.deepEqual(Array.from(f.vm.paymentAmountTicks()), ['1.00', '0.50', '0.00']);
+  assert.match(f.vm.paymentAmountPath(), /^M8\.00,85\.00$/);
+  assert.equal(new Set(f.vm.paymentCountTicks()).size, 3);
 });

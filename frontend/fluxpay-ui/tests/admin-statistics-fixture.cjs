@@ -78,7 +78,12 @@ function summary(query) {
   };
 }
 
-function makePage({ summary: summaryOverride, options: optionsOverride, role = 'ADMIN' } = {}) {
+function makePage({
+  summary: summaryOverride,
+  options: optionsOverride,
+  role = 'ADMIN',
+  params: initialParams = {},
+} = {}) {
   const user = ko.observable(role ? { id: role.toLowerCase() + '-1', role } : null);
   const session = {
     user,
@@ -113,9 +118,23 @@ function makePage({ summary: summaryOverride, options: optionsOverride, role = '
   };
   let vm;
   const navigateCalls = [];
+  let parameterUpdates = 0;
+  let currentRouteParams = { ...initialParams };
+  const normalizedParams = (params) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Object.keys(params)
+          .sort()
+          .map((key) => [key, params[key]]),
+      ),
+    );
   const navigate = (path, params = {}) => {
     navigateCalls.push({ path, params: { ...params } });
-    if (path === 'admin-statistics') vm.parametersChanged(params);
+    if (
+      path === 'admin-statistics' &&
+      normalizedParams(params) !== normalizedParams(currentRouteParams)
+    )
+      vm.parametersChanged(params);
   };
   const Page = load(
     'ts/viewModels/admin-statistics.ts',
@@ -127,13 +146,23 @@ function makePage({ summary: summaryOverride, options: optionsOverride, role = '
     },
     { Date, Intl, URLSearchParams },
   );
-  vm = new Page({ params: {} });
+  vm = new Page({ params: initialParams });
+  const parametersChanged = vm.parametersChanged.bind(vm);
+  vm.parametersChanged = (params) => {
+    parameterUpdates++;
+    currentRouteParams = { ...params };
+    parametersChanged(params);
+  };
   return {
     vm,
     api,
     session,
     calls,
     navigateCalls,
+    navigate,
+    get parameterUpdates() {
+      return parameterUpdates;
+    },
     settle: async () => new Promise((resolve) => setImmediate(resolve)),
   };
 }

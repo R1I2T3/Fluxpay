@@ -227,6 +227,20 @@ class AdminStatisticsViewModel {
   applyFilters(): void {
     if (!session.isAdmin() || !this.options()) return;
     const current = this.state();
+    if (
+      current &&
+      this.from() === current.from &&
+      this.to() === current.to &&
+      this.currency() === current.currency
+    ) {
+      if (this.error() || (!this.snapshot() && !this.busy())) {
+        this.ready = this.loadSummary(
+          { from: current.from, to: current.to, currency: current.currency },
+          false,
+        );
+      }
+      return;
+    }
     const next: StatisticsRouteState = {
       from: this.from(),
       to: this.to(),
@@ -272,7 +286,7 @@ class AdminStatisticsViewModel {
   paymentCountPath(): string {
     return reportChartPath(
       (this.snapshot()?.paymentTrend || []).map((day) => day.paymentCount),
-      600,
+      552,
       170,
     );
   }
@@ -280,7 +294,7 @@ class AdminStatisticsViewModel {
   paymentAmountPath(): string {
     return reportChartPath(
       (this.snapshot()?.paymentTrend || []).map((day) => Number(day.completedAmount)),
-      600,
+      552,
       170,
     );
   }
@@ -288,15 +302,22 @@ class AdminStatisticsViewModel {
   customerRegistrationPath(): string {
     return reportChartPath(
       (this.snapshot()?.customerTrend || []).map((day) => day.registrations),
-      600,
+      552,
       170,
     );
   }
 
   private chartTicks(values: number[], precision = 0): string[] {
-    const maximum = Math.max(0, ...values.map((value) => (Number.isFinite(value) ? value : 0)));
+    const maximum = Math.max(
+      1,
+      ...values.map((value) => (Number.isFinite(value) ? Math.max(0, value) : 0)),
+    );
     return [maximum, maximum / 2, 0].map((value) =>
-      precision ? value.toFixed(precision) : String(Math.round(value)),
+      precision
+        ? value.toFixed(precision)
+        : Number.isInteger(value)
+          ? String(value)
+          : value.toFixed(1),
     );
   }
 

@@ -172,7 +172,7 @@
           table.
         </desc>
         <g class="statistics-chart-ticks" aria-hidden="true">
-          <path class="statistics-chart-gridline" d="M32 8H592M32 85H592M32 162H592"></path>
+          <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
           <text
             x="26"
             y="13"
@@ -191,16 +191,17 @@
             text-anchor="end"
             data-bind="text:$root.paymentCountTicks()[2]"
           ></text>
-          <text x="32" y="181" data-bind="text:$root.from()"></text>
-          <text x="592" y="181" text-anchor="end" data-bind="text:$root.to()"></text>
+          <text x="32" y="181" data-bind="text:$root.snapshot().meta.from"></text>
+          <text x="568" y="181" text-anchor="end" data-bind="text:$root.snapshot().meta.to"></text>
           <text x="312" y="197" text-anchor="middle">Payment creation date</text>
           <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
             Payments per day
           </text>
         </g>
-        <path class="statistics-chart-axis" d="M32 162H592"></path>
+        <path class="statistics-chart-axis" d="M32 162H568"></path>
         <path
           class="statistics-chart-line statistics-count-line"
+          transform="translate(24 0)"
           data-bind="attr:{d:$root.paymentCountPath()}"
         ></path>
       </svg>
@@ -245,7 +246,7 @@
           table.
         </desc>
         <g class="statistics-chart-ticks" aria-hidden="true">
-          <path class="statistics-chart-gridline" d="M32 8H592M32 85H592M32 162H592"></path>
+          <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
           <text
             x="26"
             y="13"
@@ -264,16 +265,17 @@
             text-anchor="end"
             data-bind="text:$root.paymentAmountTicks()[2]"
           ></text>
-          <text x="32" y="181" data-bind="text:$root.from()"></text>
-          <text x="592" y="181" text-anchor="end" data-bind="text:$root.to()"></text>
+          <text x="32" y="181" data-bind="text:$root.snapshot().meta.from"></text>
+          <text x="568" y="181" text-anchor="end" data-bind="text:$root.snapshot().meta.to"></text>
           <text x="312" y="197" text-anchor="middle">Payment creation date</text>
           <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
             Completed amount
           </text>
         </g>
-        <path class="statistics-chart-axis" d="M32 162H592"></path>
+        <path class="statistics-chart-axis" d="M32 162H568"></path>
         <path
           class="statistics-chart-line statistics-amount-line"
+          transform="translate(24 0)"
           data-bind="attr:{d:$root.paymentAmountPath()}"
         ></path>
       </svg>
@@ -360,7 +362,7 @@
           daily table.
         </desc>
         <g class="statistics-chart-ticks" aria-hidden="true">
-          <path class="statistics-chart-gridline" d="M32 8H592M32 85H592M32 162H592"></path>
+          <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
           <text
             x="26"
             y="13"
@@ -379,16 +381,17 @@
             text-anchor="end"
             data-bind="text:$root.customerRegistrationTicks()[2]"
           ></text>
-          <text x="32" y="181" data-bind="text:$root.from()"></text>
-          <text x="592" y="181" text-anchor="end" data-bind="text:$root.to()"></text>
+          <text x="32" y="181" data-bind="text:$root.snapshot().meta.from"></text>
+          <text x="568" y="181" text-anchor="end" data-bind="text:$root.snapshot().meta.to"></text>
           <text x="312" y="197" text-anchor="middle">Registration date</text>
           <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
             Registrations per day
           </text>
         </g>
-        <path class="statistics-chart-axis" d="M32 162H592"></path>
+        <path class="statistics-chart-axis" d="M32 162H568"></path>
         <path
           class="statistics-chart-line statistics-customer-line"
+          transform="translate(24 0)"
           data-bind="attr:{d:$root.customerRegistrationPath()}"
         ></path>
       </svg>
