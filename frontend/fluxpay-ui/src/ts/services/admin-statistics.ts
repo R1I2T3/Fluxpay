@@ -83,6 +83,13 @@ export function resolveRouteState(
   if (!requestedCurrency) throw new Error('Choose a reporting currency.');
   const removedCurrency = !currencies.includes(requestedCurrency);
   const currency = removedCurrency ? defaultCurrency : requestedCurrency;
+  if (removedCurrency) {
+    return {
+      state: { ...range, currency, showPayments: false, page: 0 },
+      notice: 'The saved reporting currency is no longer available. Showing the default currency.',
+    };
+  }
+
   const requestedStatus = normalizeStatus(params.status);
   const requestedDay = params.day === undefined ? undefined : requiredDate(params.day, 'drilldown');
   let showPayments: boolean;
@@ -94,25 +101,15 @@ export function resolveRouteState(
     showPayments = false;
   else if (params.showPayments === true || params.showPayments === '1') showPayments = true;
   else throw new Error('Choose a valid payment list setting.');
-  const parsedPage = params.page === undefined ? 0 : Number(params.page);
-  if (
-    (typeof params.page !== 'undefined' &&
-      typeof params.page !== 'string' &&
-      typeof params.page !== 'number') ||
-    !Number.isInteger(parsedPage) ||
-    parsedPage < 0 ||
-    parsedPage > 2147483647
-  )
+  const rawPage = params.page;
+  if (rawPage !== undefined && (typeof rawPage !== 'string' || !/^\d+$/.test(rawPage)))
+    throw new Error('Choose a valid payment page.');
+  const parsedPage = rawPage === undefined ? 0 : Number(rawPage);
+  if (!Number.isInteger(parsedPage) || parsedPage < 0 || parsedPage > 2147483647)
     throw new Error('Choose a valid payment page.');
   if (requestedDay && (requestedDay < range.from || requestedDay > range.to))
     throw new Error('The selected day must be inside the reporting range.');
 
-  if (removedCurrency) {
-    return {
-      state: { ...range, currency, showPayments: false, page: 0 },
-      notice: 'The saved reporting currency is no longer available. Showing the default currency.',
-    };
-  }
   return {
     state: {
       ...range,

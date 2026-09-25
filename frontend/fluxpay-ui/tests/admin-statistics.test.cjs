@@ -59,6 +59,9 @@ test('route resolution rejects partial, invalid, future, oversized and reversed 
     [{ from: '2026-09-01', to: '2026-09-25', status: 'UNKNOWN' }, /valid payment status/i],
     [{ from: '2026-09-01', to: '2026-09-25', page: '-1' }, /valid payment page/i],
     [{ from: '2026-09-01', to: '2026-09-25', page: '1.5' }, /valid payment page/i],
+    [{ from: '2026-09-01', to: '2026-09-25', page: '' }, /valid payment page/i],
+    [{ from: '2026-09-01', to: '2026-09-25', page: '1e2' }, /valid payment page/i],
+    [{ from: '2026-09-01', to: '2026-09-25', page: '0x10' }, /valid payment page/i],
     [{ from: '2026-09-01', to: '2026-09-25', page: '2147483648' }, /valid payment page/i],
     [{ from: '2026-09-01', to: '2026-09-25', day: '2026-08-31' }, /inside the reporting range/i],
   ];
@@ -100,6 +103,24 @@ test('currency and status normalize and a removed bookmark clears drilldown safe
   assert.equal(removed.state.day, undefined);
   assert.equal(removed.state.page, 0);
   assert.match(removed.notice, /currency/i);
+  const removedWithMalformedDrilldown = helpers.resolveRouteState(
+    {
+      from: '2026-09-01',
+      to: '2026-09-25',
+      currency: 'EUR',
+      showPayments: '1',
+      status: 'OBSOLETE_STATUS',
+      day: 'not-a-date',
+      page: 'not-a-page',
+    },
+    options,
+  );
+  assert.equal(removedWithMalformedDrilldown.state.currency, 'INR');
+  assert.equal(removedWithMalformedDrilldown.state.showPayments, false);
+  assert.equal(removedWithMalformedDrilldown.state.status, undefined);
+  assert.equal(removedWithMalformedDrilldown.state.day, undefined);
+  assert.equal(removedWithMalformedDrilldown.state.page, 0);
+  assert.match(removedWithMalformedDrilldown.notice, /currency/i);
   assert.throws(
     () => helpers.resolveRouteState({}, { ...options, currencies: [], defaultCurrency: null }),
     /currency/i,
