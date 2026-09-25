@@ -31,11 +31,6 @@ type PaymentOperationsEventRow = {
   consumptionLabel: string;
 };
 
-type IntervalScheduler = {
-  setInterval: (callback: () => void, delay: number) => number;
-  clearInterval: (timer: number) => void;
-};
-
 const STAGES = [
   { id: 'confirmation', label: 'Payment confirmation' },
   { id: 'payout', label: 'Payout execution' },
@@ -219,26 +214,6 @@ function messageFor(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function documentIsVisible(): boolean {
-  if (typeof document === 'undefined') return true;
-  return document.visibilityState !== 'hidden' && !document.hidden;
-}
-
-function intervalScheduler(): IntervalScheduler | undefined {
-  if (typeof window !== 'undefined') {
-    const candidate = window as unknown as Partial<IntervalScheduler>;
-    if (
-      typeof candidate.setInterval === 'function' &&
-      typeof candidate.clearInterval === 'function'
-    )
-      return candidate as IntervalScheduler;
-  }
-  const candidate = globalThis as unknown as Partial<IntervalScheduler>;
-  if (typeof candidate.setInterval === 'function' && typeof candidate.clearInterval === 'function')
-    return candidate as IntervalScheduler;
-  return undefined;
-}
-
 class AdminPaymentOperationsViewModel {
   session = session;
   paymentId = ko.observable('');
@@ -285,8 +260,6 @@ class AdminPaymentOperationsViewModel {
 
   private generation = 0;
   private stopped = false;
-  private timer?: number;
-  private timerClear?: (timer: number) => void;
   private lastPaymentId = '';
   private paymentIdSubscription: ko.Subscription;
 
@@ -299,7 +272,6 @@ class AdminPaymentOperationsViewModel {
       if (nextId === this.lastPaymentId) return;
       this.lastPaymentId = nextId;
       this.generation += 1;
-      this.clearPolling();
       this.snapshot(undefined);
       this.refreshWarning('');
       this.error('');
@@ -326,50 +298,12 @@ class AdminPaymentOperationsViewModel {
     );
   }
 
-  private clearPolling() {
-    if (this.timer !== undefined) {
-      if (this.timerClear) this.timerClear(this.timer);
-      else clearInterval(this.timer);
-    }
-    this.timer = undefined;
-    this.timerClear = undefined;
-  }
-
-  private schedulePolling(response?: PaymentOperationsResponse) {
-    this.clearPolling();
-    const delay = this.pollDelay(response);
-    if (delay === undefined || this.stopped || !this.paymentId()) return;
-    const scheduler = intervalScheduler();
-    if (!scheduler) return;
-    const generation = this.generation;
-    this.timer = scheduler.setInterval(() => {
-      if (this.stopped || generation !== this.generation || this.busy() || !documentIsVisible())
-        return;
-      void this.refresh();
-    }, delay);
-    this.timerClear = (timer) => scheduler.clearInterval(timer);
-  }
-
-  pollDelay(response?: PaymentOperationsResponse): number | undefined {
-    if (!response) return undefined;
-    const active =
-      response.payment?.status === 'PROCESSING' ||
-      (response.outboxEvents || []).some((event) =>
-        ['PENDING', 'SENDING'].includes(event.delivery.state),
-      ) ||
-      (response.operations || []).some((operation) => operation.status === 'IN_PROGRESS');
-    if (active) return 1000;
-    if (response.payment?.status === 'UNDER_REVIEW') return 5000;
-    return undefined;
-  }
-
   lookup = async (): Promise<void> => {
     if (this.stopped) return;
     const id = String(this.paymentId() || '').trim();
     if (id !== this.paymentId()) this.paymentId(id);
     if (!id) {
       this.generation += 1;
-      this.clearPolling();
       this.snapshot(undefined);
       this.refreshWarning('');
       this.error('Enter a payment ID.');
@@ -392,7 +326,6 @@ class AdminPaymentOperationsViewModel {
   private async read(id: string, replaceSnapshot: boolean) {
     if (this.stopped) return;
     const generation = ++this.generation;
-    this.clearPolling();
     this.busy(true);
     this.error('');
     this.refreshWarning('');
@@ -403,13 +336,11 @@ class AdminPaymentOperationsViewModel {
       this.snapshot(response);
       this.error('');
       this.refreshWarning('');
-      this.schedulePolling(response);
     } catch (error: unknown) {
       if (!this.current(generation, id)) return;
       const message = messageFor(error, 'The payment operations snapshot could not be refreshed.');
       if (this.snapshot()) this.refreshWarning(message);
       else this.error(message);
-      this.schedulePolling(this.snapshot());
     } finally {
       if (this.current(generation, id)) this.busy(false);
     }
@@ -419,7 +350,6 @@ class AdminPaymentOperationsViewModel {
     if (this.stopped) return;
     this.stopped = true;
     this.generation += 1;
-    this.clearPolling();
     this.paymentIdSubscription.dispose();
     this.busy(false);
   }

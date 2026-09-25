@@ -7,6 +7,21 @@ const { load } = require('./helpers/load-typescript.cjs');
 
 const read = (file) => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
 
+test('admin payment operations balances Knockout virtual elements so bindings initialize', () => {
+  const html = read('ts/views/admin-payment-operations.html');
+  const markers = Array.from(html.matchAll(/<!--\s*(ko\b[\s\S]*?|\/ko)\s*-->/g), (match) =>
+    match[1].trim(),
+  );
+  let depth = 0;
+
+  for (const marker of markers) {
+    depth += marker === '/ko' ? -1 : 1;
+    assert.ok(depth >= 0, `unexpected Knockout closing marker: ${marker}`);
+  }
+
+  assert.equal(depth, 0, 'unclosed Knockout virtual element prevents the page from binding');
+});
+
 test('admin payment operations renders accessible read-only lifecycle evidence', () => {
   const html = read('ts/views/admin-payment-operations.html');
   const css = read('css/admin-console.css');
@@ -208,32 +223,6 @@ test('admin payment operations restores the session before its initial lookup', 
   vm.disconnected();
 });
 
-test('admin payment operations prioritizes active polling states', () => {
-  const harness = viewModelHarness();
-  const vm = harness.create();
-  assert.equal(
-    vm.pollDelay({ payment: { status: 'PROCESSING' }, outboxEvents: [], operations: [] }),
-    1000,
-  );
-  assert.equal(
-    vm.pollDelay({
-      payment: { status: 'FAILED' },
-      outboxEvents: [{ delivery: { state: 'PENDING' } }],
-      operations: [],
-    }),
-    1000,
-  );
-  assert.equal(
-    vm.pollDelay({ payment: { status: 'UNDER_REVIEW' }, outboxEvents: [], operations: [] }),
-    5000,
-  );
-  assert.equal(
-    vm.pollDelay({ payment: { status: 'COMPLETED' }, outboxEvents: [], operations: [] }),
-    undefined,
-  );
-  vm.disconnected();
-});
-
 test('admin payment operations correlates timeline evidence by exact event ID', () => {
   const harness = viewModelHarness();
   const vm = harness.create();
@@ -411,7 +400,7 @@ test('admin payment operations ignores a late response after a payment ID change
   vm.disconnected();
 });
 
-test('admin payment operations polls only visible idle timers and cleans them up', async () => {
+test('admin payment operations refreshes active payments only when the admin requests it', async () => {
   let reads = 0;
   const harness = viewModelHarness({
     api: {
@@ -427,21 +416,8 @@ test('admin payment operations polls only visible idle timers and cleans them up
   vm.paymentId('payment-poll');
   await vm.lookup();
   assert.equal(reads, 1);
-  assert.equal(harness.timers.size, 1);
-  const timer = Array.from(harness.timers.keys())[0];
-  assert.equal(harness.timers.get(timer).delay, 1000);
-  harness.setVisibility('hidden');
-  harness.fire(timer);
-  await flushAsync();
-  assert.equal(reads, 1);
-  harness.setVisibility('visible');
-  vm.busy(true);
-  harness.fire(timer);
-  await flushAsync();
-  assert.equal(reads, 1);
-  vm.busy(false);
-  harness.fire(timer);
-  await flushAsync();
+  assert.equal(harness.timers.size, 0);
+  await vm.refresh();
   assert.equal(reads, 2);
   vm.disconnected();
   assert.equal(harness.timers.size, 0);
