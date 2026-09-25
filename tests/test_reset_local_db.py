@@ -105,6 +105,7 @@ class ResetLocalDbTests(unittest.TestCase):
         output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["reset-local-db.py", "--schema", "FLUXPAY"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
                 {
@@ -136,6 +137,7 @@ class ResetLocalDbTests(unittest.TestCase):
                 "argv",
                 ["reset-local-db.py", "--schema", "FLUXPAY", "--execute"],
             ),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
                 {

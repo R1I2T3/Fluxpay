@@ -385,6 +385,7 @@ class SeedLocalTests(unittest.TestCase):
         output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
                 {
@@ -434,6 +435,7 @@ class SeedLocalTests(unittest.TestCase):
         output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
                 {

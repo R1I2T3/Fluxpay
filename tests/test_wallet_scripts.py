@@ -223,6 +223,7 @@ class LedgerCheckScriptTests(unittest.TestCase):
         output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["check-ledger.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(sys.modules, {"oracledb": fake_oracledb}),
             mock.patch.dict(
                 script.os.environ,
