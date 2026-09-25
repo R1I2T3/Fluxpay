@@ -300,14 +300,21 @@ test('bank linking sends only masked metadata and selects the returned account i
 
 test('bank funding requires KYC and matching verified bank, and waits for review confirmation',async()=>{
   const f=fixture('wallets',{bankTopup:async()=>({walletId:'w1'})});f.page.banks([{id:'b1',currency:'USD',status:'VERIFIED'}]);f.page.bankId('b1');f.page.prepareFunding();assert.match(f.page.error(),/identity/);assert.equal(f.calls.length,0);
-  f.session.user({role:'CUSTOMER',kycStatus:'VERIFIED'});f.page.prepareFunding();assert.equal(f.page.operationReview().kind,'topup');assert.equal(f.calls.length,0);await f.page.confirmMoney();assert.equal(f.calls[0][0],'bankTopup');assert.equal(f.calls[0][1],'b1');assert.equal(f.page.operationReview(),undefined);
+  f.session.user({role:'CUSTOMER',kycStatus:'VERIFIED'});f.page.fundingMode('test');f.page.prepareFunding();assert.equal(f.page.operationReview().kind,'topup');assert.equal(f.calls.length,0);await f.page.confirmMoney();assert.equal(f.calls[0][0],'bankTopup');assert.equal(f.calls[0][1],'b1');assert.equal(f.page.operationReview(),undefined);
   f.page.currency('EUR');f.page.prepareFunding();assert.match(f.page.error(),/same currency/);
 });
 
-test('wallet transfer uses exactly one recipient selector and SOURCE/TARGET contracts',async()=>{
-  const f=fixture('wallets',{walletTransfer:async()=>({sourceWalletId:'w1',fromCurrency:'USD',toCurrency:'INR',creditedAmount:'100',sourceAmount:'2',fee:'0.2',rate:'80'})});f.page.wallets([{walletId:'w1',currency:'USD',availableBalance:'1000'}]);f.page.transferEmail(' JAMIE@example.test ');f.page.transferAmount('10');f.page.prepareMoney('transfer');assert.equal(f.calls.length,0);await f.page.confirmMoney();
-  const body=f.calls[0][1];assert.equal(body.toEmail,'jamie@example.test');assert.equal(body.toUserId,undefined);assert.equal(body.amountMode,'SOURCE');assert.equal(f.page.operationResult().creditedAmount,'100');
-  f.page.transferSelector('id');f.page.transferUserId('11111111-1111-4111-8111-111111111111');f.page.amountMode('TARGET');f.page.prepareMoney('transfer');assert.equal(f.page.operationReview().body.toEmail,undefined);assert.equal(f.page.operationReview().body.amountMode,'TARGET');
+test('wallet transfer always sets the amount the recipient receives',async()=>{
+  const f=fixture('wallets',{walletTransfer:async()=>({sourceWalletId:'w1',fromCurrency:'USD',toCurrency:'INR',creditedAmount:'100',sourceAmount:'2',fee:'0.2',rate:'80'})});f.page.wallets([{walletId:'w1',currency:'USD',availableBalance:'1000'}]);f.page.transferEmail(' JAMIE@example.test ');f.page.transferAmount('10');f.page.amountMode('SOURCE');f.page.prepareMoney('transfer');assert.equal(f.calls.length,0);await f.page.confirmMoney();
+  const body=f.calls[0][1];assert.equal(body.toEmail,'jamie@example.test');assert.equal(body.toUserId,undefined);assert.equal(body.amountMode,'TARGET');assert.equal(f.page.operationResult().creditedAmount,'100');
+  f.page.transferSelector('id');f.page.transferUserId('11111111-1111-4111-8111-111111111111');f.page.prepareMoney('transfer');assert.equal(f.page.operationReview().body.toEmail,undefined);assert.equal(f.page.operationReview().body.amountMode,'TARGET');
+});
+
+test('wallet money modals do not render funding source or amount mode dropdowns',()=>{
+  const view=fs.readFileSync(path.join(root,'views/wallets.html'),'utf8');
+  assert.ok(!view.includes('Funding source'));
+  assert.ok(!view.includes('Amount to set'));
+  assert.ok(view.includes('They receive ('));
 });
 
 test('withdrawal rejects insufficient balance and duplicate confirmation cannot repeat a write',async()=>{

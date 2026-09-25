@@ -24,7 +24,7 @@ class ViewModel extends Page {
   transferFrom=ko.observable('USD');
   transferTo=ko.observable('INR');
   transferAmount=ko.observable('100');
-  amountMode=ko.observable('SOURCE');
+  amountMode=ko.observable('TARGET');
   withdrawAmount=ko.observable('100');
   eligibleBanks=ko.pureComputed(()=>this.banks().filter(b=>b.status==='VERIFIED'&&b.currency===this.currency()));
   bankLabel=(bank:any)=>bank.bankName+' · •••• '+bank.accountLast4+' · '+bank.currency;
@@ -68,9 +68,8 @@ class ViewModel extends Page {
         let recipient:any;
         if(this.transferSelector()==='id'){const toUserId=this.transferUserId().trim();if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(toUserId))throw new Error('Enter a valid FluxPay user ID.');recipient={toUserId};}
         else{const toEmail=this.transferEmail().trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail))throw new Error('Enter the recipient’s registered email address.');recipient={toEmail};}
-        if(this.amountMode()==='SOURCE')this.requireBalance(fromCurrency,amount);
-        body={...recipient,fromCurrency,toCurrency,amount,amountMode:this.amountMode(),note};title='Send to a FluxPay wallet?';
-        summary=(body.amountMode==='SOURCE'?'You send ':'They receive ')+this.money(amount,body.amountMode==='SOURCE'?fromCurrency:toCurrency)+' · '+fromCurrency+' → '+toCurrency+' · '+(recipient.toEmail||recipient.toUserId);
+        body={...recipient,fromCurrency,toCurrency,amount,amountMode:'TARGET',note};title='Send to a FluxPay wallet?';
+        summary='They receive '+this.money(amount,toCurrency)+' · '+fromCurrency+' → '+toCurrency+' · '+(recipient.toEmail||recipient.toUserId);
       }else{
         const amount=this.validAmount(kind==='withdraw'?this.withdrawAmount():this.fundAmount()),bank=this.eligibleBanks().find(b=>b.id===this.bankId());
         if(kind==='test'){body={currency:this.currency(),amount};title='Add test balance?';summary=this.money(amount,this.currency())+' to your '+this.currency()+' wallet';}
@@ -85,7 +84,7 @@ class ViewModel extends Page {
       this.operationReview({kind,body,title,summary});
     }catch(e:any){this.error(e.message);}
   };
-  prepareFunding=()=>this.prepareMoney(this.fundingMode()==='bank'?'topup':'test');
+  prepareFunding=()=>this.prepareMoney('topup');
   requireBalance=(currency:string,amount:string)=>{const wallet=this.wallets().find(w=>w.currency===currency);if(!wallet||Number(amount)>Number(wallet.availableBalance))throw new Error('Insufficient available balance in your '+currency+' wallet.');};
   confirmMoney=()=>this.run(async()=>{
     const review=this.operationReview();if(!review)throw new Error('Review the transaction first.');
