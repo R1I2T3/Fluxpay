@@ -216,3 +216,68 @@ Expected: all tests pass, type checking succeeds, and the Oracle JET build compl
 git add frontend/fluxpay-ui/tests/wallet-api.test.cjs frontend/fluxpay-ui/src/js/services/api-client.ts frontend/fluxpay-ui/src/js/viewModels/tracking-vm.ts frontend/fluxpay-ui/src/js/views/tracking.html
 git commit -m "fix: remove legacy customer refund action"
 ```
+
+### Task 4: Isolate genuine backend acceptance from demo runtime settings
+
+**Files:**
+- Modify: `scripts/test-all.py`
+- Modify: `tests/test_scripts.py`
+
+**Interfaces:**
+- Consumes: the selected `.env`, the caller process environment, and `ORACLE_TESTS_ACTIVE=true`.
+- Produces: a Maven child environment containing the Oracle/Kafka acceptance variables but no unrelated demo/application settings loaded from the selected `.env`.
+
+- [ ] **Step 1: Add a failing runner-isolation test**
+
+Extend the existing backend-integration command test with a complete fake `.env` that includes required Oracle/Kafka values plus enabled simulated payout/compliance settings. Assert the Maven subprocess receives the required acceptance values and does not receive the unrelated simulated settings.
+
+- [ ] **Step 2: Confirm RED**
+
+Run:
+
+```powershell
+python -B -m unittest tests.test_scripts.ScriptTests.test_test_all_runs_requested_backend_integration -v
+```
+
+Expected: failure because `test-all.py` currently inherits all values loaded from `.env`.
+
+- [ ] **Step 3: Build a bounded Maven child environment**
+
+Preserve normal process/tool variables, Maven home configuration, and only the required Oracle/Kafka activation variables from the loaded file. Do not pass demo simulation, compliance, KYC, application-schema, JWT, seed, or application-server settings that change unit-test defaults. Keep frontend and E2E command behavior unchanged.
+
+- [ ] **Step 4: Verify and commit**
+
+Run the focused script tests, full Python discovery, and Ruff checks for the modified files. Commit as:
+
+```powershell
+git commit -m "fix: isolate backend acceptance environment"
+```
+
+### Task 5: Refresh genuine Oracle acceptance fixtures
+
+**Files:**
+- Modify only the failing Oracle test sources under `backend/src/test/java`.
+
+**Interfaces:**
+- Consumes: the migrated `FLUXPAY_TEST` schema at Flyway version 614.
+- Produces: deterministic fixtures that satisfy current route, ledger-journal, wallet ownership, and service dependency contracts.
+
+- [ ] **Step 1: Reproduce focused failures against the isolated test schema**
+
+Confirm the failing classes from the 849-test acceptance run: `OracleAuthKycApiIntegrationTest`, `FreshBaselineOracleTest`, `OutboxClaimOracleTest`, `WalletLedgerRepositoryOracleTest`, and `WalletPostingServiceOracleTest`.
+
+- [ ] **Step 2: Apply fixture-only repairs**
+
+- Delete provisioned wallets before deleting the registered auth user.
+- Generate uppercase route codes accepted by `CHK_TRANSFER_ROUTE_CODE`.
+- Use a valid/null ledger journal reference for the pagination fixture.
+- Provide the current `FxQuoteValidator` dependency to the sliced wallet-posting context.
+- Bind outbox timestamps in the Oracle-native UTC-safe form proven by focused reproduction; do not weaken production claim semantics.
+
+- [ ] **Step 3: Verify and commit**
+
+Run focused affected classes against a fresh isolated schema, then the normal portable backend suite. Apply Spotless to only touched Java files and commit as:
+
+```powershell
+git commit -m "test: refresh Oracle acceptance fixtures"
+```
