@@ -104,7 +104,7 @@ class DemoPaymentOperationsTests(unittest.TestCase):
         raise AssertionError(f"unexpected request: {method} {path}")
 
     def test_readme_contains_complete_payment_operations_runbook(self):
-        readme = (ROOT / "README.md").read_text()
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
         required = (
             "scripts/demo-payment-operations.py retry-success",
             "scripts/demo-payment-operations.py refund-exhaustion",
@@ -303,6 +303,7 @@ class DemoPaymentOperationsTests(unittest.TestCase):
                     ["demo-payment-operations.py", "retry-success"],
                 ),
                 mock.patch.dict(self.script.os.environ, environment, clear=True),
+                mock.patch.object(self.script, "load_env"),
                 mock.patch.object(
                     self.script.urllib.request,
                     "urlopen",
@@ -333,6 +334,7 @@ class DemoPaymentOperationsTests(unittest.TestCase):
                 },
                 clear=True,
             ),
+            mock.patch.object(self.script, "load_env"),
             mock.patch.object(self.script.urllib.request, "urlopen", side_effect=self.response_for),
             contextlib.redirect_stdout(output),
         ):
@@ -372,6 +374,7 @@ class DemoPaymentOperationsTests(unittest.TestCase):
                 },
                 clear=True,
             ),
+            mock.patch.object(self.script, "load_env"),
             mock.patch.object(self.script.urllib.request, "urlopen", side_effect=unverified_login),
             contextlib.redirect_stdout(output),
         ):

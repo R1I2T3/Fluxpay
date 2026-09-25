@@ -387,6 +387,7 @@ class ScriptCommandTests(unittest.TestCase):
     def test_test_all_fails_when_requested_integration_credentials_are_incomplete(self):
         script = load_script("test-all")
         with (
+            tempfile.TemporaryDirectory() as directory,
             mock.patch.dict(
                 script.os.environ,
                 {
@@ -395,7 +396,11 @@ class ScriptCommandTests(unittest.TestCase):
                 },
                 clear=True,
             ),
-            mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(
+                sys,
+                "argv",
+                ["test-all.py", "--suite", "backend", "--env-file", str(Path(directory) / "missing.env")],
+            ),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(script.main(), 3)
@@ -499,7 +504,12 @@ class ScriptCommandTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["cwd"], PROJECT_ROOT)
 
         with (
-            mock.patch.object(sys, "argv", ["stop-infra.py"]),
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                sys,
+                "argv",
+                ["stop-infra.py", "--env-file", str(Path(directory) / "missing.env"), "--mode", "compose"],
+            ),
             mock.patch.object(stop.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(stop.main(), 0)
