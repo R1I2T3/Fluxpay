@@ -2,6 +2,7 @@ package com.fluxpay.repository;
 
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.AdminStatisticsOptionsResponse;
+import com.fluxpay.dto.AdminStatisticsPaymentPageResponse;
 import com.fluxpay.dto.AdminStatisticsQuery;
 import com.fluxpay.dto.AdminStatisticsResponse;
 import jakarta.persistence.EntityManagerFactory;
@@ -24,6 +25,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class AdminStatisticsRepository {
   private static final String REPORTING_ZONE = "Asia/Kolkata";
+  private static final String PAYMENT_PAGE_PREDICATE =
+      "p.created_at >= ? AND p.created_at < ? AND p.currency = ?";
   private final JdbcTemplate jdbc;
   private final ZoneId storageZone;
   private final TimeZone storageTimeZone;
@@ -138,6 +141,54 @@ public class AdminStatisticsRepository {
                 rs.getLong("in_progress_attempts")));
   }
 
+  public PaymentPage paymentPage(
+      AdminStatisticsQuery query, PaymentStatus status, int page, int size) {
+    String predicate = PAYMENT_PAGE_PREDICATE + (status == null ? "" : " AND p.status = ?");
+    long total =
+        jdbc.query(
+            "SELECT COUNT(*) FROM payments p WHERE " + predicate,
+            statement -> {
+              bindTimestamp(statement, 1, query.fromInclusive());
+              bindTimestamp(statement, 2, query.toExclusive());
+              statement.setString(3, query.currency());
+              if (status != null) {
+                statement.setString(4, status.name());
+              }
+            },
+            rs -> rs.next() ? rs.getLong(1) : 0L);
+
+    String sql =
+        "SELECT p.id AS payment_id, p.created_at, p.amount, p.currency, p.status "
+            + "FROM payments p WHERE "
+            + predicate
+            + " ORDER BY p.created_at DESC, p.id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+    List<AdminStatisticsPaymentPageResponse.Row> items =
+        jdbc.query(
+            sql,
+            statement -> {
+              bindTimestamp(statement, 1, query.fromInclusive());
+              bindTimestamp(statement, 2, query.toExclusive());
+              statement.setString(3, query.currency());
+              int index = 4;
+              if (status != null) {
+                statement.setString(index++, status.name());
+              }
+              statement.setLong(index++, (long) page * size);
+              statement.setInt(index, size);
+            },
+            (rs, row) ->
+                new AdminStatisticsPaymentPageResponse.Row(
+                    uuid(rs.getBytes("payment_id")),
+                    rs.getTimestamp(
+                            "created_at", Calendar.getInstance((TimeZone) storageTimeZone.clone()))
+                        .toInstant(),
+                    com.fluxpay.service.AdminStatisticsRules.money(
+                        rs.getBigDecimal("amount"), query.currencyScale()),
+                    rs.getString("currency"),
+                    PaymentStatus.valueOf(rs.getString("status"))));
+    return new PaymentPage(items, total);
+  }
+
   public AdminStatisticsResponse.Workload workload(Instant cutoff) {
     Instant agedCutoff = cutoff.minusSeconds(24 * 60 * 60L);
     long[] kyc =
@@ -224,6 +275,12 @@ public class AdminStatisticsRepository {
       long completedAttempts,
       long failedAttempts,
       long inProgressAttempts) {}
+
+  public record PaymentPage(List<AdminStatisticsPaymentPageResponse.Row> items, long total) {
+    public PaymentPage {
+      items = List.copyOf(items);
+    }
+  }
 
   private static java.util.UUID uuid(byte[] bytes) {
     java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(bytes);

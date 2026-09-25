@@ -283,6 +283,67 @@ class AdminStatisticsRepositoryIT {
   }
 
   @Test
+  void pagesSameTimestampPaymentsStablyAndSharesCurrencyStatusAndRangePredicates() {
+    Instant cohort = Instant.parse("1901-02-03T08:00:00Z");
+    var query =
+        new AdminStatisticsQuery(
+            LocalDate.parse("1901-02-03"),
+            LocalDate.parse("1901-02-03"),
+            "INR",
+            2,
+            Instant.parse("1901-02-03T00:00:00Z"),
+            Instant.parse("1901-02-04T00:00:00Z"),
+            CUTOFF);
+    assertThat(repository.paymentPage(query, null, 0, 20).total()).isZero();
+
+    java.util.ArrayList<UUID> fixtureIds = new java.util.ArrayList<>();
+    for (int index = 0; index < 41; index++) {
+      PaymentStatus status = index % 3 == 0 ? PaymentStatus.FAILED : PaymentStatus.COMPLETED;
+      fixtureIds.add(fixture.payment("INR", "7.50", status, cohort));
+    }
+    fixture.payment("USD", "99.00", PaymentStatus.COMPLETED, cohort);
+    fixture.payment("INR", "88.00", PaymentStatus.COMPLETED, query.toExclusive());
+
+    List<UUID> expected =
+        fixtureIds.stream()
+            .sorted(java.util.Comparator.comparing(AdminStatisticsRepositoryIT::rawHex).reversed())
+            .toList();
+    var first = repository.paymentPage(query, null, 0, 20);
+    var second = repository.paymentPage(query, null, 1, 20);
+    var third = repository.paymentPage(query, null, 2, 20);
+    assertThat(first.total()).isEqualTo(41);
+    assertThat(second.total()).isEqualTo(41);
+    assertThat(third.total()).isEqualTo(41);
+    assertThat(first.items())
+        .extracting(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+        .containsExactlyElementsOf(expected.subList(0, 20));
+    assertThat(second.items())
+        .extracting(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+        .containsExactlyElementsOf(expected.subList(20, 40));
+    assertThat(third.items())
+        .extracting(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+        .containsExactly(expected.get(40));
+    assertThat(first.items())
+        .extracting(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+        .doesNotContainAnyElementsOf(
+            second.items().stream()
+                .map(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+                .toList());
+    assertThat(second.items())
+        .extracting(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+        .doesNotContainAnyElementsOf(
+            third.items().stream()
+                .map(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
+                .toList());
+    assertThat(repository.paymentPage(query, PaymentStatus.FAILED, 0, 100).total()).isEqualTo(14);
+    assertThat(repository.paymentPage(query, PaymentStatus.FAILED, 0, 100).items())
+        .allSatisfy(row -> assertThat(row.status()).isEqualTo(PaymentStatus.FAILED));
+    var outOfRange = repository.paymentPage(query, null, 999, 20);
+    assertThat(outOfRange.items()).isEmpty();
+    assertThat(outOfRange.total()).isEqualTo(41);
+  }
+
+  @Test
   void legacyProviderReportReturnsEmptyProvidersAndHonorsAttemptTimeBounds() {
     UUID providerId =
         fixture.provider("EMPTY", false, "Provider with no routes " + UUID.randomUUID());
@@ -327,5 +388,9 @@ class AdminStatisticsRepositoryIT {
         .filter(bucket -> bucket.status() == status)
         .mapToLong(AdminStatisticsRepository.PaymentBucket::count)
         .sum();
+  }
+
+  private static String rawHex(UUID id) {
+    return id.toString().replace("-", "").toUpperCase(java.util.Locale.ROOT);
   }
 }
