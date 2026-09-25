@@ -72,6 +72,7 @@ class ScriptCommandTests(unittest.TestCase):
 
         with (
             mock.patch.object(sys, "argv", ["start-infra.py", "--mode", "compose"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script, "run", side_effect=run),
             mock.patch.object(script, "wait_port", return_value=True),
         ):
@@ -114,6 +115,7 @@ class ScriptCommandTests(unittest.TestCase):
 
         with (
             mock.patch.object(sys, "argv", ["start-infra.py", "--mode", "external", "--skip-topics"]),
+            mock.patch.object(start, "load_env"),
             mock.patch.object(start, "run", side_effect=run),
             mock.patch.object(start, "wait_port", return_value=True),
         ):
@@ -122,6 +124,7 @@ class ScriptCommandTests(unittest.TestCase):
         self.assertFalse(any(command[:3] == ["docker", "compose", "up"] for command in start_commands))
         with (
             mock.patch.object(sys, "argv", ["stop-infra.py", "--mode", "external"]),
+            mock.patch.object(stop, "load_env"),
             mock.patch.object(stop.subprocess, "run") as stopped,
         ):
             self.assertEqual(stop.main(), 0)
@@ -135,6 +138,7 @@ class ScriptCommandTests(unittest.TestCase):
                 "argv",
                 ["start-infra.py", "--mode", "compose", "--skip-oracle", "--skip-kafka"],
             ),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script, "run") as run,
         ):
             self.assertEqual(script.main(), 0)
@@ -145,6 +149,7 @@ class ScriptCommandTests(unittest.TestCase):
         process = RunningProcess(wait_result=9)
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=process),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -158,6 +163,7 @@ class ScriptCommandTests(unittest.TestCase):
         process = RunningProcess(poll_result=4)
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=process),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", side_effect=OSError("not ready")),
@@ -171,6 +177,7 @@ class ScriptCommandTests(unittest.TestCase):
         process = RunningProcess(interrupt_on_wait=True)
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=process),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -208,6 +215,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("start-backend")
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -221,6 +229,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("start-backend")
         with (
             mock.patch.object(sys, "argv", ["start-backend.py", "--profile", "development"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -239,6 +248,7 @@ class ScriptCommandTests(unittest.TestCase):
             ),
             mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -252,6 +262,7 @@ class ScriptCommandTests(unittest.TestCase):
         with (
             mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -269,6 +280,7 @@ class ScriptCommandTests(unittest.TestCase):
         with (
             mock.patch("platform_commands.sys.platform", "linux"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -284,6 +296,7 @@ class ScriptCommandTests(unittest.TestCase):
         with (
             mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-frontend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.os.path, "isdir", return_value=True),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
@@ -301,6 +314,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("test-all")
         with (
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "e2e"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
             mock.patch("urllib.request.urlopen", return_value=HttpResponse()),
         ):
@@ -321,6 +335,7 @@ class ScriptCommandTests(unittest.TestCase):
                 clear=True,
             ),
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(script.main(), 0)
@@ -422,6 +437,7 @@ class ScriptCommandTests(unittest.TestCase):
                 clear=True,
             ),
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(script.main(), 3)
