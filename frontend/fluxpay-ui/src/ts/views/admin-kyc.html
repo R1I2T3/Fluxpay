@@ -56,7 +56,7 @@
 
   <!-- ko if:review -->
   <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="kyc-record-heading" data-bind="adminDialog:{initialFocus:'#kyc-record-heading'}">
-    <article class="panel admin-workflow-modal kyc-review-modal">
+    <article class="panel admin-workflow-modal admin-kyc-review-modal">
       <!-- ko ifnot:documentPreview -->
       <header class="admin-modal-header">
         <div><span class="eyebrow">KYC REVIEW</span><h2 id="kyc-record-heading" tabindex="-1" data-bind="text:review().fullName"></h2><p data-bind="text:review().email"></p></div>
@@ -109,8 +109,11 @@
       <!-- /ko -->
       <!-- ko if:documentPreview -->
       <header class="admin-modal-header">
+        <div>
         <button class="modal-back" data-bind="click:closeReviewDocument">&larr; Back to review</button>
         <h2 id="kyc-preview-title" data-bind="text:documentPreview().fileName"></h2>
+        </div>
+        <button type="button" class="close-button" aria-label="Close document preview" title="Close" data-bind="click:closeReviewDocument">&times;</button>
       </header>
       <div class="admin-modal-body">
         <p class="muted" data-bind="visible:previewLoading">Opening your document&hellip;</p>

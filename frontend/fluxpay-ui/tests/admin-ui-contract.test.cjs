@@ -145,7 +145,7 @@ test('short admin workflows stay compact instead of stretching across the viewpo
   assert.match(css, /\.provider-editor-body\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(css, /\.route-editor-modal\s*\{[^}]*width:\s*min\(900px,\s*calc\(100vw - 40px\)\)/s);
   assert.match(css, /\.policy-detail-modal\s*\{[^}]*grid-template-rows:\s*auto auto auto[^}]*width:\s*min\(880px,\s*calc\(100vw - 40px\)\)/s);
-  assert.match(css, /:is\(\.provider-editor-modal,\s*\.route-editor-modal\)\s*:is\(input,\s*select\)\s*\{[^}]*min-height:\s*42px[^}]*padding:\s*10px 12px/s);
+  assert.match(css, /:is\(\.provider-editor-modal,\s*\.route-editor-modal\)\s*:is\(input:not\(\[type='checkbox'\]\),\s*select\)\s*\{[^}]*min-height:\s*42px[^}]*padding:\s*10px 12px/s);
   assert.match(css, /:is\(\.provider-editor-modal,\s*\.route-editor-modal\)\s+label\s*\{[^}]*margin-bottom:\s*10px/s);
   assert.match(css, /\.policy-detail-modal \.admin-modal-body\s*\{[^}]*max-height:\s*56dvh/s);
 });

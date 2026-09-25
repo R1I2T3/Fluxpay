@@ -63,17 +63,17 @@
           <div><span class="eyebrow">PROVIDER CONFIGURATION</span><h2 id="provider-editor-title" tabindex="-1">Provider configuration</h2><p data-bind="text:'Target environment: '+$parent.environment.label"></p></div>
           <button type="button" class="close-button" aria-label="Close provider editor" title="Close" data-bind="click:closeProviderEditor,disable:busy">&#10005;</button>
         </header>
-        <form class="admin-modal-body provider-editor-body" data-bind="submit:function(){requestProviderSave();return false}">
+        <form id="provider-edit-form" class="admin-modal-body provider-editor-body" data-bind="submit:function(){requestProviderSave();return false}">
           <label>Provider code<input data-bind="textInput:providerCode,disable:providerEditTarget" /></label>
           <label>Name<input data-bind="textInput:providerName" /></label>
           <label>Rail<select data-bind="options:railTypes,optionsText:'displayLabel',optionsValue:'railType',value:providerRail"></select></label>
           <label class="checkbox-label"><input type="checkbox" data-bind="checked:providerActive" />Active</label>
           <p class="alert error" role="alert" data-bind="visible:providerError,text:providerError"></p>
-          <footer class="admin-modal-footer">
-            <button type="button" class="pill soft" data-bind="click:closeProviderEditor,disable:busy">Close</button>
-            <button type="submit" class="pill dark" data-bind="disable:busy">Review changes</button>
-          </footer>
         </form>
+        <footer class="admin-modal-footer">
+            <button type="button" class="pill soft" data-bind="click:closeProviderEditor,disable:busy">Close</button>
+            <button type="submit" form="provider-edit-form" class="pill dark" data-bind="disable:busy">Review changes</button>
+        </footer>
         <!-- /ko -->
 
         <!-- ko if:saveReview()==='provider' -->

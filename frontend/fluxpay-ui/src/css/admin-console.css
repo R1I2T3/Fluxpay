@@ -640,6 +640,13 @@
   background: #f8faff;
 }
 
+.admin-page .admin-confirmation {
+  padding: 20px;
+  background: #14243d70;
+  backdrop-filter: blur(5px);
+  overscroll-behavior: contain;
+}
+
 .admin-confirmation .admin-workflow-modal {
   box-sizing: border-box;
   display: grid;
@@ -648,10 +655,11 @@
   max-height: 90dvh;
   overflow: hidden;
   padding: 0;
+  margin: 0;
   border: 1px solid var(--admin-card-border);
-  border-radius: 20px;
+  border-radius: 16px;
   background: #fff;
-  box-shadow: 0 24px 70px #1018282b;
+  box-shadow: 0 24px 80px #10182830, 0 4px 16px #10182810;
 }
 
 .admin-modal-header {
@@ -667,20 +675,39 @@
   background: #fff;
 }
 
-.admin-modal-header h2 {
+.admin-confirmation .admin-modal-header h2 {
   margin: 4px 0;
-  font-size: clamp(22px, 2.4vw, 30px);
-  line-height: 1.15;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
 }
 
 .admin-modal-header p {
   margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-modal-header > div {
+  min-width: 0;
+}
+
+.admin-confirmation .eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  color: var(--admin-info);
 }
 
 .admin-modal-body {
   min-height: 0;
   overflow: auto;
   padding: 20px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: #c5cfdd transparent;
+  overscroll-behavior: contain;
 }
 
 .admin-modal-workspace {
@@ -714,6 +741,10 @@
 
 .admin-modal-action-pane .subtle-note {
   margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .admin-modal-footer {
@@ -724,9 +755,10 @@
   align-items: flex-end;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
   padding: 14px 24px;
   border-top: 1px solid var(--line);
-  background: #fff;
+  background: #f8fafc;
 }
 
 .admin-page .close-button {
@@ -776,8 +808,8 @@
   white-space: nowrap;
 }
 
-.kyc-review-modal,
-.compliance-review-modal {
+.admin-confirmation .admin-kyc-review-modal,
+.admin-confirmation .compliance-review-modal {
   width: min(1180px, calc(100vw - 40px));
 }
 
@@ -860,8 +892,7 @@
   gap: 2px;
 }
 
-.provider-editor-modal {
-  grid-template-rows: auto auto;
+.admin-confirmation .provider-editor-modal {
   width: min(760px, calc(100vw - 40px));
 }
 
@@ -872,15 +903,15 @@
   padding: 16px 20px;
 }
 
-.provider-editor-body > :is(label:nth-of-type(3), .checkbox-label, .alert, .admin-modal-footer) {
+.provider-editor-body > :is(label:nth-of-type(3), .checkbox-label, .alert) {
   grid-column: 1 / -1;
 }
 
-.route-editor-modal {
+.admin-confirmation .route-editor-modal {
   width: min(900px, calc(100vw - 40px));
 }
 
-:is(.provider-editor-modal, .route-editor-modal) :is(input, select) {
+:is(.provider-editor-modal, .route-editor-modal) :is(input:not([type='checkbox']), select) {
   min-height: 42px;
   margin-top: 6px;
   padding: 10px 12px;
@@ -898,12 +929,12 @@
   min-width: 860px;
 }
 
-.policy-detail-modal {
+.admin-confirmation .policy-detail-modal {
   grid-template-rows: auto auto auto;
   width: min(880px, calc(100vw - 40px));
 }
 
-.policy-advanced-modal {
+.admin-confirmation .policy-advanced-modal {
   width: min(1000px, calc(100vw - 40px));
 }
 
@@ -924,6 +955,226 @@
 .policy-detail-modal .admin-modal-body > label {
   max-width: 320px;
   margin: 16px 0 0;
+}
+
+/* Shared controls also cover policy editors and small confirmation dialogs. */
+.admin-page .admin-confirmation label:not(.checkbox-label) {
+  min-width: 0;
+  gap: 6px;
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-page .admin-confirmation :is(.kyc-decision-form, .compliance-decision-form) label {
+  margin: 0;
+}
+
+.admin-page .admin-confirmation :is(input:not([type='checkbox']), select, textarea) {
+  min-height: 42px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-page .admin-confirmation :is(input, select, textarea):disabled {
+  background: #f1f4f8;
+  color: #69788b;
+}
+
+.admin-page .admin-confirmation textarea {
+  min-height: 104px;
+}
+
+.admin-page .admin-confirmation .checkbox-label {
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--admin-card-border);
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-page .admin-confirmation input[type='checkbox'] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #2465d8;
+}
+
+.admin-page .admin-confirmation .pill {
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-page .admin-confirmation .close-button {
+  position: static;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #f5f7fa;
+  border: 1px solid var(--admin-card-border);
+  color: #617086;
+  font-size: 19px;
+}
+
+.admin-page .admin-confirmation .close-button:hover:not(:disabled) {
+  background: #eaf0f8;
+  color: var(--ink);
+}
+
+.admin-confirmation .form-row {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.admin-confirmation .dense-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.admin-confirmation .dense-table :is(th, td) {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  padding: 12px;
+}
+
+.admin-confirmation .dense-table thead {
+  background: #f4f7fb;
+  color: #617086;
+}
+
+.admin-confirmation .dense-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.admin-confirmation .modal-detail-grid > section,
+.admin-confirmation .support-ticket-modal .admin-modal-body > section {
+  padding: 16px;
+  border: 1px solid var(--admin-card-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.admin-confirmation .support-ticket-modal {
+  width: min(940px, calc(100vw - 40px));
+}
+
+.support-ticket-modal .admin-modal-body > section {
+  margin-bottom: 18px;
+}
+
+.admin-confirmation :is(.preserve-text, .detail-grid, .subtle-note, .admin-reasons) {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.admin-confirmation .admin-modal-body > h3:first-child,
+.admin-confirmation .admin-modal-body > section > h3:first-child {
+  margin-top: 0;
+}
+
+/* Policy dialogs use the same shell with a scrollable body and fixed actions. */
+.admin-page .admin-confirmation .modal {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100vw - 40px));
+  max-width: none;
+  max-height: 90dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--admin-card-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 80px #10182830, 0 4px 16px #10182810;
+  animation: none;
+}
+
+.admin-page .admin-confirmation .policy-edit-dialog {
+  width: min(680px, calc(100vw - 40px));
+  scrollbar-gutter: auto;
+}
+
+.admin-page .admin-confirmation .policy-change-dialog {
+  width: min(760px, calc(100vw - 40px));
+}
+
+.admin-page .admin-confirmation .modal > .panel-heading {
+  position: static;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 16px;
+  margin: 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.admin-page .admin-confirmation .panel-heading h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.admin-confirmation .admin-dialog-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-confirmation .admin-dialog-form > .admin-modal-footer,
+.admin-confirmation .modal > .admin-modal-footer {
+  flex-shrink: 0;
+}
+
+.admin-confirmation .admin-modal-footer .policy-delete-button {
+  margin-right: auto;
+  color: var(--admin-critical);
+  border-color: #f1d4d4;
+  background: #fff;
+}
+
+.admin-confirmation .modal-back {
+  padding: 0;
+  margin: 0 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--admin-info);
+  font-size: 12px;
+}
+
+.admin-confirmation .chunk-meta {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.admin-confirmation .chunk-meta > :is(small, span) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .copilot-chat {
@@ -1264,7 +1515,7 @@
   }
 
   .admin-modal-info-pane {
-    max-height: 46dvh;
+    overflow: visible;
   }
 
   .admin-modal-action-pane {
@@ -1289,6 +1540,24 @@
 
   .route-edit-form .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-confirmation .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .admin-page .admin-confirmation .modal > .panel-heading {
+    padding: 18px;
+  }
+
+  .admin-confirmation .admin-modal-header h2,
+  .admin-page .admin-confirmation .panel-heading h2 {
+    font-size: 20px;
+  }
+
+  .admin-confirmation .admin-modal-footer .policy-delete-button {
+    margin-right: 0;
   }
 
   .modal-action-buttons {
