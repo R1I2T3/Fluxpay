@@ -49,7 +49,6 @@ export class TrackingViewModel {
       else if (action === 'retry') r = await flux.retry(id, this.quoteId());
       else if (action === 'switch')
         r = await flux.switchRoute(id, this.routeCode(), this.quoteId());
-      else if (action === 'refund') r = await flux.refund(id);
       else r = await flux.cancel(id);
       this.notice(`Operation successful: ${r.status || r.paymentId || 'updated'}`);
       await this.inspect();

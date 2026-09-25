@@ -4,6 +4,21 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=r
 const source=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/ts/services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 function api(fetch,events=[]){const context={exports:{},window:{dispatchEvent:event=>events.push(event)},sessionStorage:{getItem:()=> 'test',removeItem(){}},crypto:{randomUUID:()=> 'idempotency-test'},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},TextDecoder,DOMException,Event,fetch,FormData,Blob};vm.runInNewContext(source,context);return context.exports.fluxApi;}
 
+test('legacy customer tracking does not expose a refund operation',async t=>{
+ const apiClientSource=fs.readFileSync(path.join(__dirname,'../src/js/services/api-client.ts'),'utf8');
+ const trackingViewModelSource=fs.readFileSync(path.join(__dirname,'../src/js/viewModels/tracking-vm.ts'),'utf8');
+ const trackingViewSource=fs.readFileSync(path.join(__dirname,'../src/js/views/tracking.html'),'utf8');
+ await t.test('API client has no customer refund request',()=>{
+  assert.doesNotMatch(apiClientSource,/\/api\/payments\/\$\{id\}\/refund/);
+ });
+ await t.test('tracking action has no refund dispatch',()=>{
+  assert.doesNotMatch(trackingViewModelSource,/action\s*===\s*['"]refund['"]/);
+ });
+ await t.test('tracking view has no refund button binding',()=>{
+  assert.doesNotMatch(trackingViewSource,/act\.bind\(\$data,['"]refund['"]\)/);
+ });
+});
+
 test('legacy and current quote responses submit the exact route code and emit success only after completion',async()=>{
  for(const method of ['quotes','getQuotes'])for(const quote of [{id:'q1',route:'BANK_TRANSFER'},{id:'q1',routeCode:'BANK_TRANSFER'},{id:'q1',routeCode:' BANK_TRANSFER ',route:'OLDER_CODE'}]){
   const calls=[],events=[];const client=api(async(url,options)=>{calls.push({url,...options});return {ok:true,status:200,json:async()=>({data:url.endsWith('/quotes')?{quotes:[quote],recommendedQuoteId:'q1',expiresAt:'unchanged'}:{status:'COMPLETED',sourceAmount:'100',sourceCurrency:'USD'}})};},events);
