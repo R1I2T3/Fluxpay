@@ -52,7 +52,7 @@ class AdminStatisticsViewModel {
   constructor(params: { params?: Record<string, unknown> }) {
     this.routeParams = { ...(params?.params || {}) };
     this.sessionChanged = session.user.subscribe((user) => this.onSessionChanged(user));
-    this.ready = this.initialize(this.routeParams).finally(() => (this.initialized = true));
+    this.ready = this.initialize().finally(() => (this.initialized = true));
   }
 
   private currentIdentity(): string {
@@ -79,6 +79,7 @@ class AdminStatisticsViewModel {
     this.optionsGeneration++;
     this.summaryGeneration++;
     this.listGeneration++;
+    this.summaryReady = Promise.resolve();
     this.options(undefined);
     this.state(undefined);
     this.snapshot(undefined);
@@ -102,18 +103,19 @@ class AdminStatisticsViewModel {
     if (nextIdentity === this.identityKey) return;
     this.identityKey = nextIdentity;
     this.invalidateAndClear();
-    if (nextIdentity) this.ready = this.initialize(this.routeParams);
+    if (nextIdentity) this.ready = this.initialize();
   }
 
-  private async initialize(params: Record<string, unknown>): Promise<void> {
+  private async initialize(): Promise<void> {
     if (!session.user()) await session.restore();
     this.initializing = false;
     this.identityKey = this.currentIdentity();
     if (this.disposed || !session.isAdmin()) return;
-    await this.loadOptions(params);
+    await this.loadOptions();
+    await this.summaryReady;
   }
 
-  private async loadOptions(params: Record<string, unknown>): Promise<void> {
+  private async loadOptions(): Promise<void> {
     const generation = ++this.optionsGeneration;
     const accountId = session.user()?.id;
     const current = () => this.isOwner(accountId, generation, 'options');
@@ -131,8 +133,7 @@ class AdminStatisticsViewModel {
         this.notice('');
         return;
       }
-      this.resolveAndLoad(params, true);
-      await this.readyForSummary();
+      this.resolveAndLoad(this.routeParams, true);
     } catch (error: unknown) {
       if (current()) this.optionsError(messageOf(error, 'Statistics options are unavailable.'));
     } finally {
@@ -140,9 +141,6 @@ class AdminStatisticsViewModel {
     }
   }
 
-  private async readyForSummary(): Promise<void> {
-    await this.summaryReady;
-  }
   private summaryReady: Promise<void> = Promise.resolve();
 
   private resolveAndLoad(params: Record<string, unknown>, initial = false) {
@@ -152,6 +150,7 @@ class AdminStatisticsViewModel {
       const resolved = resolveRouteState(params, currentOptions);
       const previous = this.state();
       const next = resolved.state;
+      const retryFailedSummary = !!this.error() && !this.snapshot();
       this.state(next);
       this.from(next.from);
       this.to(next.to);
@@ -163,7 +162,7 @@ class AdminStatisticsViewModel {
         previous.from !== next.from ||
         previous.to !== next.to ||
         previous.currency !== next.currency;
-      if (queryChanged || initial) {
+      if (queryChanged || initial || retryFailedSummary) {
         this.snapshot(undefined);
         this.pageData(undefined);
         this.refreshStatus('');
@@ -242,7 +241,8 @@ class AdminStatisticsViewModel {
   async retryOptions(): Promise<void> {
     if (!session.isAdmin() || this.disposed) return;
     this.invalidateAndClear();
-    await this.loadOptions(this.routeParams);
+    await this.loadOptions();
+    await this.summaryReady;
   }
 
   async refresh(): Promise<void> {
@@ -266,21 +266,53 @@ class AdminStatisticsViewModel {
   }
 
   formatRate(value: number | null, emptyLabel: string): string {
-    return value === null ? emptyLabel : value.toFixed(1) + '%';
+    return value === null ? emptyLabel : value.toFixed(2) + '%';
   }
 
   paymentCountPath(): string {
-    return reportChartPath((this.snapshot()?.paymentTrend || []).map((day) => day.paymentCount));
+    return reportChartPath(
+      (this.snapshot()?.paymentTrend || []).map((day) => day.paymentCount),
+      600,
+      170,
+    );
   }
 
   paymentAmountPath(): string {
     return reportChartPath(
       (this.snapshot()?.paymentTrend || []).map((day) => Number(day.completedAmount)),
+      600,
+      170,
     );
   }
 
   customerRegistrationPath(): string {
-    return reportChartPath((this.snapshot()?.customerTrend || []).map((day) => day.registrations));
+    return reportChartPath(
+      (this.snapshot()?.customerTrend || []).map((day) => day.registrations),
+      600,
+      170,
+    );
+  }
+
+  private chartTicks(values: number[], precision = 0): string[] {
+    const maximum = Math.max(0, ...values.map((value) => (Number.isFinite(value) ? value : 0)));
+    return [maximum, maximum / 2, 0].map((value) =>
+      precision ? value.toFixed(precision) : String(Math.round(value)),
+    );
+  }
+
+  paymentCountTicks(): string[] {
+    return this.chartTicks((this.snapshot()?.paymentTrend || []).map((day) => day.paymentCount));
+  }
+
+  paymentAmountTicks(): string[] {
+    return this.chartTicks(
+      (this.snapshot()?.paymentTrend || []).map((day) => Number(day.completedAmount)),
+      2,
+    );
+  }
+
+  customerRegistrationTicks(): string[] {
+    return this.chartTicks((this.snapshot()?.customerTrend || []).map((day) => day.registrations));
   }
 
   selectDay(date: string): void {

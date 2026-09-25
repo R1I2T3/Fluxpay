@@ -64,6 +64,29 @@ test('options failure can be retried before summary loading', async () => {
   assert.equal(f.calls.filter((call) => call.type === 'summary').length, 1);
 });
 
+test('route parameters changed while options load own the initial summary query', async () => {
+  const pendingOptions = deferred();
+  const f = makePage({ options: () => pendingOptions.promise });
+  await f.settle();
+  f.vm.parametersChanged({ from: '2026-09-01', to: '2026-09-25', currency: 'USD' });
+  pendingOptions.resolve({
+    currencies: [
+      { code: 'INR', scale: 2 },
+      { code: 'USD', scale: 2 },
+    ],
+    defaultCurrency: 'INR',
+    reportingZone: 'Asia/Kolkata',
+    today: '2026-09-25',
+    maximumRangeDays: 366,
+  });
+  await f.vm.ready;
+  assert.deepEqual(f.calls.find((call) => call.type === 'summary').query, {
+    from: '2026-09-01',
+    to: '2026-09-25',
+    currency: 'USD',
+  });
+});
+
 test('empty currency options show setup state and skip summary requests', async () => {
   const f = makePage({
     options: async () => ({
@@ -105,6 +128,54 @@ test('summary failures are reported independently from options and list state', 
   assert.equal(f.vm.snapshot(), undefined);
 });
 
+test('applying unchanged filters retries a failed summary request', async () => {
+  let shouldFail = true;
+  let attempts = 0;
+  const f = makePage({
+    summary: async (query) => {
+      attempts++;
+      if (shouldFail) throw new Error('Summary offline');
+      return summary(query);
+    },
+  });
+  await f.settle();
+  await f.vm.ready;
+  assert.equal(f.vm.error(), 'Summary offline');
+  shouldFail = false;
+  f.vm.applyFilters();
+  await f.vm.ready;
+  assert.equal(attempts, 2);
+  assert.equal(f.vm.error(), '');
+  assert.ok(f.vm.snapshot());
+});
+
+test('options loading finishes independently while the initial summary remains pending', async () => {
+  const pendingOptions = deferred();
+  const pendingSummary = deferred();
+  const f = makePage({
+    options: () => pendingOptions.promise,
+    summary: () => pendingSummary.promise,
+  });
+  await f.settle();
+  assert.equal(f.vm.optionsBusy(), true);
+  assert.equal(f.vm.busy(), false);
+  pendingOptions.resolve({
+    currencies: [
+      { code: 'INR', scale: 2 },
+      { code: 'USD', scale: 2 },
+    ],
+    defaultCurrency: 'INR',
+    reportingZone: 'Asia/Kolkata',
+    today: '2026-09-25',
+    maximumRangeDays: 366,
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.vm.optionsBusy(), false);
+  assert.equal(f.vm.busy(), true);
+  pendingSummary.resolve(summary({ from: '2026-08-27', to: '2026-09-25', currency: 'INR' }));
+  await f.vm.ready;
+});
+
 test('a late summary cannot overwrite a newer currency selection', async () => {
   const pending = deferred();
   const newer = deferred();
@@ -128,13 +199,19 @@ test('an old administrator account response cannot replace a new account summary
   const f = makePage({ summary: () => pending.promise });
   await f.settle();
   const oldReady = f.vm.ready;
-  f.api.adminStatistics = async (query) => summary(query);
+  f.api.adminStatistics = async (query) => {
+    const response = summary(query);
+    response.paymentSummary.paymentCount = 42;
+    return response;
+  };
   f.session.user({ id: 'admin-2', role: 'ADMIN' });
   await f.vm.ready;
-  assert.equal(f.vm.snapshot().meta.currency, 'INR');
-  pending.resolve(summary({ from: '2026-08-27', to: '2026-09-25', currency: 'INR' }));
+  assert.equal(f.vm.snapshot().paymentSummary.paymentCount, 42);
+  const oldResponse = summary({ from: '2026-08-27', to: '2026-09-25', currency: 'INR' });
+  oldResponse.paymentSummary.paymentCount = 999;
+  pending.resolve(oldResponse);
   await oldReady;
-  assert.equal(f.vm.snapshot().meta.currency, 'INR');
+  assert.equal(f.vm.snapshot().paymentSummary.paymentCount, 42);
 });
 
 test('logout and disconnect revoke pending response ownership', async () => {
@@ -178,15 +255,77 @@ test('template renders accessible summary sections with safe text bindings and n
     'Current operational workload',
   ])
     assert.ok(html.includes(section), `missing ${section}`);
-  assert.match(html, /text:/);
+  const bindings = [
+    'paymentSummary.paymentCount',
+    'paymentSummary.completedCount',
+    'paymentSummary.completedAmount',
+    'paymentSummary.payoutSuccessRate',
+    'paymentSummary.failedCount',
+    'paymentSummary.processingCount',
+    'paymentStatuses',
+    'status',
+    'count',
+    'paymentTrend',
+    'date',
+    'paymentCount',
+    'completedAmount',
+    'providerName',
+    'providerCode',
+    'totalAttempts',
+    'completedAttempts',
+    'failedAttempts',
+    'inProgressAttempts',
+    'successRate',
+    'customers.totalCustomers',
+    'customers.newRegistrations',
+    'customerTrend',
+    'registrations',
+    'workload.kycPending',
+    'workload.kycOver24h',
+    'workload.complianceOpen',
+    'workload.complianceHighRisk',
+    'workload.complianceOver24h',
+    'workload.ticketsOpen',
+    'workload.ticketsOver24h',
+  ];
+  const dataBindings = Array.from(html.matchAll(/data-bind="([^"]+)"/g), (match) => match[1]);
+  const collections = new Set(['paymentStatuses', 'paymentTrend', 'customerTrend']);
+  for (const field of bindings)
+    assert.ok(
+      dataBindings.some((binding) =>
+        collections.has(field)
+          ? binding.includes('foreach:' + field)
+          : binding.startsWith('text:') && binding.includes(field),
+      ),
+      `missing ${collections.has(field) ? 'foreach' : 'text'} binding for ${field}`,
+    );
   assert.doesNotMatch(html, /html:/);
   assert.match(html, /No final outcomes/);
   assert.match(html, /No terminal attempts/);
   assert.match(html, /All time/);
   assert.ok(html.includes('Selected dates / all currencies'));
   assert.ok(html.includes('Current / all dates and currencies'));
+  assert.match(html, /Source currency/);
+  assert.match(html, /value:from/);
+  assert.match(html, /value:to/);
+  assert.match(html, /value:currency/);
+  assert.match(html, /payment count includes drafts and quotes/i);
+  assert.match(html, /payments created in the selected period/i);
+  assert.match(
+    html,
+    /No provider attempts are associated with payments created in this reporting period/i,
+  );
+  assert.equal((html.match(/statistics-chart-ticks/g) || []).length, 3);
+  assert.match(html, /text:\$root\.paymentCountTicks\(\)\[0\]/);
+  assert.match(html, /text:\$root\.paymentAmountTicks\(\)\[0\]/);
+  assert.match(html, /text:\$root\.customerRegistrationTicks\(\)\[0\]/);
   assert.equal(
     f.calls.some((call) => call.type === 'payments'),
     false,
   );
+});
+
+test('rates retain the backend two-decimal precision', () => {
+  const f = makePage();
+  assert.equal(f.vm.formatRate(12.34, 'No outcomes'), '12.34%');
 });

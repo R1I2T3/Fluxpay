@@ -140,6 +140,19 @@
   stroke-width: 1.5;
 }
 
+.statistics-page .statistics-chart-gridline {
+  fill: none;
+  stroke: var(--line);
+  stroke-dasharray: 3 4;
+  stroke-width: 1;
+}
+
+.statistics-page .statistics-chart-ticks {
+  fill: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .statistics-page .statistics-chart-line {
   fill: none;
   stroke: var(--admin-info, #175cd3);

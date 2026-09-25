@@ -20,6 +20,7 @@
       <span class="eyebrow">STATISTICS</span>
       <h1>Activity and operational health</h1>
       <p>Payments created in the selected period, shown with their current outcomes.</p>
+      <p>Payment count includes drafts and quotes.</p>
     </div>
     <button type="button" class="pill soft" data-bind="click:refresh,disable:busy">Refresh</button>
   </header>
@@ -68,7 +69,7 @@
       <input type="date" required data-bind="value:to,attr:{max:options().today}" />
     </label>
     <label
-      >Reporting currency
+      >Source currency
       <select
         data-bind="value:currency,options:options().currencies,optionsText:'code',optionsValue:'code'"
       ></select>
@@ -158,10 +159,10 @@
     </section>
     <section class="statistics-card statistics-chart-card">
       <h2>Payments created by day</h2>
-      <p>Daily payment counts for the selected reporting currency.</p>
+      <p>Daily payment counts by source currency.</p>
       <svg
         class="statistics-chart"
-        viewBox="0 0 600 150"
+        viewBox="0 0 600 200"
         role="img"
         aria-labelledby="statistics-count-chart-title statistics-count-chart-description"
       >
@@ -170,7 +171,34 @@
           Payment count trend across the selected dates. Exact values are available in the daily
           table.
         </desc>
-        <path class="statistics-chart-axis" d="M8 142H592"></path>
+        <g class="statistics-chart-ticks" aria-hidden="true">
+          <path class="statistics-chart-gridline" d="M32 8H592M32 85H592M32 162H592"></path>
+          <text
+            x="26"
+            y="13"
+            text-anchor="end"
+            data-bind="text:$root.paymentCountTicks()[0]"
+          ></text>
+          <text
+            x="26"
+            y="90"
+            text-anchor="end"
+            data-bind="text:$root.paymentCountTicks()[1]"
+          ></text>
+          <text
+            x="26"
+            y="166"
+            text-anchor="end"
+            data-bind="text:$root.paymentCountTicks()[2]"
+          ></text>
+          <text x="32" y="181" data-bind="text:$root.from()"></text>
+          <text x="592" y="181" text-anchor="end" data-bind="text:$root.to()"></text>
+          <text x="312" y="197" text-anchor="middle">Payment creation date</text>
+          <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
+            Payments per day
+          </text>
+        </g>
+        <path class="statistics-chart-axis" d="M32 162H592"></path>
         <path
           class="statistics-chart-line statistics-count-line"
           data-bind="attr:{d:$root.paymentCountPath()}"
@@ -207,7 +235,7 @@
       <p>Completed payment value in <span data-bind="text:meta.currency"></span>.</p>
       <svg
         class="statistics-chart"
-        viewBox="0 0 600 150"
+        viewBox="0 0 600 200"
         role="img"
         aria-labelledby="statistics-amount-chart-title statistics-amount-chart-description"
       >
@@ -216,7 +244,34 @@
           Completed amount trend across the selected dates. Exact values are available in the daily
           table.
         </desc>
-        <path class="statistics-chart-axis" d="M8 142H592"></path>
+        <g class="statistics-chart-ticks" aria-hidden="true">
+          <path class="statistics-chart-gridline" d="M32 8H592M32 85H592M32 162H592"></path>
+          <text
+            x="26"
+            y="13"
+            text-anchor="end"
+            data-bind="text:$root.paymentAmountTicks()[0]"
+          ></text>
+          <text
+            x="26"
+            y="90"
+            text-anchor="end"
+            data-bind="text:$root.paymentAmountTicks()[1]"
+          ></text>
+          <text
+            x="26"
+            y="166"
+            text-anchor="end"
+            data-bind="text:$root.paymentAmountTicks()[2]"
+          ></text>
+          <text x="32" y="181" data-bind="text:$root.from()"></text>
+          <text x="592" y="181" text-anchor="end" data-bind="text:$root.to()"></text>
+          <text x="312" y="197" text-anchor="middle">Payment creation date</text>
+          <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
+            Completed amount
+          </text>
+        </g>
+        <path class="statistics-chart-axis" d="M32 162H592"></path>
         <path
           class="statistics-chart-line statistics-amount-line"
           data-bind="attr:{d:$root.paymentAmountPath()}"
@@ -244,9 +299,12 @@
     </section>
     <section class="statistics-card" aria-labelledby="statistics-providers-title">
       <h2 id="statistics-providers-title">Provider attempts</h2>
-      <p>Delivery attempts are provider activity and are not payment totals.</p>
+      <p>
+        Provider attempts for payments created in the selected period. Attempt dates may fall
+        outside this period.
+      </p>
       <!-- ko if: providers.length === 0 -->
-      <p>No provider attempts were recorded for this reporting period.</p>
+      <p>No provider attempts are associated with payments created in this reporting period.</p>
       <!-- /ko -->
       <!-- ko if: providers.length > 0 -->
       <div class="statistics-table-scroll">
@@ -292,7 +350,7 @@
       <h3>Registrations by day</h3>
       <svg
         class="statistics-chart"
-        viewBox="0 0 600 150"
+        viewBox="0 0 600 200"
         role="img"
         aria-labelledby="statistics-customer-chart-title statistics-customer-chart-description"
       >
@@ -301,7 +359,34 @@
           Customer registration trend for the selected dates. Exact values are available in the
           daily table.
         </desc>
-        <path class="statistics-chart-axis" d="M8 142H592"></path>
+        <g class="statistics-chart-ticks" aria-hidden="true">
+          <path class="statistics-chart-gridline" d="M32 8H592M32 85H592M32 162H592"></path>
+          <text
+            x="26"
+            y="13"
+            text-anchor="end"
+            data-bind="text:$root.customerRegistrationTicks()[0]"
+          ></text>
+          <text
+            x="26"
+            y="90"
+            text-anchor="end"
+            data-bind="text:$root.customerRegistrationTicks()[1]"
+          ></text>
+          <text
+            x="26"
+            y="166"
+            text-anchor="end"
+            data-bind="text:$root.customerRegistrationTicks()[2]"
+          ></text>
+          <text x="32" y="181" data-bind="text:$root.from()"></text>
+          <text x="592" y="181" text-anchor="end" data-bind="text:$root.to()"></text>
+          <text x="312" y="197" text-anchor="middle">Registration date</text>
+          <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
+            Registrations per day
+          </text>
+        </g>
+        <path class="statistics-chart-axis" d="M32 162H592"></path>
         <path
           class="statistics-chart-line statistics-customer-line"
           data-bind="attr:{d:$root.customerRegistrationPath()}"
