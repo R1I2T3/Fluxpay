@@ -335,9 +335,15 @@ class AdminStatisticsRepositoryIT {
             third.items().stream()
                 .map(com.fluxpay.dto.AdminStatisticsPaymentPageResponse.Row::paymentId)
                 .toList());
-    assertThat(repository.paymentPage(query, PaymentStatus.FAILED, 0, 100).total()).isEqualTo(14);
-    assertThat(repository.paymentPage(query, PaymentStatus.FAILED, 0, 100).items())
-        .allSatisfy(row -> assertThat(row.status()).isEqualTo(PaymentStatus.FAILED));
+    var failedPage = repository.paymentPage(query, PaymentStatus.FAILED, 0, 100);
+    assertThat(failedPage.total()).isEqualTo(14);
+    assertThat(failedPage.items())
+        .hasSize(14)
+        .allSatisfy(
+            row -> {
+              assertThat(row.status()).isEqualTo(PaymentStatus.FAILED);
+              assertThat(row.sourceAmount()).isEqualTo("7.50");
+            });
     var outOfRange = repository.paymentPage(query, null, 999, 20);
     assertThat(outOfRange.items()).isEmpty();
     assertThat(outOfRange.total()).isEqualTo(41);
