@@ -172,7 +172,7 @@ test('customer bottom navigation is unchanged and admin sidebar is guarded with 
 test('saving from final review confirms as Processing without submitting payout',async()=>{
   const f=fixture('payments-new',{draft:async()=>({id:'p1',status:'DRAFT'}),confirm:async()=>({id:'p1',status:'PROCESSING',selectedQuoteId:'q1'}),quotes:async()=>({quotes:[{id:'q1',routeCode:'BANK_TRANSFER'}],expiresAt:new Date(Date.now()+300000).toISOString()})});transferData(f.page);
   await f.page.createDraft();f.page.chooseQuote(f.page.quotes()[0]);assert.equal(f.page.step(),3);await f.page.saveDraft();assert.equal(f.page.savedDraft(),false);assert.equal(f.page.payment().status,'PROCESSING');assert.equal(f.page.receiptStatus(),'Processing');assert.equal(f.page.step(),4);assert.equal(f.calls.filter(c=>c[0]==='draft').length,1);assert.equal(f.calls.filter(c=>c[0]==='confirm').length,1);assert.ok(!f.calls.some(c=>c[0]==='payout'));
-  const view=fs.readFileSync(path.join(root,'views/payments-new.html'),'utf8');assert.match(view,/Send money ↗/);assert.match(view,/>Save draft</);assert.doesNotMatch(view,/id="confirm-title"/);
+  const view=fs.readFileSync(path.join(root,'views/payments-new.html'),'utf8');assert.match(view,/Send money ↗/);assert.match(view,/>\s*Save draft\s*</);assert.doesNotMatch(view,/id="confirm-title"/);
 });
 
 test('dashboard recent activity includes top-up, wallet transfer, exchange and recipient payment',async()=>{

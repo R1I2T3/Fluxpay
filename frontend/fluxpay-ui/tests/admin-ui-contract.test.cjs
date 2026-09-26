@@ -159,6 +159,22 @@ test('Copilot uses one payment text field and centers its welcome mark', () => {
   assert.match(css, /\.copilot-avatar\s*\{[^}]*margin:\s*0 auto/s);
 });
 
+test('Copilot keeps the question composer visible while only the transcript scrolls', () => {
+  const html = read('ts/views/admin-copilot.html');
+  const css = read('css/admin-console.css');
+  const pageRule = css.match(/\.copilot-page\s*\{([^}]*)\}/s)?.[1] || '';
+  const chatRule = css.match(/\.copilot-chat\s*\{([^}]*)\}/s)?.[1] || '';
+  const transcriptRule = css.match(/\.copilot-transcript\s*\{([^}]*)\}/s)?.[1] || '';
+
+  assert.match(pageRule, /display:\s*flex/);
+  assert.match(pageRule, /flex-direction:\s*column/);
+  assert.match(pageRule, /min-height:\s*calc\(100dvh - 80px\)/);
+  assert.match(chatRule, /flex:\s*1/);
+  assert.match(chatRule, /grid-template-rows:\s*auto minmax\(0,\s*1fr\) auto/);
+  assert.match(transcriptRule, /overflow-y:\s*auto/);
+  assert.ok(html.indexOf('copilot-chat-composer') > html.indexOf('copilot-transcript'));
+});
+
 test('dense modal forms collapse before their controls can clip', () => {
   const css = read('css/admin-console.css');
   assert.match(css, /\.kyc-decision-form\s*\{[^}]*grid-template-columns:\s*1fr/);

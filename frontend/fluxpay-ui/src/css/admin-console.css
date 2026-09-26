@@ -1177,10 +1177,17 @@
   overflow-wrap: anywhere;
 }
 
+.copilot-page {
+  display: flex;
+  min-height: calc(100dvh - 80px);
+  flex-direction: column;
+}
+
 .copilot-chat {
   display: grid;
-  grid-template-rows: auto minmax(360px, 1fr) auto;
-  height: min(720px, calc(100dvh - 150px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  flex: 1;
+  max-height: 720px;
   min-height: 0;
   border: 1px solid var(--admin-card-border);
   border-radius: 18px;
@@ -1339,11 +1346,6 @@
 }
 
 @media (max-width: 640px) {
-  .copilot-chat {
-    height: min(560px, calc(100dvh - 120px));
-    min-height: 0;
-  }
-
   .copilot-chat-toolbar,
   .copilot-chat-composer {
     align-items: stretch;

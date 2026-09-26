@@ -58,7 +58,7 @@ test('admin payment operations exposes the typed read-only operations request', 
   const api = read('ts/services/flux-api.ts');
   assert.match(
     api,
-    /adminPaymentOperations: \(id: string\) =>\s*request<PaymentOperationsResponse>\(\s*`\/api\/admin\/payments\/\$\{encodeURIComponent\(id\)\}\/operations`,\s*\),/s,
+    /adminPaymentOperations: \(id: string\) =>\s*request<PaymentOperationsResponse>\(\s*`\/api\/admin\/payments\/\$\{encodeURIComponent\(id\)\}\/operations`\s*,?\s*\),/s,
   );
   const method = api.slice(
     api.indexOf('adminPaymentOperations:'),
