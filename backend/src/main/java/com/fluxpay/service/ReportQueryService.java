@@ -2,8 +2,8 @@ package com.fluxpay.service;
 
 import com.fluxpay.dto.ProviderRow;
 import com.fluxpay.exception.BusinessException;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,17 +14,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReportQueryService {
   private static final String PROVIDER_SUMMARY_SQL =
       """
-      SELECT r.provider_name,
+      SELECT v.provider_name,
              COUNT(a.id) AS total_attempts,
              SUM(CASE WHEN a.status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_attempts,
              SUM(CASE WHEN a.status = 'FAILED' THEN 1 ELSE 0 END) AS failed_attempts
-      FROM payout_routes r
+      FROM transfer_providers v
+      LEFT JOIN transfer_routes r ON r.provider_id = v.id
       LEFT JOIN payout_attempts a
-        ON a.payout_route_id = r.id
+        ON a.transfer_route_id = r.id
        AND a.initiated_at >= ?
        AND a.initiated_at < ?
-      GROUP BY r.provider_name
-      ORDER BY r.provider_name
+      GROUP BY v.provider_name
+      ORDER BY v.provider_name
       """;
 
   private final JdbcTemplate jdbc;
@@ -43,13 +44,15 @@ public class ReportQueryService {
     }
     return jdbc.query(
         PROVIDER_SUMMARY_SQL,
+        statement -> {
+          statement.setObject(1, from.atOffset(ZoneOffset.UTC));
+          statement.setObject(2, to.atOffset(ZoneOffset.UTC));
+        },
         (resultSet, rowNumber) ->
             new ProviderRow(
                 resultSet.getString("provider_name"),
                 resultSet.getLong("total_attempts"),
                 resultSet.getLong("completed_attempts"),
-                resultSet.getLong("failed_attempts")),
-        Timestamp.from(from),
-        Timestamp.from(to));
+                resultSet.getLong("failed_attempts")));
   }
 }

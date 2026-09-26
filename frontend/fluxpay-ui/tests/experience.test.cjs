@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript'),ko=require('knockout');
 const root=path.join(__dirname,'../src/ts');
-const routeHelpers={exports:{},window:{}};
+const routeHelpers={exports:{},require:()=>({statisticsSearch:query=>new URLSearchParams(query).toString()}),URLSearchParams,window:{}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,routeHelpers);
 function fixture(name,overrides={},initialToken='',params={}){
   const calls=[],navigation=[],events=new Map(),cache=new Map();let token=initialToken;
@@ -87,7 +87,7 @@ test('401 clears session and redirects home; 403 preserves token and session',as
   for(const status of [401,403]){
     const events=new Map(),navigation=[];let token='test-token';const storage={getItem:()=>token,removeItem:()=>{token='';}};
     const window={addEventListener:(n,f)=>events.set(n,f),dispatchEvent:e=>{navigation.push(e);events.get(e.type)?.(e);}};
-    const apiContext={exports:{},window,sessionStorage:storage,Event,fetch:async()=>({status,ok:false,json:async()=>({message:'Denied'})})};
+    const apiContext={exports:{},require:()=>({statisticsSearch:query=>new URLSearchParams(query).toString()}),URLSearchParams,window,sessionStorage:storage,Event,fetch:async()=>({status,ok:false,json:async()=>({message:'Denied'})})};
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,apiContext);
     class CustomEvent extends Event{constructor(name,options){super(name);this.detail=options.detail;}}
     const sessionContext={exports:{},require:n=>n==='knockout'?ko:apiContext.exports,window,sessionStorage:storage,Event,CustomEvent};

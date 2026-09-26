@@ -3,7 +3,7 @@ services:
     image: container-registry.oracle.com/database/free:latest
     container_name: fluxpay-oracle
     environment:
-      ORACLE_PWD: fluxpay_dev_123
+      ORACLE_PWD: ${ORACLE_ADMIN_PASSWORD:-fluxpay_dev_123}
       ORACLE_CHARACTERSET: AL32UTF8
     ports:
       - "1521:1521"

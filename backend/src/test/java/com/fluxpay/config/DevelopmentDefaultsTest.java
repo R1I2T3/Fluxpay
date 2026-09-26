@@ -125,7 +125,8 @@ class DevelopmentDefaultsTest {
           SupportTicketRepository.class,
           TicketMessageRepository.class,
           TransferProviderRepository.class,
-          TransferRouteOutcomeRepository.class
+          TransferRouteOutcomeRepository.class,
+          com.fluxpay.repository.AdminStatisticsRepository.class
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }

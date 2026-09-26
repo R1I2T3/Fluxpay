@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript');
 const source=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/ts/services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-function api(fetch,events=[]){const context={exports:{},window:{dispatchEvent:event=>events.push(event)},sessionStorage:{getItem:()=> 'test',removeItem(){}},crypto:{randomUUID:()=> 'idempotency-test'},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},TextDecoder,DOMException,Event,fetch,FormData,Blob};vm.runInNewContext(source,context);return context.exports.fluxApi;}
+function api(fetch,events=[]){const context={exports:{},require:name=>name==='./admin-statistics'?{statisticsSearch:query=>new URLSearchParams(query).toString()}:(()=>{throw new Error(`Missing test dependency: ${name}`)})(),window:{dispatchEvent:event=>events.push(event)},sessionStorage:{getItem:()=> 'test',removeItem(){}},crypto:{randomUUID:()=> 'idempotency-test'},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},TextDecoder,DOMException,Event,fetch,FormData,Blob,URLSearchParams};vm.runInNewContext(source,context);return context.exports.fluxApi;}
 
 test('legacy customer tracking does not expose a refund operation',async t=>{
  const apiClientSource=fs.readFileSync(path.join(__dirname,'../src/js/services/api-client.ts'),'utf8');

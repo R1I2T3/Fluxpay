@@ -78,7 +78,8 @@ class ApplicationBoundaryWiringTest {
           SupportTicketRepository.class,
           TicketMessageRepository.class,
           TransferProviderRepository.class,
-          TransferRouteOutcomeRepository.class
+          TransferRouteOutcomeRepository.class,
+          AdminStatisticsRepository.class
         }) {
       runner = runner.withBean(repository, () -> mock(repository));
     }
