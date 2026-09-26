@@ -75,7 +75,11 @@ as a payment created. Use the status table to see how much of that total is real
 
 **Completed payments** and the amount beneath it count payments whose state is
 currently `COMPLETED`, and the sum of their source amounts. This is the amount
-customers were charged, not net recipient proceeds and not revenue.
+customers were charged, not net recipient proceeds and not revenue. That card is the
+authoritative money figure on the page: the server sums the cohort at full precision and
+rounds once, at the end. **Completed amount by day** rounds each day separately for
+display, so the card and a hand-summed daily column can differ by a small per-day
+rounding amount — see "Open the matching payments" below.
 
 **Processing now** counts payments currently `PROCESSING`, including those awaiting
 reconciliation after an uncertain provider response.
@@ -174,9 +178,19 @@ below the dashboard, filtered to exactly that number:
 
 The list shows payment ID, created time, source amount, currency, and status, and its
 caption states the exact scope it is showing. The list query uses the same cohort and
-status rules as the counts, so the total at the bottom normally matches the number you
-clicked. If it does not, a payment changed state between the two reads — see
+status rules as the counts, so the row count at the bottom normally matches the number
+you clicked. If it does not, a payment changed state between the two reads — see
 "What this page does not tell you".
+
+**Counts and amounts do not reconcile the same way.** The count on a card, the count on
+a status row, and the row count of the list it opens are the same measure, so they
+normally agree. The **completed amount** card is a sum, and each figure in **Completed
+amount by day** is rounded on its own to the currency's configured precision. Adding the
+daily column by hand can therefore differ from the card by a small per-day rounding
+amount — one half-scale unit per day, in either direction — whenever the source amounts
+carry more decimal places than the currency's configured precision. The card is the
+authoritative cohort sum and never absorbs that drift; quote the card, and treat a
+daily-column mismatch as display rounding rather than a missing payment.
 
 Choose a day in a chart and the dashboard keeps its wider range; only the list narrows
 to that single day. Close the list with **Close payment list** when you are done.
@@ -337,7 +351,9 @@ against its drill-down list did not run, because it needs the same database. Sti
 outstanding: with completed, failed, refunded, processing, and draft payments across
 mixed currencies, a later retry, archived providers, `USER`/`ADMIN`/`SYSTEM` accounts,
 old/recent/resubmitted KYC, each compliance risk level, and each support state, confirm
-that status counts sum to `paymentCount`, daily counts sum to `paymentCount`, daily
-completed amounts sum to `completedAmount` at server precision, that each drill-down's
-total uses the same cohort and status predicates as its card, and that provider attempt
-totals are checked separately from payment totals.
+that status counts sum to `paymentCount`, that daily counts sum to `paymentCount`, that
+each drill-down's total uses the same cohort and status predicates as its card, and that
+provider attempt totals are checked separately from payment totals. Do **not** require
+the daily completed amounts to add up to `completedAmount`: the card is the
+full-precision cohort sum rounded once, and each daily figure is rounded on its own for
+display, so the only difference to accept is per-day display rounding.

@@ -195,6 +195,36 @@ class AdminStatisticsServiceTest {
   }
 
   @Test
+  void theCompletedAmountCardIsTheCohortSumWhileEachDailyFigureRoundsOnItsOwn() {
+    // payments.amount is NUMBER(19,4), so 4 dp source amounts are representable while INR
+    // is displayed at scale 2. Two days of 10.005 add up to 20.010: the card sums the raw
+    // buckets first and rounds once, each day is rounded on its own, so the hand-summed
+    // daily column lands one half-scale unit higher. The card stays authoritative on
+    // purpose; deriving it from rounded days would corrupt the headline KPI by up to 366
+    // half-scale units. This pins that deliberate difference.
+    LocalDate next = DAY.plusDays(1);
+    when(repository.paymentBuckets(any()))
+        .thenReturn(
+            List.of(
+                new PaymentBucket(DAY, PaymentStatus.COMPLETED, 1, new BigDecimal("10.005")),
+                new PaymentBucket(next, PaymentStatus.COMPLETED, 1, new BigDecimal("10.005"))));
+
+    var result = service.summary("2026-09-24", "2026-09-25", "INR");
+
+    assertThat(result.paymentSummary().completedAmount()).isEqualTo("20.01");
+    assertThat(result.paymentTrend())
+        .extracting(com.fluxpay.dto.AdminStatisticsResponse.PaymentDay::completedAmount)
+        .containsExactly("10.01", "10.01");
+    BigDecimal card = new BigDecimal(result.paymentSummary().completedAmount());
+    BigDecimal summedDays =
+        result.paymentTrend().stream()
+            .map(com.fluxpay.dto.AdminStatisticsResponse.PaymentDay::completedAmount)
+            .map(BigDecimal::new)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    assertThat(summedDays.subtract(card)).isEqualByComparingTo("0.01");
+  }
+
+  @Test
   void eachRequestUsesOneClockInstantForQueryAndGlobalAggregates() {
     CountingClock clock = new CountingClock(NOW);
     service = new AdminStatisticsService(repository, clock);
