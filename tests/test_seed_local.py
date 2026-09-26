@@ -488,6 +488,188 @@ class SeedLocalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "local Oracle"):
             script.require_local_oracle("jdbc:oracle:thin:@//db.example.com:1521/PROD")
 
+    def test_demo_history_disabled_by_default(self):
+        script = load_script()
+        self.assertFalse(script.is_demo_history_enabled({}))
+        self.assertFalse(script.is_demo_history_enabled({"SEED_DEMO_HISTORY": "false"}))
+        self.assertTrue(script.is_demo_history_enabled({"SEED_DEMO_HISTORY": "true"}))
+        self.assertTrue(script.is_demo_history_enabled({"SEED_DEMO_HISTORY": " True "}))
+
+    def test_demo_history_seeds_all_stat_panels_with_insert_only_merges(self):
+        script = load_script()
+        cursor = mock.MagicMock()
+        identities = {
+            "system": {"id": "11111111-1111-1111-1111-111111111111"},
+            "admin": {"id": "22222222-2222-2222-2222-222222222222"},
+            "priya.sharma@gmail.com": {"id": "33333333-3333-3333-3333-333333333333"},
+            "arjun.mehta@gmail.com": {"id": "44444444-4444-4444-4444-444444444444"},
+        }
+        result = script.seed_demo_history(cursor, identities)
+        statements = [call.args[0] for call in cursor.execute.call_args_list]
+        merges = [s for s in statements if s.strip().startswith("MERGE INTO")]
+        for table in (
+            "users",
+            "wallets",
+            "recipients",
+            "payments",
+            "payout_attempts",
+            "kyc_cases",
+            "compliance_cases",
+            "support_tickets",
+        ):
+            self.assertTrue(
+                any(f"MERGE INTO {table}" in statement for statement in merges),
+                f"missing MERGE INTO {table}",
+            )
+        for statement in merges:
+            normalized = " ".join(statement.split())
+            self.assertIn("WHEN NOT MATCHED THEN INSERT", normalized)
+            self.assertNotIn("WHEN MATCHED THEN", normalized)
+        # Every payment status appears at least once so the status table is never all-zero.
+        payment_statuses = {payment["status"] for payment in script.DEMO_HISTORY_PAYMENTS}
+        self.assertEqual(
+            payment_statuses,
+            {
+                "DRAFT",
+                "QUOTED",
+                "UNDER_REVIEW",
+                "PROCESSING",
+                "COMPLETED",
+                "FAILED",
+                "REFUNDED",
+                "REJECTED",
+                "CANCELLED",
+            },
+        )
+        # Default INR view must be non-empty plus one other currency for filtering.
+        currencies = {payment["currency"] for payment in script.DEMO_HISTORY_PAYMENTS}
+        self.assertIn("INR", currencies)
+        self.assertTrue({"USD", "EUR"} & currencies)
+        self.assertGreaterEqual(result["payments"], 10)
+        self.assertGreaterEqual(result["attempts"], 10)
+        self.assertGreaterEqual(result["users"], 5)
+
+    def test_demo_history_is_idempotent_with_deterministic_ids(self):
+        script = load_script()
+        identities = {
+            "system": {"id": "11111111-1111-1111-1111-111111111111"},
+            "admin": {"id": "22222222-2222-2222-2222-222222222222"},
+            "priya.sharma@gmail.com": {"id": "33333333-3333-3333-3333-333333333333"},
+            "arjun.mehta@gmail.com": {"id": "44444444-4444-4444-4444-444444444444"},
+        }
+        first = mock.MagicMock()
+        script.seed_demo_history(first, identities)
+        second = mock.MagicMock()
+        script.seed_demo_history(second, identities)
+        first_sql = sorted(call.args[0] for call in first.execute.call_args_list)
+        second_sql = sorted(call.args[0] for call in second.execute.call_args_list)
+        self.assertEqual(first_sql, second_sql)
+        first_kwargs = sorted(repr(sorted(call.kwargs.items())) for call in first.execute.call_args_list)
+        second_kwargs = sorted(repr(sorted(call.kwargs.items())) for call in second.execute.call_args_list)
+
+        # Deterministic UUIDs and timestamps must repeat except for wall-clock drift;
+        # payment/user/attempt IDs specifically must be identical across reruns.
+        def ids(kwargs_repr):
+            import re
+
+            return sorted(re.findall(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", kwargs_repr))
+
+        self.assertTrue(ids(" ".join(first_kwargs)))
+        self.assertEqual(ids(" ".join(first_kwargs)), ids(" ".join(second_kwargs)))
+
+    def test_provision_runs_demo_history_only_when_enabled(self):
+        script = load_script()
+        identities = {
+            "system": {"id": "11111111-1111-1111-1111-111111111111"},
+            "admin": {"id": "22222222-2222-2222-2222-222222222222"},
+        }
+        for enabled, expected in (("false", 0), ("true", 1)):
+            database = mock.MagicMock()
+            connection = database.connect.return_value.__enter__.return_value
+            cursor = connection.cursor.return_value.__enter__.return_value
+            cursor.fetchone.side_effect = [("FLUXPAY",), (15,), (4,), (13,)]
+            with (
+                mock.patch.dict(sys.modules, {"oracledb": database}),
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "ORACLE_JDBC_URL": "jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
+                        "ORACLE_USERNAME": "FLUXPAY",
+                        "ORACLE_PASSWORD": "test-only",
+                        "SEED_DEMO_HISTORY": enabled,
+                    },
+                    clear=True,
+                ),
+                mock.patch.object(script, "seed_demo_history", return_value={"users": 8}) as history,
+            ):
+                result = script.provision_local_database(identities)
+                self.assertEqual(history.call_count, expected)
+                if expected:
+                    self.assertEqual(result["demoHistory"], {"users": 8})
+                else:
+                    self.assertEqual(result["demoHistory"], {})
+
+    def test_main_reports_demo_history_without_secrets(self):
+        script = load_script()
+        output = io.StringIO()
+        provisioned = {
+            "users": 4,
+            "systemWallets": 15,
+            "providers": 4,
+            "routes": 13,
+            "systemUserId": "11111111-1111-1111-1111-111111111111",
+            "demoRoutes": [],
+            "demoHistory": {"users": 8, "payments": 20, "attempts": 25, "kyc": 2, "compliance": 2, "tickets": 2},
+        }
+        with (
+            mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(script, "load_env"),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "SEED_SYSTEM_PASSWORD": "SystemPass123!",
+                    "SEED_ADMIN_PASSWORD": "AdminPass123!",
+                    "SEED_CUSTOMER_PASSWORD": "CustomerPass123!",
+                },
+                clear=True,
+            ),
+            mock.patch.object(script, "register_or_login", return_value={"id": "11111111-1111-1111-1111-111111111111"}),
+            mock.patch.object(script, "provision_local_database", return_value=provisioned),
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(script.main(), 0)
+        text = output.getvalue()
+        self.assertIn("demo-history=users=8 payments=20 attempts=25", text)
+        self.assertNotIn("SystemPass123", text)
+
+    def test_demo_history_reuses_existing_customer_wallets_and_recipients(self):
+        script = load_script()
+        import uuid as uuid_module
+
+        alice = "33333333-3333-3333-3333-333333333333"
+        bob = "44444444-4444-4444-4444-444444444444"
+        identities = {
+            "system": {"id": "11111111-1111-1111-1111-111111111111"},
+            "admin": {"id": "22222222-2222-2222-2222-222222222222"},
+            "priya.sharma@gmail.com": {"id": alice},
+            "arjun.mehta@gmail.com": {"id": bob},
+        }
+        existing_wallet = uuid_module.uuid4().bytes
+        existing_recipient = uuid_module.uuid4().bytes
+
+        cursor = mock.MagicMock()
+        # SELECT wallets/recipients return existing IDs so payments must reuse them
+        cursor.fetchone.side_effect = [[existing_wallet], [existing_recipient]] * 50
+
+        script.seed_demo_history(cursor, identities)
+        payments = [c for c in cursor.execute.call_args_list if "MERGE INTO payments" in c.args[0]]
+        self.assertTrue(payments)
+        for call in payments:
+            # Payments for alice/INR must reuse the existing wallet/recipient, never a missing deterministic ID
+            if call.kwargs.get("currency") == "INR" and call.kwargs.get("sender_id") == uuid_module.UUID(alice).bytes:
+                self.assertEqual(call.kwargs.get("wallet_id"), existing_wallet)
+                self.assertEqual(call.kwargs.get("recipient_id"), existing_recipient)
+
 
 if __name__ == "__main__":
     unittest.main()

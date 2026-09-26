@@ -337,14 +337,14 @@ test('template renders accessible summary sections with safe text bindings and n
     /No provider attempts are associated with payments created in this reporting period/i,
   );
   assert.equal((html.match(/statistics-chart-ticks/g) || []).length, 3);
-  assert.match(html, /text:\$root\.paymentCountTicks\(\)\[0\]/);
-  assert.match(html, /text:\$root\.paymentAmountTicks\(\)\[0\]/);
-  assert.match(html, /text:\$root\.customerRegistrationTicks\(\)\[0\]/);
+  assert.match(html, /text:\$parent\.paymentCountTicks\(\)\[0\]/);
+  assert.match(html, /text:\$parent\.paymentAmountTicks\(\)\[0\]/);
+  assert.match(html, /text:\$parent\.customerRegistrationTicks\(\)\[0\]/);
   assert.match(html, /d="M32 8H568M32 85H568M32 162H568"/);
   assert.equal((html.match(/transform="translate\(24 0\)"/g) || []).length, 3);
-  assert.match(html, /text:\$root\.snapshot\(\)\.meta\.from/);
-  assert.match(html, /text:\$root\.snapshot\(\)\.meta\.to/);
-  assert.doesNotMatch(html, /text:\$root\.from\(\)|text:\$root\.to\(\)/);
+  assert.match(html, /text:meta\.from/);
+  assert.match(html, /text:meta\.to/);
+  assert.doesNotMatch(html, /\$root\./);
   assert.equal(
     f.calls.some((call) => call.kind === 'payments'),
     false,
@@ -356,9 +356,9 @@ test('chart date ticks bind to the displayed snapshot rather than unsubmitted co
     path.join(__dirname, '../src/ts/views/admin-statistics.html'),
     'utf8',
   );
-  assert.equal((html.match(/text:\$root\.snapshot\(\)\.meta\.from/g) || []).length, 3);
-  assert.equal((html.match(/text:\$root\.snapshot\(\)\.meta\.to/g) || []).length, 3);
-  assert.doesNotMatch(html, /text:\$root\.from\(\)|text:\$root\.to\(\)/);
+  assert.equal((html.match(/text:meta\.from/g) || []).length, 3);
+  assert.equal((html.match(/text:meta\.to/g) || []).length, 3);
+  assert.doesNotMatch(html, /\$root\./);
 });
 
 test('failed payment drilldown preserves source currency and opens operations', async () => {
@@ -860,7 +860,7 @@ test('the template exposes only unambiguous payment drilldown actions', () => {
   for (const binding of [
     'click:closePayments',
     'click:retryPayments',
-    'click:$root.openOperations',
+    'click:$parent.openOperations',
     'disable:listBusy',
     'disable:!canPreviousPaymentPage',
     'disable:!canNextPaymentPage',
@@ -868,8 +868,8 @@ test('the template exposes only unambiguous payment drilldown actions', () => {
     'text:listSelection',
     'text:listTotals',
     'text:listAnnouncement',
-    'text:$root.formatTime(createdAt)',
-    'text:$root.formatMoney(sourceAmount,sourceCurrency)',
+    'text:$parent.formatTime(createdAt)',
+    'text:$parent.formatMoney(sourceAmount,sourceCurrency)',
     'text:paymentId',
     'text:sourceCurrency',
   ])
@@ -944,7 +944,7 @@ test('the amount axis is disclosed as approximate and the daily table stays exac
     /<p class="statistics-caption"> The amount axis is an approximate scale[\s\S]*?table below\./,
   );
   // The exact amounts stay the untouched server strings in the table below the chart.
-  assert.match(amountChart, /text:\$root\.formatMoney\(completedAmount,\$parent\.meta\.currency\)/);
+  assert.match(amountChart, /text:\$parents\[1\]\.formatMoney\(completedAmount,\$parent\.meta\.currency\)/);
   const countChart = html.slice(
     html.indexOf('<h2>Payments created by day</h2>'),
     html.indexOf('<h2>Completed amount by day</h2>'),

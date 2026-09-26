@@ -411,6 +411,110 @@ class AdminStatisticsViewModel {
     );
   }
 
+  private chartPoints(
+    values: number[],
+    dates: string[],
+    labels: string[],
+  ): Array<{ x: number; y: number; date: string; value: number; label: string }> {
+    if (!values.length) return [];
+    const width = 552;
+    const height = 170;
+    const pad = 8;
+    const xOffset = 24;
+    const finite = values.map((value) => (Number.isFinite(value) ? Math.max(0, value) : 0));
+    const maximum = Math.max(1, ...finite);
+    return finite.map((value, index) => {
+      const x = xOffset + pad + (index * (width - 2 * pad)) / Math.max(1, finite.length - 1);
+      const y = height - pad - (value / maximum) * (height - pad * 2);
+      return {
+        x: Math.round(x * 100) / 100,
+        y: Math.round(y * 100) / 100,
+        date: dates[index] ?? '',
+        value,
+        label: labels[index] ?? String(values[index] ?? ''),
+      };
+    });
+  }
+
+  paymentCountPoints(): Array<{
+    x: number;
+    y: number;
+    date: string;
+    value: number;
+    label: string;
+  }> {
+    const trend = this.snapshot()?.paymentTrend || [];
+    return this.chartPoints(
+      trend.map((day) => day.paymentCount),
+      trend.map((day) => day.date),
+      trend.map((day) => day.date + ': ' + day.paymentCount + ' payments'),
+    );
+  }
+
+  paymentAmountPoints(): Array<{
+    x: number;
+    y: number;
+    date: string;
+    value: number;
+    label: string;
+  }> {
+    const snapshot = this.snapshot();
+    const trend = snapshot?.paymentTrend || [];
+    const currency = snapshot?.meta.currency || this.currency();
+    return this.chartPoints(
+      trend.map((day) => Number(day.completedAmount)),
+      trend.map((day) => day.date),
+      trend.map((day) => day.date + ': ' + this.formatMoney(day.completedAmount, currency)),
+    );
+  }
+
+  customerRegistrationPoints(): Array<{
+    x: number;
+    y: number;
+    date: string;
+    value: number;
+    label: string;
+  }> {
+    const trend = this.snapshot()?.customerTrend || [];
+    return this.chartPoints(
+      trend.map((day) => day.registrations),
+      trend.map((day) => day.date),
+      trend.map((day) => day.date + ': ' + day.registrations + ' registrations'),
+    );
+  }
+
+  statusShare(count: number): number {
+    const total = this.snapshot()?.paymentSummary.paymentCount ?? 0;
+    if (!Number.isFinite(count) || total <= 0 || count <= 0) return 0;
+    return Math.min(100, Math.max(0, (count / total) * 100));
+  }
+
+  rateWidth(rate: number | null): string {
+    if (rate === null || !Number.isFinite(rate)) return '0%';
+    return Math.min(100, Math.max(0, rate)) + '%';
+  }
+
+  isPresetActive(days: 1 | 7 | 30 | 90): boolean {
+    const currentOptions = this.options();
+    if (!currentOptions) return false;
+    try {
+      const range = presetRange(currentOptions.today, days);
+      return this.from() === range.from && this.to() === range.to;
+    } catch {
+      return false;
+    }
+  }
+
+  openCountDay(day: { date: string }): void {
+    if (!day?.date) return;
+    this.openPayments(undefined, day.date);
+  }
+
+  openAmountDay(day: { date: string }): void {
+    if (!day?.date) return;
+    this.openPayments('COMPLETED', day.date);
+  }
+
   paymentAmountPath(): string {
     return reportChartPath(
       (this.snapshot()?.paymentTrend || []).map((day) => Number(day.completedAmount)),
@@ -425,6 +529,42 @@ class AdminStatisticsViewModel {
       552,
       170,
     );
+  }
+
+  private chartArea(path: string): string {
+    if (!path) return '';
+    const xOffset = 24;
+    const shifted = path.replace(/(M|L)(\d+\.\d+),/g, (_, prefix: string, x: string) => {
+      const shiftedX = (parseFloat(x) + xOffset).toFixed(2);
+      return prefix + shiftedX + ',';
+    });
+    const first = 8 + xOffset;
+    const last = 544 + xOffset;
+    const base = 162;
+    return (
+      shifted +
+      ' L' +
+      last.toFixed(2) +
+      ',' +
+      base.toFixed(2) +
+      ' L' +
+      first.toFixed(2) +
+      ',' +
+      base.toFixed(2) +
+      ' Z'
+    );
+  }
+
+  paymentCountArea(): string {
+    return this.chartArea(this.paymentCountPath());
+  }
+
+  paymentAmountArea(): string {
+    return this.chartArea(this.paymentAmountPath());
+  }
+
+  customerRegistrationArea(): string {
+    return this.chartArea(this.customerRegistrationPath());
   }
 
   private chartTicks(values: number[], precision = 0): string[] {
