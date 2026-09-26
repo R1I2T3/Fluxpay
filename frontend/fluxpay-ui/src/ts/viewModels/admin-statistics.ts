@@ -3,13 +3,17 @@ import { fluxApi } from '../services/flux-api';
 import { navigate, session } from '../services/session';
 import {
   formatReportMoney,
+  paymentQuery,
   presetRange,
   reportChartPath,
   resolveRouteState,
   toRouteParams,
 } from '../services/admin-statistics';
 import type {
+  PaymentStatus,
   StatisticsOptions,
+  StatisticsPaymentPage,
+  StatisticsPaymentQuery,
   StatisticsRouteState,
   StatisticsSummary,
 } from '../services/admin-statistics-contracts';
@@ -24,7 +28,7 @@ class AdminStatisticsViewModel {
   options = ko.observable<StatisticsOptions | undefined>(undefined);
   state = ko.observable<StatisticsRouteState | undefined>(undefined);
   snapshot = ko.observable<StatisticsSummary | undefined>(undefined);
-  pageData = ko.observable<undefined>(undefined);
+  pageData = ko.observable<StatisticsPaymentPage | undefined>(undefined);
   from = ko.observable('');
   to = ko.observable('');
   currency = ko.observable('');
@@ -37,11 +41,73 @@ class AdminStatisticsViewModel {
   notice = ko.observable('');
   refreshStatus = ko.observable('');
   lastUpdated = ko.pureComputed(() => this.snapshot()?.meta.generatedAt || '');
+  listPage = ko.pureComputed(() => this.pageData()?.page ?? this.state()?.page ?? 0);
+  canPreviousPaymentPage = ko.pureComputed(() => !this.listBusy() && this.listPage() > 0);
+  canNextPaymentPage = ko.pureComputed(() => {
+    const page = this.pageData();
+    if (this.listBusy() || !page) return false;
+    return page.page + 1 < Math.max(1, page.totalPages);
+  });
+  beyondLastPage = ko.pureComputed(() => {
+    const page = this.pageData();
+    return !!page && page.page > 0 && page.items.length === 0;
+  });
+  listSelection = ko.pureComputed(() => {
+    const state = this.state();
+    if (!state?.showPayments) return '';
+    const scope = state.day
+      ? 'Payments created on ' + state.day
+      : 'Payments created ' + state.from + ' to ' + state.to;
+    return (
+      scope +
+      ', ' +
+      state.currency +
+      ' source currency, ' +
+      (state.status ? 'status ' + state.status : 'every status')
+    );
+  });
+  listTotals = ko.pureComputed(() => {
+    const page = this.pageData();
+    if (!page) return '';
+    if (!page.items.length)
+      return (
+        'No rows on page ' +
+        (page.page + 1) +
+        ' · ' +
+        page.totalElements +
+        ' payments match this selection'
+      );
+    const first = page.page * page.size + 1;
+    return (
+      'Showing ' +
+      first +
+      '–' +
+      (first + page.items.length - 1) +
+      ' of ' +
+      page.totalElements +
+      ' payments · page ' +
+      (page.page + 1) +
+      ' of ' +
+      Math.max(1, page.totalPages)
+    );
+  });
+  listAnnouncement = ko.pureComputed(() => {
+    const page = this.pageData();
+    if (!page) return '';
+    if (!page.items.length)
+      return 'No payment records on this page of ' + page.totalElements + ' matching payments.';
+    return (
+      page.items.length + ' payment records loaded of ' + page.totalElements + ' matching payments.'
+    );
+  });
   ready: Promise<void>;
 
   private optionsGeneration = 0;
   private summaryGeneration = 0;
   private listGeneration = 0;
+  private summaryReady: Promise<void> = Promise.resolve();
+  private listReady: Promise<void> = Promise.resolve();
+  private listKey = '';
   private disposed = false;
   private initializing = true;
   private initialized = false;
@@ -80,6 +146,8 @@ class AdminStatisticsViewModel {
     this.summaryGeneration++;
     this.listGeneration++;
     this.summaryReady = Promise.resolve();
+    this.listReady = Promise.resolve();
+    this.listKey = '';
     this.options(undefined);
     this.state(undefined);
     this.snapshot(undefined);
@@ -112,7 +180,11 @@ class AdminStatisticsViewModel {
     this.identityKey = this.currentIdentity();
     if (this.disposed || !session.isAdmin()) return;
     await this.loadOptions();
-    await this.summaryReady;
+    await this.settled();
+  }
+
+  private settled(): Promise<void> {
+    return Promise.all([this.summaryReady, this.listReady]).then(() => undefined);
   }
 
   private async loadOptions(): Promise<void> {
@@ -140,8 +212,6 @@ class AdminStatisticsViewModel {
       if (current()) this.optionsBusy(false);
     }
   }
-
-  private summaryReady: Promise<void> = Promise.resolve();
 
   private resolveAndLoad(params: Record<string, unknown>, initial = false) {
     const currentOptions = this.options();
@@ -171,14 +241,39 @@ class AdminStatisticsViewModel {
           false,
         );
       }
+      this.applyListSelection(next);
     } catch (error: unknown) {
       this.snapshot(undefined);
       this.pageData(undefined);
       this.summaryGeneration++;
       this.busy(false);
+      this.listGeneration++;
+      this.listBusy(false);
+      this.listKey = '';
       this.error(messageOf(error, 'Statistics are unavailable.'));
       this.summaryReady = Promise.resolve();
+      this.listReady = Promise.resolve();
     }
+  }
+
+  private applyListSelection(state: StatisticsRouteState) {
+    if (!state.showPayments) {
+      this.listGeneration++;
+      this.listKey = '';
+      this.pageData(undefined);
+      this.listError('');
+      this.listBusy(false);
+      this.listReady = Promise.resolve();
+      return;
+    }
+    const query = paymentQuery(state);
+    const key = JSON.stringify(query);
+    // An unchanged selection triggers no request, so any in-flight page stays in `ready`.
+    if (key === this.listKey) return;
+    this.listKey = key;
+    this.pageData(undefined);
+    this.listError('');
+    this.listReady = this.loadPage(query);
   }
 
   private async loadSummary(
@@ -207,12 +302,29 @@ class AdminStatisticsViewModel {
     }
   }
 
+  private async loadPage(query: StatisticsPaymentQuery) {
+    const generation = ++this.listGeneration;
+    const accountId = session.user()?.id;
+    const current = () => this.isOwner(accountId, generation, 'list');
+    this.listBusy(true);
+    this.listError('');
+    try {
+      const response = await fluxApi.adminStatisticsPayments(query);
+      if (!current()) return;
+      this.pageData(response);
+    } catch (error: unknown) {
+      if (current()) this.listError(messageOf(error, 'Payment records are unavailable.'));
+    } finally {
+      if (current()) this.listBusy(false);
+    }
+  }
+
   parametersChanged(params: Record<string, unknown>): void {
     if (this.disposed) return;
     this.routeParams = { ...params };
     if (!session.isAdmin() || !this.options()) return;
     this.resolveAndLoad(this.routeParams);
-    this.ready = this.summaryReady;
+    this.ready = this.settled();
   }
 
   selectPreset(days: 1 | 7 | 30 | 90): void {
@@ -227,28 +339,34 @@ class AdminStatisticsViewModel {
   applyFilters(): void {
     if (!session.isAdmin() || !this.options()) return;
     const current = this.state();
+    const from = this.from();
+    const to = this.to();
     if (
       current &&
-      this.from() === current.from &&
-      this.to() === current.to &&
+      from === current.from &&
+      to === current.to &&
       this.currency() === current.currency
     ) {
       if (this.error() || (!this.snapshot() && !this.busy())) {
-        this.ready = this.loadSummary(
+        this.summaryReady = this.loadSummary(
           { from: current.from, to: current.to, currency: current.currency },
           false,
         );
+        this.ready = this.settled();
       }
       return;
     }
+    const open = !!current?.showPayments;
+    const day = current?.day;
     const next: StatisticsRouteState = {
-      from: this.from(),
-      to: this.to(),
+      from,
+      to,
       currency: this.currency(),
-      showPayments: false,
+      showPayments: open,
+      ...(open && current?.status ? { status: current.status } : {}),
+      ...(open && day && day >= from && day <= to ? { day } : {}),
       page: 0,
     };
-    if (current?.showPayments && current.status) delete next.status;
     navigate('admin-statistics', toRouteParams(next));
   }
 
@@ -256,13 +374,15 @@ class AdminStatisticsViewModel {
     if (!session.isAdmin() || this.disposed) return;
     this.invalidateAndClear();
     await this.loadOptions();
-    await this.summaryReady;
+    await this.settled();
   }
 
   async refresh(): Promise<void> {
     const current = this.state();
     if (!session.isAdmin() || !current || this.disposed) return;
-    await this.loadSummary(current, true);
+    this.summaryReady = this.loadSummary(current, true);
+    if (current.showPayments) this.listReady = this.loadPage(paymentQuery(current));
+    await this.settled();
   }
 
   formatMoney(amount: string, currencyCode?: string): string {
@@ -336,11 +456,57 @@ class AdminStatisticsViewModel {
     return this.chartTicks((this.snapshot()?.customerTrend || []).map((day) => day.registrations));
   }
 
-  selectDay(date: string): void {
+  openPayments(status?: PaymentStatus, day?: string): void {
     const current = this.state();
     if (!current) return;
-    const next: StatisticsRouteState = { ...current, showPayments: true, day: date, page: 0 };
-    navigate('admin-statistics', toRouteParams(next));
+    navigate(
+      'admin-statistics',
+      toRouteParams({ ...current, showPayments: true, status, day, page: 0 }),
+    );
+  }
+
+  closePayments(): void {
+    const current = this.state();
+    if (!current?.showPayments) return;
+    navigate('admin-statistics', toRouteParams({ ...current, showPayments: false, page: 0 }));
+  }
+
+  goToPage(page: number): void {
+    const current = this.state();
+    if (!current?.showPayments || !Number.isInteger(page) || page < 0) return;
+    navigate('admin-statistics', toRouteParams({ ...current, page }));
+  }
+
+  openOperations(row: StatisticsPaymentPage['items'][number]): void {
+    navigate('admin-payment-operations', { paymentId: row.paymentId });
+  }
+
+  async retryPayments(): Promise<void> {
+    const current = this.state();
+    if (!current?.showPayments || !session.isAdmin() || this.disposed) return;
+    this.listKey = '';
+    this.applyListSelection(current);
+    await this.settled();
+  }
+
+  formatTime(value: string | null | undefined): string {
+    const date = new Date(value || '');
+    if (Number.isNaN(date.getTime())) return value || '—';
+    const zone = this.pageData()?.meta.reportingZone || this.options()?.reportingZone;
+    try {
+      return new Intl.DateTimeFormat('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: zone,
+        timeZoneName: 'short',
+      }).format(date);
+    } catch {
+      return date.toISOString();
+    }
   }
 
   disconnected(): void {
@@ -348,6 +514,13 @@ class AdminStatisticsViewModel {
     this.invalidateAndClear();
     this.sessionChanged.dispose();
     this.lastUpdated.dispose();
+    this.listPage.dispose();
+    this.canPreviousPaymentPage.dispose();
+    this.canNextPaymentPage.dispose();
+    this.beyondLastPage.dispose();
+    this.listSelection.dispose();
+    this.listTotals.dispose();
+    this.listAnnouncement.dispose();
   }
 }
 

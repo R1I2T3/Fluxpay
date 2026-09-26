@@ -34,21 +34,25 @@ function eachDate(from, to, make) {
   return rows;
 }
 
-function summary(query) {
+function reportMeta(query) {
   const endExclusive = new Date(query.to + 'T00:00:00.000Z');
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
   return {
-    meta: {
-      from: query.from,
-      to: query.to,
-      currency: query.currency,
-      currencyScale: 2,
-      reportingZone: 'Asia/Kolkata',
-      fromInclusive: query.from + 'T00:00:00+05:30',
-      toExclusive: endExclusive.toISOString().slice(0, 10) + 'T00:00:00+05:30',
-      generatedAt: '2026-09-25T12:00:00Z',
-      periodBasis: 'PAYMENT_CREATED_AT',
-    },
+    from: query.from,
+    to: query.to,
+    currency: query.currency,
+    currencyScale: 2,
+    reportingZone: 'Asia/Kolkata',
+    fromInclusive: query.from + 'T00:00:00+05:30',
+    toExclusive: endExclusive.toISOString().slice(0, 10) + 'T00:00:00+05:30',
+    generatedAt: '2026-09-25T12:00:00Z',
+    periodBasis: 'PAYMENT_CREATED_AT',
+  };
+}
+
+function summary(query) {
+  return {
+    meta: reportMeta(query),
     paymentSummary: {
       paymentCount: 0,
       completedCount: 0,
@@ -78,9 +82,34 @@ function summary(query) {
   };
 }
 
+function paymentRow(overrides = {}) {
+  return {
+    paymentId: '00000000-0000-0000-0000-000000000001',
+    createdAt: '2026-09-24T12:00:00Z',
+    sourceAmount: '25.00',
+    sourceCurrency: 'INR',
+    status: 'FAILED',
+    ...overrides,
+  };
+}
+
+function paymentPage(query, overrides = {}) {
+  const items = overrides.items || [];
+  return {
+    meta: reportMeta(query),
+    status: query.status === undefined ? null : query.status,
+    page: query.page,
+    size: query.size,
+    totalElements: overrides.totalElements === undefined ? items.length : overrides.totalElements,
+    totalPages: overrides.totalPages === undefined ? 0 : overrides.totalPages,
+    items,
+  };
+}
+
 function makePage({
   summary: summaryOverride,
   options: optionsOverride,
+  payments: paymentsOverride,
   role = 'ADMIN',
   params: initialParams = {},
 } = {}) {
@@ -93,7 +122,7 @@ function makePage({
   const calls = [];
   const api = {
     adminStatisticsOptions: async () => {
-      calls.push({ type: 'options' });
+      calls.push({ kind: 'options' });
       return optionsOverride
         ? optionsOverride()
         : {
@@ -108,16 +137,15 @@ function makePage({
           };
     },
     adminStatistics: async (query) => {
-      calls.push({ type: 'summary', query: { ...query } });
+      calls.push({ kind: 'summary', query: { ...query } });
       return summaryOverride ? summaryOverride(query) : summary(query);
     },
     adminStatisticsPayments: async (query) => {
-      calls.push({ type: 'payments', query: { ...query } });
-      return { items: [], totalElements: 0, totalPages: 0, page: query.page, size: query.size };
+      calls.push({ kind: 'payments', query: { ...query } });
+      return paymentsOverride ? paymentsOverride(query) : paymentPage(query);
     },
   };
   let vm;
-  const navigateCalls = [];
   let parameterUpdates = 0;
   let currentRouteParams = { ...initialParams };
   const normalizedParams = (params) =>
@@ -129,7 +157,7 @@ function makePage({
       ),
     );
   const navigate = (path, params = {}) => {
-    navigateCalls.push({ path, params: { ...params } });
+    calls.push({ kind: 'navigate', path, params: { ...params } });
     if (
       path === 'admin-statistics' &&
       normalizedParams(params) !== normalizedParams(currentRouteParams)
@@ -158,7 +186,9 @@ function makePage({
     api,
     session,
     calls,
-    navigateCalls,
+    get navigateCalls() {
+      return calls.filter((call) => call.kind === 'navigate');
+    },
     navigate,
     get parameterUpdates() {
       return parameterUpdates;
@@ -167,4 +197,4 @@ function makePage({
   };
 }
 
-module.exports = { deferred, summary, makePage };
+module.exports = { deferred, summary, paymentRow, paymentPage, statuses, makePage };

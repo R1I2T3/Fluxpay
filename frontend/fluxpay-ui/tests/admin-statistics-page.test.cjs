@@ -2,13 +2,26 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { deferred, summary, makePage } = require('./admin-statistics-fixture.cjs');
+const {
+  deferred,
+  summary,
+  paymentRow,
+  paymentPage,
+  statuses,
+  makePage,
+} = require('./admin-statistics-fixture.cjs');
+
+const plain = (value) => JSON.parse(JSON.stringify(value));
+const readStatisticsView = () =>
+  fs.readFileSync(path.join(__dirname, '../src/ts/views/admin-statistics.html'), 'utf8');
+const lastCall = (f, kind) => f.calls.filter((call) => call.kind === kind).at(-1);
+const countCalls = (f, kind) => f.calls.filter((call) => call.kind === kind).length;
 
 test('loads options before one initial summary and parameter-only navigation reloads once', async () => {
   const f = makePage();
   await f.settle();
   assert.deepEqual(
-    f.calls.map((call) => call.type),
+    f.calls.map((call) => call.kind),
     ['options', 'summary'],
   );
   assert.deepEqual(JSON.parse(JSON.stringify(f.calls[1].query)), {
@@ -17,14 +30,14 @@ test('loads options before one initial summary and parameter-only navigation rel
     currency: 'INR',
   });
   f.vm.parametersChanged({ from: '2026-08-27', to: '2026-09-25', currency: 'INR' });
-  assert.equal(f.calls.filter((call) => call.type === 'summary').length, 1);
+  assert.equal(f.calls.filter((call) => call.kind === 'summary').length, 1);
   f.vm.applyFilters();
-  assert.equal(f.calls.filter((call) => call.type === 'summary').length, 1);
+  assert.equal(f.calls.filter((call) => call.kind === 'summary').length, 1);
   f.vm.from('2026-09-01');
   f.vm.applyFilters();
   await f.vm.ready;
   assert.equal(f.navigateCalls.at(-1).path, 'admin-statistics');
-  assert.equal(f.calls.filter((call) => call.type === 'summary').length, 2);
+  assert.equal(f.calls.filter((call) => call.kind === 'summary').length, 2);
 });
 
 test('regular and anonymous sessions never request protected reports', async () => {
@@ -59,11 +72,11 @@ test('options failure can be retried before summary loading', async () => {
   await f.vm.ready;
   assert.equal(f.vm.optionsError(), 'Options offline');
   assert.equal(
-    f.calls.some((call) => call.type === 'summary'),
+    f.calls.some((call) => call.kind === 'summary'),
     false,
   );
   await f.vm.retryOptions();
-  assert.equal(f.calls.filter((call) => call.type === 'summary').length, 1);
+  assert.equal(f.calls.filter((call) => call.kind === 'summary').length, 1);
 });
 
 test('route parameters changed while options load own the initial summary query', async () => {
@@ -82,7 +95,7 @@ test('route parameters changed while options load own the initial summary query'
     maximumRangeDays: 366,
   });
   await f.vm.ready;
-  assert.deepEqual(f.calls.find((call) => call.type === 'summary').query, {
+  assert.deepEqual(f.calls.find((call) => call.kind === 'summary').query, {
     from: '2026-09-01',
     to: '2026-09-25',
     currency: 'USD',
@@ -103,7 +116,7 @@ test('empty currency options show setup state and skip summary requests', async 
   await f.vm.ready;
   assert.deepEqual(f.vm.options().currencies, []);
   assert.equal(
-    f.calls.some((call) => call.type === 'summary'),
+    f.calls.some((call) => call.kind === 'summary'),
     false,
   );
 });
@@ -241,8 +254,8 @@ test('admin identity changes and role loss clear prior protected data', async ()
   await f.settle();
   f.session.user({ id: 'admin-2', role: 'ADMIN' });
   await f.vm.ready;
-  assert.equal(f.calls.filter((call) => call.type === 'options').length, 2);
-  assert.equal(f.calls.filter((call) => call.type === 'summary').length, 2);
+  assert.equal(f.calls.filter((call) => call.kind === 'options').length, 2);
+  assert.equal(f.calls.filter((call) => call.kind === 'summary').length, 2);
   f.session.user({ id: 'admin-2', role: 'CUSTOMER' });
   assert.equal(f.vm.snapshot(), undefined);
   assert.equal(f.vm.options(), undefined);
@@ -333,7 +346,7 @@ test('template renders accessible summary sections with safe text bindings and n
   assert.match(html, /text:\$root\.snapshot\(\)\.meta\.to/);
   assert.doesNotMatch(html, /text:\$root\.from\(\)|text:\$root\.to\(\)/);
   assert.equal(
-    f.calls.some((call) => call.type === 'payments'),
+    f.calls.some((call) => call.kind === 'payments'),
     false,
   );
 });
@@ -346,6 +359,549 @@ test('chart date ticks bind to the displayed snapshot rather than unsubmitted co
   assert.equal((html.match(/text:\$root\.snapshot\(\)\.meta\.from/g) || []).length, 3);
   assert.equal((html.match(/text:\$root\.snapshot\(\)\.meta\.to/g) || []).length, 3);
   assert.doesNotMatch(html, /text:\$root\.from\(\)|text:\$root\.to\(\)/);
+});
+
+test('failed payment drilldown preserves source currency and opens operations', async () => {
+  const f = makePage();
+  await f.vm.ready;
+  f.vm.openPayments('FAILED');
+  await f.vm.ready;
+  const query = f.calls.filter((call) => call.kind === 'payments').at(-1).query;
+  assert.equal(query.status, 'FAILED');
+  assert.equal(query.currency, 'INR');
+  assert.equal(query.page, 0);
+  assert.equal(query.size, 20);
+  f.vm.openOperations({
+    paymentId: '00000000-0000-0000-0000-000000000001',
+    createdAt: '2026-09-24T12:00:00Z',
+    sourceAmount: '25.00',
+    sourceCurrency: 'INR',
+    status: 'FAILED',
+  });
+  const navigation = f.calls.filter((call) => call.kind === 'navigate').at(-1);
+  assert.equal(navigation.path, 'admin-payment-operations');
+  assert.equal(navigation.params.paymentId, '00000000-0000-0000-0000-000000000001');
+});
+
+test('every drilldown entry point maps to exactly one list filter', async () => {
+  const f = makePage();
+  await f.vm.ready;
+  const summaryCalls = countCalls(f, 'summary');
+
+  f.vm.openPayments();
+  await f.vm.ready;
+  assert.deepEqual(plain(lastCall(f, 'payments').query), {
+    from: '2026-08-27',
+    to: '2026-09-25',
+    currency: 'INR',
+    page: 0,
+    size: 20,
+  });
+
+  for (const status of statuses) {
+    f.vm.openPayments(status);
+    await f.vm.ready;
+    const query = lastCall(f, 'payments').query;
+    assert.equal(query.status, status);
+    assert.equal(query.from, '2026-08-27');
+    assert.equal(query.to, '2026-09-25');
+  }
+
+  f.vm.openPayments('COMPLETED', '2026-09-18');
+  await f.vm.ready;
+  assert.deepEqual(plain(lastCall(f, 'payments').query), {
+    from: '2026-09-18',
+    to: '2026-09-18',
+    currency: 'INR',
+    status: 'COMPLETED',
+    page: 0,
+    size: 20,
+  });
+  assert.equal(plain(f.vm.state()).day, '2026-09-18');
+  assert.equal(plain(f.vm.state()).from, '2026-08-27');
+  assert.equal(countCalls(f, 'summary'), summaryCalls);
+  assert.equal(countCalls(f, 'payments'), statuses.length + 2);
+});
+
+test('page changes reload only the list and keep the dashboard summary', async () => {
+  const f = makePage({
+    payments: (query) => Promise.resolve(paymentPage(query, { totalElements: 45, totalPages: 3 })),
+  });
+  await f.vm.ready;
+  f.vm.openPayments('COMPLETED');
+  await f.vm.ready;
+  assert.equal(f.vm.listPage(), 0);
+  assert.equal(f.vm.canPreviousPaymentPage(), false);
+  assert.equal(f.vm.canNextPaymentPage(), true);
+
+  f.vm.goToPage(2);
+  await f.vm.ready;
+  assert.equal(lastCall(f, 'payments').query.page, 2);
+  assert.equal(plain(f.vm.state()).page, 2);
+  assert.equal(countCalls(f, 'summary'), 1);
+  assert.ok(f.vm.snapshot());
+  assert.equal(f.vm.listError(), '');
+
+  f.vm.goToPage(1);
+  await f.vm.ready;
+  assert.equal(lastCall(f, 'payments').query.page, 1);
+  assert.equal(countCalls(f, 'summary'), 1);
+
+  f.vm.goToPage(-1);
+  f.vm.goToPage(1.5);
+  await f.settle();
+  assert.equal(countCalls(f, 'payments'), 3);
+  assert.equal(f.vm.listPage(), 1);
+  assert.equal(f.vm.canNextPaymentPage(), true);
+  assert.equal(f.vm.canPreviousPaymentPage(), true);
+});
+
+test('repeating the same list selection keeps the loaded page and issues no request', async () => {
+  const slow = deferred();
+  let attempts = 0;
+  const f = makePage({
+    payments: (query) => {
+      attempts++;
+      return attempts === 1
+        ? slow.promise
+        : Promise.resolve(paymentPage(query, { items: [paymentRow()] }));
+    },
+  });
+  await f.vm.ready;
+  f.vm.openPayments('FAILED');
+  assert.equal(countCalls(f, 'payments'), 1);
+  assert.equal(f.vm.listBusy(), true);
+
+  // The same selection again must not orphan the request that `ready` is waiting on.
+  f.vm.parametersChanged({ ...f.navigateCalls.at(-1).params });
+  let readySettled = false;
+  void f.vm.ready.then(() => (readySettled = true));
+  await f.settle();
+  assert.equal(countCalls(f, 'payments'), 1);
+  assert.equal(readySettled, false);
+
+  slow.resolve(
+    paymentPage(
+      {
+        from: '2026-08-27',
+        to: '2026-09-25',
+        currency: 'INR',
+        status: 'FAILED',
+        page: 0,
+        size: 20,
+      },
+      { items: [paymentRow()] },
+    ),
+  );
+  await f.vm.ready;
+  assert.equal(readySettled, true);
+  assert.equal(f.vm.pageData().items.length, 1);
+  assert.equal(f.vm.listBusy(), false);
+  assert.equal(f.vm.listError(), '');
+  assert.equal(countCalls(f, 'summary'), 1);
+  assert.equal(plain(f.vm.state()).status, 'FAILED');
+});
+
+test('a page beyond the last page is empty without changing the server totals', async () => {
+  const f = makePage({
+    payments: (query) => Promise.resolve(paymentPage(query, { totalElements: 45, totalPages: 3 })),
+  });
+  await f.vm.ready;
+  f.vm.openPayments();
+  await f.vm.ready;
+  f.vm.goToPage(999);
+  await f.vm.ready;
+  assert.equal(f.vm.listError(), '');
+  assert.equal(f.vm.pageData().totalElements, 45);
+  assert.equal(f.vm.pageData().totalPages, 3);
+  assert.equal(f.vm.pageData().items.length, 0);
+  assert.equal(f.vm.listPage(), 999);
+  assert.equal(f.vm.canNextPaymentPage(), false);
+  assert.equal(f.vm.canPreviousPaymentPage(), true);
+  assert.equal(countCalls(f, 'summary'), 1);
+
+  f.vm.goToPage(0);
+  await f.vm.ready;
+  assert.equal(lastCall(f, 'payments').query.page, 0);
+});
+
+test('a new filter keeps the open list, resets the page, and drops a day outside the range', async () => {
+  const f = makePage({ params: { from: '2026-09-01', to: '2026-09-25', currency: 'INR' } });
+  await f.vm.ready;
+  f.vm.openPayments('COMPLETED', '2026-09-10');
+  await f.vm.ready;
+  f.vm.goToPage(2);
+  await f.vm.ready;
+  assert.equal(f.vm.listPage(), 2);
+
+  f.vm.currency('USD');
+  f.vm.applyFilters();
+  await f.vm.ready;
+  const state = plain(f.vm.state());
+  assert.equal(state.showPayments, true);
+  assert.equal(state.status, 'COMPLETED');
+  assert.equal(state.day, '2026-09-10');
+  assert.equal(state.page, 0);
+  assert.equal(state.currency, 'USD');
+  assert.deepEqual(plain(lastCall(f, 'payments').query), {
+    from: '2026-09-10',
+    to: '2026-09-10',
+    currency: 'USD',
+    status: 'COMPLETED',
+    page: 0,
+    size: 20,
+  });
+  assert.equal(countCalls(f, 'summary'), 2);
+
+  f.vm.to('2026-09-05');
+  f.vm.applyFilters();
+  await f.vm.ready;
+  const narrowed = plain(f.vm.state());
+  assert.equal(narrowed.showPayments, true);
+  assert.equal(narrowed.status, 'COMPLETED');
+  assert.equal(narrowed.day, undefined);
+  assert.equal(narrowed.page, 0);
+  assert.deepEqual(plain(lastCall(f, 'payments').query), {
+    from: '2026-09-01',
+    to: '2026-09-05',
+    currency: 'USD',
+    status: 'COMPLETED',
+    page: 0,
+    size: 20,
+  });
+  assert.equal(f.vm.error(), '');
+  assert.ok(f.vm.snapshot());
+});
+
+test('closing the list invalidates a pending list response and stops later requests', async () => {
+  const slow = deferred();
+  const f = makePage({ payments: () => slow.promise });
+  await f.vm.ready;
+  f.vm.openPayments();
+  await f.settle();
+  assert.equal(f.vm.listBusy(), true);
+  f.vm.closePayments();
+  assert.equal(plain(f.vm.state()).showPayments, false);
+  assert.equal(f.vm.pageData(), undefined);
+  assert.equal(f.vm.listBusy(), false);
+  slow.resolve(
+    paymentPage({ from: '2026-08-27', to: '2026-09-25', currency: 'INR', page: 0, size: 20 }),
+  );
+  await f.settle();
+  assert.equal(f.vm.pageData(), undefined);
+  assert.equal(f.vm.listBusy(), false);
+  assert.equal(countCalls(f, 'payments'), 1);
+  assert.ok(f.vm.snapshot());
+  assert.equal(lastCall(f, 'navigate').params.showPayments, undefined);
+});
+
+test('every route field is restored from a raw parameter map', async () => {
+  const f = makePage();
+  await f.vm.ready;
+  f.vm.parametersChanged({
+    from: '2026-09-01',
+    to: '2026-09-25',
+    currency: 'USD',
+    showPayments: '1',
+    status: 'REFUNDED',
+    day: '2026-09-12',
+    page: '2',
+  });
+  await f.vm.ready;
+  assert.deepEqual(plain(f.vm.state()), {
+    from: '2026-09-01',
+    to: '2026-09-25',
+    currency: 'USD',
+    showPayments: true,
+    status: 'REFUNDED',
+    day: '2026-09-12',
+    page: 2,
+  });
+  assert.deepEqual(plain(lastCall(f, 'payments').query), {
+    from: '2026-09-12',
+    to: '2026-09-12',
+    currency: 'USD',
+    status: 'REFUNDED',
+    page: 2,
+    size: 20,
+  });
+  assert.equal(f.vm.listPage(), 2);
+  assert.equal(countCalls(f, 'summary'), 2);
+
+  f.vm.parametersChanged({
+    from: '2026-09-01',
+    to: '2026-09-25',
+    currency: 'USD',
+    showPayments: '0',
+    page: '2',
+  });
+  await f.vm.ready;
+  assert.equal(plain(f.vm.state()).showPayments, false);
+  assert.equal(plain(f.vm.state()).page, 0);
+  assert.equal(f.vm.pageData(), undefined);
+  assert.equal(countCalls(f, 'summary'), 2);
+  assert.equal(countCalls(f, 'payments'), 1);
+});
+
+test('invalid route filters send neither a summary nor a list query', async () => {
+  const f = makePage();
+  await f.vm.ready;
+  f.vm.parametersChanged({
+    from: '2026-09-01',
+    to: '2026-09-25',
+    currency: 'INR',
+    showPayments: '1',
+    day: '2026-08-01',
+    page: '0',
+  });
+  await f.vm.ready;
+  assert.equal(f.vm.error(), 'The selected day must be inside the reporting range.');
+  assert.equal(f.vm.snapshot(), undefined);
+  assert.equal(f.vm.pageData(), undefined);
+  assert.equal(f.vm.listBusy(), false);
+  assert.equal(countCalls(f, 'summary'), 1);
+  assert.equal(countCalls(f, 'payments'), 0);
+});
+
+test('a stale list response cannot replace a newer list selection', async () => {
+  const slow = deferred();
+  let attempts = 0;
+  const f = makePage({
+    payments: (query) => {
+      attempts++;
+      if (attempts === 1) return slow.promise;
+      return Promise.resolve(paymentPage(query, { items: [paymentRow({ paymentId: 'newer' })] }));
+    },
+  });
+  await f.vm.ready;
+  f.vm.openPayments();
+  await f.settle();
+  f.vm.openPayments('FAILED');
+  await f.vm.ready;
+  assert.equal(f.vm.pageData().items[0].paymentId, 'newer');
+  slow.resolve(
+    paymentPage(
+      { from: '2026-08-27', to: '2026-09-25', currency: 'INR', page: 0, size: 20 },
+      { items: [paymentRow({ paymentId: 'stale' })] },
+    ),
+  );
+  await f.settle();
+  assert.equal(f.vm.pageData().items[0].paymentId, 'newer');
+  assert.equal(f.vm.listBusy(), false);
+  assert.ok(f.vm.snapshot());
+});
+
+test('a failed list request preserves the summary and retries the same list state', async () => {
+  let shouldFail = true;
+  const f = makePage({
+    payments: (query) => {
+      if (shouldFail) return Promise.reject(new Error('Payments offline'));
+      return Promise.resolve(paymentPage(query, { items: [paymentRow()] }));
+    },
+  });
+  await f.vm.ready;
+  const summaryCalls = countCalls(f, 'summary');
+  f.vm.openPayments('FAILED');
+  await f.vm.ready;
+  assert.equal(f.vm.listError(), 'Payments offline');
+  assert.equal(f.vm.error(), '');
+  assert.ok(f.vm.snapshot());
+  assert.equal(f.vm.pageData(), undefined);
+  assert.equal(f.vm.listBusy(), false);
+  assert.equal(countCalls(f, 'summary'), summaryCalls);
+
+  shouldFail = false;
+  await f.vm.retryPayments();
+  assert.equal(f.vm.listError(), '');
+  assert.equal(f.vm.pageData().items.length, 1);
+  assert.deepEqual(plain(lastCall(f, 'payments').query), {
+    from: '2026-08-27',
+    to: '2026-09-25',
+    currency: 'INR',
+    status: 'FAILED',
+    page: 0,
+    size: 20,
+  });
+  assert.equal(countCalls(f, 'summary'), summaryCalls);
+});
+
+test('logout and disconnect clear the loaded payment page', async () => {
+  for (const revoke of [(f) => f.session.user(null), (f) => f.vm.disconnected()]) {
+    const f = makePage({
+      payments: (query) => Promise.resolve(paymentPage(query, { items: [paymentRow()] })),
+    });
+    await f.vm.ready;
+    f.vm.openPayments();
+    await f.vm.ready;
+    assert.equal(f.vm.pageData().items.length, 1);
+    revoke(f);
+    assert.equal(f.vm.pageData(), undefined);
+    assert.equal(f.vm.listBusy(), false);
+    assert.equal(f.vm.snapshot(), undefined);
+  }
+});
+
+test('refresh reloads the summary and the open list', async () => {
+  const f = makePage({
+    payments: (query) => Promise.resolve(paymentPage(query, { items: [paymentRow()] })),
+  });
+  await f.vm.ready;
+  f.vm.openPayments('FAILED');
+  await f.vm.ready;
+  await f.vm.refresh();
+  assert.equal(countCalls(f, 'summary'), 2);
+  assert.equal(countCalls(f, 'payments'), 2);
+  assert.equal(f.vm.refreshStatus(), '');
+  assert.equal(f.vm.pageData().items.length, 1);
+  f.vm.closePayments();
+  await f.vm.ready;
+  await f.vm.refresh();
+  assert.equal(countCalls(f, 'summary'), 3);
+  assert.equal(countCalls(f, 'payments'), 2);
+});
+
+test('the list presents rows, totals, announcements, and paging controls', async () => {
+  const f = makePage({
+    payments: (query) =>
+      Promise.resolve(
+        paymentPage(query, {
+          items: [
+            paymentRow({ paymentId: 'row-1' }),
+            paymentRow({ paymentId: 'row-2', sourceAmount: '1234.50', sourceCurrency: 'USD' }),
+          ],
+          totalElements: 45,
+          totalPages: 3,
+        }),
+      ),
+  });
+  await f.vm.ready;
+  f.vm.openPayments('FAILED');
+  await f.vm.ready;
+  const page = f.vm.pageData();
+  assert.equal(page.items.length, 2);
+  assert.equal(page.totalElements, 45);
+  assert.equal(page.size, 20);
+  assert.equal(
+    f.vm.listSelection(),
+    'Payments created 2026-08-27 to 2026-09-25, INR source currency, status FAILED',
+  );
+  assert.equal(f.vm.listTotals(), 'Showing 1–2 of 45 payments · page 1 of 3');
+  assert.equal(f.vm.listAnnouncement(), '2 payment records loaded of 45 matching payments.');
+  assert.equal(f.vm.canPreviousPaymentPage(), false);
+  assert.equal(f.vm.canNextPaymentPage(), true);
+  assert.equal(f.vm.beyondLastPage(), false);
+  assert.equal(
+    f.vm.formatMoney(page.items[1].sourceAmount, page.items[1].sourceCurrency),
+    'USD 1,234.50',
+  );
+  assert.equal(f.vm.formatMoney('25.00', 'INR'), 'INR 25.00');
+  assert.equal(f.vm.formatRate(50, 'No final outcomes'), '50.00%');
+  assert.equal(f.vm.beyondLastPage(), false);
+  assert.equal(
+    f.vm.formatTime('2026-09-24T12:00:00Z'),
+    new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: page.meta.reportingZone,
+      timeZoneName: 'short',
+    }).format(new Date('2026-09-24T12:00:00Z')),
+  );
+  assert.equal(f.vm.formatTime('2026-09-24T12:00:00Z'), '24 Sept 2026, 17:30 GMT+5:30');
+  assert.equal(f.vm.formatTime('not-a-timestamp'), 'not-a-timestamp');
+});
+
+test('the empty list explains the selection and offers the first page back', async () => {
+  const f = makePage({
+    payments: (query) => Promise.resolve(paymentPage(query, { totalElements: 45, totalPages: 3 })),
+  });
+  await f.vm.ready;
+  f.vm.openPayments();
+  await f.vm.ready;
+  f.vm.goToPage(999);
+  await f.vm.ready;
+  assert.equal(f.vm.beyondLastPage(), true);
+  assert.equal(f.vm.canPreviousPaymentPage(), true);
+  assert.equal(f.vm.canNextPaymentPage(), false);
+  assert.equal(f.vm.listTotals(), 'No rows on page 1000 · 45 payments match this selection');
+  assert.equal(f.vm.listAnnouncement(), 'No payment records on this page of 45 matching payments.');
+});
+
+test('the template exposes only unambiguous payment drilldown actions', () => {
+  const html = readStatisticsView();
+  const listCalls = Array.from(html.matchAll(/openPayments\(([^)]*)\)/g), (match) =>
+    match[1].trim(),
+  );
+  assert.deepEqual(listCalls.sort(), [
+    '',
+    "'COMPLETED'",
+    "'COMPLETED', date",
+    "'FAILED'",
+    "'PROCESSING'",
+    'status',
+    'undefined, date',
+  ]);
+  const successRateCard = html.slice(
+    html.indexOf('Payout success rate'),
+    html.indexOf('Failed payments'),
+  );
+  assert.ok(successRateCard.length > 0);
+  assert.doesNotMatch(successRateCard, /click:/);
+  const providerBlock = html.slice(
+    html.indexOf('id="statistics-providers-title"'),
+    html.indexOf('statistics-customer-card'),
+  );
+  assert.ok(providerBlock.length > 0);
+  assert.doesNotMatch(providerBlock, /click:/);
+  assert.doesNotMatch(html, /selectDay/);
+  assert.doesNotMatch(html, /html:/);
+  for (const binding of [
+    'click:closePayments',
+    'click:retryPayments',
+    'click:$root.openOperations',
+    'disable:listBusy',
+    'disable:!canPreviousPaymentPage',
+    'disable:!canNextPaymentPage',
+    'foreach:pageData().items',
+    'text:listSelection',
+    'text:listTotals',
+    'text:listAnnouncement',
+    'text:$root.formatTime(createdAt)',
+    'text:$root.formatMoney(sourceAmount,sourceCurrency)',
+    'text:paymentId',
+    'text:sourceCurrency',
+  ])
+    assert.ok(html.includes(binding), `missing ${binding}`);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /Return to the first page/);
+  assert.equal(countCalls(makePage(), 'payments'), 0);
+});
+
+test('the statistics view keeps the same virtual-element nesting depth as before', () => {
+  const depth = (html) => {
+    let open = 0;
+    for (const line of html.split('\n'))
+      open +=
+        (line.match(/<!--\s*ko\b/g) || []).length - (line.match(/<!--\s*\/ko\s*-->/g) || []).length;
+    return open;
+  };
+  assert.equal(depth(readStatisticsView()), 1);
+});
+
+test('the statistics view only uses style hooks the stylesheet already defines', () => {
+  const html = readStatisticsView();
+  const css = fs.readFileSync(path.join(__dirname, '../src/css/admin-statistics.css'), 'utf8');
+  const defined = new Set(
+    Array.from(css.matchAll(/\.statistics-page \.([a-z-]+)/g), (match) => match[1]),
+  );
+  for (const hook of Array.from(html.matchAll(/class="(statistics-[\w-]+)/g), (match) => match[1]))
+    assert.ok(
+      defined.has(hook),
+      `unstyled statistics hook: ${hook} (add it under .statistics-page in admin-statistics.css)`,
+    );
 });
 
 test('rates retain the backend two-decimal precision', () => {

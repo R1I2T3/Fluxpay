@@ -113,11 +113,19 @@
       <div class="statistics-payment-cards">
         <article>
           <span>Payments created</span
-          ><strong data-bind="text:paymentSummary.paymentCount"></strong>
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="text:paymentSummary.paymentCount,click:function(){ $root.openPayments() },attr:{ 'aria-label':'View all '+paymentSummary.paymentCount+' payments created in the selected period' }"
+          ></button>
         </article>
         <article>
           <span>Completed payments</span
-          ><strong data-bind="text:paymentSummary.completedCount"></strong
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="text:paymentSummary.completedCount,click:function(){ $root.openPayments('COMPLETED') },attr:{ 'aria-label':'View '+paymentSummary.completedCount+' completed payments created in the selected period' }"
+          ></button
           ><small
             data-bind="text:$root.formatMoney(paymentSummary.completedAmount,meta.currency)"
           ></small>
@@ -129,15 +137,25 @@
           ></strong>
         </article>
         <article>
-          <span>Failed payments</span><strong data-bind="text:paymentSummary.failedCount"></strong>
+          <span>Failed payments</span
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="text:paymentSummary.failedCount,click:function(){ $root.openPayments('FAILED') },attr:{ 'aria-label':'View '+paymentSummary.failedCount+' failed payments created in the selected period' }"
+          ></button>
         </article>
         <article>
           <span>Processing now</span
-          ><strong data-bind="text:paymentSummary.processingCount"></strong>
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="text:paymentSummary.processingCount,click:function(){ $root.openPayments('PROCESSING') },attr:{ 'aria-label':'View '+paymentSummary.processingCount+' payments currently processing' }"
+          ></button>
         </article>
       </div>
       <p class="statistics-caption">
-        Payout success rate = completed payments ÷ payments with final outcomes.
+        Payout success rate = completed payments ÷ payments with final outcomes. Select a payment
+        count above to open the matching records.
       </p>
     </section>
     <section class="statistics-card" aria-labelledby="statistics-status-title">
@@ -151,7 +169,13 @@
         </thead>
         <tbody data-bind="foreach:paymentStatuses">
           <tr>
-            <th scope="row" data-bind="text:status"></th>
+            <th scope="row">
+              <button
+                type="button"
+                class="statistics-date-button"
+                data-bind="text:status,click:function(){ $root.openPayments(status) },attr:{ 'aria-label':'View '+count+' '+status+' payments created in the selected period' }"
+              ></button>
+            </th>
             <td data-bind="text:count"></td>
           </tr>
         </tbody>
@@ -221,7 +245,7 @@
                   <button
                     type="button"
                     class="statistics-date-button"
-                    data-bind="text:date,click:function(){ $root.selectDay(date) },attr:{'aria-label':'View payments for '+date}"
+                    data-bind="text:date,click:function(){ $root.openPayments(undefined, date) },attr:{'aria-label':'View every payment created on '+date}"
                   ></button>
                 </th>
                 <td data-bind="text:paymentCount"></td>
@@ -291,7 +315,13 @@
             </thead>
             <tbody data-bind="foreach:paymentTrend">
               <tr>
-                <th scope="row"><span data-bind="text:date"></span></th>
+                <th scope="row">
+                  <button
+                    type="button"
+                    class="statistics-date-button"
+                    data-bind="text:date,click:function(){ $root.openPayments('COMPLETED', date) },attr:{'aria-label':'View completed payments created on '+date}"
+                  ></button>
+                </th>
                 <td data-bind="text:$root.formatMoney(completedAmount,$parent.meta.currency)"></td>
               </tr>
             </tbody>
@@ -469,11 +499,76 @@
     </section>
   </div>
   <!-- /ko -->
-  <!-- ko if: listBusy -->
-  <p class="statistics-list-state" role="status">Loading payment records…</p>
-  <!-- /ko -->
-  <!-- ko if: listError -->
-  <p class="statistics-error" role="alert" data-bind="text:listError"></p>
+  <!-- ko if: state() && state().showPayments -->
+  <section class="statistics-card" aria-labelledby="statistics-list-title">
+    <h2 id="statistics-list-title">Matching payments</h2>
+    <p class="statistics-caption" data-bind="text:listSelection"></p>
+    <p class="sr-only" role="status" aria-live="polite" data-bind="text:listAnnouncement"></p>
+    <!-- ko if: listBusy -->
+    <p class="statistics-state" role="status">Loading payment records…</p>
+    <!-- /ko -->
+    <!-- ko if: listError -->
+    <p class="statistics-error" role="alert" data-bind="text:listError"></p>
+    <button type="button" class="pill soft" data-bind="click:retryPayments,disable:listBusy">
+      Retry payment records
+    </button>
+    <!-- /ko -->
+    <!-- ko if: pageData -->
+    <div class="statistics-table-scroll">
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th scope="col">Payment ID</th>
+            <th scope="col">Created</th>
+            <th scope="col">Source amount</th>
+            <th scope="col">Currency</th>
+            <th scope="col">Status</th>
+            <th scope="col">Operations</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:pageData().items">
+          <tr>
+            <th scope="row"><span class="mono" data-bind="text:paymentId"></span></th>
+            <td data-bind="text:$root.formatTime(createdAt)"></td>
+            <td data-bind="text:$root.formatMoney(sourceAmount,sourceCurrency)"></td>
+            <td data-bind="text:sourceCurrency"></td>
+            <td data-bind="text:status"></td>
+            <td>
+              <button type="button" class="text-button" data-bind="click:$root.openOperations">
+                Open operations
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="statistics-caption" data-bind="text:listTotals"></p>
+    <div class="statistics-presets" role="group" aria-label="Payment list pages">
+      <button
+        type="button"
+        class="pill soft"
+        data-bind="click:function(){ goToPage($root.listPage()-1) },disable:!canPreviousPaymentPage"
+      >
+        Previous page
+      </button>
+      <button
+        type="button"
+        class="pill soft"
+        data-bind="click:function(){ goToPage($root.listPage()+1) },disable:!canNextPaymentPage"
+      >
+        Next page
+      </button>
+      <!-- ko if: beyondLastPage -->
+      <button type="button" class="pill dark" data-bind="click:function(){ goToPage(0) }">
+        Return to the first page
+      </button>
+      <!-- /ko -->
+      <button type="button" class="pill soft" data-bind="click:closePayments">
+        Close payment list
+      </button>
+    </div>
+    <!-- /ko -->
+  </section>
   <!-- /ko -->
   <!-- /ko -->
 </section>
