@@ -1,7 +1,8 @@
 # FluxPay Bruno API Catalog
 
 This catalog documents the original 46 HTTP API endpoints, followed by the September 20
-integration additions and the payment-operations read API below.
+integration additions, the payment-operations read API, and the admin statistics read
+APIs below.
 
 ## Payment operations event topics
 
@@ -332,6 +333,275 @@ The selected seeded routes are activated by `scripts/seed-local.py` only when th
 local simulation policy is enabled; administrators do not manually activate them for
 this run. The full flow, evidence distinctions, and presenter timing are maintained
 in that runbook.
+
+## Admin statistics reporting API
+
+Three `ADMIN`-only, read-only GET endpoints share the `/api/admin/reports` base path
+with the legacy provider summary below. They report payments **created** in the
+selected period together with their **current** outcomes. They are not a historical
+snapshot of statuses at period end and not a chart of settlement dates, so a past
+period's figures can change when a payment completes, retries, or is refunded. Read
+the `meta` block to see the exact bounds that produced a response. None of these
+endpoints has a POST, PUT, PATCH, or DELETE mapping and none uses `Idempotency-Key`.
+
+```http
+GET /api/admin/reports/statistics?from=2026-09-01&to=2026-09-25&currency=INR
+Authorization: Bearer <admin-token>
+
+GET /api/admin/reports/statistics/payments?from=2026-09-18&to=2026-09-18&currency=INR&status=FAILED&page=0&size=20
+Authorization: Bearer <admin-token>
+```
+
+| Method and URL | Auth / headers | Request query | Status and behavior |
+|---|---|---|---|
+| `GET {{baseUrl}}/api/admin/reports/statistics/options` | `ADMIN` bearer token; no request body | None | **200** returns `currencies`, `defaultCurrency`, `reportingZone`, `today`, and `maximumRangeDays`; it takes no filter, so it has no query-parameter failure mode |
+| `GET {{baseUrl}}/api/admin/reports/statistics` | `ADMIN` bearer token; no request body | `from`, `to`, `currency` | **200** returns `meta`, `paymentSummary`, `paymentTrend`, `paymentStatuses`, `providers`, `customers`, `customerTrend`, and `workload`; invalid filters return the **400** codes below |
+| `GET {{baseUrl}}/api/admin/reports/statistics/payments` | `ADMIN` bearer token; no request body | `from`, `to`, `currency`, optional `status`, `page`, `size` | **200** returns one page of cohort payment rows; invalid filters return the **400** codes below |
+
+Unauthenticated requests return **401**; authenticated non-administrators return the
+standard **403** `FORBIDDEN` envelope. The administrator-facing usage guide for these
+endpoints is [docs/admin-statistics.md](admin-statistics.md).
+
+### Dates, currency, and effective bounds
+
+`from` and `to` are **inclusive calendar dates in `Asia/Kolkata` (IST)** in
+`YYYY-MM-DD` form. The service converts them to the half-open instant window
+`[start of from, start of the day after to)` in that zone, and the response returns
+that window as `meta.fromInclusive` and `meta.toExclusive`. `from <= to` is required,
+the range may not end on a future date, and at most **366 inclusive** calendar days are
+allowed.
+
+The effective query end is capped at the request's `meta.generatedAt`, and that capped
+instant is what `meta.toExclusive` reports. Selecting today therefore covers only the
+elapsed part of today; a partial final day is expected, not a defect. `meta.periodBasis`
+is the fixed string `PAYMENT_CREATED_AT`, and `meta.currencyScale` carries the selected
+currency's configured precision. Amounts are transported as decimal strings, so no
+rounding is introduced by JSON transport.
+
+`currency` is the **source currency** (`payments.currency`) and is required. It is not
+an exchange rate or a converted total: there is deliberately **no "all currencies"
+monetary figure and no exchange-rate conversion** anywhere in this API. Options come
+from the canonical currency configuration, `defaultCurrency` is `INR` when that
+currency is configured (otherwise the first code alphabetically) and is `null` when no
+currency is configured at all.
+
+### Payment metrics
+
+All payment metrics share one cohort: payments whose creation instant falls inside the
+effective window and whose source currency matches. Payment rows are never joined to
+attempts in a way that could multiply them.
+
+| Field | Meaning |
+|---|---|
+| `paymentSummary.paymentCount` | Every payment in the cohort, including `DRAFT` and `QUOTED` |
+| `paymentSummary.completedCount` / `completedAmount` | Payments currently `COMPLETED`, and the sum of their source amounts |
+| `paymentSummary.payoutSuccessRate` | `100 * COMPLETED / (COMPLETED + FAILED + REFUNDED)` |
+| `paymentSummary.failedCount` | Payments currently `FAILED`; `REFUNDED` payments have their own status and are not counted here |
+| `paymentSummary.processingCount` | Payments currently `PROCESSING`, including uncertain delivery awaiting reconciliation |
+| `paymentTrend[]` | One zero-filled entry per selected date with `paymentCount` and that day's `completedAmount` |
+| `paymentStatuses[]` | One `count` for each of the nine payment statuses, including zero-valued statuses |
+
+`payoutSuccessRate` is `null` — not `0` and not `100` — when no payment in the cohort
+has a final outcome, and the admin page renders that as **"No final outcomes"**. Rates
+are rounded to two decimal places on the server. Daily completed amount is grouped by
+payment **creation** date, not completion date. A payment that recovered after a retry
+counts once, in its current state.
+
+### Provider rows are attempts
+
+`providers[]` counts **payout attempts**, not payments, and follows
+`payout_attempts.transfer_route_id -> transfer_routes.provider_id -> transfer_providers.id`.
+It includes attempts belonging to the selected payment cohort that were initiated before
+`meta.generatedAt`, **even when the attempt happened after the selected creation period**,
+so read the table as "attempts for payments created in the selected period". Archived
+and inactive providers appear whenever they have matching history, and rows are ordered
+by `totalAttempts` descending, then `providerCode`.
+
+`successRate` is `completedAttempts / (completedAttempts + failedAttempts)`. `INITIATED`
+and `PROCESSING` attempts are reported as `inProgressAttempts` and are excluded from
+that denominator, so the rate is `null` — shown as **"No terminal attempts"** — when a
+provider has no completed or failed attempt. Attempt totals are deliberately distinct
+from payment totals, and provider cells are not payment drill-downs.
+
+### Customers and current workload
+
+`customers` counts role `USER` accounts only; `ADMIN` and `SYSTEM` accounts are excluded.
+`customers.totalCustomers` is an all-time count of accounts created before
+`meta.generatedAt`, while `customers.newRegistrations` and `customerTrend[]` follow the
+selected dates. Both are **currency-independent** — changing the source currency does not
+change either customer figure.
+
+`workload` is a current snapshot across **all dates and all currencies**; the selected
+range and currency do not narrow it. `kycPending` counts `PENDING` KYC applications and
+`kycOver24h` the subset older than 24 hours, aged from `submitted_at`. `complianceOpen`
+counts `OPEN` cases, `complianceHighRisk` the `OPEN` `HIGH`-risk subset, and
+`complianceOver24h` the `OPEN` cases aged from `created_at`. `ticketsOpen` counts `OPEN`
+or `IN_PROGRESS` support tickets and `ticketsOver24h` those same unresolved tickets aged
+from `created_at`. "Over 24 hours" means strictly before `meta.generatedAt` minus 24
+hours; it is an age count, not an SLA compliance claim.
+
+### Sample responses
+
+```json
+{
+  "correlationId": "bruno-test-001",
+  "data": {
+    "currencies": [{ "code": "INR", "scale": 2 }, { "code": "USD", "scale": 2 }],
+    "defaultCurrency": "INR",
+    "reportingZone": "Asia/Kolkata",
+    "today": "2026-09-25",
+    "maximumRangeDays": 366
+  }
+}
+```
+
+```json
+{
+  "correlationId": "bruno-test-001",
+  "data": {
+    "meta": {
+      "from": "2026-09-01",
+      "to": "2026-09-25",
+      "currency": "INR",
+      "currencyScale": 2,
+      "reportingZone": "Asia/Kolkata",
+      "fromInclusive": "2026-08-31T18:30:00Z",
+      "toExclusive": "2026-09-25T10:00:00Z",
+      "generatedAt": "2026-09-25T10:00:00Z",
+      "periodBasis": "PAYMENT_CREATED_AT"
+    },
+    "paymentSummary": {
+      "paymentCount": 42,
+      "completedCount": 30,
+      "completedAmount": "12500.00",
+      "payoutSuccessRate": 93.75,
+      "failedCount": 2,
+      "processingCount": 1
+    },
+    "paymentTrend": [
+      { "date": "2026-09-01", "paymentCount": 2, "completedAmount": "500.00" },
+      { "date": "2026-09-02", "paymentCount": 0, "completedAmount": "0.00" }
+    ],
+    "paymentStatuses": [
+      { "status": "DRAFT", "count": 4 },
+      { "status": "QUOTED", "count": 2 },
+      { "status": "UNDER_REVIEW", "count": 1 },
+      { "status": "PROCESSING", "count": 1 },
+      { "status": "COMPLETED", "count": 30 },
+      { "status": "FAILED", "count": 2 },
+      { "status": "REFUNDED", "count": 0 },
+      { "status": "REJECTED", "count": 1 },
+      { "status": "CANCELLED", "count": 1 }
+    ],
+    "providers": [
+      {
+        "providerId": "<provider-uuid>",
+        "providerCode": "BANK_ALPHA",
+        "providerName": "Bank Alpha",
+        "totalAttempts": 33,
+        "completedAttempts": 30,
+        "failedAttempts": 3,
+        "inProgressAttempts": 0,
+        "successRate": 90.91
+      }
+    ],
+    "customers": { "totalCustomers": 318, "newRegistrations": 12 },
+    "customerTrend": [{ "date": "2026-09-01", "registrations": 1 }],
+    "workload": {
+      "kycPending": 4,
+      "kycOver24h": 2,
+      "complianceOpen": 3,
+      "complianceHighRisk": 1,
+      "complianceOver24h": 1,
+      "ticketsOpen": 5,
+      "ticketsOver24h": 3
+    }
+  }
+}
+```
+
+`paymentTrend` and `customerTrend` carry exactly one entry per selected date, zero
+filled, in the examples above truncated after the first rows. The status counts in the
+example sum to `paymentSummary.paymentCount`.
+
+### Payment list and paging
+
+```json
+{
+  "correlationId": "bruno-test-001",
+  "data": {
+    "meta": {
+      "from": "2026-09-18",
+      "to": "2026-09-18",
+      "currency": "INR",
+      "currencyScale": 2,
+      "reportingZone": "Asia/Kolkata",
+      "fromInclusive": "2026-09-17T18:30:00Z",
+      "toExclusive": "2026-09-18T18:30:00Z",
+      "generatedAt": "2026-09-19T10:00:00Z",
+      "periodBasis": "PAYMENT_CREATED_AT"
+    },
+    "status": "FAILED",
+    "page": 0,
+    "size": 20,
+    "totalElements": 2,
+    "totalPages": 1,
+    "items": [
+      {
+        "paymentId": "<payment-uuid>",
+        "createdAt": "2026-09-18T04:15:00Z",
+        "sourceAmount": "25.00",
+        "sourceCurrency": "INR",
+        "status": "FAILED"
+      }
+    ]
+  }
+}
+```
+
+`page` is **zero-based** and defaults to `0`; `size` defaults to `20` and the server
+maximum is `100`. Rows are ordered deterministically by `created_at DESC, id DESC`, so
+repeated requests for one page do not reshuffle. Omit `status` to list every status in
+the cohort; a supplied `status` uses the existing payment status enum. The list query
+and the dashboard's counts share the same cohort and status predicates.
+
+Requesting a page beyond the end of the result set is a **successful empty response** with
+truthful `totalElements`/`totalPages`, not an error. A day drill-down sends that single
+day as both `from` and `to`; the admin page keeps its broader dates in its own page
+state while the list request is narrowed. The list and the dashboard are separate
+reads, so a payment that changes state between them can make a list total differ
+slightly from the card that opened it.
+
+### Reporting error codes
+
+| Situation | Status | Sample output |
+|---|---:|---|
+| Missing or malformed `from`/`to`, `from` after `to`, more than 366 inclusive days, or a future end date | 400 | `{"correlationId":"...","code":"INVALID_REPORT_RANGE","message":"Use valid YYYY-MM-DD report dates.","fieldErrors":{},"ts":"..."}` |
+| Missing or unsupported `currency` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_CURRENCY","message":"Select a supported report currency.","fieldErrors":{},"ts":"..."}` |
+| Unrecognized `status` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_STATUS","message":"Select a valid payment status.","fieldErrors":{},"ts":"..."}` |
+| Non-numeric, negative, or oversized `page`/`size` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_PAGE","message":"Page must be non-negative and size must be from 1 to 100.","fieldErrors":{},"ts":"..."}` |
+| Reporting currency configuration is missing, duplicated, or has an out-of-range scale | 500 | `{"correlationId":"...","code":"INVALID_REPORT_CONFIGURATION","message":"The reporting currency configuration is invalid.","fieldErrors":{},"ts":"..."}` |
+
+### Relationship to the legacy provider summary
+
+`GET /api/admin/reports/provider-summary` remains available with **unchanged behavior**.
+It takes ISO-8601 **instants** (not calendar dates) in `from`/`to`, rejects a range whose
+start is not before its end with `INVALID_REPORT_RANGE`, has no currency filter and no
+payment-cohort filter, counts attempts **initiated inside its own range**, groups by
+provider **name**, and includes every provider even when it has zero matching attempts.
+It has no `meta` block and no in-progress attempt column.
+
+The difference is deliberate. Use `provider-summary` when you want "attempts started
+between two instants, all providers". Use the statistics `providers` panel when you want
+"attempts belonging to the payments created in this period and currency", which may
+include attempts that started outside the period.
+
+### Out of scope
+
+The statistics API does not report wallet top-ups, direct wallet transfers, exchanges,
+or withdrawals; accounting revenue or profit; exchange-rate conversion; forecasts;
+historical queue snapshots; SLA compliance; exports; or automatic refresh. It is
+read-only and adds no caches, materialized views, Kafka consumers, events, or tables.
 
 ## Policy APIs
 
