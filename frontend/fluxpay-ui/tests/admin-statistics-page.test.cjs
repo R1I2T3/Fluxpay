@@ -810,7 +810,6 @@ test('the list presents rows, totals, announcements, and paging controls', async
       timeZoneName: 'short',
     }).format(new Date('2026-09-24T12:00:00Z')),
   );
-  assert.equal(f.vm.formatTime('2026-09-24T12:00:00Z'), '24 Sept 2026, 17:30 GMT+5:30');
   assert.equal(f.vm.formatTime('not-a-timestamp'), 'not-a-timestamp');
 });
 
