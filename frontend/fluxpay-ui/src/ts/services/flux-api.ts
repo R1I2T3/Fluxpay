@@ -1,3 +1,12 @@
+import { statisticsSearch } from './admin-statistics';
+import type {
+  StatisticsFilters,
+  StatisticsOptions,
+  StatisticsPaymentPage,
+  StatisticsPaymentQuery,
+  StatisticsSummary,
+} from './admin-statistics-contracts';
+
 const base = (window as any).FLUXPAY_API_URL || '';
 const pending = new Map<string, string>();
 const token = () => sessionStorage.getItem('fluxpay.token') || '';
@@ -436,6 +445,16 @@ export const fluxApi = {
   },
   adminPaymentOperations: (id: string) =>
     request<PaymentOperationsResponse>(`/api/admin/payments/${encodeURIComponent(id)}/operations`),
+    request<PaymentOperationsResponse>(
+      `/api/admin/payments/${encodeURIComponent(id)}/operations`,
+    ),
+  adminStatisticsOptions: () => request<StatisticsOptions>('/api/admin/reports/statistics/options'),
+  adminStatistics: (query: StatisticsFilters) =>
+    request<StatisticsSummary>('/api/admin/reports/statistics?' + statisticsSearch(query)),
+  adminStatisticsPayments: (query: StatisticsPaymentQuery) =>
+    request<StatisticsPaymentPage>(
+      '/api/admin/reports/statistics/payments?' + statisticsSearch(query),
+    ),
   routes: () => request<any>('/api/routes'),
   recommend: (id: string, p: string) =>
     request<any>(`/api/payments/${id}/recommend-route`, 'POST', { preference: p }),

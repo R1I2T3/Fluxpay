@@ -87,7 +87,7 @@ test('keyboard activation moves focus to the selected record heading', () => {
 
 test('adminKyc requests the exact typed pagination URL', async () => {
   let capturedUrl = '';
-  const api = load('ts/services/flux-api.ts', {}, {
+  const api = load('ts/services/flux-api.ts', {'./admin-statistics': {statisticsSearch: () => ''}}, {
     window: {},
     sessionStorage: {getItem: () => null},
     fetch: async (url) => {

@@ -35,3 +35,8 @@ credentials, and quote generation persists at most the three top-ranked eligible
 
 See the root README for local reset/seed commands and the required Maven
 `-Pintegration verify` environment.
+
+Administrator statistics reads (`GET /api/admin/reports/statistics`,
+`/statistics/options`, and `/statistics/payments`) are read-only `ADMIN` endpoints;
+see the [API catalog](api-catalog.md#admin-statistics-reporting-api) and the
+[statistics admin guide](admin-statistics.md).

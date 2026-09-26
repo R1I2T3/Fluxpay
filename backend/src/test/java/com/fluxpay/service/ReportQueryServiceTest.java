@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
 
 class ReportQueryServiceTest {
@@ -37,7 +38,7 @@ class ReportQueryServiceTest {
   @SuppressWarnings("unchecked")
   void queriesProviderSummaryReadOnlyAggregate() {
     ProviderRow expected = new ProviderRow("Bank A", 3, 2, 1);
-    when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class)))
+    when(jdbc.query(anyString(), any(PreparedStatementSetter.class), any(RowMapper.class)))
         .thenReturn(List.of(expected));
 
     List<ProviderRow> result =
@@ -45,6 +46,6 @@ class ReportQueryServiceTest {
             Instant.parse("2026-09-18T00:00:00Z"), Instant.parse("2026-09-19T00:00:00Z"));
 
     assertThat(result).containsExactly(expected);
-    verify(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+    verify(jdbc).query(anyString(), any(PreparedStatementSetter.class), any(RowMapper.class));
   }
 }

@@ -74,10 +74,21 @@ test('signed-out and customer admin deep links keep the customer shell',async()=
   assert.equal(customer.root.isAdminWorkspace(),false);
   assert.ok(customer.root.bottomNav.length>0);
 });
+test('ADMIN can deep-link to Statistics in the admin shell', async () => {
+  const admin=fixture('admin-statistics','ADMIN');await admin.settle();
+  assert.equal(admin.current(),'admin-statistics');
+  assert.equal(admin.root.isAdminWorkspace(),true);
+  assert.equal(admin.root.activeAdminPath(),'admin-statistics');
+  const customer=fixture('admin-statistics','CUSTOMER');await customer.settle();
+  assert.equal(customer.root.isAdminWorkspace(),false);
+  assert.ok(!customer.root.visibleNav().some(item=>item.path==='admin-statistics'));
+  const signedOut=fixture('admin-statistics');await signedOut.settle();
+  assert.equal(signedOut.root.isAdminWorkspace(),false);
+});
 test('admin shell exposes the approved grouped routes and no Governance group', async () => {
   const f=fixture('admin','ADMIN');await f.settle();
   assert.deepEqual(Array.from(f.root.adminNavGroups,group=>[group.label,Array.from(group.items,item=>item.path)]),[
-    ['Overview',['admin']],
+    ['Overview',['admin','admin-statistics']],
     ['Operations',['admin-kyc','admin-compliance','admin-tickets','admin-payment-operations']],
     ['Money Movement',['admin-providers','admin-routes']],
     ['Policy & AI',['admin-policies','admin-copilot']]
