@@ -335,6 +335,17 @@ actually lists all 8 `AdminStatisticsRepositoryIT` test methods as **run and pas
 a skipped or absent class is not a pass, and an empty or missing report directory means
 the tests never executed.
 
+**Query plans and index evidence — not run.** The statistics SQL has never been executed
+against a live database either, so how it plans is unknown. Treat this as a required
+pre-merge step: capture an execution plan for the **payment-bucket aggregate** and for the
+**provider aggregate** against representative data, and read the access paths. As the
+applied migrations stand, nothing leads with `created_at` or `currency` on `payments` —
+`idx_payments_sender_created` and `idx_payments_status_created` are the only payment
+indexes — and `users` has no `created_at` index, so a full table scan of both tables is
+the plan to expect today. If the plans show a full scan, the remedy is a **new** migration
+adding a `payments (currency, created_at)` index; never edit an already-applied migration,
+and never add an index without that plan evidence in hand.
+
 **Browser acceptance — not run.** No application was running, so nothing was verified
 in a browser against real data. Still outstanding, with a real administrator session
 and existing data: desktop and narrow-viewport layout, keyboard-only operation of every
