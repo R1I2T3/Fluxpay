@@ -8,7 +8,7 @@ test('preferred quotes follow the server recommendation and retain expiry and pa
  assert.ok(html.includes('disable:!$parent.quoteValid()||$parent.busy()'));
  assert.ok(html.includes('click:$parent.chooseQuote'));assert.ok(html.includes('click:sendPayment'));
  assert.ok(html.includes('click:saveDraft'));assert.ok(html.includes('commits funds'));
- assert.ok(css.includes('.quote-card.recommended { border-color: #2465d8'));
+ assert.match(css,/\.quote-card\.recommended\s*\{[^}]*border-color:\s*#2465d8/);
  assert.ok(css.includes('@media (max-width: 600px)'));
 });
 test('step headings receive focus only after a change and cleanup cancels pending work',()=>{

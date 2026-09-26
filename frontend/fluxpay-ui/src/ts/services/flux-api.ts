@@ -445,9 +445,6 @@ export const fluxApi = {
   },
   adminPaymentOperations: (id: string) =>
     request<PaymentOperationsResponse>(`/api/admin/payments/${encodeURIComponent(id)}/operations`),
-    request<PaymentOperationsResponse>(
-      `/api/admin/payments/${encodeURIComponent(id)}/operations`,
-    ),
   adminStatisticsOptions: () => request<StatisticsOptions>('/api/admin/reports/statistics/options'),
   adminStatistics: (query: StatisticsFilters) =>
     request<StatisticsSummary>('/api/admin/reports/statistics?' + statisticsSearch(query)),

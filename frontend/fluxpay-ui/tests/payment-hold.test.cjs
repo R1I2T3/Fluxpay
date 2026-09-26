@@ -13,6 +13,16 @@ const compile = (file) =>
 
 const PAYMENT_ID = '11111111-1111-4111-8111-111111111111';
 
+// flux-api.ts imports the statistics helper module; stub it like the other
+// suites do so the compiled module evaluates without a bundler.
+const statisticsStub = {
+  statisticsSearch: (query) => new URLSearchParams(query).toString(),
+};
+const fluxApiRequire = (name) => {
+  if (name === './admin-statistics') return statisticsStub;
+  throw new Error(`Missing test dependency: ${name}`);
+};
+
 test('payment hold explains why payout is blocked with user-safe copy', () => {
   const context = { exports: {}, require: (name) => require(name) };
   vm.runInNewContext(compile('ts/services/compliance-hold.ts'), context);
@@ -33,6 +43,8 @@ test('paymentHold endpoint uses authorized GET on /api/payments/{id}/hold', asyn
   const calls = [];
   const context = {
     exports: {},
+    require: fluxApiRequire,
+    URLSearchParams,
     window: {},
     sessionStorage: { getItem: () => 'test-token' },
     crypto: { randomUUID: () => PAYMENT_ID },
@@ -139,6 +151,8 @@ test('review nudge is dynamic: preview endpoint drives the hint list', async () 
   const calls = [];
   const context = {
     exports: {},
+    require: fluxApiRequire,
+    URLSearchParams,
     window: {},
     sessionStorage: { getItem: () => 'test-token' },
     crypto: { randomUUID: () => PAYMENT_ID },
@@ -187,6 +201,8 @@ test('hold preview never logs the user out: 401 rejects without clearing session
   const dispatched = [];
   const context = {
     exports: {},
+    require: fluxApiRequire,
+    URLSearchParams,
     window: { dispatchEvent: (e) => dispatched.push(e) },
     sessionStorage: {
       getItem: () => 'test-token',
