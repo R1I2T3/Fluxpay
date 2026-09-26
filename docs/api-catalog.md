@@ -585,7 +585,10 @@ slightly from the card that opened it.
 
 `INVALID_REPORT_RANGE` is the one code here that carries two different messages: the date
 parser rejects a missing or unparseable date, while the range check rejects a
-well-formed but unusable range. Match on `code`, not on `message`.
+well-formed but unusable range. The legacy provider-summary path reuses the same code
+with its own messages ("Report start time must be before the end time." and "Report
+from must be an ISO-8601 instant."), so this table is not exhaustive for that endpoint.
+Match on `code`, not on `message`.
 
 ### Relationship to the legacy provider summary
 
