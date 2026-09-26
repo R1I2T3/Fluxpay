@@ -116,16 +116,19 @@
           ><button
             type="button"
             class="statistics-date-button"
-            data-bind="text:paymentSummary.paymentCount,click:function(){ $root.openPayments() },attr:{ 'aria-label':'View all '+paymentSummary.paymentCount+' payments created in the selected period' }"
-          ></button>
+            data-bind="click:function(){ $root.openPayments() },attr:{ 'aria-label':'View all '+paymentSummary.paymentCount+' payments created in the selected period' }"
+          >
+            <strong data-bind="text:paymentSummary.paymentCount"></strong>
+          </button>
         </article>
         <article>
           <span>Completed payments</span
           ><button
             type="button"
             class="statistics-date-button"
-            data-bind="text:paymentSummary.completedCount,click:function(){ $root.openPayments('COMPLETED') },attr:{ 'aria-label':'View '+paymentSummary.completedCount+' completed payments created in the selected period' }"
-          ></button
+            data-bind="click:function(){ $root.openPayments('COMPLETED') },attr:{ 'aria-label':'View '+paymentSummary.completedCount+' completed payments created in the selected period' }"
+          >
+            <strong data-bind="text:paymentSummary.completedCount"></strong></button
           ><small
             data-bind="text:$root.formatMoney(paymentSummary.completedAmount,meta.currency)"
           ></small>
@@ -141,16 +144,20 @@
           ><button
             type="button"
             class="statistics-date-button"
-            data-bind="text:paymentSummary.failedCount,click:function(){ $root.openPayments('FAILED') },attr:{ 'aria-label':'View '+paymentSummary.failedCount+' failed payments created in the selected period' }"
-          ></button>
+            data-bind="click:function(){ $root.openPayments('FAILED') },attr:{ 'aria-label':'View '+paymentSummary.failedCount+' failed payments created in the selected period' }"
+          >
+            <strong data-bind="text:paymentSummary.failedCount"></strong>
+          </button>
         </article>
         <article>
           <span>Processing now</span
           ><button
             type="button"
             class="statistics-date-button"
-            data-bind="text:paymentSummary.processingCount,click:function(){ $root.openPayments('PROCESSING') },attr:{ 'aria-label':'View '+paymentSummary.processingCount+' payments currently processing' }"
-          ></button>
+            data-bind="click:function(){ $root.openPayments('PROCESSING') },attr:{ 'aria-label':'View '+paymentSummary.processingCount+' payments currently processing' }"
+          >
+            <strong data-bind="text:paymentSummary.processingCount"></strong>
+          </button>
         </article>
       </div>
       <p class="statistics-caption">
