@@ -194,11 +194,11 @@ test('a failed wallet feed is reported while other available transactions remain
 test('payment receipt shows customer details and chronologically orders every timestamped event',async()=>{
   const row={id:'p1',sourceAmount:'125',sourceCurrency:'USD',recipientId:'r1',sourceWalletId:'w1',status:'PROCESSING',selectedQuoteId:'q1',createdAt:'2026-09-20T10:00:00Z'};
   const events=[{eventId:'e2',eventType:'payout.completed',occurredAt:'2026-09-20T10:01:35Z',payload:{providerRef:'PROVIDER-123',summary:'Delivered'}},{eventId:'e1',eventType:'payment.initiated',occurredAt:'2026-09-20T10:00:01Z',payload:{amount:'125'}}];
-  const f=fixture('payments-list',{payment:async()=>({...row,status:'COMPLETED'}),timeline:async()=>events,getQuotes:async()=>({quotes:[{id:'q1',feeAmount:'1.50',offeredRate:'83.8'}]})});
+  const f=fixture('payments-list',{payment:async()=>({...row,status:'COMPLETED'}),timeline:async()=>events,getQuotes:async()=>({quotes:[{id:'q1',feeAmount:'1.50',offeredRate:'83.8'}]}),paymentHold:async()=>({onHold:false,canPayout:false,reasons:[],reasonMessages:[],reviewExpiresAt:null,whatNext:'',decisionReason:null})});
   f.page.payments([row]);f.page.recipients([{id:'r1',name:'Jamie',account:'TEST-ACCOUNT'}]);f.page.wallets([{walletId:'w1',currency:'USD',availableBalance:'1000'}]);
   await f.page.openDetail(row);assert.equal(f.page.detailBusy(),false);assert.equal(f.page.detailSteps().length,2);assert.equal(f.page.detailSteps()[0].timestamp,'2026-09-20T10:00:01Z');assert.equal(f.page.detailSteps()[1].title,'Payout completed');assert.equal(f.page.acceptedQuote().feeAmount,'1.50');
   assert.match(f.page.preciseTime(events[0].occurredAt),/35/);assert.equal(f.page.recipientFields().find(f=>f.label==='Account ending in').value,'•••• OUNT');assert.equal(f.page.quoteFields().find(f=>f.label==='Transfer fee').value,'$1.50');assert.equal(f.page.rawReceipt,undefined);assert.equal(f.page.detailSteps()[1].fields,undefined);assert.equal(f.navigation.length,0);
-  assert.deepEqual(f.calls.map(c=>c[0]),['payment','timeline','getQuotes']);f.page.closeDetail();assert.equal(f.page.detailRow(),undefined);
+  assert.deepEqual(f.calls.map(c=>c[0]),['payment','timeline','getQuotes','paymentHold']);f.page.closeDetail();assert.equal(f.page.detailRow(),undefined);
 });
 test('wallet receipts open for all types and show only recorded ledger steps, including linked exchange legs',async()=>{
   const f=fixture('payments-list');

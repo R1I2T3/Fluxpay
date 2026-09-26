@@ -63,7 +63,10 @@ class AdviceBoundaryTest {
     var mvc =
         mvc(
             new PaymentController(
-                service, mock(QuoteService.class), mock(PaymentConfirmationService.class)));
+                service,
+                mock(QuoteService.class),
+                mock(PaymentConfirmationService.class),
+                mock(PaymentHoldService.class)));
 
     mvc.perform(
             get("/api/payments")
@@ -124,7 +127,10 @@ class AdviceBoundaryTest {
         .thenThrow(
             new BusinessException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Payment not found."));
     mvc(new PaymentController(
-            payments, mock(QuoteService.class), mock(PaymentConfirmationService.class)))
+            payments,
+            mock(QuoteService.class),
+            mock(PaymentConfirmationService.class),
+            mock(PaymentHoldService.class)))
         .perform(
             get("/api/payments/11111111-1111-1111-1111-111111111111")
                 .header("X-Correlation-ID", "payment-error"))
