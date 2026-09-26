@@ -95,8 +95,7 @@ function transactionFeedback(path: string, method: string, body: any, data: any,
       currency = data.toCurrency;
     } else if (path === '/api/wallets/withdraw') {
       title = 'Withdrawal recorded';
-      description =
-        'Your withdrawal to your linked bank account has been recorded successfully.';
+      description = 'Your withdrawal to your linked bank account has been recorded successfully.';
       amount = body.amount;
       currency = data.currency;
     } else if (
@@ -136,8 +135,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown, idem = f
     path.match(/^\/api\/payments\/([^/]+)\/(submit-payout|retry-payout|switch-route)$/);
   if (paymentAction) {
     awaitedPayments.set(paymentAction[1], paymentAction[2]);
-    if (awaitedPayments.size > 200)
-      awaitedPayments.delete(awaitedPayments.keys().next().value!);
+    if (awaitedPayments.size > 200) awaitedPayments.delete(awaitedPayments.keys().next().value!);
   }
   if (token()) headers.Authorization = `Bearer ${token()}`;
   const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -179,13 +177,7 @@ async function request<T>(path: string, method = 'GET', body?: unknown, idem = f
   // A presentation failure must never turn a completed payment into a retryable error.
   if (requestOwner && requestOwner === token() && response.status !== 202) {
     try {
-      transactionFeedback(
-        path,
-        method,
-        body,
-        json.data,
-        headers['Idempotency-Key'] || operation,
-      );
+      transactionFeedback(path, method, body, json.data, headers['Idempotency-Key'] || operation);
     } catch {
       // The receipt remains available in activity.
     }
@@ -420,7 +412,39 @@ export const fluxApi = {
     request<any>(`/api/payments/${id}/confirm`, 'POST', { quoteId: q }, true),
   cancel: (id: string) => request<any>(`/api/payments/${id}/cancel`, 'POST', undefined, true),
   timeline: (id: string) => request<any[]>(`/api/payments/${id}/timeline`),
+  paymentHold: (id: string) => request<PaymentHold>(`/api/payments/${encodeURIComponent(id)}/hold`),
+  holdPreview: async (body: {
+    recipientId: string;
+    sourceAmount: string;
+    sourceCurrency: string;
+    paymentId?: string;
+  }) => {
+    // Best-effort preview: never clear the session or fire expiry events.
+    // A rejected preview falls back to the static hint list; a genuinely
+    // expired token is still caught by the next real call (confirm/send).
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+    if (token()) headers.Authorization = `Bearer ${token()}`;
+    let response: Response;
+    try {
+      response = await fetch(base + '/api/payments/hold-preview', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error('Unable to reach the payment service. Check your connection and try again.');
+    }
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(json.message || json.code || 'Request failed (' + response.status + ')');
+    }
+    return json.data as PaymentHoldPreview;
+  },
   adminPaymentOperations: (id: string) =>
+    request<PaymentOperationsResponse>(`/api/admin/payments/${encodeURIComponent(id)}/operations`),
     request<PaymentOperationsResponse>(
       `/api/admin/payments/${encodeURIComponent(id)}/operations`,
     ),
@@ -596,6 +620,24 @@ export interface ComplianceCase {
   decidedAt: string | null;
   decisionReason: string | null;
   createdAt: string;
+}
+export interface PaymentHold {
+  paymentId: string;
+  status: string;
+  onHold: boolean;
+  canPayout: boolean;
+  reviewExpiresAt: string | null;
+  risk: string | null;
+  reasons: string[];
+  reasonMessages: string[];
+  whatNext: string;
+  decisionReason: string | null;
+}
+export interface PaymentHoldPreview {
+  likely: boolean;
+  risk: string | null;
+  reasons: string[];
+  reasonMessages: string[];
 }
 export interface CopilotAnswer {
   answer: string;
