@@ -404,6 +404,36 @@ export const fluxApi = {
   cancel: (id: string) => request<any>(`/api/payments/${id}/cancel`, 'POST', undefined, true),
   timeline: (id: string) => request<any[]>(`/api/payments/${id}/timeline`),
   paymentHold: (id: string) => request<PaymentHold>(`/api/payments/${encodeURIComponent(id)}/hold`),
+  holdPreview: async (body: {
+    recipientId: string;
+    sourceAmount: string;
+    sourceCurrency: string;
+    paymentId?: string;
+  }) => {
+    // Best-effort preview: never clear the session or fire expiry events.
+    // A rejected preview falls back to the static hint list; a genuinely
+    // expired token is still caught by the next real call (confirm/send).
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+    if (token()) headers.Authorization = `Bearer ${token()}`;
+    let response: Response;
+    try {
+      response = await fetch(base + '/api/payments/hold-preview', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error('Unable to reach the payment service. Check your connection and try again.');
+    }
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(json.message || json.code || 'Request failed (' + response.status + ')');
+    }
+    return json.data as PaymentHoldPreview;
+  },
   adminPaymentOperations: (id: string) =>
     request<PaymentOperationsResponse>(`/api/admin/payments/${encodeURIComponent(id)}/operations`),
   routes: () => request<any>('/api/routes'),
@@ -583,6 +613,12 @@ export interface PaymentHold {
   reasonMessages: string[];
   whatNext: string;
   decisionReason: string | null;
+}
+export interface PaymentHoldPreview {
+  likely: boolean;
+  risk: string | null;
+  reasons: string[];
+  reasonMessages: string[];
 }
 export interface CopilotAnswer {
   answer: string;

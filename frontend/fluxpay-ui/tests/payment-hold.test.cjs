@@ -124,3 +124,101 @@ test('activity receipt shows a hold card with why, expiry and payout-blocked not
   assert.match(vmSource, /paymentHold/);
   assert.match(vmSource, /holdExpiryLabel/);
 });
+
+test('review screen warns before send that payout may be held and why', () => {
+  const html = read('ts/views/payments-new.html');
+  assert.match(html, /reviewHoldHints|Payout may be held/);
+  assert.match(html, /foreach:reviewHoldHints/);
+  assert.match(html, /approval enables payout|rejection stops/i);
+  assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(html.match(/reviewHoldHints[\s\S]{0,400}/)?.[0] || ''), 'review nudge must use text bindings');
+  const vmSource = read('ts/viewModels/payments-new.ts');
+  assert.match(vmSource, /reviewHoldHints/);
+});
+
+test('review nudge is dynamic: preview endpoint drives the hint list', async () => {
+  const calls = [];
+  const context = {
+    exports: {},
+    window: {},
+    sessionStorage: { getItem: () => 'test-token' },
+    crypto: { randomUUID: () => PAYMENT_ID },
+    fetch: async (url, options) => {
+      calls.push([url, options]);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            likely: true,
+            risk: 'MEDIUM',
+            reasons: ['FIRST_TRANSFER_TO_RECIPIENT'],
+            reasonMessages: ['This is your first transfer to this recipient, so it needs an extra check.'],
+          },
+        }),
+      };
+    },
+  };
+  vm.runInNewContext(compile('ts/services/flux-api.ts'), context);
+  const preview = await context.exports.fluxApi.holdPreview({
+    recipientId: PAYMENT_ID,
+    sourceAmount: '10.00',
+    sourceCurrency: 'USD',
+    paymentId: PAYMENT_ID,
+  });
+  assert.equal(preview.likely, true);
+  assert.deepEqual(
+    calls.map(([url, options]) => [options.method, url]),
+    [['POST', '/api/payments/hold-preview']]
+  );
+  assert.deepEqual(JSON.parse(calls[0][1].body), {
+    recipientId: PAYMENT_ID,
+    sourceAmount: '10.00',
+    sourceCurrency: 'USD',
+    paymentId: PAYMENT_ID,
+  });
+  const vmSource = read('ts/viewModels/payments-new.ts');
+  assert.match(vmSource, /reviewHoldPreview/);
+  assert.match(vmSource, /holdPreview/);
+  assert.match(vmSource, /reviewHoldLoading/);
+});
+
+test('hold preview never logs the user out: 401 rejects without clearing session', async () => {
+  let removed = null;
+  const dispatched = [];
+  const context = {
+    exports: {},
+    window: { dispatchEvent: (e) => dispatched.push(e) },
+    sessionStorage: {
+      getItem: () => 'test-token',
+      setItem: () => {},
+      removeItem: (key) => {
+        removed = key;
+      },
+    },
+    crypto: { randomUUID: () => PAYMENT_ID },
+    fetch: async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ code: 'AUTH_REQUIRED', message: 'authentication is required' }),
+    }),
+    Event: class {
+      constructor(type) {
+        this.type = type;
+      }
+    },
+  };
+  vm.runInNewContext(compile('ts/services/flux-api.ts'), context);
+  await assert.rejects(() =>
+    context.exports.fluxApi.holdPreview({
+      recipientId: PAYMENT_ID,
+      sourceAmount: '10.00',
+      sourceCurrency: 'USD',
+      paymentId: PAYMENT_ID,
+    })
+  );
+  assert.equal(removed, null, 'preview 401 must not clear the stored token');
+  assert.ok(
+    !dispatched.some((e) => e.type === 'fluxpay:expired'),
+    'preview 401 must not fire session expiry'
+  );
+});

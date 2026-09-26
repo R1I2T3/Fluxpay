@@ -130,7 +130,7 @@ public class PaymentHoldService {
     }
   }
 
-  static List<String> messages(List<String> reasons) {
+  public static List<String> messages(List<String> reasons) {
     return reasons.stream().map(r -> REASON_MESSAGES.getOrDefault(r, humanize(r))).toList();
   }
 
