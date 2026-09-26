@@ -576,11 +576,16 @@ slightly from the card that opened it.
 
 | Situation | Status | Sample output |
 |---|---:|---|
-| Missing or malformed `from`/`to`, `from` after `to`, more than 366 inclusive days, or a future end date | 400 | `{"correlationId":"...","code":"INVALID_REPORT_RANGE","message":"Use valid YYYY-MM-DD report dates.","fieldErrors":{},"ts":"..."}` |
+| Missing or malformed `from`/`to` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_RANGE","message":"Use valid YYYY-MM-DD report dates.","fieldErrors":{},"ts":"..."}` |
+| `from` after `to`, more than 366 inclusive days, or a future end date | 400 | `{"correlationId":"...","code":"INVALID_REPORT_RANGE","message":"Select up to 366 days ending no later than today.","fieldErrors":{},"ts":"..."}` |
 | Missing or unsupported `currency` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_CURRENCY","message":"Select a supported report currency.","fieldErrors":{},"ts":"..."}` |
 | Unrecognized `status` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_STATUS","message":"Select a valid payment status.","fieldErrors":{},"ts":"..."}` |
 | Non-numeric, negative, or oversized `page`/`size` | 400 | `{"correlationId":"...","code":"INVALID_REPORT_PAGE","message":"Page must be non-negative and size must be from 1 to 100.","fieldErrors":{},"ts":"..."}` |
 | Reporting currency configuration is missing, duplicated, or has an out-of-range scale | 500 | `{"correlationId":"...","code":"INVALID_REPORT_CONFIGURATION","message":"The reporting currency configuration is invalid.","fieldErrors":{},"ts":"..."}` |
+
+`INVALID_REPORT_RANGE` is the one code here that carries two different messages: the date
+parser rejects a missing or unparseable date, while the range check rejects a
+well-formed but unusable range. Match on `code`, not on `message`.
 
 ### Relationship to the legacy provider summary
 

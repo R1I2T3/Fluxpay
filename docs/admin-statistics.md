@@ -274,6 +274,17 @@ the system is busy, a later drill-down can legitimately show a different count t
 the card you clicked a moment earlier, because a payment changed state in between. For
 an auditable record of one payment, use **Open operations**.
 
+## Verification status
+
+The portable checks pass: the full backend test suite, the feature's own portable tests,
+the Java formatting check, and the frontend test, typecheck, and build commands. The
+statistics repository is registered in the mock lists of the two application-context
+wiring tests (`ApplicationBoundaryWiringTest` and `DevelopmentDefaultsTest`), which is
+what those contexts need in order to start.
+
+The Oracle integration run and the browser acceptance pass still have **not** been
+performed; the next section records exactly what remains.
+
 ## Not yet verified
 
 The following checks could **not** be executed in the environment where this page was
@@ -330,12 +341,3 @@ that status counts sum to `paymentCount`, daily counts sum to `paymentCount`, da
 completed amounts sum to `completedAmount` at server precision, that each drill-down's
 total uses the same cohort and status predicates as its card, and that provider attempt
 totals are checked separately from payment totals.
-
-**One known failing portable test.** The full `mvn test` run currently fails four
-wiring tests — `ApplicationBoundaryWiringTest.requiredApplicationContractsHaveOneActiveImplementation`
-and all three `DevelopmentDefaultsTest` cases. Each builds an application context that
-enumerates the JPA repositories to mock, and the new `AdminStatisticsRepository` is not
-in those lists and requires an `EntityManagerFactory` bean they do not register, so the
-context fails to start. The feature's own portable tests and formatting checks pass; the
-cause is recorded here rather than fixed, because it is a test-context wiring gap rather
-than a reporting defect.
