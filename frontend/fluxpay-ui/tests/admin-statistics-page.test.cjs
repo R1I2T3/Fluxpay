@@ -880,15 +880,20 @@ test('the template exposes only unambiguous payment drilldown actions', () => {
   assert.equal(countCalls(makePage(), 'payments'), 0);
 });
 
-test('the statistics view keeps the same virtual-element nesting depth as before', () => {
-  const depth = (html) => {
-    let open = 0;
-    for (const line of html.split('\n'))
-      open +=
+test('the statistics view closes every virtual element it opens', () => {
+  const balance = (html) => {
+    let depth = 0;
+    let lowest = 0;
+    for (const line of html.split('\n')) {
+      depth +=
         (line.match(/<!--\s*ko\b/g) || []).length - (line.match(/<!--\s*\/ko\s*-->/g) || []).length;
-    return open;
+      lowest = Math.min(lowest, depth);
+    }
+    return { depth, lowest };
   };
-  assert.equal(depth(readStatisticsView()), 1);
+  const { depth, lowest } = balance(readStatisticsView());
+  assert.equal(lowest, 0, 'a virtual element is closed before the one it opens');
+  assert.equal(depth, 0, 'every opened virtual element is closed');
 });
 
 test('the statistics view only uses style hooks the stylesheet already defines', () => {
@@ -919,4 +924,44 @@ test('chart tick values use the same minimum scale as their paths', async () => 
   assert.deepEqual(Array.from(f.vm.paymentAmountTicks()), ['1.00', '0.50', '0.00']);
   assert.match(f.vm.paymentAmountPath(), /^M8\.00,85\.00$/);
   assert.equal(new Set(f.vm.paymentCountTicks()).size, 3);
+});
+
+test('the amount axis is disclosed as approximate and the daily table stays exact', async () => {
+  const html = readStatisticsView();
+  const flat = (text) => text.replace(/\s+/g, ' ');
+  const amountChart = html.slice(
+    html.indexOf('<h2>Completed amount by day</h2>'),
+    html.indexOf('id="statistics-providers-title"'),
+  );
+  assert.ok(amountChart.length > 0);
+  const amountChartText = flat(amountChart);
+  // The axis tick labels come from a Number() conversion of the trend, so nothing on screen
+  // may present them as an exact amount: the rotated axis label, the accessible <desc>, and
+  // a visible caption under the chart all say approximate.
+  assert.match(amountChartText, /Completed amount \(approx\.\)/);
+  assert.match(amountChartText, /The amount axis marks an approximate scale, not exact amounts\./);
+  assert.match(
+    amountChartText,
+    /<p class="statistics-caption"> The amount axis is an approximate scale[\s\S]*?table below\./,
+  );
+  // The exact amounts stay the untouched server strings in the table below the chart.
+  assert.match(amountChart, /text:\$root\.formatMoney\(completedAmount,\$parent\.meta\.currency\)/);
+  const countChart = html.slice(
+    html.indexOf('<h2>Payments created by day</h2>'),
+    html.indexOf('<h2>Completed amount by day</h2>'),
+  );
+  assert.doesNotMatch(countChart, /approx/i);
+  const f = makePage();
+  await f.settle();
+  // A large amount shows why the disclosure matters: the tick is rendered from a Number()
+  // conversion, so it can differ from the server string, while the table keeps the server
+  // string exactly.
+  const amount = '90071992547409.93';
+  const snapshot = f.vm.snapshot();
+  snapshot.paymentTrend = [{ date: '2026-09-24', paymentCount: 1, completedAmount: amount }];
+  f.vm.snapshot(snapshot);
+  assert.equal(f.vm.formatMoney(amount, 'INR'), 'INR 90,071,992,547,409.93');
+  const [topTick] = Array.from(f.vm.paymentAmountTicks());
+  assert.equal(topTick, Number(amount).toFixed(2));
+  assert.notEqual(topTick, amount);
 });

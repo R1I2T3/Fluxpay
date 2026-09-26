@@ -273,8 +273,8 @@
       >
         <title id="statistics-amount-chart-title">Daily completed payment amount</title>
         <desc id="statistics-amount-chart-description">
-          Completed amount trend across the selected dates. Exact values are available in the daily
-          table.
+          Completed amount trend across the selected dates. The amount axis marks an approximate
+          scale, not exact amounts. Exact values are available in the daily table.
         </desc>
         <g class="statistics-chart-ticks" aria-hidden="true">
           <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
@@ -300,7 +300,7 @@
           <text x="568" y="181" text-anchor="end" data-bind="text:$root.snapshot().meta.to"></text>
           <text x="312" y="197" text-anchor="middle">Payment creation date</text>
           <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
-            Completed amount
+            Completed amount (approx.)
           </text>
         </g>
         <path class="statistics-chart-axis" d="M32 162H568"></path>
@@ -310,6 +310,10 @@
           data-bind="attr:{d:$root.paymentAmountPath()}"
         ></path>
       </svg>
+      <p class="statistics-caption">
+        The amount axis is an approximate scale taken from the trend's own range, not an exact
+        amount. Read the exact completed amount for each day from the table below.
+      </p>
       <details class="statistics-daily-details">
         <summary>View daily completed amounts</summary>
         <div class="statistics-table-scroll">
@@ -576,6 +580,7 @@
     </div>
     <!-- /ko -->
   </section>
+  <!-- /ko -->
   <!-- /ko -->
   <!-- /ko -->
 </section>
