@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.adapter.ollama.OllamaChatAdapter;
 import com.fluxpay.adapter.ollama.OllamaEmbeddingAdapter;
 import com.fluxpay.common.contracts.ChatPort;
-import com.fluxpay.common.contracts.EmbeddingPort;
 import com.fluxpay.service.PolicyChunker;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -22,7 +21,7 @@ public class VectorConfiguration {
   }
 
   @Bean
-  EmbeddingPort embeddingPort(VectorProperties properties, ObjectMapper objectMapper) {
+  OllamaEmbeddingAdapter embeddingPort(VectorProperties properties, ObjectMapper objectMapper) {
     HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     return new OllamaEmbeddingAdapter(
         client,
