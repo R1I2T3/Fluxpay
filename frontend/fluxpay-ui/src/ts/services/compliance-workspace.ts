@@ -472,12 +472,13 @@ export class ComplianceWorkspace {
       const result=await api.indexPolicy(p.id);this.confirmation('');this.notice('Index published: '+result.chunkCount+' chunks.');await this.readPolicy(p.id);
     }
   });
-  ask = ()=>this.run(async()=>{
-    const question=this.question().trim(),paymentId=this.copilotPaymentId().trim();
+  ask = ()=>this.submitCopilotQuestion(this.question());
+  private submitCopilotQuestion = (submittedQuestion:string)=>this.run(async()=>{
+    const question=submittedQuestion.trim(),paymentId=this.copilotPaymentId().trim();
     if(!question)throw new Error('Enter a policy question.');
     if(paymentId&&!this.uuid(paymentId))throw new Error('Enter a valid payment UUID or leave it blank.');
     const entry:CopilotTranscriptEntry={question,answer:ko.observable(),pending:ko.observable(true),error:ko.observable('')};
-    this.answer(undefined);this.answeredQuestion(question);this.copilotHistory.push(entry);this.streamedAnswer(this.liveResponse());
+    this.answer(undefined);this.answeredQuestion(question);this.copilotHistory.push(entry);this.question('');this.streamedAnswer(this.liveResponse());
     try{
       if(!this.liveResponse()){
         const result=await api.askCopilot(question,paymentId||undefined);
@@ -491,5 +492,5 @@ export class ComplianceWorkspace {
     finally{entry.pending(false);}
   });
   stopLiveResponse=()=>this.streamAbort?.abort();
-  getCitedAnswer=()=>{if(!this.busy()){this.liveResponse(false);void this.ask();}};
+  getCitedAnswer=()=>{if(!this.busy()){this.liveResponse(false);void this.submitCopilotQuestion(this.answeredQuestion());}};
 }
