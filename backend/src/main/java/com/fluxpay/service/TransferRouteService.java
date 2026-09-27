@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,8 @@ public class TransferRouteService {
       String name,
       DestinationType destinationType,
       String destinationCountry,
+      String sourceCountry,
+      String sourceCurrency,
       String payoutCurrency,
       BigDecimal baseFee,
       BigDecimal fxSpreadPercentage,
@@ -45,6 +48,8 @@ public class TransferRouteService {
       String name,
       DestinationType destinationType,
       String destinationCountry,
+      String sourceCountry,
+      String sourceCurrency,
       String payoutCurrency,
       BigDecimal baseFee,
       BigDecimal fxSpreadPercentage,
@@ -117,10 +122,8 @@ public class TransferRouteService {
               command.name(),
               command.destinationType(),
               command.destinationCountry(),
-              // Task 3 wires sourceCountry/sourceCurrency through CreateRoute; interim seed
-              // default.
-              null,
-              "USD",
+              command.sourceCountry(),
+              command.sourceCurrency(),
               command.payoutCurrency(),
               command.baseFee(),
               command.fxSpreadPercentage(),
@@ -153,7 +156,9 @@ public class TransferRouteService {
     }
     boolean bindingChanged =
         !command.providerId().equals(route.provider().id())
-            || !command.destinationType().equals(route.destinationType());
+            || !command.destinationType().equals(route.destinationType())
+            || !Objects.equals(command.sourceCurrency(), route.sourceCurrency())
+            || !Objects.equals(command.sourceCountry(), route.sourceCountry());
     if (bindingChanged && usage.routeUsed(id)) {
       throw conflict(
           "ROUTING_BINDING_IMMUTABLE",
@@ -171,9 +176,8 @@ public class TransferRouteService {
           command.name(),
           command.destinationType(),
           command.destinationCountry(),
-          // Task 3 wires sourceCountry/sourceCurrency through UpdateRoute; interim seed default.
-          null,
-          "USD",
+          command.sourceCountry(),
+          command.sourceCurrency(),
           command.payoutCurrency(),
           command.baseFee(),
           command.fxSpreadPercentage(),

@@ -48,6 +48,13 @@ public class RouteEligibilityService {
     if (!route.getPayoutCurrency().equals(context.payoutCurrency())) {
       return false;
     }
+    if (!route.getSourceCurrency().equals(context.sourceCurrency())) {
+      return false;
+    }
+    if (route.getSourceCountry() != null
+        && !route.getSourceCountry().equals(context.sourceCountry())) {
+      return false;
+    }
     try {
       rails.requireCompatible(provider.getRailType(), context.destinationType());
     } catch (BusinessException e) {
