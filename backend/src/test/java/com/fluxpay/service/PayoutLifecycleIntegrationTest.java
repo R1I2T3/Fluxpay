@@ -310,6 +310,8 @@ class PayoutLifecycleIntegrationTest {
             name,
             DestinationType.EXTERNAL_ACCOUNT,
             "IN",
+            null,
+            "USD",
             "INR",
             new BigDecimal(fee),
             new BigDecimal("0.000000"),

@@ -159,6 +159,8 @@ public class WalletTransferRoutingService {
     }
     TransferRoutingContext context =
         new TransferRoutingContext(
+            from,
+            null,
             DestinationType.INTERNAL_WALLET,
             null,
             to,

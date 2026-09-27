@@ -516,6 +516,8 @@ class PaymentOperationsServiceTest {
         "Bank Standard",
         DestinationType.EXTERNAL_ACCOUNT,
         "US",
+        null,
+        "USD",
         "USD",
         new BigDecimal("5.0000"),
         new BigDecimal("0.500000"),

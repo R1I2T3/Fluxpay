@@ -117,6 +117,10 @@ public class TransferRouteService {
               command.name(),
               command.destinationType(),
               command.destinationCountry(),
+              // Task 3 wires sourceCountry/sourceCurrency through CreateRoute; interim seed
+              // default.
+              null,
+              "USD",
               command.payoutCurrency(),
               command.baseFee(),
               command.fxSpreadPercentage(),
@@ -167,6 +171,9 @@ public class TransferRouteService {
           command.name(),
           command.destinationType(),
           command.destinationCountry(),
+          // Task 3 wires sourceCountry/sourceCurrency through UpdateRoute; interim seed default.
+          null,
+          "USD",
           command.payoutCurrency(),
           command.baseFee(),
           command.fxSpreadPercentage(),

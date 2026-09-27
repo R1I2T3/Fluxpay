@@ -35,6 +35,33 @@ class RouteEligibilityServiceTest {
   }
 
   @Test
+  void rejectsBlankSourceCurrency() {
+    TransferProvider p = provider(RailType.BANK_NETWORK, true);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                TransferRoute.create(
+                    UUID.randomUUID(),
+                    p,
+                    "SRC_BAD",
+                    "bad",
+                    DestinationType.EXTERNAL_ACCOUNT,
+                    "IN",
+                    null,
+                    "US",
+                    "INR",
+                    new BigDecimal("5.0000"),
+                    new BigDecimal("0.5"),
+                    60,
+                    new BigDecimal("99.00"),
+                    null,
+                    null,
+                    true,
+                    false,
+                    NOW))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void keepsCompatibleActiveExternalRoute() {
     TransferProvider provider = provider(RailType.BANK_NETWORK, true);
     TransferRoute route =
@@ -81,6 +108,8 @@ class RouteEligibilityServiceTest {
         idle.name(),
         idle.destinationType(),
         idle.destinationCountry(),
+        idle.sourceCountry(),
+        idle.sourceCurrency(),
         idle.payoutCurrency(),
         idle.baseFee(),
         idle.fxSpreadPercentage(),
@@ -151,6 +180,8 @@ class RouteEligibilityServiceTest {
 
   private static TransferRoutingContext externalContext(String country, String currency) {
     return new TransferRoutingContext(
+        "USD",
+        null,
         DestinationType.EXTERNAL_ACCOUNT,
         country,
         currency,
@@ -160,6 +191,8 @@ class RouteEligibilityServiceTest {
 
   private static TransferRoutingContext internalContext(String country, String currency) {
     return new TransferRoutingContext(
+        "USD",
+        null,
         DestinationType.INTERNAL_WALLET,
         country,
         currency,
@@ -181,6 +214,8 @@ class RouteEligibilityServiceTest {
         code + " name",
         DestinationType.EXTERNAL_ACCOUNT,
         country,
+        null,
+        "USD",
         currency,
         new BigDecimal("5.0000"),
         new BigDecimal("0.500000"),
@@ -202,6 +237,8 @@ class RouteEligibilityServiceTest {
         code + " name",
         DestinationType.INTERNAL_WALLET,
         country,
+        null,
+        currency,
         currency,
         BigDecimal.ZERO,
         BigDecimal.ZERO,

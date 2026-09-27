@@ -448,6 +448,8 @@ class TransferRouteServiceTest {
             "FluxPay INR Internal",
             DestinationType.INTERNAL_WALLET,
             null,
+            null,
+            "INR",
             "INR",
             BigDecimal.ZERO,
             BigDecimal.ZERO,

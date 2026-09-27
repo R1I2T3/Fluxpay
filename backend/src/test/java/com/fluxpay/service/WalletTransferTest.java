@@ -716,6 +716,8 @@ class WalletTransferTest {
             routeCode + " route",
             DestinationType.INTERNAL_WALLET,
             null,
+            null,
+            payout,
             payout,
             new BigDecimal("0.0000"),
             new BigDecimal("0.000000"),
