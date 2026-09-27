@@ -99,8 +99,8 @@ public class TransferRouteAdminController {
                 requireText(body.name(), "name"),
                 destinationType,
                 normalizeCountry(body.destinationCountry(), destinationType),
-                body.sourceCountry(),
-                body.sourceCurrency(),
+                normalizeSourceCountry(body.sourceCountry()),
+                normalizeSourceCurrency(body.sourceCurrency()),
                 normalizeCurrency(body.payoutCurrency()),
                 requireNonnegative(body.baseFee(), "baseFee"),
                 requireNonnegative(body.fxSpreadPercentage(), "fxSpreadPercentage"),
@@ -135,8 +135,8 @@ public class TransferRouteAdminController {
                 requireText(body.name(), "name"),
                 destinationType,
                 normalizeCountry(body.destinationCountry(), destinationType),
-                body.sourceCountry(),
-                body.sourceCurrency(),
+                normalizeSourceCountry(body.sourceCountry()),
+                normalizeSourceCurrency(body.sourceCurrency()),
                 normalizeCurrency(body.payoutCurrency()),
                 requireNonnegative(body.baseFee(), "baseFee"),
                 requireNonnegative(body.fxSpreadPercentage(), "fxSpreadPercentage"),
@@ -242,6 +242,20 @@ public class TransferRouteAdminController {
     if (!normalized.matches("[A-Z]{2}")) {
       throw invalid("destinationCountry must be ISO-3166 alpha-2");
     }
+    return normalized;
+  }
+
+  private static String normalizeSourceCurrency(String currency) {
+    if (currency == null || currency.isBlank()) throw invalid("sourceCurrency must not be blank");
+    String normalized = currency.trim().toUpperCase(Locale.ROOT);
+    if (!normalized.matches("[A-Z]{3}")) throw invalid("sourceCurrency must be ISO-4217");
+    return normalized;
+  }
+
+  private static String normalizeSourceCountry(String country) {
+    if (country == null || country.isBlank()) return null;
+    String normalized = country.trim().toUpperCase(Locale.ROOT);
+    if (!normalized.matches("[A-Z]{2}")) throw invalid("sourceCountry must be ISO-3166 alpha-2");
     return normalized;
   }
 

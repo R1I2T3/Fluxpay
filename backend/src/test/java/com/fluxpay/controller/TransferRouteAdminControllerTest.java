@@ -66,7 +66,7 @@ class TransferRouteAdminControllerTest {
   private static final String CREATE_BODY =
       """
       {"providerId":"%s","routeCode":"HDFC_KE","name":"HDFC Kenya",
-       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","payoutCurrency":"KES",
+       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","sourceCountry":null,"sourceCurrency":"USD","payoutCurrency":"KES",
        "baseFee":5.00,"fxSpreadPercentage":0.8,"estimatedMinutes":240,
        "configuredSuccessRate":99.50,"active":true}
       """;
@@ -74,7 +74,7 @@ class TransferRouteAdminControllerTest {
   private static final String UPDATE_BODY =
       """
       {"providerId":"%s","name":"HDFC Kenya",
-       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","payoutCurrency":"KES",
+       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","sourceCountry":null,"sourceCurrency":"USD","payoutCurrency":"KES",
        "baseFee":6.00,"fxSpreadPercentage":1.0,"estimatedMinutes":120,
        "configuredSuccessRate":99.00,"active":true,"version":0}
       """;
@@ -280,6 +280,22 @@ class TransferRouteAdminControllerTest {
                 .content(CREATE_BODY.formatted(P_HDFC)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ROUTE_CODE_CONFLICT"));
+  }
+
+  @Test
+  void blankSourceCurrencyIsBadRequestWithoutServiceInvocation() throws Exception {
+    when(authorizer.isAdmin(any())).thenReturn(true);
+    mvc.perform(
+            post("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    CREATE_BODY
+                        .formatted(P_HDFC)
+                        .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":\"US\"")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
+    verify(service, never()).create(any());
   }
 
   @Test
