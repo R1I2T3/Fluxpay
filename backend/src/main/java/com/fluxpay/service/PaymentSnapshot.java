@@ -1,5 +1,6 @@
 package com.fluxpay.service;
 
+import com.fluxpay.domain.ExternalAccountDestination;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.dto.PaymentPostingSnapshot;
 import java.math.BigDecimal;
@@ -15,7 +16,31 @@ public record PaymentSnapshot(
     String sourceCurrency,
     String targetCurrency,
     PaymentStatus status,
-    PaymentPostingSnapshot posting) {
+    PaymentPostingSnapshot posting,
+    ExternalAccountDestination destination) {
+  public PaymentSnapshot(
+      String paymentId,
+      UUID senderUserId,
+      UUID senderWalletId,
+      UUID payoutClearingWalletId,
+      BigDecimal amount,
+      String sourceCurrency,
+      String targetCurrency,
+      PaymentStatus status,
+      PaymentPostingSnapshot posting) {
+    this(
+        paymentId,
+        senderUserId,
+        senderWalletId,
+        payoutClearingWalletId,
+        amount,
+        sourceCurrency,
+        targetCurrency,
+        status,
+        posting,
+        null);
+  }
+
   public PaymentSnapshot(
       String paymentId,
       UUID senderUserId,
@@ -34,6 +59,7 @@ public record PaymentSnapshot(
         sourceCurrency,
         targetCurrency,
         status,
+        null,
         null);
   }
 
@@ -61,6 +87,10 @@ public record PaymentSnapshot(
             || !posting.originalJournalReference().equals("payment:" + paymentId))) {
       throw new IllegalArgumentException(
           "Original posting does not match this payment's source funding");
+    }
+    if (destination != null && !destination.currency().equalsIgnoreCase(targetCurrency)) {
+      throw new IllegalArgumentException(
+          "Frozen recipient currency does not match this payment's payout currency");
     }
   }
 }

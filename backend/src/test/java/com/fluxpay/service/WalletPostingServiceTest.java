@@ -1,30 +1,30 @@
 package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.doAnswer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fluxpay.beans.LedgerTransactionCategory;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
-import com.fluxpay.beans.LedgerTransactionCategory;
-import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.domain.ConversionCalculation;
+import com.fluxpay.dto.FxSnapshot;
 import com.fluxpay.repository.WalletOperationRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -109,7 +109,8 @@ class WalletPostingServiceTest {
     assertThat(response.journalReference()).startsWith("wallet:fx:").doesNotContain("M2");
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<LedgerJournalLine>> lines = ArgumentCaptor.forClass(List.class);
-    ArgumentCaptor<WalletReservation> reservation = ArgumentCaptor.forClass(WalletReservation.class);
+    ArgumentCaptor<WalletReservation> reservation =
+        ArgumentCaptor.forClass(WalletReservation.class);
     verify(journals)
         .postReserved(
             eq(response.journalReference()),
@@ -190,8 +191,7 @@ class WalletPostingServiceTest {
                     new BigDecimal("10.0000"),
                     new BigDecimal("830.0000"),
                     new BigDecimal("83.00000000")),
-                new FxSnapshot(
-                    "USD", "INR", new BigDecimal("83.00000000"), fetchedAt, false),
+                new FxSnapshot("USD", "INR", new BigDecimal("83.00000000"), fetchedAt, false),
                 "11111111-1111-1111-1111-111111111111",
                 "{}",
                 "aged-key"));

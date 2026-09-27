@@ -6,6 +6,8 @@ import com.fluxpay.beans.PaymentQuote;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.common.contracts.ComplianceAssessment;
 import com.fluxpay.common.contracts.ComplianceAssessor;
+import com.fluxpay.common.contracts.ComplianceScreeningContext;
+import com.fluxpay.common.contracts.ComplianceScreeningInput;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.PostingPort;
 import com.fluxpay.common.enums.ScreeningVerdict;
@@ -20,8 +22,8 @@ import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -45,7 +47,7 @@ public class PaymentConfirmationService {
   private final PaymentOperationService operations;
   private final PayoutOutboxService outbox;
   private final ObjectMapper objectMapper;
-  private final PayoutRouteRepository routes;
+  private final TransferRouteRepository routes;
   private final ComplianceCaseService complianceCases;
   private final Duration reviewHold;
 
@@ -61,7 +63,7 @@ public class PaymentConfirmationService {
       OutboxEventRepository outboxEvents,
       OutboxDeliveryRepository deliveries,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes) {
+      TransferRouteRepository routes) {
     this(
         payments,
         quotes,
@@ -88,7 +90,7 @@ public class PaymentConfirmationService {
       PaymentOperationService operations,
       PayoutOutboxService outbox,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       ComplianceCaseService complianceCases) {
     this(
         payments,
@@ -118,7 +120,7 @@ public class PaymentConfirmationService {
       PaymentOperationService operations,
       PayoutOutboxService outbox,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       ComplianceCaseService complianceCases,
       ComplianceReviewWindowProperties reviewWindowProperties) {
     this(
@@ -148,7 +150,7 @@ public class PaymentConfirmationService {
       PaymentOperationService operations,
       PayoutOutboxService outbox,
       ObjectMapper objectMapper,
-      PayoutRouteRepository routes,
+      TransferRouteRepository routes,
       ComplianceCaseService complianceCases,
       Duration reviewHold) {
     this.payments = payments;
@@ -203,7 +205,7 @@ public class PaymentConfirmationService {
           HttpStatus.GONE, "QUOTE_EXPIRED", "The selected quote has expired.");
     }
     routes
-        .findByCode(quote.route())
+        .findByRouteCode(quote.route())
         .filter(r -> r.isActive())
         .orElseThrow(
             () -> conflict("ROUTE_UNAVAILABLE", "The selected quote route is unavailable."));
@@ -218,15 +220,32 @@ public class PaymentConfirmationService {
       throw new BusinessException(
           HttpStatus.FORBIDDEN, "KYC_NOT_VERIFIED", "KYC verification is required.");
     }
+    var screeningInput =
+        new ComplianceScreeningInput(
+            userId, recipient.name(), payment.sourceAmount(), payment.sourceCurrency());
     Instant now = Instant.now(clock);
-    ComplianceAssessment assessment = assessDetailedWithTimeout(userId, payment, recipient, now);
-    ScreeningVerdict verdict = assessment.verdict();
+    var screeningContext =
+        new ComplianceScreeningContext(
+            payment.id(),
+            userId,
+            payment.sourceAmount(),
+            payment.sourceCurrency(),
+            recipient.id(),
+            recipient.createdAt(),
+            now);
+    ScreeningVerdict inputVerdict = assessWithTimeout(screeningInput);
+    ComplianceAssessment assessment = assessDetailedWithTimeout(screeningContext);
+    ScreeningVerdict verdict = mostSevere(inputVerdict, assessment.verdict());
     if (verdict == ScreeningVerdict.BLOCK) {
       payment.reject(now);
       PaymentResponse blocked = response(payment);
       return new PaymentOperationService.Result<>(422, blocked, payment.id());
     }
     if (verdict == ScreeningVerdict.REVIEW) {
+      ComplianceAssessment reviewAssessment =
+          assessment.verdict() == ScreeningVerdict.REVIEW
+              ? assessment
+              : assessDetailedWithTimeout(screeningInput);
       String reviewReference = UUID.randomUUID().toString();
       payment.underReview(quote.id(), reviewReference, now.plus(reviewHold), now);
       if (complianceCases == null) {
@@ -235,9 +254,9 @@ public class PaymentConfirmationService {
       complianceCases.openReview(
           payment.id(),
           reviewReference,
-          assessment.risk(),
-          assessment.reasons(),
-          assessment.suggestedAction());
+          reviewAssessment.risk(),
+          reviewAssessment.reasons(),
+          reviewAssessment.suggestedAction());
       outbox.enqueue(
           payment,
           com.fluxpay.messaging.EventTopics.PAYMENT_REVIEW_REQUESTED,
@@ -324,10 +343,43 @@ public class PaymentConfirmationService {
     }
   }
 
-  private ScreeningVerdict assessWithTimeout(UUID userId, Payment payment) {
+  private ScreeningVerdict assessWithTimeout(ComplianceScreeningInput input) {
     try {
-      return CompletableFuture.supplyAsync(
-              () -> compliance.assess(userId, payment.sourceAmount(), payment.sourceCurrency()))
+      return CompletableFuture.supplyAsync(() -> compliance.assess(input)).get(3, TimeUnit.SECONDS);
+    } catch (TimeoutException e) {
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment timed out.");
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment was interrupted.");
+    } catch (java.util.concurrent.ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof BusinessException businessException) throw businessException;
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "COMPLIANCE_UNAVAILABLE",
+          "Compliance assessment failed.");
+    }
+  }
+
+  private static ScreeningVerdict mostSevere(ScreeningVerdict first, ScreeningVerdict second) {
+    if (first == ScreeningVerdict.BLOCK || second == ScreeningVerdict.BLOCK) {
+      return ScreeningVerdict.BLOCK;
+    }
+    if (first == ScreeningVerdict.REVIEW || second == ScreeningVerdict.REVIEW) {
+      return ScreeningVerdict.REVIEW;
+    }
+    return ScreeningVerdict.APPROVE;
+  }
+
+  private ComplianceAssessment assessDetailedWithTimeout(ComplianceScreeningInput input) {
+    try {
+      return CompletableFuture.supplyAsync(() -> compliance.assessDetailed(input))
           .get(3, TimeUnit.SECONDS);
     } catch (TimeoutException e) {
       throw new BusinessException(
@@ -342,8 +394,8 @@ public class PaymentConfirmationService {
           "Compliance assessment was interrupted.");
     } catch (java.util.concurrent.ExecutionException e) {
       Throwable cause = e.getCause();
-      if (cause instanceof BusinessException mbe) {
-        throw mbe;
+      if (cause instanceof BusinessException businessException) {
+        throw businessException;
       }
       throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE,
@@ -352,20 +404,9 @@ public class PaymentConfirmationService {
     }
   }
 
-  private ComplianceAssessment assessDetailedWithTimeout(
-      UUID userId, Payment payment, Recipient recipient, Instant assessedAt) {
+  private ComplianceAssessment assessDetailedWithTimeout(ComplianceScreeningContext context) {
     try {
-      return CompletableFuture.supplyAsync(
-              () ->
-                  compliance.assessDetailed(
-                      new com.fluxpay.common.contracts.ComplianceScreeningContext(
-                          payment.id(),
-                          userId,
-                          payment.sourceAmount(),
-                          payment.sourceCurrency(),
-                          recipient.id(),
-                          recipient.createdAt(),
-                          assessedAt)))
+      return CompletableFuture.supplyAsync(() -> compliance.assessDetailed(context))
           .get(3, TimeUnit.SECONDS);
     } catch (TimeoutException e) {
       throw new BusinessException(

@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/** Development-only always-approve assessor; never active in the default context. */
+/** Development-only deterministic assessor; never active in the default context. */
 class SimulatedComplianceAssessorTest {
   private final SimulatedComplianceAssessor assessor = new SimulatedComplianceAssessor();
 

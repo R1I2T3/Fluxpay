@@ -43,12 +43,18 @@ public final class RouteApi {
 
   public record Quote(
       String routeId,
+      String routeCode,
       String routeName,
+      String providerId,
+      String providerName,
       BigDecimal marketRate,
       BigDecimal offeredRate,
       BigDecimal feeAmount,
       BigDecimal recipientAmount,
       int estimatedMinutes,
+      BigDecimal effectiveReliability,
+      BigDecimal rankingScore,
+      int rankingPosition,
       boolean recommended) {}
 
   public record Update(

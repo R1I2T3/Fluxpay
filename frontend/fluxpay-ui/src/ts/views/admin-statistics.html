@@ -1,0 +1,742 @@
+<section class="admin-page statistics-page">
+  <!-- ko if: !session.user() -->
+  <div class="sign-in-gate">
+    <span class="gate-icon" aria-hidden="true">→</span>
+    <h2>Sign in to review statistics.</h2>
+    <p>Only administrators can view operational statistics.</p>
+    <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+  </div>
+  <!-- /ko -->
+  <!-- ko if: session.user() && !session.isAdmin() -->
+  <div class="sign-in-gate">
+    <span class="gate-icon" aria-hidden="true">!</span>
+    <h2>Administrator access required.</h2>
+    <p>Your account cannot view administrator statistics.</p>
+  </div>
+  <!-- /ko -->
+  <!-- ko if: session.isAdmin() -->
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">STATISTICS</span>
+      <h1>Activity and operational health</h1>
+      <p>Payments created in the selected period, shown with their current outcomes.</p>
+      <p>Payment count includes drafts and quotes.</p>
+    </div>
+    <button type="button" class="pill soft" data-bind="click:refresh,disable:busy">Refresh</button>
+  </header>
+  <p
+    role="status"
+    aria-live="polite"
+    class="sr-only"
+    data-bind="text:busy()?'Loading statistics.':'Statistics ready.'"
+  ></p>
+
+  <!-- ko if: optionsBusy() && !options() -->
+  <p class="statistics-state" role="status">Loading reporting options…</p>
+  <!-- /ko -->
+  <!-- ko if: optionsError() -->
+  <div class="statistics-state statistics-error" role="alert">
+    <p data-bind="text:optionsError"></p>
+    <button type="button" class="pill soft" data-bind="click:retryOptions,disable:optionsBusy">
+      Retry reporting options
+    </button>
+  </div>
+  <!-- /ko -->
+  <!-- ko if: notice -->
+  <p class="statistics-notice" role="status" data-bind="text:notice"></p>
+  <!-- /ko -->
+  <!-- ko if: options() && options().currencies.length === 0 && !optionsError() -->
+  <section class="statistics-state" aria-labelledby="statistics-setup-title">
+    <h2 id="statistics-setup-title">Reporting setup required</h2>
+    <p>No reporting currency is configured. Configure a currency before viewing statistics.</p>
+    <button type="button" class="pill soft" data-bind="click:retryOptions,disable:optionsBusy">
+      Check again
+    </button>
+  </section>
+  <!-- /ko -->
+  <!-- ko if: options() && options().currencies.length > 0 -->
+  <form
+    class="statistics-toolbar"
+    aria-label="Statistics filters"
+    data-bind="submit:function(){applyFilters();return false;}"
+  >
+    <div class="statistics-toolbar-group">
+      <label class="statistics-filter-field"
+        >Start date
+        <input type="date" required data-bind="value:from,attr:{max:options().today}" />
+      </label>
+      <label class="statistics-filter-field"
+        >End date
+        <input type="date" required data-bind="value:to,attr:{max:options().today}" />
+      </label>
+      <label class="statistics-filter-field"
+        >Source currency
+        <select
+          data-bind="value:currency,options:options().currencies,optionsText:'code',optionsValue:'code'"
+        ></select>
+      </label>
+    </div>
+    <div class="statistics-toolbar-group statistics-toolbar-actions">
+      <div class="statistics-presets" role="group" aria-label="Date range presets">
+        <button
+          type="button"
+          class="pill soft"
+          data-bind="click:function(){selectPreset(1)},css:{'statistics-preset-active':isPresetActive(1)},attr:{'aria-pressed':isPresetActive(1)}"
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          class="pill soft"
+          data-bind="click:function(){selectPreset(7)},css:{'statistics-preset-active':isPresetActive(7)},attr:{'aria-pressed':isPresetActive(7)}"
+        >
+          7 days
+        </button>
+        <button
+          type="button"
+          class="pill soft"
+          data-bind="click:function(){selectPreset(30)},css:{'statistics-preset-active':isPresetActive(30)},attr:{'aria-pressed':isPresetActive(30)}"
+        >
+          30 days
+        </button>
+        <button
+          type="button"
+          class="pill soft"
+          data-bind="click:function(){selectPreset(90)},css:{'statistics-preset-active':isPresetActive(90)},attr:{'aria-pressed':isPresetActive(90)}"
+        >
+          90 days
+        </button>
+      </div>
+      <button type="submit" class="pill dark statistics-apply" data-bind="disable:busy">
+        Apply dates
+      </button>
+    </div>
+  </form>
+  <div class="statistics-meta">
+    <span
+      data-bind="text:'Reporting zone: '+(snapshot()?.meta.reportingZone||options().reportingZone)"
+    ></span>
+    <span
+      data-bind="visible:lastUpdated,text:lastUpdated()?'Last updated '+lastUpdated():''"
+    ></span>
+    <span
+      role="status"
+      aria-live="polite"
+      data-bind="visible:refreshStatus,text:refreshStatus"
+    ></span>
+  </div>
+  <!-- ko if: busy() && !snapshot() -->
+  <div class="statistics-skeleton" role="status" aria-label="Loading statistics">
+    <span class="statistics-skeleton-row"></span>
+    <span class="statistics-skeleton-row"></span>
+    <span class="statistics-skeleton-row"></span>
+  </div>
+  <!-- /ko -->
+  <!-- ko if: error -->
+  <p class="statistics-error" role="alert" data-bind="text:error"></p>
+  <!-- /ko -->
+  <!-- ko if: snapshot -->
+  <div class="statistics-grid" data-bind="with:snapshot">
+    <section class="statistics-card statistics-payment-summary" aria-label="Payment summary">
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">◈</span>
+        <div>
+          <h2>Payment summary</h2>
+          <p class="statistics-card-sub">
+            Cohort totals for the selected period. Select a count to inspect records.
+          </p>
+        </div>
+      </div>
+      <div class="statistics-payment-cards">
+        <article class="statistics-kpi">
+          <span class="statistics-kpi-icon" aria-hidden="true">▦</span>
+          <span>Payments created</span
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="click:function(){ $parent.openPayments() },attr:{ 'aria-label':'View all '+paymentSummary.paymentCount+' payments created in the selected period' }"
+          >
+            <strong data-bind="text:paymentSummary.paymentCount"></strong>
+          </button>
+          <small class="statistics-kpi-hint">Includes drafts + quotes</small>
+        </article>
+        <article class="statistics-kpi">
+          <span class="statistics-kpi-icon" aria-hidden="true">✓</span>
+          <span>Completed payments</span
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="click:function(){ $parent.openPayments('COMPLETED') },attr:{ 'aria-label':'View '+paymentSummary.completedCount+' completed payments created in the selected period' }"
+          >
+            <strong data-bind="text:paymentSummary.completedCount"></strong></button
+          ><small
+            class="statistics-kpi-hint"
+            data-bind="text:$parent.formatMoney(paymentSummary.completedAmount,meta.currency)"
+          ></small>
+        </article>
+        <article class="statistics-kpi">
+          <span class="statistics-kpi-icon" aria-hidden="true">%</span>
+          <span>Payout success rate</span
+          ><strong
+            data-bind="text:$parent.formatRate(paymentSummary.payoutSuccessRate,'No final outcomes')"
+          ></strong>
+          <small class="statistics-kpi-hint">Completed ÷ final outcomes</small>
+        </article>
+        <article class="statistics-kpi">
+          <span class="statistics-kpi-icon" aria-hidden="true">✕</span>
+          <span>Failed payments</span
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="click:function(){ $parent.openPayments('FAILED') },attr:{ 'aria-label':'View '+paymentSummary.failedCount+' failed payments created in the selected period' }"
+          >
+            <strong data-bind="text:paymentSummary.failedCount"></strong>
+          </button>
+          <small class="statistics-kpi-hint">Needs investigation</small>
+        </article>
+        <article class="statistics-kpi">
+          <span class="statistics-kpi-icon" aria-hidden="true">◌</span>
+          <span>Processing now</span
+          ><button
+            type="button"
+            class="statistics-date-button"
+            data-bind="click:function(){ $parent.openPayments('PROCESSING') },attr:{ 'aria-label':'View '+paymentSummary.processingCount+' payments currently processing' }"
+          >
+            <strong data-bind="text:paymentSummary.processingCount"></strong>
+          </button>
+          <small class="statistics-kpi-hint">Live in-flight count</small>
+        </article>
+      </div>
+      <p class="statistics-caption">
+        Payout success rate = completed payments ÷ payments with final outcomes. Select a payment
+        count above to open the matching records.
+      </p>
+    </section>
+    <section
+      class="statistics-card statistics-status-card"
+      aria-labelledby="statistics-status-title"
+    >
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">☰</span>
+        <div>
+          <h2 id="statistics-status-title">Payment statuses</h2>
+          <p class="statistics-card-sub">Current state of every payment in the cohort.</p>
+        </div>
+      </div>
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th scope="col">Current status</th>
+            <th scope="col">Payments</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:paymentStatuses">
+          <tr>
+            <th scope="row">
+              <button
+                type="button"
+                class="statistics-date-button"
+                data-bind="text:status,click:function(){ $parents[1].openPayments(status) },attr:{ 'aria-label':'View '+count+' '+status+' payments created in the selected period' }"
+              ></button>
+            </th>
+            <td>
+              <span data-bind="text:count"></span>
+              <span class="statistics-status-bar" aria-hidden="true"
+                ><span
+                  class="statistics-status-fill"
+                  data-bind="style:{width:$parents[1].statusShare(count)+'%'}"
+                ></span
+              ></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="statistics-card statistics-chart-card statistics-span-count">
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">📈</span>
+        <div>
+          <h2>Payments created by day</h2>
+          <p class="statistics-card-sub">Daily payment counts by source currency.</p>
+        </div>
+      </div>
+      <div class="statistics-chart-wrap">
+        <svg
+          class="statistics-chart"
+          viewBox="0 0 600 200"
+          role="img"
+          aria-labelledby="statistics-count-chart-title statistics-count-chart-description"
+        >
+          <title id="statistics-count-chart-title">Daily payment counts</title>
+          <desc id="statistics-count-chart-description">
+            Payment count trend across the selected dates. Exact values are available in the daily
+            table.
+          </desc>
+          <g class="statistics-chart-ticks" aria-hidden="true">
+            <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
+            <text
+              x="26"
+              y="13"
+              text-anchor="end"
+              data-bind="text:$parent.paymentCountTicks()[0]"
+            ></text>
+            <text
+              x="26"
+              y="90"
+              text-anchor="end"
+              data-bind="text:$parent.paymentCountTicks()[1]"
+            ></text>
+            <text
+              x="26"
+              y="166"
+              text-anchor="end"
+              data-bind="text:$parent.paymentCountTicks()[2]"
+            ></text>
+            <text x="32" y="181" data-bind="text:meta.from"></text>
+            <text x="568" y="181" text-anchor="end" data-bind="text:meta.to"></text>
+            <text x="312" y="197" text-anchor="middle">Payment creation date</text>
+            <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
+              Payments per day
+            </text>
+          </g>
+          <path class="statistics-chart-axis" d="M32 162H568"></path>
+          <path
+            class="statistics-chart-area statistics-count-area"
+            data-bind="attr:{d:$parent.paymentCountArea()}"
+          ></path>
+          <path
+            class="statistics-chart-line statistics-count-line"
+            transform="translate(24 0)"
+            data-bind="attr:{d:$parent.paymentCountPath()}"
+          ></path>
+          <g data-bind="foreach:$parent.paymentCountPoints()">
+            <circle
+              class="statistics-chart-dot"
+              r="5"
+              data-bind="attr:{cx:x,cy:y,'aria-label':label},click:function(){ $parents[1].openCountDay($data) },event:{mouseover:function(){ $element.setAttribute('r','7') },mouseout:function(){ $element.setAttribute('r','5') }}"
+            >
+              <title data-bind="text:label"></title>
+            </circle>
+          </g>
+        </svg>
+      </div>
+      <p class="statistics-chart-foot">
+        <span class="statistics-chart-stat"
+          >Hover a dot for the exact count — select it to open that day.</span
+        >
+      </p>
+      <details class="statistics-daily-details">
+        <summary>View daily payment counts</summary>
+        <div class="statistics-table-scroll">
+          <table class="dense-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Payments created</th>
+              </tr>
+            </thead>
+            <tbody data-bind="foreach:paymentTrend">
+              <tr>
+                <th scope="row">
+                  <button
+                    type="button"
+                    class="statistics-date-button"
+                    data-bind="text:date,click:function(){ $parents[1].openPayments(undefined, date) },attr:{'aria-label':'View every payment created on '+date}"
+                  ></button>
+                </th>
+                <td data-bind="text:paymentCount"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+    <section class="statistics-card statistics-chart-card statistics-span-amount">
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">💰</span>
+        <div>
+          <h2>Completed amount by day</h2>
+          <p class="statistics-card-sub">
+            Completed payment value in <span data-bind="text:meta.currency"></span>.
+          </p>
+        </div>
+      </div>
+      <div class="statistics-chart-wrap">
+        <svg
+          class="statistics-chart"
+          viewBox="0 0 600 200"
+          role="img"
+          aria-labelledby="statistics-amount-chart-title statistics-amount-chart-description"
+        >
+          <title id="statistics-amount-chart-title">Daily completed payment amount</title>
+          <desc id="statistics-amount-chart-description">
+            Completed amount trend across the selected dates. The amount axis marks an approximate
+            scale, not exact amounts. Exact values are available in the daily table.
+          </desc>
+          <g class="statistics-chart-ticks" aria-hidden="true">
+            <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
+            <text
+              x="26"
+              y="13"
+              text-anchor="end"
+              data-bind="text:$parent.paymentAmountTicks()[0]"
+            ></text>
+            <text
+              x="26"
+              y="90"
+              text-anchor="end"
+              data-bind="text:$parent.paymentAmountTicks()[1]"
+            ></text>
+            <text
+              x="26"
+              y="166"
+              text-anchor="end"
+              data-bind="text:$parent.paymentAmountTicks()[2]"
+            ></text>
+            <text x="32" y="181" data-bind="text:meta.from"></text>
+            <text x="568" y="181" text-anchor="end" data-bind="text:meta.to"></text>
+            <text x="312" y="197" text-anchor="middle">Payment creation date</text>
+            <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
+              Completed amount (approx.)
+            </text>
+          </g>
+          <path class="statistics-chart-axis" d="M32 162H568"></path>
+          <path
+            class="statistics-chart-area statistics-amount-area"
+            data-bind="attr:{d:$parent.paymentAmountArea()}"
+          ></path>
+          <path
+            class="statistics-chart-line statistics-amount-line"
+            transform="translate(24 0)"
+            data-bind="attr:{d:$parent.paymentAmountPath()}"
+          ></path>
+          <g data-bind="foreach:$parent.paymentAmountPoints()">
+            <circle
+              class="statistics-chart-dot"
+              r="5"
+              data-bind="attr:{cx:x,cy:y,'aria-label':label},click:function(){ $parents[1].openAmountDay($data) }"
+            >
+              <title data-bind="text:label"></title>
+            </circle>
+          </g>
+        </svg>
+      </div>
+      <p class="statistics-caption">
+        The amount axis is an approximate scale taken from the trend's own range, not an exact
+        amount. Read the exact completed amount for each day from the table below.
+      </p>
+      <details class="statistics-daily-details">
+        <summary>View daily completed amounts</summary>
+        <div class="statistics-table-scroll">
+          <table class="dense-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Completed amount</th>
+              </tr>
+            </thead>
+            <tbody data-bind="foreach:paymentTrend">
+              <tr>
+                <th scope="row">
+                  <button
+                    type="button"
+                    class="statistics-date-button"
+                    data-bind="text:date,click:function(){ $parents[1].openPayments('COMPLETED', date) },attr:{'aria-label':'View completed payments created on '+date}"
+                  ></button>
+                </th>
+                <td
+                  data-bind="text:$parents[1].formatMoney(completedAmount,$parent.meta.currency)"
+                ></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+    <section
+      class="statistics-card statistics-provider-card"
+      aria-labelledby="statistics-providers-title"
+    >
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">🏦</span>
+        <div>
+          <h2 id="statistics-providers-title">Provider attempts</h2>
+          <p class="statistics-card-sub">
+            Provider attempts for payments created in the selected period. Attempt dates may fall
+            outside this period.
+          </p>
+        </div>
+      </div>
+      <!-- ko if: providers.length === 0 -->
+      <p class="statistics-empty">
+        No provider attempts are associated with payments created in this reporting period.
+      </p>
+      <!-- /ko -->
+      <!-- ko if: providers.length > 0 -->
+      <div class="statistics-table-scroll">
+        <table class="dense-table">
+          <thead>
+            <tr>
+              <th scope="col">Provider</th>
+              <th scope="col">Attempts</th>
+              <th scope="col">Completed</th>
+              <th scope="col">Failed</th>
+              <th scope="col">In progress</th>
+              <th scope="col">Terminal attempt success rate</th>
+            </tr>
+          </thead>
+          <tbody data-bind="foreach:providers">
+            <tr>
+              <th scope="row">
+                <span data-bind="text:providerName"></span
+                ><small data-bind="text:providerCode"></small>
+              </th>
+              <td data-bind="text:totalAttempts"></td>
+              <td data-bind="text:completedAttempts"></td>
+              <td data-bind="text:failedAttempts"></td>
+              <td data-bind="text:inProgressAttempts"></td>
+              <td>
+                <span
+                  class="statistics-provider-pill"
+                  data-bind="text:$parents[1].formatRate(successRate,'No terminal attempts')"
+                ></span>
+                <span class="statistics-provider-bar" aria-hidden="true"
+                  ><span
+                    class="statistics-provider-fill"
+                    data-bind="style:{width:$parents[1].rateWidth(successRate)}"
+                  ></span
+                ></span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- /ko -->
+    </section>
+    <section class="statistics-card statistics-customer-card">
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">👥</span>
+        <div>
+          <h2>Customer registrations</h2>
+          <p class="statistics-card-sub">Growth across all currencies for the selected dates.</p>
+        </div>
+      </div>
+      <div class="statistics-customer-metrics">
+        <p>
+          <strong data-bind="text:customers.totalCustomers"></strong><span>All time customers</span>
+        </p>
+        <p>
+          <strong data-bind="text:customers.newRegistrations"></strong
+          ><span>Selected dates / all currencies</span>
+        </p>
+      </div>
+      <h3>Registrations by day</h3>
+      <div class="statistics-chart-wrap">
+        <svg
+          class="statistics-chart"
+          viewBox="0 0 600 200"
+          role="img"
+          aria-labelledby="statistics-customer-chart-title statistics-customer-chart-description"
+        >
+          <title id="statistics-customer-chart-title">Daily customer registrations</title>
+          <desc id="statistics-customer-chart-description">
+            Customer registration trend for the selected dates. Exact values are available in the
+            daily table.
+          </desc>
+          <g class="statistics-chart-ticks" aria-hidden="true">
+            <path class="statistics-chart-gridline" d="M32 8H568M32 85H568M32 162H568"></path>
+            <text
+              x="26"
+              y="13"
+              text-anchor="end"
+              data-bind="text:$parent.customerRegistrationTicks()[0]"
+            ></text>
+            <text
+              x="26"
+              y="90"
+              text-anchor="end"
+              data-bind="text:$parent.customerRegistrationTicks()[1]"
+            ></text>
+            <text
+              x="26"
+              y="166"
+              text-anchor="end"
+              data-bind="text:$parent.customerRegistrationTicks()[2]"
+            ></text>
+            <text x="32" y="181" data-bind="text:meta.from"></text>
+            <text x="568" y="181" text-anchor="end" data-bind="text:meta.to"></text>
+            <text x="312" y="197" text-anchor="middle">Registration date</text>
+            <text x="5" y="85" transform="rotate(-90 5 85)" text-anchor="middle">
+              Registrations per day
+            </text>
+          </g>
+          <path class="statistics-chart-axis" d="M32 162H568"></path>
+          <path
+            class="statistics-chart-area statistics-customer-area"
+            data-bind="attr:{d:$parent.customerRegistrationArea()}"
+          ></path>
+          <path
+            class="statistics-chart-line statistics-customer-line"
+            transform="translate(24 0)"
+            data-bind="attr:{d:$parent.customerRegistrationPath()}"
+          ></path>
+          <g data-bind="foreach:$parent.customerRegistrationPoints()">
+            <circle class="statistics-chart-dot" r="4" data-bind="attr:{cx:x,cy:y}">
+              <title data-bind="text:label"></title>
+            </circle>
+          </g>
+        </svg>
+      </div>
+      <details class="statistics-daily-details">
+        <summary>View daily registrations</summary>
+        <div class="statistics-table-scroll">
+          <table class="dense-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Registrations</th>
+              </tr>
+            </thead>
+            <tbody data-bind="foreach:customerTrend">
+              <tr>
+                <th scope="row"><span data-bind="text:date"></span></th>
+                <td data-bind="text:registrations"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+    <section
+      class="statistics-card statistics-workload"
+      aria-labelledby="statistics-workload-title"
+    >
+      <div class="statistics-card-head">
+        <span class="statistics-card-icon" aria-hidden="true">⚑</span>
+        <div>
+          <h2 id="statistics-workload-title">Current operational workload</h2>
+          <p class="statistics-card-sub">Current / all dates and currencies</p>
+        </div>
+      </div>
+      <div class="statistics-grid statistics-workload-grid">
+        <section class="statistics-workload-card">
+          <h3>KYC reviews</h3>
+          <dl>
+            <div>
+              <dt>Pending</dt>
+              <dd data-bind="text:workload.kycPending"></dd>
+            </div>
+            <div>
+              <dt>Over 24 hours</dt>
+              <dd data-bind="text:workload.kycOver24h"></dd>
+            </div>
+          </dl>
+        </section>
+        <section class="statistics-workload-card">
+          <h3>Compliance cases</h3>
+          <dl>
+            <div>
+              <dt>Open</dt>
+              <dd data-bind="text:workload.complianceOpen"></dd>
+            </div>
+            <div>
+              <dt>High risk</dt>
+              <dd data-bind="text:workload.complianceHighRisk"></dd>
+            </div>
+            <div>
+              <dt>Over 24 hours</dt>
+              <dd data-bind="text:workload.complianceOver24h"></dd>
+            </div>
+          </dl>
+        </section>
+        <section class="statistics-workload-card">
+          <h3>Support tickets</h3>
+          <dl>
+            <div>
+              <dt>Open</dt>
+              <dd data-bind="text:workload.ticketsOpen"></dd>
+            </div>
+            <div>
+              <dt>Over 24 hours</dt>
+              <dd data-bind="text:workload.ticketsOver24h"></dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+    </section>
+  </div>
+  <!-- /ko -->
+  <!-- ko if: state() && state().showPayments -->
+  <section class="statistics-card" aria-labelledby="statistics-list-title">
+    <h2 id="statistics-list-title">Matching payments</h2>
+    <p class="statistics-caption" data-bind="text:listSelection"></p>
+    <p class="sr-only" role="status" aria-live="polite" data-bind="text:listAnnouncement"></p>
+    <!-- ko if: listBusy -->
+    <p class="statistics-state" role="status">Loading payment records…</p>
+    <!-- /ko -->
+    <!-- ko if: listError -->
+    <p class="statistics-error" role="alert" data-bind="text:listError"></p>
+    <button type="button" class="pill soft" data-bind="click:retryPayments,disable:listBusy">
+      Retry payment records
+    </button>
+    <!-- /ko -->
+    <!-- ko if: pageData -->
+    <div class="statistics-table-scroll">
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th scope="col">Payment ID</th>
+            <th scope="col">Created</th>
+            <th scope="col">Source amount</th>
+            <th scope="col">Currency</th>
+            <th scope="col">Status</th>
+            <th scope="col">Operations</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:pageData().items">
+          <tr>
+            <th scope="row"><span class="mono" data-bind="text:paymentId"></span></th>
+            <td data-bind="text:$parent.formatTime(createdAt)"></td>
+            <td data-bind="text:$parent.formatMoney(sourceAmount,sourceCurrency)"></td>
+            <td data-bind="text:sourceCurrency"></td>
+            <td data-bind="text:status"></td>
+            <td>
+              <button type="button" class="text-button" data-bind="click:$parent.openOperations">
+                Open operations
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="statistics-caption" data-bind="text:listTotals"></p>
+    <div class="statistics-presets" role="group" aria-label="Payment list pages">
+      <button
+        type="button"
+        class="pill soft"
+        data-bind="click:function(){ goToPage(listPage()-1) },disable:!canPreviousPaymentPage"
+      >
+        Previous page
+      </button>
+      <button
+        type="button"
+        class="pill soft"
+        data-bind="click:function(){ goToPage(listPage()+1) },disable:!canNextPaymentPage"
+      >
+        Next page
+      </button>
+      <!-- ko if: beyondLastPage -->
+      <button type="button" class="pill dark" data-bind="click:function(){ goToPage(0) }">
+        Return to the first page
+      </button>
+      <!-- /ko -->
+      <button type="button" class="pill soft" data-bind="click:closePayments">
+        Close payment list
+      </button>
+    </div>
+    <!-- /ko -->
+  </section>
+  <!-- /ko -->
+  <!-- /ko -->
+  <!-- /ko -->
+</section>

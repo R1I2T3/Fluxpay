@@ -5,6 +5,18 @@ ko.bindingHandlers.kycPdfPreview={init(element:HTMLElement,valueAccessor:()=>str
   const dispose=render(element,ko.unwrap(valueAccessor()));ko.utils.domNodeDisposal.addDisposeCallback(element,dispose);
 }};
 ko.bindingHandlers.experienceFocus={init(element:HTMLElement){const timer=window.setTimeout(()=>element.focus(),0);ko.utils.domNodeDisposal.addDisposeCallback(element,()=>clearTimeout(timer));}};
+// Announce the next step and bring its heading into view, without stealing initial focus.
+ko.bindingHandlers.experienceStepFocus={init(element:HTMLElement,valueAccessor:()=>ko.Observable<number>){
+  let timer:number|undefined;
+  const subscription=valueAccessor().subscribe(()=>{
+    clearTimeout(timer);
+    timer=window.setTimeout(()=>{
+      if(!element.isConnected||element.closest('[inert]')||document.querySelector('[aria-modal="true"]'))return;
+      element.focus({preventScroll:true});element.scrollIntoView({block:'start',behavior:'auto'});
+    },0);
+  });
+  ko.utils.domNodeDisposal.addDisposeCallback(element,()=>{clearTimeout(timer);subscription.dispose();});
+}};
 // Shared focus management for customer dialogs; no dependency on the admin module.
 ko.bindingHandlers.experienceDialog={init(element:HTMLElement,valueAccessor:()=>()=>void){
   const previous=document.activeElement as HTMLElement|null;

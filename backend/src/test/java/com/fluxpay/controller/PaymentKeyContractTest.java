@@ -36,7 +36,8 @@ class PaymentKeyContractTest {
                 new PaymentController(
                     mock(PaymentService.class),
                     mock(QuoteService.class),
-                    mock(PaymentConfirmationService.class)))
+                    mock(PaymentConfirmationService.class),
+                    mock(PaymentHoldService.class)))
             .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
             .setControllerAdvice(new PaymentApiExceptionHandler(), new GlobalExceptionHandler())
             .addFilters(new CorrelationIdFilter())

@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
 import com.fluxpay.common.security.JwtAuthFilter;
@@ -23,11 +23,12 @@ import com.fluxpay.common.web.CorrelationIdFilter;
 import com.fluxpay.common.web.GlobalExceptionHandler;
 import com.fluxpay.domain.PaymentStatus;
 import com.fluxpay.domain.RoutePreference;
+import com.fluxpay.dto.RankedRouteQuote;
 import com.fluxpay.dto.RouteQuote;
 import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.RouteCatalogService;
-import com.fluxpay.service.RouteMetrics;
+import com.fluxpay.service.RouteReliabilityService;
 import com.fluxpay.web.advice.PayoutApiExceptionHandler;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -70,8 +71,8 @@ class RouteControllerContractTest {
   @MockBean private JwtUtil jwt;
 
   private PaymentSnapshot payment;
-  private PayoutRoute standard;
-  private PayoutRoute instant;
+  private TransferRoute standard;
+  private TransferRoute instant;
 
   @BeforeEach
   void setUp() {
@@ -87,7 +88,7 @@ class RouteControllerContractTest {
             "KES",
             PaymentStatus.PROCESSING);
     standard =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             R_STANDARD,
             "STANDARD_BANK",
             "Standard Bank Rail",
@@ -98,7 +99,7 @@ class RouteControllerContractTest {
             240,
             "99.50");
     instant =
-        PayoutRoute.seed(
+        TransferRoute.seed(
             R_INSTANT,
             "INSTANT_PAYOUT",
             "Instant Payout",
@@ -113,9 +114,14 @@ class RouteControllerContractTest {
   @Test
   void listRoutesReturnsCatalogEntriesWithMetrics() throws Exception {
     when(catalog.listRoutes()).thenReturn(List.of(instant, standard));
-    when(catalog.metricFor(R_STANDARD))
-        .thenReturn(new RouteMetrics.RouteMetric(R_STANDARD, 3L, 4L));
-    when(catalog.metricFor(R_INSTANT)).thenReturn(new RouteMetrics.RouteMetric(R_INSTANT, 1L, 2L));
+    when(catalog.metricFor(standard))
+        .thenReturn(
+            new RouteReliabilityService.RouteReliability(
+                R_STANDARD, new BigDecimal("99.50"), 3L, 1L));
+    when(catalog.metricFor(instant))
+        .thenReturn(
+            new RouteReliabilityService.RouteReliability(
+                R_INSTANT, new BigDecimal("98.00"), 1L, 1L));
 
     mvc.perform(
             get("/api/routes")
@@ -164,7 +170,8 @@ class RouteControllerContractTest {
             new BigDecimal("146.8160"),
             new BigDecimal("146081.9200"),
             new BigDecimal("5.0000"),
-            new BigDecimal("995.0000"));
+            new BigDecimal("995.0000"),
+            new BigDecimal("99.50"));
     RouteQuote instantQuote =
         new RouteQuote(
             instant,
@@ -172,9 +179,16 @@ class RouteControllerContractTest {
             new BigDecimal("145.0400"),
             new BigDecimal("143444.5600"),
             new BigDecimal("11.0000"),
-            new BigDecimal("989.0000"));
+            new BigDecimal("989.0000"),
+            new BigDecimal("98.00"));
     when(catalog.recommend(eq("P-001"), eq(RoutePreference.BALANCED), anyString()))
-        .thenReturn(new RouteRecommendation(standard, List.of(standardQuote, instantQuote)));
+        .thenReturn(
+            new RouteRecommendation(
+                new RankedRouteQuote(standardQuote, standardQuote.recipientAmount(), 1),
+                List.of(
+                    new RankedRouteQuote(standardQuote, standardQuote.recipientAmount(), 1),
+                    new RankedRouteQuote(instantQuote, instantQuote.recipientAmount(), 2)),
+                "test recommendation"));
 
     mvc.perform(
             post("/api/payments/P-001/recommend-route")

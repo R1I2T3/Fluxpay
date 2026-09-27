@@ -1,0 +1,416 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FluxPay System — Router, Payment, Wallet, Kafka Consumers + Ollama Copilot",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/R1I2T3/Fluxpay",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "d1f87d4ac3ef65dd989b4f3d5f9ac41896664f9d"
+    },
+    "viewBox": [1280, 860],
+    "views": [
+      {
+        "id": "main-path",
+        "label": "Main payment path",
+        "focus": ["ui", "router", "payment", "oracle", "outbox", "kafka", "timeline"],
+        "note": "Emitted REST is routed to Payment, persisted, relayed via Kafka, and ingested to timeline."
+      },
+      {
+        "id": "wallet-path",
+        "label": "Wallet operations",
+        "focus": ["ui", "router", "wallet", "oracle", "fx"],
+        "note": "Funding, conversion, and transfers run through Wallet with ledger journals."
+      },
+      {
+        "id": "recovery-copilot",
+        "label": "Recovery and copilot",
+        "focus": ["kafka", "recovery", "outbox", "router", "ollama"],
+        "note": "Failed payouts retry and refund; policies ground the Ollama copilot."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "FluxPay UI",
+      "sublabel": "Oracle JET TS + flux-api",
+      "pos": [40, 300],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "frontend/fluxpay-ui/src/ts/services/flux-api.ts",
+          "label": "REST+SSE emit"
+        },
+        {
+          "path": "frontend/fluxpay-ui/src/ts/viewModels/payments-new.ts",
+          "label": "payment flow"
+        }
+      ]
+    },
+    {
+      "id": "router",
+      "type": "backend",
+      "label": "API Router :8080",
+      "sublabel": "JWT + Idempotency dispatch",
+      "pos": [270, 300],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/controller/PaymentController.java",
+          "label": "dispatch"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/controller/AuthController.java",
+          "label": "edge auth"
+        }
+      ]
+    },
+    {
+      "id": "payment",
+      "type": "backend",
+      "label": "Payment Service",
+      "sublabel": "draft quotes confirm",
+      "pos": [520, 300],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/PaymentService.java",
+          "label": "lifecycle"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/PaymentConfirmationService.java",
+          "label": "confirm"
+        }
+      ]
+    },
+    {
+      "id": "oracle",
+      "type": "database",
+      "label": "Oracle FREE",
+      "sublabel": "ledger + vectors FREEPDB1",
+      "pos": [770, 300],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/beans/Payment.java",
+          "label": "payment entity"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/beans/OutboxEvent.java",
+          "label": "outbox entity"
+        }
+      ]
+    },
+    {
+      "id": "outbox",
+      "type": "backend",
+      "label": "Outbox + Relay",
+      "sublabel": "OutboxService + Relay Job",
+      "pos": [270, 520],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/messaging/OutboxService.java",
+          "label": "enqueue"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/messaging/OutboxRelay.java",
+          "label": "relay"
+        }
+      ]
+    },
+    {
+      "id": "kafka",
+      "type": "messagebus",
+      "label": "Kafka KRaft :9092",
+      "sublabel": "9 durable topics",
+      "pos": [520, 520],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/messaging/EventTopics.java",
+          "label": "topic list"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/messaging/KafkaTransport.java",
+          "label": "transport"
+        }
+      ]
+    },
+    {
+      "id": "timeline",
+      "type": "backend",
+      "label": "Timeline Consumer",
+      "sublabel": "fluxpay-timeline group",
+      "pos": [765, 520],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/messaging/PaymentEventConsumer.java",
+          "label": "consumer"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/PaymentEventIngestionService.java",
+          "label": "ingestion"
+        }
+      ]
+    },
+    {
+      "id": "recovery",
+      "type": "backend",
+      "label": "Recovery Consumer",
+      "sublabel": "fluxpay-recovery group",
+      "pos": [1020, 300],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/messaging/PayoutRetryConsumer.java",
+          "label": "retry logic"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/RecoveryService.java",
+          "label": "refund"
+        }
+      ]
+    },
+    {
+      "id": "rails",
+      "type": "backend",
+      "label": "Routing + Payout Rails",
+      "sublabel": "smart route + 4 rails",
+      "pos": [270, 90],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/SmartRoutingService.java",
+          "label": "smart routing"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/development/SimulatedBankNetworkRail.java",
+          "label": "sim rail"
+        }
+      ]
+    },
+    {
+      "id": "fx",
+      "type": "external",
+      "label": "Frankfurter FX",
+      "sublabel": "GET /latest ?base &symbols",
+      "pos": [520, 90],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/adapter/fx/FrankfurterFxProvider.java",
+          "label": "fx adapter"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/FxQuoteService.java",
+          "label": "quote svc"
+        }
+      ]
+    },
+    {
+      "id": "ollama",
+      "type": "external",
+      "label": "Ollama :11434",
+      "sublabel": "qwen3 embed 4b + chat 4b",
+      "pos": [40, 520],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/adapter/ollama/OllamaEmbeddingAdapter.java",
+          "label": "embed adapter"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/adapter/ollama/OllamaChatAdapter.java",
+          "label": "chat adapter"
+        }
+      ]
+    },
+    {
+      "id": "wallet",
+      "type": "backend",
+      "label": "Wallet Service",
+      "sublabel": "fund convert transfer",
+      "pos": [40, 90],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/fluxpay/controller/WalletController.java",
+          "label": "wallet API"
+        },
+        {
+          "path": "backend/src/main/java/com/fluxpay/service/WalletOperationService.java",
+          "label": "operations"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Local Compose: Oracle + Kafka + Ollama",
+      "wraps": ["oracle", "kafka", "ollama"]
+    },
+    {
+      "kind": "security-group",
+      "label": "JWT owner/admin + Idempotency-Key",
+      "wraps": ["router"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ui-to-router",
+      "from": "ui",
+      "to": "router",
+      "label": "REST + SSE, JWT + Idempotency-Key",
+      "variant": "emphasis",
+      "labelAt": [138, 378]
+    },
+    {
+      "id": "router-to-wallet",
+      "from": "router",
+      "to": "wallet",
+      "label": "fund convert transfer"
+    },
+    {
+      "id": "router-to-payment",
+      "from": "router",
+      "to": "payment",
+      "label": "draft quotes confirm",
+      "labelAt": [480, 378]
+    },
+    {
+      "id": "payment-to-oracle",
+      "from": "payment",
+      "to": "oracle",
+      "label": "persist payments quotes",
+      "labelAt": [730, 378]
+    },
+    {
+      "id": "wallet-to-oracle",
+      "from": "wallet",
+      "to": "oracle",
+      "label": "ledger journals",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [115, 60],
+        [1250, 60],
+        [1250, 250],
+        [855, 250]
+      ]
+    },
+    {
+      "id": "payment-to-outbox",
+      "from": "payment",
+      "to": "outbox",
+      "label": "enqueue envelope in TX",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [605, 450],
+        [355, 450]
+      ]
+    },
+    {
+      "id": "outbox-to-kafka",
+      "from": "outbox",
+      "to": "kafka",
+      "label": "relay ordered batch",
+      "variant": "emphasis",
+      "labelAt": [480, 496]
+    },
+    {
+      "id": "kafka-to-timeline",
+      "from": "kafka",
+      "to": "timeline",
+      "label": "8 topics timeline ingest",
+      "labelAt": [730, 496]
+    },
+    {
+      "id": "kafka-to-recovery",
+      "from": "kafka",
+      "to": "recovery",
+      "label": "failed/retry/refund",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [
+        [605, 660],
+        [1230, 660],
+        [1230, 332]
+      ]
+    },
+    {
+      "id": "timeline-to-oracle",
+      "from": "timeline",
+      "to": "oracle",
+      "label": "appendIfAbsent events"
+    },
+    {
+      "id": "recovery-to-outbox",
+      "from": "recovery",
+      "to": "outbox",
+      "label": "re-enqueue retry/refund",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [1095, 620],
+        [355, 620]
+      ]
+    },
+    {
+      "id": "payment-to-rails",
+      "from": "payment",
+      "to": "rails",
+      "label": "select provider rail"
+    },
+    {
+      "id": "payment-to-fx",
+      "from": "payment",
+      "to": "fx",
+      "label": "fetch market rate"
+    },
+    {
+      "id": "router-to-ollama",
+      "from": "router",
+      "to": "ollama",
+      "label": "embed + grounded chat"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Edge and services",
+      "items": [
+        "UI emits REST with JWT + Idempotency-Key; Router dispatches to Payment or Wallet",
+        "Payment owns draft, quotes, confirm, payout; Wallet owns fund, convert, transfer, ledger",
+        "Routing picks provider route and rail; FX supplies market rates for quotes"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Backend + ingestion why",
+      "items": [
+        "Payment writes ledger plus OutboxEvent/Delivery in one TX; Relay publishes later in order",
+        "Kafka is the ingestion source for durability, ordering, replay, and outage survival",
+        "Timeline consumer persists audit events; Recovery consumer retries 5x then refunds to DLT"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Ollama + navigation",
+      "items": [
+        "Ollama embed (qwen3-embedding:4b 1536d) vectors policies; chat (qwen3:4b) answers only from evidence",
+        "Copilot: embed query, Oracle vector search maxDistance 0.65, then grounded answer with sources",
+        "Start at flux-api.ts, API Router controllers, PaymentService, WalletOperationService, EventTopics"
+      ]
+    }
+  ]
+}

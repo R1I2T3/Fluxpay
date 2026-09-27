@@ -33,12 +33,12 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
           RoutePreference.CHEAPEST,
           "{}",
           NOW);
-  final PayoutRoute route =
-      PayoutRoute.seed(
+  final TransferRoute route =
+      TransferRoute.seed(
           UUID.randomUUID(), "STANDARD_BANK", "Bank", "Bank", "STANDARD", "20", "5", 5, "90");
   final PaymentRepository payments = mock(PaymentRepository.class);
   final PaymentQuoteRepository quotes = mock(PaymentQuoteRepository.class);
-  final PayoutRouteRepository routes = mock(PayoutRouteRepository.class);
+  final TransferRouteRepository routes = mock(TransferRouteRepository.class);
   final PostingPort posting = mock(PostingPort.class);
   final KycGate kyc = mock(KycGate.class);
   final ComplianceCaseService complianceCases = mock(ComplianceCaseService.class);
@@ -59,21 +59,43 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
           NOW.plusSeconds(900));
 
   PaymentConfirmationService service(Instant time) {
+    var compliance = mock(ComplianceAssessor.class);
+    when(compliance.assess(any(ComplianceScreeningInput.class)))
+        .thenReturn(ScreeningVerdict.APPROVE);
+    return service(time, compliance);
+  }
+
+  PaymentConfirmationService service(Instant time, ComplianceAssessor compliance) {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     when(kyc.isVerified(user)).thenReturn(true);
-    var compliance = mock(ComplianceAssessor.class);
-    when(compliance.assessDetailed(any(ComplianceScreeningContext.class)))
-        .thenReturn(
-            new ComplianceAssessment(
-                ScreeningVerdict.APPROVE,
-                com.fluxpay.common.enums.ComplianceRisk.LOW,
-                List.of(),
-                "Proceed with payment processing."));
+    // Default both screening paths to APPROVE for mocks; real assessors keep their behavior.
+    // Specific tests override per-path behavior after calling this helper.
+    if (org.mockito.Mockito.mockingDetails(compliance).isMock()) {
+      lenient()
+          .when(compliance.assess(any(ComplianceScreeningInput.class)))
+          .thenReturn(ScreeningVerdict.APPROVE);
+      lenient()
+          .when(compliance.assessDetailed(any(ComplianceScreeningContext.class)))
+          .thenReturn(
+              new ComplianceAssessment(
+                  ScreeningVerdict.APPROVE,
+                  com.fluxpay.common.enums.ComplianceRisk.LOW,
+                  List.of(),
+                  "Proceed with payment processing."));
+      lenient()
+          .when(compliance.assessDetailed(any(ComplianceScreeningInput.class)))
+          .thenReturn(
+              new ComplianceAssessment(
+                  ScreeningVerdict.APPROVE,
+                  com.fluxpay.common.enums.ComplianceRisk.LOW,
+                  List.of(),
+                  "Proceed with payment processing."));
+    }
     when(posting.postApprovedPayment(any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(
             new PostingAccounts(payment.sourceWalletId(), UUID.randomUUID(), UUID.randomUUID()));
@@ -104,6 +126,15 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
   void reviewConfirmationCreatesACaseBoundToThePaymentReviewReference() {
     when(kyc.isVerified(user)).thenReturn(true);
     var compliance = mock(ComplianceAssessor.class);
+    when(compliance.assess(any(ComplianceScreeningInput.class)))
+        .thenReturn(ScreeningVerdict.REVIEW);
+    when(compliance.assessDetailed(any(ComplianceScreeningInput.class)))
+        .thenReturn(
+            new ComplianceAssessment(
+                ScreeningVerdict.REVIEW,
+                com.fluxpay.common.enums.ComplianceRisk.MEDIUM,
+                List.of("AMOUNT_EXCEEDS_REVIEW_THRESHOLD"),
+                "Hold payment for manual compliance review before payout."));
     when(compliance.assessDetailed(any(ComplianceScreeningContext.class)))
         .thenReturn(
             new ComplianceAssessment(
@@ -114,7 +145,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     var reviewService =
@@ -152,6 +183,38 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
             com.fluxpay.common.enums.ComplianceRisk.MEDIUM,
             List.of("AMOUNT_EXCEEDS_REVIEW_THRESHOLD"),
             "Hold payment for manual compliance review before payout.");
+  }
+
+  @Test
+  void confirmationScreensTheLockedRecipientName() {
+    var compliance = mock(ComplianceAssessor.class);
+    when(compliance.assess(any(ComplianceScreeningInput.class)))
+        .thenReturn(ScreeningVerdict.APPROVE);
+
+    service(NOW, compliance)
+        .confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key");
+
+    var input = org.mockito.ArgumentCaptor.forClass(ComplianceScreeningInput.class);
+    verify(compliance).assess(input.capture());
+    assertThat(input.getValue().userId()).isEqualTo(user);
+    assertThat(input.getValue().recipientName()).isEqualTo(recipient.name());
+    assertThat(input.getValue().amount()).isEqualByComparingTo(payment.sourceAmount());
+    assertThat(input.getValue().currency()).isEqualTo("USD");
+  }
+
+  @Test
+  void sanctionedRecipientIsRejectedBeforePosting() {
+    recipient.update("SANCTIONED_ACME", "acct", "Bank", "KE", "KES", RecipientStatus.ACTIVE, NOW);
+
+    assertThatThrownBy(
+            () ->
+                service(NOW, new com.fluxpay.development.SimulatedComplianceAssessor())
+                    .confirm(user, payment.id(), new ConfirmPaymentRequest(quote.id()), "key"))
+        .isInstanceOfSatisfying(
+            com.fluxpay.exception.PaymentBlockedException.class,
+            error -> assertThat(error.code()).isEqualTo("PAYMENT_BLOCKED"));
+    assertThat(payment.status()).isEqualTo(PaymentStatus.REJECTED);
+    verifyNoInteractions(posting);
   }
 
   @Test
@@ -208,7 +271,7 @@ class PaymentConfirmationQuoteTest extends DbPaymentEligibilityGateFixture {
     payment.quoted(1, NOW);
     when(payments.lockOwned(payment.id(), user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quote.id(), payment.id())).thenReturn(Optional.of(quote));
-    when(routes.findByCode("STANDARD_BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("STANDARD_BANK")).thenReturn(Optional.of(route));
     var recipients = mock(RecipientRepository.class);
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     var kyc = mock(KycGate.class);

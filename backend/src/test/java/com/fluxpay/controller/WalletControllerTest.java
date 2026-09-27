@@ -53,7 +53,7 @@ class WalletControllerTest {
   @MockBean DemoFundingService funding;
   @MockBean WalletConversionService conversion;
   @MockBean WalletQueryService queries;
-  @MockBean com.fluxpay.service.WalletTransferService transfers;
+  @MockBean com.fluxpay.service.WalletTransferRoutingService transfers;
   @MockBean com.fluxpay.service.BankAccountService banks;
   @MockBean JwtUtil jwt;
 
@@ -217,7 +217,11 @@ class WalletControllerTest {
             "9.1500",
             "0.92000000",
             "quote",
-            "wallet:p2p:test");
+            "wallet:p2p:test",
+            "FLUXPAY",
+            "FLUXPAY_EUR_INTERNAL",
+            com.fluxpay.domain.RailType.INTERNAL_LEDGER,
+            new java.math.BigDecimal("99.500000"));
     when(transfers.transfer(eq(USER_ID), eq(request), eq("transfer-key"))).thenReturn(response);
     mvc.perform(
             post("/api/wallets/transfer")

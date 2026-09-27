@@ -17,12 +17,17 @@ public class PaymentController {
   private final PaymentService payments;
   private final QuoteService quotes;
   private final PaymentConfirmationService confirmations;
+  private final PaymentHoldService hold;
 
   public PaymentController(
-      PaymentService payments, QuoteService quotes, PaymentConfirmationService confirmations) {
+      PaymentService payments,
+      QuoteService quotes,
+      PaymentConfirmationService confirmations,
+      PaymentHoldService hold) {
     this.payments = payments;
     this.quotes = quotes;
     this.confirmations = confirmations;
+    this.hold = hold;
   }
 
   @PostMapping("/draft")
@@ -87,6 +92,12 @@ public class PaymentController {
   public ApiResponse<PaymentResponse> detail(
       @AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
     return ok(payments.detail(user.userId(), id));
+  }
+
+  @GetMapping("/{id}/hold")
+  public ApiResponse<PaymentHoldResponse> hold(
+      @AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
+    return ok(hold.getHold(user.userId(), id));
   }
 
   private void requiredKey(String key) {

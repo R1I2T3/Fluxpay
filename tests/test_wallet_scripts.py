@@ -9,7 +9,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -223,6 +222,7 @@ class LedgerCheckScriptTests(unittest.TestCase):
         output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["check-ledger.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.dict(sys.modules, {"oracledb": fake_oracledb}),
             mock.patch.dict(
                 script.os.environ,

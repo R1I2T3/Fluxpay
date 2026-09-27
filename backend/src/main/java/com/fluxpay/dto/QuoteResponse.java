@@ -12,11 +12,21 @@ public record QuoteResponse(
     List<Quote> quotes) {
   public record Quote(
       UUID id,
-      String route,
+      String routeCode,
       String marketRate,
       String offeredRate,
       String feeAmount,
       String recipientAmount,
       int estimatedMinutes,
-      boolean recommended) {}
+      boolean recommended,
+      UUID routeId,
+      UUID providerId,
+      String effectiveReliability,
+      String rankingScore,
+      int rankingPosition) {
+    /** Backwards-compatible alias for the frozen route-code snapshot. */
+    public String route() {
+      return routeCode;
+    }
+  }
 }

@@ -34,7 +34,7 @@ export const flux = {
   payments: () => api.get<any>('/api/payments?page=0&size=50'), payment: (id: string) => api.get<any>(`/api/payments/${id}`), timeline: (id: string) => api.get<any[]>(`/api/payments/${id}/timeline`),
   routes: () => api.get<any>('/api/routes'), recommend: (id: string, preference: string) => api.post<any>(`/api/payments/${id}/recommend-route`, { preference }, false),
   payout: (id: string, routeCode: string) => api.post<any>(`/api/payments/${id}/submit-payout`, { routeCode }), retry: (id: string, quoteId: string) => api.post<any>(`/api/payments/${id}/retry-payout`, { quoteId }),
-  switchRoute: (id: string, routeCode: string, quoteId: string) => api.post<any>(`/api/payments/${id}/switch-route`, { routeCode, quoteId }), refund: (id: string) => api.post<any>(`/api/payments/${id}/refund`),
+  switchRoute: (id: string, routeCode: string, quoteId: string) => api.post<any>(`/api/payments/${id}/switch-route`, { routeCode, quoteId }),
   adminKyc: (status = 'PENDING') => api.get<any[]>(`/api/admin/kyc/applications?status=${status}&page=0&size=50`), approveKyc: (id: string, body: any) => api.put<any>(`/api/admin/kyc/applications/${id}/approve`, body), rejectKyc: (id: string, body: any) => api.put<any>(`/api/admin/kyc/applications/${id}/reject`, body),
   updateRoute: (id: string, body: any) => api.put<any>(`/api/admin/routes/${id}`, body)
 };

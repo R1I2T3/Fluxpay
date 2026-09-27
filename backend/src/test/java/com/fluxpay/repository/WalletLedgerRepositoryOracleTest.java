@@ -222,7 +222,7 @@ class WalletLedgerRepositoryOracleTest {
                 new BigDecimal("5.0000"),
                 "USD",
                 UUID.randomUUID().toString(),
-                "JR-one",
+                null,
                 "demo",
                 time));
     LedgerEntry second =
@@ -233,7 +233,7 @@ class WalletLedgerRepositoryOracleTest {
                 new BigDecimal("1.0000"),
                 "USD",
                 UUID.randomUUID().toString(),
-                "JR-two",
+                null,
                 "convert",
                 time));
     entries.save(

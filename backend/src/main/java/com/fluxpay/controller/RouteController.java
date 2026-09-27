@@ -1,6 +1,6 @@
 package com.fluxpay.controller;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.api.ApiResponse;
 import com.fluxpay.common.contracts.PaymentReader;
 import com.fluxpay.common.contracts.RouteAdminAuthorizer;
@@ -10,7 +10,7 @@ import com.fluxpay.dto.RouteRecommendation;
 import com.fluxpay.exception.ForbiddenException;
 import com.fluxpay.service.PaymentSnapshot;
 import com.fluxpay.service.RouteCatalogService;
-import com.fluxpay.service.RouteMetrics;
+import com.fluxpay.service.RouteReliabilityService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Objects;
@@ -59,12 +59,13 @@ public class RouteController {
     return new ApiResponse<>(cid, toResponse(paymentId, preference, recommendation));
   }
 
-  private RouteApi.RouteEntry toEntry(PayoutRoute route) {
-    RouteMetrics.RouteMetric metric = catalog.metricFor(route.getId());
+  private RouteApi.RouteEntry toEntry(TransferRoute route) {
+    RouteReliabilityService.RouteReliability metric = catalog.metricFor(route);
     return toEntry(route, metric);
   }
 
-  static RouteApi.RouteEntry toEntry(PayoutRoute route, RouteMetrics.RouteMetric metric) {
+  static RouteApi.RouteEntry toEntry(
+      TransferRoute route, RouteReliabilityService.RouteReliability metric) {
     return new RouteApi.RouteEntry(
         route.getId().toString(),
         route.getRouteCode(),
@@ -77,28 +78,37 @@ public class RouteController {
         route.getSuccessRate(),
         route.isActive(),
         route.getVersion() == null ? 0L : route.getVersion(),
-        metric == null ? 0L : metric.successCount(),
-        metric == null ? 0L : metric.totalCount());
+        metric == null ? 0L : metric.completedCount(),
+        metric == null ? 0L : metric.completedCount() + metric.failedCount());
   }
 
   private static RouteApi.RecommendResponse toResponse(
       String paymentId, RoutePreference preference, RouteRecommendation recommendation) {
-    String recommendedId = recommendation.recommended().getId().toString();
+    String recommendedId = recommendation.recommended().quote().route().getId().toString();
     List<RouteApi.Quote> quotes =
         recommendation.quotes().stream()
             .map(
-                quote ->
-                    new RouteApi.Quote(
-                        quote.route().getId().toString(),
-                        quote.route().getName(),
-                        quote.marketRate(),
-                        quote.offeredRate(),
-                        quote.feeAmount(),
-                        quote.recipientAmount(),
-                        quote.route().getEstimatedMinutes(),
-                        quote.route().getId().toString().equals(recommendedId)))
+                ranked -> {
+                  var quote = ranked.quote();
+                  TransferRoute route = quote.route();
+                  return new RouteApi.Quote(
+                      route.getId().toString(),
+                      route.getRouteCode(),
+                      route.getName(),
+                      route.getProvider().getId().toString(),
+                      route.getProviderName(),
+                      quote.marketRate(),
+                      quote.offeredRate(),
+                      quote.feeAmount(),
+                      quote.recipientAmount(),
+                      route.getEstimatedMinutes(),
+                      quote.effectiveReliability(),
+                      ranked.score(),
+                      ranked.position(),
+                      route.getId().toString().equals(recommendedId));
+                })
             .toList();
-    String reason = "preference " + preference + " over " + quotes.size() + " active routes";
-    return new RouteApi.RecommendResponse(paymentId, recommendedId, reason, quotes);
+    return new RouteApi.RecommendResponse(
+        paymentId, recommendedId, recommendation.reason(), quotes);
   }
 }

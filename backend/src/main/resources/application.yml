@@ -69,3 +69,8 @@ fluxpay:
     kyc-metadata-enabled: ${FLUXPAY_DEVELOPMENT_KYC_METADATA_ENABLED:false}
     simulated-compliance-enabled: ${FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED:false}
     simulated-payouts-enabled: ${FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED:false}
+    retry-success-route-code: ${FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_ROUTE_CODE:}
+    retry-success-failure-attempts: ${FLUXPAY_DEVELOPMENT_RETRY_SUCCESS_FAILURE_ATTEMPTS:0}
+    refund-route-code: ${FLUXPAY_DEVELOPMENT_REFUND_ROUTE_CODE:}
+    refund-failure-attempts: ${FLUXPAY_DEVELOPMENT_REFUND_FAILURE_ATTEMPTS:0}
+    recovery-delay-seconds: ${FLUXPAY_DEVELOPMENT_RECOVERY_DELAY_SECONDS:120}

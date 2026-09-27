@@ -7,14 +7,18 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fluxpay.beans.PayoutRoute;
+import com.fluxpay.beans.TransferProvider;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.FxRateProvider;
 import com.fluxpay.common.contracts.PaymentReader;
+import com.fluxpay.domain.ExternalAccountDestination;
 import com.fluxpay.domain.PaymentStatus;
+import com.fluxpay.domain.RailType;
 import com.fluxpay.domain.RoutePreference;
 import com.fluxpay.dto.RouteApi;
 import com.fluxpay.dto.RouteRecommendation;
-import com.fluxpay.repository.PayoutRouteRepository;
+import com.fluxpay.repository.TransferRouteOutcomeRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -32,24 +36,26 @@ class RouteCatalogServiceTest {
 
   @Mock private PaymentReader reader;
   @Mock private FxRateProvider fx;
-  @Mock private PayoutRouteRepository routes;
-  @Mock private RouteMetrics metrics;
+  @Mock private TransferRouteRepository routes;
+  @Mock private TransferRouteOutcomeRepository outcomes;
 
+  private RouteReliabilityService reliability;
   private RouteCatalogService service;
   private PaymentSnapshot payment;
-  private PayoutRoute standard;
-  private PayoutRoute instant;
+  private TransferRoute standard;
+  private TransferRoute instant;
 
   @BeforeEach
   void setUp() {
-    service =
-        new RouteCatalogService(
-            reader,
-            fx,
-            new RouteRecommender(),
+    reliability = new RouteReliabilityService(outcomes);
+    SmartRoutingService smart =
+        new SmartRoutingService(
             routes,
-            metrics,
-            new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()));
+            new RouteEligibilityService(new RailRegistry(List.of(QuoteEntryPointsTest.fakeRail()))),
+            reliability,
+            new RoutePricingService(new com.fluxpay.domain.QuotePricingPolicy()),
+            new RouteRecommender());
+    service = new RouteCatalogService(reader, fx, routes, reliability, smart);
     payment =
         new PaymentSnapshot(
             "P-001",
@@ -59,29 +65,24 @@ class RouteCatalogServiceTest {
             new BigDecimal("1000.00"),
             "USD",
             "KES",
-            PaymentStatus.PROCESSING);
+            PaymentStatus.PROCESSING,
+            null,
+            new ExternalAccountDestination("acct", "Bank", "KE", "KES"));
+    TransferProvider provider =
+        TransferProvider.create(
+            UUID.nameUUIDFromBytes("fluxpay:provider:test".getBytes(StandardCharsets.UTF_8)),
+            "TEST_BANK",
+            "Test Bank",
+            RailType.BANK_NETWORK,
+            true,
+            false,
+            DbPaymentEligibilityGateFixture.NOW);
     standard =
-        PayoutRoute.seed(
-            UUID.nameUUIDFromBytes("fluxpay:route:STANDARD_BANK".getBytes(StandardCharsets.UTF_8)),
-            "STANDARD_BANK",
-            "Standard Bank Rail",
-            "Standard Bank",
-            "STANDARD",
-            "5.00",
-            "0.8",
-            240,
-            "99.50");
+        QuoteEntryPointsTest.external(
+            "STANDARD_BANK", "KE", "KES", "5.00", "0.8", 240, "99.50", provider);
     instant =
-        PayoutRoute.seed(
-            UUID.nameUUIDFromBytes("fluxpay:route:INSTANT_PAYOUT".getBytes(StandardCharsets.UTF_8)),
-            "INSTANT_PAYOUT",
-            "Instant Payout",
-            "Instant Payout Co",
-            "INSTANT",
-            "8.50",
-            "2.0",
-            5,
-            "98.00");
+        QuoteEntryPointsTest.external(
+            "INSTANT_PAYOUT", "KE", "KES", "8.50", "2.0", 5, "98.00", provider);
   }
 
   @Test
@@ -95,16 +96,20 @@ class RouteCatalogServiceTest {
             new BigDecimal("100.0000"),
             "USD",
             "KES",
-            PaymentStatus.PROCESSING);
+            PaymentStatus.PROCESSING,
+            null,
+            new ExternalAccountDestination("acct", "Bank", "KE", "KES"));
     standard.update("5.0000", "0", 240, "99.50", true);
     when(reader.get("P-001")).thenReturn(hundred);
     when(fx.rate("USD", "KES")).thenReturn(new BigDecimal("80.000000"));
-    when(routes.findByActiveTrueOrderByRouteCodeAsc()).thenReturn(List.of(standard));
+    when(outcomes.countByRouteIds(any())).thenReturn(List.of());
+    when(routes.findAllByOrderByRouteCodeAsc()).thenReturn(List.of(standard));
     assertThat(
             service
                 .recommend("P-001", RoutePreference.CHEAPEST, "c")
                 .quotes()
                 .get(0)
+                .quote()
                 .recipientAmount())
         .isEqualByComparingTo("7600.0000");
   }
@@ -113,16 +118,18 @@ class RouteCatalogServiceTest {
   void recommendationFetchesMarketRateFromFxProviderAndReturnsIt() {
     when(reader.get("P-001")).thenReturn(payment);
     when(fx.rate("USD", "KES")).thenReturn(new BigDecimal("148.0000"));
-    when(routes.findByActiveTrueOrderByRouteCodeAsc()).thenReturn(List.of(instant, standard));
+    when(outcomes.countByRouteIds(any())).thenReturn(List.of());
+    when(routes.findAllByOrderByRouteCodeAsc()).thenReturn(List.of(instant, standard));
 
     RouteRecommendation recommendation =
         service.recommend("P-001", RoutePreference.BALANCED, "c-uuid");
 
     verify(fx).rate("USD", "KES");
     assertThat(recommendation.quotes()).hasSize(2);
-    assertThat(recommendation.quotes().get(0).marketRate()).isEqualByComparingTo("148.0000");
+    assertThat(recommendation.quotes().get(0).quote().marketRate())
+        .isEqualByComparingTo("148.0000");
     assertThat(recommendation.quotes())
-        .allMatch(q -> q.marketRate().compareTo(new BigDecimal("148.0000")) == 0);
+        .allMatch(q -> q.quote().marketRate().compareTo(new BigDecimal("148.0000")) == 0);
   }
 
   @Test
@@ -140,7 +147,7 @@ class RouteCatalogServiceTest {
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 0L);
 
-    PayoutRoute updated = service.updateRoute(standard.getId().toString(), update);
+    TransferRoute updated = service.updateRoute(standard.getId().toString(), update);
 
     assertThat(updated.getBaseFee()).isEqualByComparingTo("6.00");
     assertThat(updated.getFxSpreadPercentage()).isEqualByComparingTo("1.0");
@@ -167,12 +174,20 @@ class RouteCatalogServiceTest {
     when(routes.save(any()))
         .thenThrow(
             new ObjectOptimisticLockingFailureException(
-                PayoutRoute.class, standard.getId().toString()));
+                TransferRoute.class, standard.getId().toString()));
     RouteApi.Update update =
         new RouteApi.Update(
             new BigDecimal("6.00"), new BigDecimal("1.0"), 120, new BigDecimal("99.00"), true, 0L);
 
     assertThatThrownBy(() -> service.updateRoute(standard.getId().toString(), update))
         .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+  }
+
+  @Test
+  void metricForUsesLoadedEntityWithoutRefetching() {
+    RouteReliabilityService.RouteReliability metric = service.metricFor(standard);
+
+    assertThat(metric.routeId()).isEqualTo(standard.getId());
+    verify(routes, never()).findById(any());
   }
 }

@@ -2,6 +2,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript'),ko=require('knockout');
 const root=path.join(__dirname,'../src/ts');
+const routeHelpers={exports:{},require:()=>({statisticsSearch:query=>new URLSearchParams(query).toString()}),URLSearchParams,window:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,routeHelpers);
 function fixture(name,overrides={},initialToken='',params={}){
   const calls=[],navigation=[],events=new Map(),cache=new Map();let token=initialToken;
   const session={user:ko.observable({role:'CUSTOMER',kycStatus:'NONE'}),restore:async()=>{},clear(){token='';this.user(null);}};
@@ -13,7 +15,7 @@ function fixture(name,overrides={},initialToken='',params={}){
     const module={exports:{}};
     const context={module,exports:module.exports,require:dep=>{
       if(dep==='knockout')return ko;
-      if(dep.endsWith('/flux-api'))return {fluxApi:api};
+      if(dep.endsWith('/flux-api'))return {...routeHelpers.exports,fluxApi:api};
       if(dep.endsWith('/session'))return {session,navigate:(...args)=>navigation.push(args)};
       if(dep.endsWith('/experience-dialog'))return {};
       if(dep.endsWith('/recipient-actions'))return {deleteRecipient:async id=>{calls.push(['deleteRecipient',id]);if(overrides.deleteRecipient)await overrides.deleteRecipient(id);}};
@@ -85,7 +87,7 @@ test('401 clears session and redirects home; 403 preserves token and session',as
   for(const status of [401,403]){
     const events=new Map(),navigation=[];let token='test-token';const storage={getItem:()=>token,removeItem:()=>{token='';}};
     const window={addEventListener:(n,f)=>events.set(n,f),dispatchEvent:e=>{navigation.push(e);events.get(e.type)?.(e);}};
-    const apiContext={exports:{},window,sessionStorage:storage,Event,fetch:async()=>({status,ok:false,json:async()=>({message:'Denied'})})};
+    const apiContext={exports:{},require:()=>({statisticsSearch:query=>new URLSearchParams(query).toString()}),URLSearchParams,window,sessionStorage:storage,Event,fetch:async()=>({status,ok:false,json:async()=>({message:'Denied'})})};
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'services/flux-api.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,apiContext);
     class CustomEvent extends Event{constructor(name,options){super(name);this.detail=options.detail;}}
     const sessionContext={exports:{},require:n=>n==='knockout'?ko:apiContext.exports,window,sessionStorage:storage,Event,CustomEvent};
@@ -104,14 +106,24 @@ test('recipient DELETE consumes 204 without parsing JSON and reports an unavaila
 
 function reviewedTransfer(page){
   transferData(page);page.payment({id:'p1',status:'QUOTED',selectedQuoteId:'q1'});page.paymentId('p1');
-  const quote={id:'q1',route:'BANK_TRANSFER'};page.quotes([quote]);page.selectedQuote(quote);
+  const quote={id:'q1',routeCode:'BANK_TRANSFER'};page.quotes([quote]);page.selectedQuote(quote);
   page.quoteFetchedAt(Date.now());page.quoteExpires(new Date(Date.now()+300000).toISOString());page.now(Date.now());page.step(3);
 }
 test('one-page Send confirms then submits payout, shows receipt and never navigates',async()=>{
   const f=fixture('payments-new',{confirm:async()=>({id:'p1',status:'PROCESSING'}),payout:async()=>({status:'COMPLETED'}),payment:async()=>({id:'p1',status:'COMPLETED'}),timeline:async()=>[{eventType:'payment.completed'}]});
   reviewedTransfer(f.page);await f.page.sendPayment();assert.equal(f.page.error(),'');assert.equal(f.page.step(),4);assert.equal(f.page.receiptTitle(),'Money sent.');assert.equal(f.page.timeline().length,1);
   assert.deepEqual(f.calls.map(c=>c[0]),['confirm','payout','payment','timeline']);assert.equal(f.navigation.length,0);
+  assert.equal(f.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
   await f.page.submitPayout();assert.equal(f.calls.filter(c=>c[0]==='payout').length,1);
+});
+
+test('Send accepts a legacy route snapshot and blocks missing routes before committing funds',async()=>{
+ const f=fixture('payments-new',{confirm:async()=>({id:'p1',status:'PROCESSING'}),payout:async()=>({status:'COMPLETED'}),payment:async()=>({id:'p1',status:'COMPLETED'}),timeline:async()=>[]});
+ reviewedTransfer(f.page);f.page.selectedQuote({id:'q1',route:'BANK_TRANSFER'});await f.page.sendPayment();assert.equal(f.page.error(),'');assert.equal(f.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
+ for(const action of ['sendPayment','saveDraft']){
+  const blocked=fixture('payments-new');reviewedTransfer(blocked.page);blocked.page.selectedQuote({id:'q1',routeId:'not-a-route-code'});
+  await blocked.page[action]();assert.match(blocked.page.error(),/missing its payment route/);assert.equal(blocked.calls.length,0);assert.equal(blocked.page.step(),3);assert.equal(blocked.page.payoutSubmitted(),false);
+ }
 });
 test('compliance review and rejection never submit payout; approval can be sent on the same page',async()=>{
   for(const status of ['UNDER_REVIEW','REJECTED']){
@@ -143,15 +155,24 @@ test('dashboard people shortcut preselects recipient after authenticated Send lo
   await new Promise(resolve=>setImmediate(resolve));assert.equal(f.page.recipientId(),'r2');assert.equal(f.page.walletId(),'w1');
   const dashboard=fixture('dashboard');dashboard.page.payPerson({id:'r2'});assert.equal(dashboard.navigation[0][0],'payments-new');assert.equal(dashboard.navigation[0][1].recipient,'r2');
 });
-test('desktop workspace is full width without sidebar and bottom tabs are mobile-only',()=>{
+test('customer bottom navigation is unchanged and admin sidebar is guarded with visible labels',()=>{
   const css=fs.readFileSync(path.join(root,'../css/mobile-workspace.css'),'utf8'),html=fs.readFileSync(path.join(root,'../index.html'),'utf8');
-  assert.match(css,/@media\(min-width:900px\)/);assert.match(css,/#main \{ max-width:none; width:100%; margin:0; padding:76px 0 0;/);assert.doesNotMatch(html,/class="sidebar"|class="menu-button"/);
+  assert.match(css,/@media\(min-width:900px\)/);assert.match(css,/#main \{ max-width:none; width:100%; margin:0; padding:76px 0 0;/);
+  assert.match(html,/class="bottom-nav"/);assert.match(html,/foreach:bottomNav/);
+  assert.match(html,/visible:!isPublic\(\)&&!isAdminWorkspace\(\)/);
+  assert.match(html,/<!-- ko if:isAdminWorkspace -->[\s\S]*class="admin-sidebar"/);
+  assert.match(html,/foreach:adminNavGroups/);
+  assert.match(html,/<span data-bind="text:label"><\/span>/);
+  assert.match(html,/class="skip-link"/);
+  const adminCss=fs.readFileSync(path.join(root,'../css/admin-console.css'),'utf8');
+  assert.doesNotMatch(html,/class="admin-environment"/);
+  assert.doesNotMatch(adminCss,/linear-gradient|radial-gradient/);
 });
 
 test('saving from final review confirms as Processing without submitting payout',async()=>{
-  const f=fixture('payments-new',{draft:async()=>({id:'p1',status:'DRAFT'}),confirm:async()=>({id:'p1',status:'PROCESSING',selectedQuoteId:'q1'}),quotes:async()=>({quotes:[{id:'q1',route:'BANK_TRANSFER'}],expiresAt:new Date(Date.now()+300000).toISOString()})});transferData(f.page);
+  const f=fixture('payments-new',{draft:async()=>({id:'p1',status:'DRAFT'}),confirm:async()=>({id:'p1',status:'PROCESSING',selectedQuoteId:'q1'}),quotes:async()=>({quotes:[{id:'q1',routeCode:'BANK_TRANSFER'}],expiresAt:new Date(Date.now()+300000).toISOString()})});transferData(f.page);
   await f.page.createDraft();f.page.chooseQuote(f.page.quotes()[0]);assert.equal(f.page.step(),3);await f.page.saveDraft();assert.equal(f.page.savedDraft(),false);assert.equal(f.page.payment().status,'PROCESSING');assert.equal(f.page.receiptStatus(),'Processing');assert.equal(f.page.step(),4);assert.equal(f.calls.filter(c=>c[0]==='draft').length,1);assert.equal(f.calls.filter(c=>c[0]==='confirm').length,1);assert.ok(!f.calls.some(c=>c[0]==='payout'));
-  const view=fs.readFileSync(path.join(root,'views/payments-new.html'),'utf8');assert.match(view,/Send money ↗/);assert.match(view,/>Save draft</);assert.doesNotMatch(view,/id="confirm-title"/);
+  const view=fs.readFileSync(path.join(root,'views/payments-new.html'),'utf8');assert.match(view,/Send money ↗/);assert.match(view,/>\s*Save draft\s*</);assert.doesNotMatch(view,/id="confirm-title"/);
 });
 
 test('dashboard recent activity includes top-up, wallet transfer, exchange and recipient payment',async()=>{
@@ -173,11 +194,11 @@ test('a failed wallet feed is reported while other available transactions remain
 test('payment receipt shows customer details and chronologically orders every timestamped event',async()=>{
   const row={id:'p1',sourceAmount:'125',sourceCurrency:'USD',recipientId:'r1',sourceWalletId:'w1',status:'PROCESSING',selectedQuoteId:'q1',createdAt:'2026-09-20T10:00:00Z'};
   const events=[{eventId:'e2',eventType:'payout.completed',occurredAt:'2026-09-20T10:01:35Z',payload:{providerRef:'PROVIDER-123',summary:'Delivered'}},{eventId:'e1',eventType:'payment.initiated',occurredAt:'2026-09-20T10:00:01Z',payload:{amount:'125'}}];
-  const f=fixture('payments-list',{payment:async()=>({...row,status:'COMPLETED'}),timeline:async()=>events,getQuotes:async()=>({quotes:[{id:'q1',feeAmount:'1.50',offeredRate:'83.8'}]})});
+  const f=fixture('payments-list',{payment:async()=>({...row,status:'COMPLETED'}),timeline:async()=>events,getQuotes:async()=>({quotes:[{id:'q1',feeAmount:'1.50',offeredRate:'83.8'}]}),paymentHold:async()=>({onHold:false,canPayout:false,reasons:[],reasonMessages:[],reviewExpiresAt:null,whatNext:'',decisionReason:null})});
   f.page.payments([row]);f.page.recipients([{id:'r1',name:'Jamie',account:'TEST-ACCOUNT'}]);f.page.wallets([{walletId:'w1',currency:'USD',availableBalance:'1000'}]);
   await f.page.openDetail(row);assert.equal(f.page.detailBusy(),false);assert.equal(f.page.detailSteps().length,2);assert.equal(f.page.detailSteps()[0].timestamp,'2026-09-20T10:00:01Z');assert.equal(f.page.detailSteps()[1].title,'Payout completed');assert.equal(f.page.acceptedQuote().feeAmount,'1.50');
   assert.match(f.page.preciseTime(events[0].occurredAt),/35/);assert.equal(f.page.recipientFields().find(f=>f.label==='Account ending in').value,'•••• OUNT');assert.equal(f.page.quoteFields().find(f=>f.label==='Transfer fee').value,'$1.50');assert.equal(f.page.rawReceipt,undefined);assert.equal(f.page.detailSteps()[1].fields,undefined);assert.equal(f.navigation.length,0);
-  assert.deepEqual(f.calls.map(c=>c[0]),['payment','timeline','getQuotes']);f.page.closeDetail();assert.equal(f.page.detailRow(),undefined);
+  assert.deepEqual(f.calls.map(c=>c[0]),['payment','timeline','getQuotes','paymentHold']);f.page.closeDetail();assert.equal(f.page.detailRow(),undefined);
 });
 test('wallet receipts open for all types and show only recorded ledger steps, including linked exchange legs',async()=>{
   const f=fixture('payments-list');
@@ -225,13 +246,18 @@ test('review save respects expired quotes and compliance states, never calling p
 
 function payableReceipt(status='PROCESSING',extra={}){
   let current={id:'p1',status,selectedQuoteId:status==='PROCESSING'?'q1':null,sourceCurrency:'USD',payoutCurrency:'INR',sourceAmount:'100'};
-  const quote={id:'q1',route:'BANK_TRANSFER',feeAmount:'1',offeredRate:'83',recipientAmount:'8217',estimatedMinutes:30};
+  const quote={id:'q1',routeCode:'BANK_TRANSFER',feeAmount:'1',offeredRate:'83',recipientAmount:'8217',estimatedMinutes:30};
   const quotes=()=>({quotes:[quote],expiresAt:new Date(Date.now()+300000).toISOString()});
   const f=fixture('payments-list',{payment:async()=>({...current}),timeline:async()=>[],getQuotes:async()=>quotes(),quotes:async()=>{current.status='QUOTED';return quotes();},confirm:async()=>{current={...current,status:'PROCESSING',selectedQuoteId:'q1'};return {...current};},payout:async()=>{current.status='COMPLETED';return {};},...extra});
   return {...f,quote,current:()=>current,open:()=>f.page.openDetail({...current})};
 }
 test('Submit pay in an activity receipt sends a Processing payment without navigation or reconfirmation',async()=>{
   const f=payableReceipt();await f.open();assert.equal(f.page.canPayDetail(),true);await f.page.prepareDetailPay();assert.equal(f.page.detailRecord().status,'COMPLETED');assert.equal(f.calls.filter(c=>c[0]==='payout').length,1);assert.equal(f.calls.filter(c=>c[0]==='confirm').length,0);assert.equal(f.navigation.length,0);assert.equal(f.page.canPayDetail(),false);
+});
+
+test('activity payout accepts legacy quotes and missing routes do not lock the payment as dispatched',async()=>{
+ const legacy=payableReceipt();legacy.quote.route=legacy.quote.routeCode;delete legacy.quote.routeCode;await legacy.open();await legacy.page.prepareDetailPay();assert.equal(legacy.calls.find(c=>c[0]==='payout')[2],'BANK_TRANSFER');
+ const missing=payableReceipt();delete missing.quote.routeCode;await missing.open();await missing.page.prepareDetailPay();assert.match(missing.page.detailPayError(),/missing its payment route/);assert.ok(!missing.calls.some(c=>c[0]==='payout'));assert.equal(missing.page.canPayDetail(),true);
 });
 test('older quoted drafts require selecting a current quote inside the receipt before submit',async()=>{
   const f=payableReceipt('QUOTED');await f.open();await f.page.prepareDetailPay();assert.equal(f.page.detailPayReview(),true);await f.page.submitDetailPay();assert.match(f.page.detailPayError(),/Choose a current/);assert.ok(!f.calls.some(c=>c[0]==='payout'));
@@ -274,14 +300,21 @@ test('bank linking sends only masked metadata and selects the returned account i
 
 test('bank funding requires KYC and matching verified bank, and waits for review confirmation',async()=>{
   const f=fixture('wallets',{bankTopup:async()=>({walletId:'w1'})});f.page.banks([{id:'b1',currency:'USD',status:'VERIFIED'}]);f.page.bankId('b1');f.page.prepareFunding();assert.match(f.page.error(),/identity/);assert.equal(f.calls.length,0);
-  f.session.user({role:'CUSTOMER',kycStatus:'VERIFIED'});f.page.prepareFunding();assert.equal(f.page.operationReview().kind,'topup');assert.equal(f.calls.length,0);await f.page.confirmMoney();assert.equal(f.calls[0][0],'bankTopup');assert.equal(f.calls[0][1],'b1');assert.equal(f.page.operationReview(),undefined);
+  f.session.user({role:'CUSTOMER',kycStatus:'VERIFIED'});f.page.fundingMode('test');f.page.prepareFunding();assert.equal(f.page.operationReview().kind,'topup');assert.equal(f.calls.length,0);await f.page.confirmMoney();assert.equal(f.calls[0][0],'bankTopup');assert.equal(f.calls[0][1],'b1');assert.equal(f.page.operationReview(),undefined);
   f.page.currency('EUR');f.page.prepareFunding();assert.match(f.page.error(),/same currency/);
 });
 
-test('wallet transfer uses exactly one recipient selector and SOURCE/TARGET contracts',async()=>{
-  const f=fixture('wallets',{walletTransfer:async()=>({sourceWalletId:'w1',fromCurrency:'USD',toCurrency:'INR',creditedAmount:'100',sourceAmount:'2',fee:'0.2',rate:'80'})});f.page.wallets([{walletId:'w1',currency:'USD',availableBalance:'1000'}]);f.page.transferEmail(' JAMIE@example.test ');f.page.transferAmount('10');f.page.prepareMoney('transfer');assert.equal(f.calls.length,0);await f.page.confirmMoney();
-  const body=f.calls[0][1];assert.equal(body.toEmail,'jamie@example.test');assert.equal(body.toUserId,undefined);assert.equal(body.amountMode,'SOURCE');assert.equal(f.page.operationResult().creditedAmount,'100');
-  f.page.transferSelector('id');f.page.transferUserId('11111111-1111-4111-8111-111111111111');f.page.amountMode('TARGET');f.page.prepareMoney('transfer');assert.equal(f.page.operationReview().body.toEmail,undefined);assert.equal(f.page.operationReview().body.amountMode,'TARGET');
+test('wallet transfer always sets the amount the recipient receives',async()=>{
+  const f=fixture('wallets',{walletTransfer:async()=>({sourceWalletId:'w1',fromCurrency:'USD',toCurrency:'INR',creditedAmount:'100',sourceAmount:'2',fee:'0.2',rate:'80'})});f.page.wallets([{walletId:'w1',currency:'USD',availableBalance:'1000'}]);f.page.transferEmail(' JAMIE@example.test ');f.page.transferAmount('10');f.page.amountMode('SOURCE');f.page.prepareMoney('transfer');assert.equal(f.calls.length,0);await f.page.confirmMoney();
+  const body=f.calls[0][1];assert.equal(body.toEmail,'jamie@example.test');assert.equal(body.toUserId,undefined);assert.equal(body.amountMode,'TARGET');assert.equal(f.page.operationResult().creditedAmount,'100');
+  f.page.transferSelector('id');f.page.transferUserId('11111111-1111-4111-8111-111111111111');f.page.prepareMoney('transfer');assert.equal(f.page.operationReview().body.toEmail,undefined);assert.equal(f.page.operationReview().body.amountMode,'TARGET');
+});
+
+test('wallet money modals do not render funding source or amount mode dropdowns',()=>{
+  const view=fs.readFileSync(path.join(root,'views/wallets.html'),'utf8');
+  assert.ok(!view.includes('Funding source'));
+  assert.ok(!view.includes('Amount to set'));
+  assert.ok(view.includes('They receive ('));
 });
 
 test('withdrawal rejects insufficient balance and duplicate confirmation cannot repeat a write',async()=>{

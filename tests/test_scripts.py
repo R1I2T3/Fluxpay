@@ -1,12 +1,10 @@
 import importlib.util
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
@@ -74,6 +72,7 @@ class ScriptCommandTests(unittest.TestCase):
 
         with (
             mock.patch.object(sys, "argv", ["start-infra.py", "--mode", "compose"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script, "run", side_effect=run),
             mock.patch.object(script, "wait_port", return_value=True),
         ):
@@ -81,12 +80,28 @@ class ScriptCommandTests(unittest.TestCase):
 
         self.assertEqual(commands[0], ["docker", "compose", "up", "-d", "oracle", "kafka"])
         topic_commands = [command for command in commands if "--create" in command]
-        self.assertEqual(len(topic_commands), 9)
-        self.assertTrue(
-            all(command[:5] == ["docker", "compose", "exec", "-T", "kafka"] for command in topic_commands)
+        self.assertEqual(len(topic_commands), 11)
+        self.assertTrue(all(command[:5] == ["docker", "compose", "exec", "-T", "kafka"] for command in topic_commands))
+        created_topics = [command[command.index("--topic") + 1] for command in topic_commands]
+        self.assertEqual(
+            created_topics,
+            [
+                "payment.initiated",
+                "payment.route.selected",
+                "payment.screening.completed",
+                "payment.review.requested",
+                "payout.submitted",
+                "payout.failed",
+                "payout.retry",
+                "payout.refund",
+                "payout.completed",
+                "payment.refunded",
+                "payout.recovery.dlt",
+            ],
         )
-        created_topics = {command[command.index("--topic") + 1] for command in topic_commands}
         self.assertIn("payment.review.requested", created_topics)
+        self.assertIn("payout.retry", created_topics)
+        self.assertIn("payout.refund", created_topics)
         self.assertIn("payout.recovery.dlt", created_topics)
 
     def test_external_infrastructure_is_probed_but_never_started_or_stopped(self):
@@ -100,6 +115,7 @@ class ScriptCommandTests(unittest.TestCase):
 
         with (
             mock.patch.object(sys, "argv", ["start-infra.py", "--mode", "external", "--skip-topics"]),
+            mock.patch.object(start, "load_env"),
             mock.patch.object(start, "run", side_effect=run),
             mock.patch.object(start, "wait_port", return_value=True),
         ):
@@ -108,6 +124,7 @@ class ScriptCommandTests(unittest.TestCase):
         self.assertFalse(any(command[:3] == ["docker", "compose", "up"] for command in start_commands))
         with (
             mock.patch.object(sys, "argv", ["stop-infra.py", "--mode", "external"]),
+            mock.patch.object(stop, "load_env"),
             mock.patch.object(stop.subprocess, "run") as stopped,
         ):
             self.assertEqual(stop.main(), 0)
@@ -121,6 +138,7 @@ class ScriptCommandTests(unittest.TestCase):
                 "argv",
                 ["start-infra.py", "--mode", "compose", "--skip-oracle", "--skip-kafka"],
             ),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script, "run") as run,
         ):
             self.assertEqual(script.main(), 0)
@@ -131,6 +149,7 @@ class ScriptCommandTests(unittest.TestCase):
         process = RunningProcess(wait_result=9)
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=process),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -144,6 +163,7 @@ class ScriptCommandTests(unittest.TestCase):
         process = RunningProcess(poll_result=4)
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=process),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", side_effect=OSError("not ready")),
@@ -157,6 +177,7 @@ class ScriptCommandTests(unittest.TestCase):
         process = RunningProcess(interrupt_on_wait=True)
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=process),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -194,6 +215,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("start-backend")
         with (
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -207,6 +229,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("start-backend")
         with (
             mock.patch.object(sys, "argv", ["start-backend.py", "--profile", "development"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -225,6 +248,7 @@ class ScriptCommandTests(unittest.TestCase):
             ),
             mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()),
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -238,6 +262,7 @@ class ScriptCommandTests(unittest.TestCase):
         with (
             mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -255,6 +280,7 @@ class ScriptCommandTests(unittest.TestCase):
         with (
             mock.patch("platform_commands.sys.platform", "linux"),
             mock.patch.object(sys, "argv", ["start-backend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "Popen", return_value=RunningProcess()) as popen,
             mock.patch.object(script.time, "sleep"),
             mock.patch.object(script.urllib.request, "urlopen", return_value=HttpResponse()),
@@ -270,6 +296,7 @@ class ScriptCommandTests(unittest.TestCase):
         with (
             mock.patch.object(script.sys, "platform", "win32"),
             mock.patch.object(sys, "argv", ["start-frontend.py"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.os.path, "isdir", return_value=True),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
@@ -287,6 +314,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("test-all")
         with (
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "e2e"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
             mock.patch("urllib.request.urlopen", return_value=HttpResponse()),
         ):
@@ -307,6 +335,7 @@ class ScriptCommandTests(unittest.TestCase):
                 clear=True,
             ),
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(script.main(), 0)
@@ -320,7 +349,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("test-all")
         observed_settings = []
 
-        def run(command, cwd):
+        def run(command, cwd, env=None, check=False):
             observed_settings.append(
                 (
                     command,
@@ -328,6 +357,7 @@ class ScriptCommandTests(unittest.TestCase):
                     script.os.environ.get("ORACLE_TESTS_ACTIVE"),
                     script.os.environ.get("ORACLE_TEST_JDBC_URL"),
                     script.os.environ.get("ORACLE_TEST_USERNAME"),
+                    env,
                 )
             )
             return CompletedProcess()
@@ -339,13 +369,22 @@ class ScriptCommandTests(unittest.TestCase):
                 "ORACLE_TESTS_ACTIVE=true\n"
                 "ORACLE_TEST_JDBC_URL=jdbc:oracle:thin:@//db.test:1521/FREEPDB1\n"
                 "ORACLE_TEST_USERNAME=FLUXPAY_TEST\n"
-                "ORACLE_TEST_PASSWORD=test-secret\n",
+                "ORACLE_TEST_PASSWORD=test-secret\n"
+                "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true\n"
+                "FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true\n"
+                "JWT_SECRET=demo-only-secret\n"
+                "SERVER_PORT=8083\n",
                 encoding="utf-8",
             )
             with (
                 mock.patch.dict(
                     script.os.environ,
-                    {"COMSPEC": os.environ.get("COMSPEC", "cmd.exe")},
+                    {
+                        "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
+                        "PATH": "tool-path",
+                        "MAVEN_USER_HOME": "test-maven-home",
+                        "MAVEN_OPTS": "-Duser.home=test-user",
+                    },
                     clear=True,
                 ),
                 mock.patch.object(
@@ -359,7 +398,7 @@ class ScriptCommandTests(unittest.TestCase):
 
         self.assertEqual(len(observed_settings), 1)
         self.assertEqual(
-            observed_settings[0][1:],
+            observed_settings[0][1:5],
             (
                 "kafka.test:9092",
                 "true",
@@ -369,10 +408,28 @@ class ScriptCommandTests(unittest.TestCase):
         )
         self.assertIn("-Pintegration", observed_settings[0][0])
         self.assertEqual(observed_settings[0][0][-1], "verify")
+        child_env = observed_settings[0][5]
+        self.assertIsNotNone(child_env)
+        self.assertEqual(child_env["PATH"], "tool-path")
+        self.assertEqual(child_env["MAVEN_USER_HOME"], "test-maven-home")
+        self.assertEqual(child_env["MAVEN_OPTS"], "-Duser.home=test-user")
+        self.assertEqual(child_env["ORACLE_TESTS_ACTIVE"], "true")
+        self.assertEqual(child_env["KAFKA_BOOTSTRAP_SERVERS"], "kafka.test:9092")
+        self.assertEqual(child_env["ORACLE_TEST_JDBC_URL"], "jdbc:oracle:thin:@//db.test:1521/FREEPDB1")
+        self.assertEqual(child_env["ORACLE_TEST_USERNAME"], "FLUXPAY_TEST")
+        self.assertEqual(child_env["ORACLE_TEST_PASSWORD"], "test-secret")
+        for name in (
+            "FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED",
+            "FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED",
+            "JWT_SECRET",
+            "SERVER_PORT",
+        ):
+            self.assertNotIn(name, child_env)
 
     def test_test_all_fails_when_requested_integration_credentials_are_incomplete(self):
         script = load_script("test-all")
         with (
+            tempfile.TemporaryDirectory() as directory,
             mock.patch.dict(
                 script.os.environ,
                 {
@@ -381,7 +438,11 @@ class ScriptCommandTests(unittest.TestCase):
                 },
                 clear=True,
             ),
-            mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(
+                sys,
+                "argv",
+                ["test-all.py", "--suite", "backend", "--env-file", str(Path(directory) / "missing.env")],
+            ),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(script.main(), 3)
@@ -403,6 +464,7 @@ class ScriptCommandTests(unittest.TestCase):
                 clear=True,
             ),
             mock.patch.object(sys, "argv", ["test-all.py", "--suite", "backend"]),
+            mock.patch.object(script, "load_env"),
             mock.patch.object(script.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(script.main(), 3)
@@ -413,7 +475,7 @@ class ScriptCommandTests(unittest.TestCase):
         script = load_script("test-all")
         observed_settings = []
 
-        def run(command, cwd):
+        def run(command, cwd, env=None, check=False):
             observed_settings.append(
                 (
                     script.os.environ.get("MAVEN_USER_HOME"),
@@ -422,31 +484,31 @@ class ScriptCommandTests(unittest.TestCase):
             )
             return CompletedProcess()
 
-        with tempfile.TemporaryDirectory() as directory:
-            with (
-                mock.patch.dict(
-                    script.os.environ,
-                    {
-                        "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
-                        "USERPROFILE": r"C:\Users\Ritesh Jha",
-                    },
-                    clear=True,
-                ),
-                mock.patch.object(script.sys, "platform", "win32"),
-                mock.patch.object(
-                    sys,
-                    "argv",
-                    [
-                        "test-all.py",
-                        "--suite",
-                        "backend",
-                        "--env-file",
-                        str(Path(directory) / "missing.env"),
-                    ],
-                ),
-                mock.patch.object(script.subprocess, "run", side_effect=run),
-            ):
-                self.assertEqual(script.main(), 0)
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(
+                script.os.environ,
+                {
+                    "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
+                    "USERPROFILE": r"C:\Users\Ritesh Jha",
+                },
+                clear=True,
+            ),
+            mock.patch.object(script.sys, "platform", "win32"),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "test-all.py",
+                    "--suite",
+                    "backend",
+                    "--env-file",
+                    str(Path(directory) / "missing.env"),
+                ],
+            ),
+            mock.patch.object(script.subprocess, "run", side_effect=run),
+        ):
+            self.assertEqual(script.main(), 0)
 
         self.assertEqual(
             observed_settings,
@@ -485,7 +547,12 @@ class ScriptCommandTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["cwd"], PROJECT_ROOT)
 
         with (
-            mock.patch.object(sys, "argv", ["stop-infra.py"]),
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                sys,
+                "argv",
+                ["stop-infra.py", "--env-file", str(Path(directory) / "missing.env"), "--mode", "compose"],
+            ),
             mock.patch.object(stop.subprocess, "run", return_value=CompletedProcess()) as run,
         ):
             self.assertEqual(stop.main(), 0)

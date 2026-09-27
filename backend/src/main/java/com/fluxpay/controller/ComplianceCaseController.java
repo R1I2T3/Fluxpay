@@ -36,6 +36,7 @@ public class ComplianceCaseController {
   }
 
   @PostMapping
+  @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<ApiResponse<ComplianceCaseResponse>> create(
       @Valid @RequestBody ComplianceCaseRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(wrap(service.create(request)));

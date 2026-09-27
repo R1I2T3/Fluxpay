@@ -29,9 +29,7 @@ def api_request(base_url, path, method="GET", token=None, body=None, key=None):
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(
-        base_url.rstrip("/") + path, data=data, headers=headers, method=method
-    )
+    request = urllib.request.Request(base_url.rstrip("/") + path, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -160,7 +158,7 @@ def main():
         print("smoke failed: SEED_CUSTOMER_PASSWORD is required")
         return 2
     base_url = os.environ.get("SEED_BASE_URL", "http://localhost:8080")
-    email = os.environ.get("SEED_ALICE_EMAIL", "alice@demo.io")
+    email = os.environ.get("SEED_ALICE_EMAIL", "priya.sharma@gmail.com")
     mode = args.mode or os.environ.get("FLUXPAY_INFRA_MODE", "compose").lower()
     bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     try:
@@ -180,9 +178,7 @@ def main():
 
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            timeline = api_request(
-                base_url, "/api/payments/" + payment_id + "/timeline", token=token
-            )
+            timeline = api_request(base_url, "/api/payments/" + payment_id + "/timeline", token=token)
             if timeline_contains(timeline, envelope["eventId"]):
                 print(f"smoke PASS payment={payment_id} event={envelope['eventId']}")
                 return 0

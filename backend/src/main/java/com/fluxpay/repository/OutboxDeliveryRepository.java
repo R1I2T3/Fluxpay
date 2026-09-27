@@ -15,6 +15,8 @@ import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 public interface OutboxDeliveryRepository extends JpaRepository<OutboxDelivery, UUID> {
+  // Delayed recovery commands must not hold later manual outcomes behind their due time.
+  // All ordinary events retain FIFO; recovery consumers independently check the current attempt.
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
   @Query(
@@ -24,7 +26,10 @@ public interface OutboxDeliveryRepository extends JpaRepository<OutboxDelivery, 
           + " and not exists (select earlier.eventId from OutboxDelivery earlier"
           + " where earlier.paymentId = d.paymentId"
           + " and earlier.aggregateSequence < d.aggregateSequence"
-          + " and earlier.state <> 'SENT')"
+          + " and earlier.state <> 'SENT'"
+          + " and not exists (select command.id from OutboxEvent command"
+          + " where command.id = earlier.eventId"
+          + " and command.topic in ('payout.retry', 'payout.refund')))"
           + " order by d.nextAttemptAt asc, d.aggregateSequence asc")
   List<OutboxDelivery> claimEligible(@Param("now") Instant now, Pageable pageable);
 

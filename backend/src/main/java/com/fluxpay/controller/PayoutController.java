@@ -17,18 +17,21 @@ public class PayoutController {
   private final PayoutExecutionService execution;
   private final RecoveryService recovery;
   private final PaymentOperationService operations;
+  private final PayoutReconciler reconciler;
 
   public PayoutController(
       PaymentReader reader,
       RouteAdminAuthorizer authorizer,
       PayoutExecutionService execution,
       RecoveryService recovery,
-      PaymentOperationService operations) {
+      PaymentOperationService operations,
+      PayoutReconciler reconciler) {
     this.reader = reader;
     this.authorizer = authorizer;
     this.execution = execution;
     this.recovery = recovery;
     this.operations = operations;
+    this.reconciler = reconciler;
   }
 
   @PostMapping("/api/payments/{paymentId}/submit-payout")
@@ -68,17 +71,23 @@ public class PayoutController {
   }
 
   @PostMapping("/api/payments/{paymentId}/refund")
+  public ApiResponse<RecoveryResult> customerRefund(@PathVariable String paymentId) {
+    throw new ForbiddenException("Refunds require an administrator");
+  }
+
+  @PostMapping("/api/admin/payments/{paymentId}/refund")
+  @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
   public ApiResponse<RecoveryResult> refund(
       @PathVariable String paymentId,
       @RequestHeader(value = "Idempotency-Key", required = false) String key,
       HttpServletRequest request) {
     PaymentOperationService.requireKey(key);
-    var payment = owned(paymentId);
+    var payment = reader.get(paymentId);
     var id = UUID.fromString(paymentId);
     var cid = ControllerSupport.correlationId(request);
     var result =
         operations.execute(
-            payment.senderUserId(),
+            ControllerSupport.currentUser().userId(),
             key,
             "REFUND",
             id,
@@ -88,6 +97,14 @@ public class PayoutController {
                 new PaymentOperationService.Result<>(
                     200, recovery.refundFunded(payment.senderUserId(), id, cid), id));
     return new ApiResponse<>(cid, result.response());
+  }
+
+  @PostMapping("/api/admin/payments/{paymentId}/reconcile")
+  @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+  public ApiResponse<PayoutApi.OutcomeResponse> reconcile(
+      @PathVariable UUID paymentId, HttpServletRequest request) {
+    var cid = ControllerSupport.correlationId(request);
+    return new ApiResponse<>(cid, reconciler.reconcile(paymentId, cid));
   }
 
   private ApiResponse<PayoutApi.OutcomeResponse> payout(

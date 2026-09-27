@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FluxPay Oracle Entity Relationship Map",
+    "output": "fluxpay-er-diagram.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/R1I2T3/Fluxpay.git",
+      "provider": "github",
+      "revision": "cd0bf81348a021c4820228bf18e312827b346df5"
+    }
+  },
+  "components": [
+    { "id": "userRoles", "type": "database", "label": "user_roles", "sublabel": "roles per user", "pos": [230, 70], "size": [150, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V001__identity_and_kyc.sql", "line": 26 }] },
+    { "id": "users", "type": "database", "label": "users", "sublabel": "identity and profile", "pos": [30, 320], "size": [150, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V001__identity_and_kyc.sql", "line": 6 }] },
+    { "id": "kycCases", "type": "database", "label": "kyc_cases", "sublabel": "one KYC case per user", "pos": [230, 570], "size": [170, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V001__identity_and_kyc.sql", "line": 39 }] },
+    { "id": "kycDocuments", "type": "database", "label": "kyc_documents", "sublabel": "documents for a KYC case", "pos": [440, 570], "size": [180, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V001__identity_and_kyc.sql", "line": 63 }] },
+    { "id": "wallets", "type": "database", "label": "wallets", "sublabel": "one currency balance", "pos": [230, 210], "size": [160, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V002__wallets_and_ledger.sql", "line": 7 }] },
+    { "id": "recipients", "type": "database", "label": "recipients", "sublabel": "customer payment destinations", "pos": [230, 430], "size": [190, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V003__routing_payments_and_quotes.sql", "line": 69 }] },
+    { "id": "ledgerEntries", "type": "database", "label": "ledger_entries", "sublabel": "append-only money movements", "pos": [440, 70], "size": [200, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V002__wallets_and_ledger.sql", "line": 26 }] },
+    { "id": "payments", "type": "database", "label": "payments", "sublabel": "payment lifecycle record", "pos": [520, 325], "size": [190, 76], "sources": [{ "path": "backend/src/main/resources/db/migration/V003__routing_payments_and_quotes.sql", "line": 89 }] },
+    { "id": "paymentQuotes", "type": "database", "label": "payment_quotes", "sublabel": "ranked route offers", "pos": [750, 125], "size": [180, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V003__routing_payments_and_quotes.sql", "line": 122 }] },
+    { "id": "complianceCases", "type": "database", "label": "compliance_cases", "sublabel": "screening assessment", "pos": [750, 325], "size": [190, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V601__m5_compliance_cases.sql", "line": 5 }] },
+    { "id": "payoutAttempts", "type": "database", "label": "payout_attempts", "sublabel": "attempts per payment", "pos": [960, 500], "size": [190, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V003__routing_payments_and_quotes.sql", "line": 153 }] },
+    { "id": "transferRoutes", "type": "database", "label": "transfer_routes", "sublabel": "route configuration", "pos": [960, 195], "size": [180, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V003__routing_payments_and_quotes.sql", "line": 28 }] },
+    { "id": "transferProviders", "type": "database", "label": "transfer_providers", "sublabel": "provider catalog", "pos": [1170, 195], "size": [180, 66], "sources": [{ "path": "backend/src/main/resources/db/migration/V003__routing_payments_and_quotes.sql", "line": 11 }] }
+  ],
+  "connections": [
+    { "id": "user-roles", "from": "users", "to": "userRoles", "label": "user_id FK", "fromSide": "top", "toSide": "bottom" },
+    { "id": "user-kyc", "from": "users", "to": "kycCases", "label": "user_id FK", "fromSide": "bottom", "toSide": "top" },
+    { "id": "kyc-documents", "from": "kycCases", "to": "kycDocuments", "label": "case_id FK", "labelDy": 57 },
+    { "id": "user-wallets", "from": "users", "to": "wallets", "label": "user_id FK" },
+    { "id": "user-recipients", "from": "users", "to": "recipients", "label": "user_id FK" },
+    { "id": "wallet-ledger", "from": "wallets", "to": "ledgerEntries", "label": "wallet_id FK", "fromSide": "top", "toSide": "bottom" },
+    { "id": "wallet-payments", "from": "wallets", "to": "payments", "label": "sender_wallet_id FK" },
+    { "id": "recipient-payments", "from": "recipients", "to": "payments", "label": "recipient_id FK" },
+    { "id": "payment-quotes", "from": "payments", "to": "paymentQuotes", "label": "payment_id FK", "fromSide": "top", "toSide": "bottom" },
+    { "id": "quote-route", "from": "paymentQuotes", "to": "transferRoutes", "label": "route_id FK", "labelDy": 92 },
+    { "id": "route-provider", "from": "transferRoutes", "to": "transferProviders", "label": "provider_id FK", "labelDy": 57 },
+    { "id": "payment-compliance", "from": "payments", "to": "complianceCases", "label": "payment_id FK", "labelDy": 62 },
+    { "id": "payout-route", "from": "payoutAttempts", "to": "transferRoutes", "label": "transfer_route_id FK", "fromSide": "top", "toSide": "bottom" },
+    { "id": "payment-payout", "from": "payments", "to": "payoutAttempts", "label": "payment_id business key", "variant": "dashed", "fromSide": "bottom", "toSide": "left" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Scope", "items": ["Customer identity, KYC, wallets, payments, routing, payout, ledger, and compliance", "Derived from the current Flyway migration set"] },
+    { "dot": "amber", "title": "Reading guide", "items": ["Solid relationships are declared foreign keys", "The dashed payment-to-payout link is a business key, not an Oracle foreign key"] }
+  ]
+}

@@ -45,9 +45,7 @@ public class LedgerJournal {
   }
 
   public static LedgerJournal historical(
-      String journalReference,
-      LedgerTransactionCategory transactionCategory,
-      Instant createdAt) {
+      String journalReference, LedgerTransactionCategory transactionCategory, Instant createdAt) {
     LedgerJournal journal = new LedgerJournal();
     journal.journalReference = Objects.requireNonNull(journalReference);
     journal.transactionCategory = Objects.requireNonNull(transactionCategory);

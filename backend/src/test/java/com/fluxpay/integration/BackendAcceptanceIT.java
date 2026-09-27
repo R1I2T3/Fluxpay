@@ -9,25 +9,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.FluxPayApplication;
-import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.beans.User;
 import com.fluxpay.beans.Wallet;
 import com.fluxpay.beans.WalletAccountRole;
 import com.fluxpay.common.contracts.FxSnapshotSource;
-import com.fluxpay.common.contracts.PayoutProvider;
+import com.fluxpay.common.contracts.TransferRail;
 import com.fluxpay.common.security.JwtUtil;
+import com.fluxpay.domain.DestinationType;
+import com.fluxpay.domain.RailType;
 import com.fluxpay.dto.FxSnapshot;
-import com.fluxpay.dto.PayoutCmd;
-import com.fluxpay.dto.PayoutResult;
+import com.fluxpay.dto.TransferRailCommand;
+import com.fluxpay.dto.TransferRailResult;
 import com.fluxpay.messaging.EventTopics;
 import com.fluxpay.repository.OutboxDeliveryRepository;
 import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentEventRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.UserRepository;
 import com.fluxpay.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,6 +70,13 @@ import org.springframework.web.context.WebApplicationContext;
       "fluxpay.outbox.dispatch-initial-delay-ms=100",
       "fluxpay.kafka.timeline-group=fluxpay-backend-acceptance-${random.uuid}"
     })
+/**
+ * Acceptance coverage for the admin-managed transfer catalogue. The catalogue is provisioned
+ * through the admin provider/route APIs: HDFC Bank and SBI share one {@code BANK_NETWORK} rail,
+ * HDFC owns the standard and express routes, and quote generation persists exactly the top three
+ * eligible routes. Terminal payout attempts teach the shared catalogue learned reliability, and
+ * wallet-to-wallet transfers resolve their own single-call internal route decision.
+ */
 class BackendAcceptanceIT {
   private static final UUID SYSTEM_USER = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
@@ -74,7 +84,6 @@ class BackendAcceptanceIT {
   @Autowired private ObjectMapper json;
   @Autowired private UserRepository users;
   @Autowired private WalletRepository wallets;
-  @Autowired private PayoutRouteRepository routes;
   @Autowired private BCryptPasswordEncoder passwords;
   @Autowired private JwtUtil jwt;
   @Autowired private JdbcTemplate jdbc;
@@ -90,18 +99,18 @@ class BackendAcceptanceIT {
   void provisionAcceptanceFixtures() {
     mvc = MockMvcBuilders.webAppContextSetup(webContext).build();
     provisionSystemAccounts();
-    provisionRoutes();
     adminToken = provisionAdmin();
   }
 
   @Test
-  void fullPaymentRecoveryAndMessagingLifecycleUsesDedicatedInfrastructure() throws Exception {
+  void adminManagedCatalogueRoutesExternalAndInternalTransfers() throws Exception {
     assertThat(flyway.info().pending()).isEmpty();
     assertThat(flyway.info().applied())
         .anyMatch(
             migration ->
                 migration.getVersion() != null
                     && "006".equals(migration.getVersion().getVersion()));
+    Catalogue catalogue = provisionCatalogue();
 
     mvc.perform(get("/api/wallets").header("X-Local-User-Id", UUID.randomUUID()))
         .andExpect(status().isUnauthorized());
@@ -118,6 +127,9 @@ class BackendAcceptanceIT {
         request(
             post("/api/auth/login"), null, null, Map.of("email", email, "password", password), 200);
     String customerToken = login.path("data").path("token").asText();
+
+    JsonNode internalPeer = register("acceptance-peer");
+    assertInternalTransfer(customerToken, internalPeer.path("email").asText(), catalogue);
 
     JsonNode kyc =
         request(
@@ -166,6 +178,8 @@ class BackendAcceptanceIT {
             201);
     String recipientId = recipient.path("data").path("id").asText();
 
+    assertCatalogueQuoteSet(customerToken, sourceWallet, recipientId, catalogue);
+
     PaymentFlow successful = createAndConfirm(customerToken, sourceWallet, recipientId, "100.0000");
     String successKey = "acceptance-payout-success-" + UUID.randomUUID();
     JsonNode payout =
@@ -173,7 +187,7 @@ class BackendAcceptanceIT {
             post("/api/payments/" + successful.paymentId + "/submit-payout"),
             customerToken,
             successKey,
-            Map.of("routeCode", "STANDARD_BANK"),
+            Map.of("routeCode", "HDFC_INR_STANDARD"),
             200);
     assertThat(payout.path("data").path("status").asText()).isEqualTo("COMPLETED");
     String completedEventId = payout.path("data").path("originalEventId").asText();
@@ -182,7 +196,7 @@ class BackendAcceptanceIT {
             post("/api/payments/" + successful.paymentId + "/submit-payout"),
             customerToken,
             successKey,
-            Map.of("routeCode", "STANDARD_BANK"),
+            Map.of("routeCode", "HDFC_INR_STANDARD"),
             200);
     assertThat(payoutReplay.path("data").path("originalEventId").asText())
         .isEqualTo(completedEventId);
@@ -190,7 +204,7 @@ class BackendAcceptanceIT {
 
     PaymentFlow retried = createAndConfirm(customerToken, sourceWallet, recipientId, "210.0000");
     JsonNode failedRetryable =
-        submit(customerToken, retried.paymentId, "STANDARD_BANK", "retryable-first");
+        submit(customerToken, retried.paymentId, "HDFC_INR_STANDARD", "retryable-first");
     assertThat(failedRetryable.path("data").path("status").asText()).isEqualTo("FAILED");
     JsonNode retriedResult =
         request(
@@ -204,7 +218,7 @@ class BackendAcceptanceIT {
 
     PaymentFlow switched = createAndConfirm(customerToken, sourceWallet, recipientId, "220.0000");
     assertThat(
-            submit(customerToken, switched.paymentId, "STANDARD_BANK", "switch-first")
+            submit(customerToken, switched.paymentId, "HDFC_INR_STANDARD", "switch-first")
                 .path("data")
                 .path("status")
                 .asText())
@@ -214,15 +228,15 @@ class BackendAcceptanceIT {
             post("/api/payments/" + switched.paymentId + "/switch-route"),
             customerToken,
             "acceptance-switch-" + UUID.randomUUID(),
-            Map.of("routeCode", "INSTANT_PAYOUT", "quoteId", switched.instantQuoteId),
+            Map.of("routeCode", "SBI_INR_STANDARD", "quoteId", switched.alternateQuoteId),
             200);
     assertThat(switchedResult.path("data").path("status").asText()).isEqualTo("COMPLETED");
     assertThat(switchedResult.path("data").path("selectedQuote").path("routeCode").asText())
-        .isEqualTo("INSTANT_PAYOUT");
+        .isEqualTo("SBI_INR_STANDARD");
 
     PaymentFlow refunded = createAndConfirm(customerToken, sourceWallet, recipientId, "230.0000");
     assertThat(
-            submit(customerToken, refunded.paymentId, "STANDARD_BANK", "refund-first")
+            submit(customerToken, refunded.paymentId, "HDFC_INR_STANDARD", "refund-first")
                 .path("data")
                 .path("status")
                 .asText())
@@ -230,21 +244,23 @@ class BackendAcceptanceIT {
     String refundKey = "acceptance-refund-" + UUID.randomUUID();
     JsonNode refund =
         request(
-            post("/api/payments/" + refunded.paymentId + "/refund"),
-            customerToken,
+            post("/api/admin/payments/" + refunded.paymentId + "/refund"),
+            adminToken,
             refundKey,
             Map.of(),
             200);
     JsonNode refundReplay =
         request(
-            post("/api/payments/" + refunded.paymentId + "/refund"),
-            customerToken,
+            post("/api/admin/payments/" + refunded.paymentId + "/refund"),
+            adminToken,
             refundKey,
             Map.of(),
             200);
     assertThat(refundReplay.path("data").path("eventId").asText())
         .isEqualTo(refund.path("data").path("eventId").asText());
     assertExactRefund(refunded.paymentId, "230.0000", "225.0000", "5.0000");
+
+    assertLearnedReliability();
 
     awaitTimeline(refunded.paymentId, EventTopics.PAYMENT_REFUNDED);
     JsonNode timeline =
@@ -289,8 +305,9 @@ class BackendAcceptanceIT {
             "acceptance-quote-" + UUID.randomUUID(),
             Map.of(),
             201);
-    JsonNode standard = find(quote.path("data").path("quotes"), "route", "STANDARD_BANK");
-    JsonNode instant = find(quote.path("data").path("quotes"), "route", "INSTANT_PAYOUT");
+    assertThat(quote.path("data").path("quotes").size()).isEqualTo(3);
+    JsonNode standard = find(quote.path("data").path("quotes"), "route", "HDFC_INR_STANDARD");
+    JsonNode alternate = find(quote.path("data").path("quotes"), "route", "SBI_INR_STANDARD");
     JsonNode confirmed =
         request(
             post("/api/payments/" + paymentId + "/confirm"),
@@ -299,7 +316,7 @@ class BackendAcceptanceIT {
             Map.of("quoteId", standard.path("id").asText()),
             200);
     assertThat(confirmed.path("data").path("status").asText()).isEqualTo("PROCESSING");
-    return new PaymentFlow(paymentId, instant.path("id").asText());
+    return new PaymentFlow(paymentId, alternate.path("id").asText());
   }
 
   private JsonNode submit(String token, String paymentId, String route, String suffix)
@@ -369,30 +386,258 @@ class BackendAcceptanceIT {
     }
   }
 
-  private void provisionRoutes() {
-    route("STANDARD_BANK", "STANDARD", 240);
-    route("INSTANT_PAYOUT", "INSTANT", 5);
-    route("LOCAL_PARTNER", "LOCAL_PARTNER", 60);
+  /**
+   * Acceptance catalogue identifiers behind each quoted route. Both banks share one bank-network
+   * rail; HDFC owns the standard and express routes.
+   */
+  private record Catalogue(
+      String hdfcProviderId,
+      String sbiProviderId,
+      String hdfcStandardRouteId,
+      String hdfcExpressRouteId,
+      String sbiStandardRouteId,
+      String sbiEconomyRouteId) {}
+
+  private Catalogue provisionCatalogue() throws Exception {
+    JsonNode hdfc = ensureProvider("HDFC_BANK", "HDFC Bank", "BANK_NETWORK");
+    JsonNode sbi = ensureProvider("SBI_BANK", "SBI", "BANK_NETWORK");
+    JsonNode fluxpay = ensureProvider("FLUXPAY", "FluxPay", "INTERNAL_LEDGER");
+    assertThat(hdfc.path("railType").asText()).isEqualTo("BANK_NETWORK");
+    assertThat(sbi.path("railType").asText()).isEqualTo("BANK_NETWORK");
+    assertThat(fluxpay.path("railType").asText()).isEqualTo("INTERNAL_LEDGER");
+
+    JsonNode standard =
+        ensureRoute(
+            hdfc.path("id").asText(),
+            routeBody("HDFC_INR_STANDARD", "HDFC INR Standard", "1.0000", "0.500000", 60, "99.00"));
+    JsonNode express =
+        ensureRoute(
+            hdfc.path("id").asText(),
+            routeBody("HDFC_INR_EXPRESS", "HDFC INR Express", "6.0000", "0.500000", 5, "98.50"));
+    JsonNode sbiStandard =
+        ensureRoute(
+            sbi.path("id").asText(),
+            routeBody("SBI_INR_STANDARD", "SBI INR Standard", "5.0000", "0.500000", 90, "99.50"));
+    JsonNode sbiEconomy =
+        ensureRoute(
+            sbi.path("id").asText(),
+            routeBody("SBI_INR_ECONOMY", "SBI INR Economy", "4.0000", "1.500000", 600, "95.00"));
+    ensureRoute(
+        fluxpay.path("id").asText(),
+        internalRouteBody("FLUXPAY_INTERNAL", "FluxPay internal wallet"));
+    return new Catalogue(
+        hdfc.path("id").asText(),
+        sbi.path("id").asText(),
+        standard.path("id").asText(),
+        express.path("id").asText(),
+        sbiStandard.path("id").asText(),
+        sbiEconomy.path("id").asText());
   }
 
-  private void route(String code, String type, int minutes) {
-    PayoutRoute route =
-        routes
-            .findByCode(code)
-            .orElseGet(
-                () ->
-                    PayoutRoute.seed(
-                        UUID.nameUUIDFromBytes(("acceptance:" + code).getBytes()),
-                        code,
-                        code,
-                        "Acceptance provider",
-                        type,
-                        "5.0000",
-                        "0.500000",
-                        minutes,
-                        "99.00"));
-    route.update("5.0000", "0.500000", minutes, "99.00", true);
-    routes.saveAndFlush(route);
+  private JsonNode ensureProvider(String code, String name, String railType) throws Exception {
+    JsonNode list = request(get("/api/admin/providers"), adminToken, null, null, 200);
+    for (JsonNode provider : list.path("data").path("providers")) {
+      if (code.equals(provider.path("providerCode").asText())) {
+        return provider;
+      }
+    }
+    return request(
+            post("/api/admin/providers"),
+            adminToken,
+            null,
+            Map.of(
+                "providerCode", code, "providerName", name, "railType", railType, "active", true),
+            201)
+        .path("data");
+  }
+
+  /**
+   * Builds an external IN/INR route body for the given acceptance route identity; the caller
+   * supplies the owning provider id.
+   */
+  private Map<String, Object> routeBody(
+      String code, String name, String fee, String spread, int minutes, String reliability) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("routeCode", code);
+    body.put("name", name);
+    body.put("destinationType", "EXTERNAL_ACCOUNT");
+    body.put("destinationCountry", "IN");
+    body.put("payoutCurrency", "INR");
+    body.put("baseFee", fee);
+    body.put("fxSpreadPercentage", spread);
+    body.put("estimatedMinutes", minutes);
+    body.put("configuredSuccessRate", reliability);
+    body.put("active", true);
+    return body;
+  }
+
+  private Map<String, Object> internalRouteBody(String code, String name) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("routeCode", code);
+    body.put("name", name);
+    body.put("destinationType", "INTERNAL_WALLET");
+    body.put("payoutCurrency", "INR");
+    body.put("baseFee", "0.0000");
+    body.put("fxSpreadPercentage", "0.000000");
+    body.put("estimatedMinutes", 1);
+    body.put("configuredSuccessRate", "100.00");
+    body.put("active", true);
+    return body;
+  }
+
+  private JsonNode ensureRoute(String providerId, Map<String, Object> body) throws Exception {
+    JsonNode list = request(get("/api/admin/routes"), adminToken, null, null, 200);
+    String code = String.valueOf(body.get("routeCode"));
+    for (JsonNode route : list.path("data").path("routes")) {
+      if (code.equals(route.path("routeCode").asText())) {
+        return route;
+      }
+    }
+    Map<String, Object> create = new LinkedHashMap<>(body);
+    create.put("providerId", providerId);
+    return request(post("/api/admin/routes"), adminToken, null, create, 201).path("data");
+  }
+
+  /**
+   * The shared bank rail rejects only the HDFC provider's configured failure probes; SBI always
+   * completes. Four eligible external routes therefore rank to exactly three persisted quotes: the
+   * two HDFC routes plus SBI standard.
+   */
+  private void assertCatalogueQuoteSet(
+      String token, String sourceWallet, String recipientId, Catalogue catalogue) throws Exception {
+    JsonNode draft =
+        request(
+            post("/api/payments/draft"),
+            token,
+            "acceptance-catalogue-draft-" + UUID.randomUUID(),
+            Map.of(
+                "sourceWalletId", sourceWallet,
+                "recipientId", recipientId,
+                "sourceAmount", "100.0000",
+                "sourceCurrency", "USD",
+                "payoutCurrency", "INR",
+                "purpose", "FAMILY_SUPPORT",
+                "preference", "BALANCED"),
+            201);
+    JsonNode quotes =
+        request(
+            post("/api/payments/" + draft.path("data").path("id").asText() + "/quotes"),
+            token,
+            "acceptance-catalogue-quotes-" + UUID.randomUUID(),
+            Map.of(),
+            201);
+    JsonNode rows = quotes.path("data").path("quotes");
+    assertThat(rows.size()).isEqualTo(3);
+    List<String> codes = new ArrayList<>();
+    List<String> providerIds = new ArrayList<>();
+    for (JsonNode quote : rows) {
+      codes.add(quote.path("routeCode").asText());
+      providerIds.add(quote.path("providerId").asText());
+    }
+    assertThat(codes)
+        .containsExactlyInAnyOrder("HDFC_INR_STANDARD", "HDFC_INR_EXPRESS", "SBI_INR_STANDARD");
+    assertThat(providerIds.stream().filter(catalogue.hdfcProviderId()::equals).count())
+        .isEqualTo(2);
+    assertThat(providerIds).contains(catalogue.sbiProviderId());
+  }
+
+  /**
+   * Terminal attempts teach the catalogue: the HDFC standard route failed and completed, so its
+   * learned reliability sits below its configured prior with matching outcome counts.
+   */
+  private void assertLearnedReliability() throws Exception {
+    JsonNode list = request(get("/api/admin/routes"), adminToken, null, null, 200);
+    JsonNode learned = find(list.path("data").path("routes"), "routeCode", "HDFC_INR_STANDARD");
+    assertThat(learned.path("failedCount").asLong()).isGreaterThanOrEqualTo(3);
+    assertThat(learned.path("completedCount").asLong()).isGreaterThanOrEqualTo(3);
+    assertThat(new BigDecimal(learned.path("effectiveSuccessRate").asText()))
+        .isLessThan(new BigDecimal(learned.path("configuredSuccessRate").asText()));
+  }
+
+  /**
+   * A wallet-to-wallet transfer is a single call that ranks internal candidates with the BALANCED
+   * preference, executes the winner once through the internal ledger rail, and returns its routing
+   * metadata. Replaying the idempotency key returns the same recorded transfer without debiting the
+   * sender twice.
+   */
+  private void assertInternalTransfer(String token, String recipientEmail, Catalogue catalogue)
+      throws Exception {
+    JsonNode walletsBefore = request(get("/api/wallets"), token, null, null, 200);
+    BigDecimal balanceBefore =
+        new BigDecimal(
+            find(walletsBefore.path("data"), "currency", "USD").path("availableBalance").asText());
+
+    String key = "acceptance-internal-" + UUID.randomUUID();
+    JsonNode first =
+        request(
+            post("/api/wallets/transfer"),
+            token,
+            key,
+            Map.of(
+                "toEmail", recipientEmail,
+                "fromCurrency", "USD",
+                "toCurrency", "INR",
+                "amount", "10.00",
+                "amountMode", "SOURCE",
+                "note", "Acceptance wallet transfer"),
+            200);
+    assertThat(first.path("data").path("providerCode").asText()).isEqualTo("FLUXPAY");
+    assertThat(first.path("data").path("routeCode").asText()).isEqualTo("FLUXPAY_INTERNAL");
+    assertThat(first.path("data").path("railType").asText()).isEqualTo("INTERNAL_LEDGER");
+    assertThat(first.path("data").path("journalReference").asText()).isNotBlank();
+    assertThat(first.path("data").path("sourceAmount").asText()).isEqualTo("10.0000");
+    assertThat(first.path("data").path("fee").asText()).isEqualTo("0.0500");
+    assertThat(first.path("data").path("creditedAmount").asText()).isEqualTo("830.8250");
+    assertThat(first.path("data").path("effectiveReliability").isNull()).isFalse();
+
+    JsonNode replay =
+        request(
+            post("/api/wallets/transfer"),
+            token,
+            key,
+            Map.of(
+                "toEmail", recipientEmail,
+                "fromCurrency", "USD",
+                "toCurrency", "INR",
+                "amount", "10.00",
+                "amountMode", "SOURCE",
+                "note", "Acceptance wallet transfer"),
+            200);
+    assertThat(replay.path("data").path("journalReference").asText())
+        .isEqualTo(first.path("data").path("journalReference").asText());
+
+    JsonNode walletsAfter = request(get("/api/wallets"), token, null, null, 200);
+    BigDecimal balanceAfter =
+        new BigDecimal(
+            find(walletsAfter.path("data"), "currency", "USD").path("availableBalance").asText());
+    assertThat(balanceBefore.subtract(balanceAfter)).isEqualByComparingTo("10.0000");
+
+    Integer journalEntries =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM ledger_entries WHERE journal_reference = ?",
+            Integer.class,
+            first.path("data").path("journalReference").asText());
+    assertThat(journalEntries).isEqualTo(5);
+    assertThat(catalogue.hdfcProviderId()).isNotBlank();
+  }
+
+  /** Registers a second acceptance customer and returns its email plus bearer token. */
+  private JsonNode register(String prefix) throws Exception {
+    String email = prefix + "-" + UUID.randomUUID() + "@example.com";
+    String password = "AcceptancePass123!";
+    request(
+        post("/api/auth/register"),
+        null,
+        null,
+        Map.of("email", email, "password", password, "fullName", "Acceptance Customer"),
+        201);
+    JsonNode login =
+        request(
+            post("/api/auth/login"), null, null, Map.of("email", email, "password", password), 200);
+    com.fasterxml.jackson.databind.node.ObjectNode response = json.createObjectNode();
+    response.put("email", email);
+    response.put("token", login.path("data").path("token").asText());
+    return response;
   }
 
   private String provisionAdmin() {
@@ -467,7 +712,7 @@ class BackendAcceptanceIT {
     assertThat(found).isTrue();
   }
 
-  private record PaymentFlow(String paymentId, String instantQuoteId) {}
+  private record PaymentFlow(String paymentId, String alternateQuoteId) {}
 
   @TestConfiguration(proxyBeanMethods = false)
   static class TestIntegrations {
@@ -479,55 +724,42 @@ class BackendAcceptanceIT {
     }
 
     @Bean
-    PayoutProvider acceptanceStandardProvider() {
-      return new PayoutProvider() {
+    TransferRail acceptanceBankRail() {
+      return new TransferRail() {
         private final Map<String, AtomicInteger> attempts = new ConcurrentHashMap<>();
 
         @Override
-        public String code() {
-          return "STANDARD_BANK";
+        public RailType type() {
+          return RailType.BANK_NETWORK;
         }
 
         @Override
-        public PayoutResult submit(PayoutCmd command) {
+        public java.util.Set<DestinationType> supportedDestinations() {
+          return java.util.Set.of(DestinationType.EXTERNAL_ACCOUNT);
+        }
+
+        @Override
+        public TransferRailResult execute(TransferRailCommand command) {
           int attempt =
               attempts
-                  .computeIfAbsent(command.paymentId(), ignored -> new AtomicInteger())
+                  .computeIfAbsent(command.transferId().toString(), ignored -> new AtomicInteger())
                   .incrementAndGet();
-          BigDecimal amount = command.amount();
-          boolean failsOnce = amount.compareTo(new BigDecimal("210.0000")) == 0 && attempt == 1;
-          boolean alwaysFails = amount.compareTo(new BigDecimal("220.0000")) >= 0;
+          BigDecimal amount = command.sourceAmount();
+          // Only the HDFC provider rejects configured failure probes; every other acceptance
+          // route shares this bank rail and always completes, which proves that two providers
+          // and several routes can run on one rail implementation.
+          boolean hdfc = "HDFC_BANK".equals(command.provider().code());
+          boolean failsOnce =
+              hdfc && amount.compareTo(new BigDecimal("210.0000")) == 0 && attempt == 1;
+          boolean alwaysFails = hdfc && amount.compareTo(new BigDecimal("220.0000")) >= 0;
           if (failsOnce || alwaysFails) {
-            return PayoutResult.failed(
+            return TransferRailResult.failed(
                 "TEST_PROVIDER_REJECTED",
                 "Acceptance provider rejected payout",
                 command.customerFee());
           }
-          return PayoutResult.ok("ACCEPTANCE-" + command.attemptId(), command.customerFee());
-        }
-      };
-    }
-
-    @Bean
-    PayoutProvider acceptanceInstantProvider() {
-      return provider("INSTANT_PAYOUT");
-    }
-
-    @Bean
-    PayoutProvider acceptanceLocalPartnerProvider() {
-      return provider("LOCAL_PARTNER");
-    }
-
-    private static PayoutProvider provider(String code) {
-      return new PayoutProvider() {
-        @Override
-        public String code() {
-          return code;
-        }
-
-        @Override
-        public PayoutResult submit(PayoutCmd command) {
-          return PayoutResult.ok(code + "-" + command.attemptId(), command.customerFee());
+          return TransferRailResult.completed(
+              "ACCEPTANCE-" + command.attemptId(), command.customerFee());
         }
       };
     }

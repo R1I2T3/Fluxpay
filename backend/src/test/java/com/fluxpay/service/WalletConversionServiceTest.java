@@ -24,8 +24,8 @@ import com.fluxpay.exception.RequoteRequiredException;
 import com.fluxpay.repository.CurrencyConfigurationRepository;
 import com.fluxpay.repository.WalletOperationRepository;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -64,10 +64,8 @@ class WalletConversionServiceTest {
                 mock(org.springframework.transaction.PlatformTransactionManager.class)),
             posting,
             quotes,
-            new ConversionMath(
-                new ConversionFeeSchedule(), new CurrencyScaleService(currencies)),
-            new FxQuoteValidator(
-                Clock.fixed(FETCHED_AT.plusSeconds(1800), ZoneOffset.UTC)));
+            new ConversionMath(new ConversionFeeSchedule(), new CurrencyScaleService(currencies)),
+            new FxQuoteValidator(Clock.fixed(FETCHED_AT.plusSeconds(1800), ZoneOffset.UTC)));
   }
 
   @Test
@@ -88,8 +86,10 @@ class WalletConversionServiceTest {
                     new BigDecimal("8308.2500"),
                     new BigDecimal("83.50000000"))),
             eq(new FxSnapshot("USD", "INR", new BigDecimal("83.50000000"), FETCHED_AT, false)),
-            eq(FxQuoteValidator.quoteId(
-                new FxSnapshot("USD", "INR", new BigDecimal("83.50000000"), FETCHED_AT, false))),
+            eq(
+                FxQuoteValidator.quoteId(
+                    new FxSnapshot(
+                        "USD", "INR", new BigDecimal("83.50000000"), FETCHED_AT, false))),
             eq(NORMALIZED),
             eq(KEY)))
         .thenReturn(expected);
@@ -122,15 +122,13 @@ class WalletConversionServiceTest {
     String legacyNormalized = "{\"amount\":\"1.2345\",\"from\":\"USD\",\"to\":\"INR\"}";
     WalletConvertResponse expected = response();
     WalletOperation completed =
-        new WalletOperation(
-            USER_ID, "CONVERT", KEY, legacyNormalized, expected.journalReference());
+        new WalletOperation(USER_ID, "CONVERT", KEY, legacyNormalized, expected.journalReference());
     completed.complete(new ObjectMapper().writeValueAsString(expected));
     when(operations.findByUserIdAndOperationTypeAndClientKey(USER_ID, "CONVERT", KEY))
         .thenReturn(Optional.of(completed));
 
     assertEquals(
-        expected,
-        service.convert(USER_ID, new WalletConvertRequest("USD", "INR", "1.2345"), KEY));
+        expected, service.convert(USER_ID, new WalletConvertRequest("USD", "INR", "1.2345"), KEY));
     verifyNoInteractions(quotes, posting);
   }
 
@@ -224,8 +222,10 @@ class WalletConversionServiceTest {
                     new BigDecimal("8308.2500"),
                     new BigDecimal("83.50000000"))),
             eq(new FxSnapshot("USD", "INR", new BigDecimal("83.50000000"), FETCHED_AT, false)),
-            eq(FxQuoteValidator.quoteId(
-                new FxSnapshot("USD", "INR", new BigDecimal("83.50000000"), FETCHED_AT, false))),
+            eq(
+                FxQuoteValidator.quoteId(
+                    new FxSnapshot(
+                        "USD", "INR", new BigDecimal("83.50000000"), FETCHED_AT, false))),
             eq(NORMALIZED),
             eq(KEY)))
         .thenThrow(new OperationRaceException())

@@ -3,12 +3,14 @@ package com.fluxpay.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.beans.PaymentOperation;
+import com.fluxpay.beans.PaymentOperation.Namespace;
 import com.fluxpay.common.json.OperationJson;
 import com.fluxpay.exception.BusinessException;
 import com.fluxpay.repository.PaymentOperationRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
@@ -54,12 +56,36 @@ public class PaymentOperationService {
       Object request,
       Class<T> responseType,
       Supplier<Result<T>> work) {
+    return execute(Namespace.PUBLIC, user, key, action, payment, request, responseType, work);
+  }
+
+  /** Trusted recovery entry point; public request handlers always use execute. */
+  public <T> Result<T> executeInternal(
+      UUID user,
+      String key,
+      String action,
+      UUID payment,
+      Object request,
+      Class<T> responseType,
+      Supplier<Result<T>> work) {
+    return execute(Namespace.INTERNAL, user, key, action, payment, request, responseType, work);
+  }
+
+  private <T> Result<T> execute(
+      Namespace namespace,
+      UUID user,
+      String key,
+      String action,
+      UUID payment,
+      Object request,
+      Class<T> responseType,
+      Supplier<Result<T>> work) {
     requireKey(key);
     String normalized = normalized(action, payment, request);
     try {
       return transaction.execute(
           ignored -> {
-            var existing = operations.findByUserIdAndClientKey(user, key);
+            var existing = operations.findByUserIdAndNamespaceAndClientKey(user, namespace, key);
             if (existing.isPresent()) {
               var replay = replay(existing.get(), payment, normalized, responseType);
               return new Result<>(
@@ -69,6 +95,7 @@ public class PaymentOperationService {
                 new PaymentOperation(
                     UUID.randomUUID(),
                     user,
+                    namespace,
                     action,
                     key,
                     normalized,
@@ -85,7 +112,10 @@ public class PaymentOperationService {
     } catch (org.springframework.dao.DataIntegrityViolationException race) {
       return transaction.execute(
           ignored -> {
-            var winner = operations.findByUserIdAndClientKey(user, key).orElseThrow(() -> race);
+            var winner =
+                operations
+                    .findByUserIdAndNamespaceAndClientKey(user, namespace, key)
+                    .orElseThrow(() -> race);
             var replay = replay(winner, payment, normalized, responseType);
             return new Result<>(replay.httpStatus(), replay.response(), winner.paymentId());
           });
@@ -114,18 +144,42 @@ public class PaymentOperationService {
       Object request,
       Class<T> responseType,
       Runnable validate) {
+    return reserve(Namespace.PUBLIC, user, key, action, payment, request, responseType, validate);
+  }
+
+  <T> Reservation<T> reserveInternal(
+      UUID user,
+      String key,
+      String action,
+      UUID payment,
+      Object request,
+      Class<T> responseType,
+      Runnable validate) {
+    return reserve(Namespace.INTERNAL, user, key, action, payment, request, responseType, validate);
+  }
+
+  private <T> Reservation<T> reserve(
+      Namespace namespace,
+      UUID user,
+      String key,
+      String action,
+      UUID payment,
+      Object request,
+      Class<T> responseType,
+      Runnable validate) {
     requireKey(key);
     String normalized = normalized(action, payment, request);
     try {
       return transaction.execute(
           ignored -> {
-            var existing = operations.findByUserIdAndClientKey(user, key);
+            var existing = operations.findByUserIdAndNamespaceAndClientKey(user, namespace, key);
             if (existing.isPresent())
               return replay(existing.get(), payment, normalized, responseType);
             var pending =
                 new PaymentOperation(
                     UUID.randomUUID(),
                     user,
+                    namespace,
                     action,
                     key,
                     normalized,
@@ -144,7 +198,9 @@ public class PaymentOperationService {
       return transaction.execute(
           ignored ->
               replay(
-                  operations.findByUserIdAndClientKey(user, key).orElseThrow(() -> race),
+                  operations
+                      .findByUserIdAndNamespaceAndClientKey(user, namespace, key)
+                      .orElseThrow(() -> race),
                   payment,
                   normalized,
                   responseType));
@@ -158,6 +214,28 @@ public class PaymentOperationService {
           "INVALID_IDEMPOTENCY_KEY",
           "Idempotency-Key must be 1 to 255 characters.");
     return key;
+  }
+
+  @org.springframework.transaction.annotation.Transactional(
+      propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public void capturePayoutReservation(
+      UUID user, Namespace namespace, String key, PayoutReservationService.Reserved reserved) {
+    operations
+        .findByUserIdAndNamespaceAndClientKey(user, namespace, key)
+        .orElseThrow()
+        .capturePayoutReservation(json(reserved));
+  }
+
+  @org.springframework.transaction.annotation.Transactional(
+      propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public <T> Optional<T> completedResponse(UUID id, Class<T> responseType) {
+    var operation = operations.findById(id).orElseThrow();
+    if (!"COMPLETED".equals(operation.status())) return Optional.empty();
+    try {
+      return Optional.of(mapper.readValue(operation.responseData(), responseType));
+    } catch (JsonProcessingException invalid) {
+      throw new IllegalStateException("Invalid stored operation response", invalid);
+    }
   }
 
   public void complete(UUID id, Object response, int httpStatus) {

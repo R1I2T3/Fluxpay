@@ -1,0 +1,209 @@
+<!-- ko if: !session.user() -->
+<section class="admin-access-gate">
+  <h2>Administrator sign-in required</h2>
+  <a class="pill dark" href="?ojr=login" data-route="login">Log in</a>
+</section>
+<!-- /ko -->
+<!-- ko if: session.user() && !session.isAdmin() -->
+<section class="admin-access-gate">
+  <h2>Administrator access required</h2>
+  <p>Payment operations evidence is restricted to platform administrators.</p>
+</section>
+<!-- /ko -->
+<!-- ko if: session.isAdmin() -->
+<section class="admin-page payment-operations-page">
+  <header class="admin-page-heading">
+    <div>
+      <span class="eyebrow">PAYMENT OPERATIONS</span>
+      <h1>Event-flow evidence</h1>
+      <p>Read-only evidence from confirmation through payout, recovery, and refund.</p>
+    </div>
+  </header>
+  <p class="subtle-note">
+    Read-only operations evidence. Outbox SENT means published to Kafka; a timeline row means the
+    timeline consumer persisted the event.
+  </p>
+  <div class="alert error" role="alert" data-bind="visible:error,text:error"></div>
+  <div
+    class="alert warning"
+    role="status"
+    aria-live="polite"
+    data-bind="visible:refreshWarning,text:refreshWarning"
+  ></div>
+  <div
+    class="admin-loading-status"
+    role="status"
+    aria-live="polite"
+    data-bind="visible:busy(),text:busy()?'Loading payment operations':''"
+  ></div>
+
+  <form class="payment-operations-lookup" data-bind="submit:lookup">
+    <label
+      >Payment ID<input required data-bind="value:paymentId,attr:{placeholder:'Payment UUID'}"
+    /></label>
+    <button class="pill dark" data-bind="disable:busy">Inspect operations ↗</button>
+    <button type="button" class="pill soft" data-bind="click:refresh,disable:busy">Refresh</button>
+  </form>
+
+  <!-- ko if: snapshot -->
+  <section class="payment-operations-summary" data-bind="with:snapshot">
+    <div><span>Status</span><strong data-bind="text:$parent.label(payment.status)"></strong></div>
+    <div><span>Payment</span><strong class="mono" data-bind="text:payment.id"></strong></div>
+    <div><span>Event sequence</span><strong data-bind="text:payment.eventSequence"></strong></div>
+    <div><span>Recovery</span><strong data-bind="text:recovery.decision"></strong></div>
+  </section>
+
+  <section class="operations-flow" data-bind="foreach:lifecycleGroups">
+    <article class="operations-stage" data-bind="attr:{'data-tone':tone}">
+      <span class="eyebrow" data-bind="text:label"></span>
+      <h2 data-bind="text:status"></h2>
+      <p data-bind="text:description"></p>
+      <strong data-bind="text:events.length + ' evidence rows'"></strong>
+    </article>
+  </section>
+
+  <section class="event-evidence-list">
+    <h2>Correlated lifecycle evidence</h2>
+    <div data-bind="foreach:eventRows">
+      <details class="event-evidence-row" data-bind="attr:{'data-command':command}">
+        <summary>
+          <strong data-bind="text:eventType"></strong>
+          <span data-bind="text:'#' + aggregateSequence"></span>
+          <span
+            class="event-state"
+            data-bind="attr:{'data-state':delivery ? delivery.state : 'UNKNOWN'},text:$parent.deliveryLabel(delivery ? delivery.state : undefined)"
+          ></span>
+          <time data-bind="text:$parent.dateTime(occurredAt || createdAt)"></time>
+          <small data-bind="text:consumptionLabel"></small>
+        </summary>
+        <div class="event-metadata">
+          <div><span>Event ID</span><code data-bind="text:eventId"></code></div>
+          <div><span>Topic</span><code data-bind="text:kafkaTopic || '—'"></code></div>
+          <div><span>Correlation</span><code data-bind="text:correlationId || '—'"></code></div>
+          <div>
+            <span>Delivery attempts</span>
+            <strong data-bind="text:delivery ? delivery.attemptCount : 0"></strong>
+          </div>
+          <div>
+            <span>Next attempt</span>
+            <strong
+              data-bind="text:delivery && delivery.nextAttemptAt ? $parent.dateTime(delivery.nextAttemptAt) : '—'"
+            ></strong>
+          </div>
+          <div>
+            <span>Last delivery error</span>
+            <strong
+              data-bind="text:delivery && delivery.lastError ? delivery.lastError : 'None'"
+            ></strong>
+          </div>
+        </div>
+        <pre class="event-payload" data-bind="text:$parent.json(payload)"></pre>
+      </details>
+    </div>
+    <div class="empty-state" data-bind="visible:!busy() && eventRows().length===0">
+      <h3>No event evidence yet</h3>
+      <p>Enter a payment ID to inspect committed outbox records.</p>
+    </div>
+  </section>
+
+  <section class="admin-list-surface">
+    <h2>Payout attempts</h2>
+    <div class="table-scroll">
+      <table class="dense-table attempts-table">
+        <thead>
+          <tr>
+            <th>Attempt</th>
+            <th>Route</th>
+            <th>Provider</th>
+            <th>Status</th>
+            <th>Provider reference</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:attempts">
+          <tr>
+            <td data-bind="text:attemptNumber"></td>
+            <td data-bind="text:routeCode"></td>
+            <td data-bind="text:providerCode"></td>
+            <td data-bind="text:$parent.label(status)"></td>
+            <td data-bind="text:providerReference || '—'"></td>
+            <td data-bind="text:errorCode || '—'"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="recovery-summary admin-list-surface" data-bind="with:recovery">
+    <h2>Recovery decisions</h2>
+    <p><strong data-bind="text:decision"></strong></p>
+    <p>Automated retries: <strong data-bind="text:automatedRetryCount"></strong></p>
+    <p>
+      Next run:
+      <strong data-bind="text:nextRun ? $parent.dateTime(nextRun) : 'Not scheduled'"></strong>
+    </p>
+  </section>
+
+  <section class="admin-list-surface">
+    <h2>Payment and recovery operations</h2>
+    <div class="table-scroll">
+      <table class="dense-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Type</th>
+            <th>Key</th>
+            <th>Status</th>
+            <th>HTTP</th>
+            <th>Response</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:operations">
+          <tr>
+            <td data-bind="text:namespace"></td>
+            <td data-bind="text:operationType"></td>
+            <td class="mono" data-bind="text:clientKey"></td>
+            <td data-bind="text:status"></td>
+            <td data-bind="text:outcomeStatus || '—'"></td>
+            <td>
+              <details>
+                <summary>View</summary>
+                <pre class="event-payload" data-bind="text:$parent.json(response)"></pre>
+              </details>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="admin-list-surface">
+    <h2>Funding and refund ledger evidence</h2>
+    <div class="table-scroll">
+      <table class="dense-table operations-ledger-table">
+        <thead>
+          <tr>
+            <th>Journal</th>
+            <th>Entry</th>
+            <th>Amount</th>
+            <th>Currency</th>
+            <th>Narration</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:ledgerEntries">
+          <tr>
+            <td class="mono" data-bind="text:journalReference"></td>
+            <td data-bind="text:entryType"></td>
+            <td data-bind="text:amount"></td>
+            <td data-bind="text:currency"></td>
+            <td data-bind="text:narration"></td>
+            <td data-bind="text:$parent.dateTime(createdAt)"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <!-- /ko -->
+</section>
+<!-- /ko -->

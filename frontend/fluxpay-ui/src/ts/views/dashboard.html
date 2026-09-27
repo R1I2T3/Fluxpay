@@ -1,7 +1,7 @@
 <section class="workspace-page dashboard-page">
   <div class="page-heading">
-    <div><span class="eyebrow">YOUR EVERYDAY, ELEVATED</span><h1>Hello<span data-bind="text:session.user() ? ', '+session.user().fullName.split(' ')[0] : ''"></span><span class="greeting-spark" aria-hidden="true">✦</span></h1><p>All your money. A world of possibilities.</p></div>
-    <button class="pill soft refresh-button" data-bind="click:refresh,disable:busy"><span aria-hidden="true">↻</span> Refresh</button>
+    <div class="dashboard-welcome"><div><h1>Hello<span class="greeting-name" data-bind="text:session.user() ? ', '+session.user().fullName.split(' ')[0] : ''"></span></h1><p>Here’s where your money stands today.</p></div></div>
+    <button class="pill soft refresh-button" aria-label="Refresh dashboard" data-bind="click:refresh,disable:busy"><span aria-hidden="true">↻</span> Refresh</button>
   </div>
   <div class="alert error" role="alert" data-bind="visible:error"><span>!</span><p data-bind="text:error"></p></div>
   <div class="alert success" role="status" data-bind="visible:notice"><span>✓</span><p data-bind="text:notice"></p></div>
@@ -10,23 +10,57 @@
   <div class="sign-in-gate"><span class="gate-icon">↗</span><h2>Your world of money awaits.</h2><p>Log in to see your balances, recipients, and transfers.</p><a class="pill dark" href="?ojr=login" data-route="login">Log in</a><a class="pill soft" href="?ojr=register" data-route="register">Create account</a></div>
   <!-- /ko -->
   <!-- ko if: session.user() -->
+  <div class="balance-grid dashboard-balances" aria-label="Your wallet balances" data-bind="foreach:dashboardWallets">
+    <button class="balance-card" data-bind="click:function(){$parent.overviewCurrency(currency)},css:{selected:$parent.overviewCurrency()===currency},attr:{'data-currency':currency,'aria-pressed':$parent.overviewCurrency()===currency,'aria-label':currency+' wallet, '+$parent.money(availableBalance,currency)+' available'}">
+      <div class="balance-top"><span class="currency-symbol" data-bind="text:currency==='USD'?'$':currency==='EUR'?'€':'₹'"></span><span class="wallet-currency-name" data-bind="text:currency+' wallet'"></span><span class="wallet-selection-mark" aria-hidden="true" data-bind="text:$parent.overviewCurrency()===currency?'✓':'↗'"></span></div>
+      <strong data-bind="text:$parent.money(availableBalance,currency)"></strong><small>Available balance</small>
+      <!-- ko if:$parent.processingForWallet($data).length --><div class="held-line"><span data-bind="text:$parent.holdCaption($data)"></span><span data-bind="text:$parent.money($parent.processingAmount($data),currency)"></span></div><!-- /ko -->
+      <!-- ko if:$parent.quotedForWallet($data).length --><small>Quoted amounts await confirmation; not deducted.</small><!-- /ko -->
+    </button>
+  </div>
+  <section class="dashboard-action-panel" aria-label="Move your money">
+        <div class="overview-actions dashboard-money-actions">
+          <a href="?ojr=add-money" data-route="wallets" data-action="add-money" class="pill dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add money</a>
+          <a href="?ojr=payments-new" data-route="payments-new" class="pill soft"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 14-14M6 5h13v13"/></svg>Send money</a>
+          <a href="?ojr=wallet-action/transfer" data-route="wallets" data-action="transfer" class="pill soft"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18m-5 5h5M7 5V3h10"/></svg>Wallet transfer</a>
+          <a href="?ojr=wallet-action/withdraw" data-route="wallets" data-action="withdraw" class="pill soft"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 8 9-5 9 5H3m3 4v6m6-6v6m6-6v6M3 21h18"/></svg>Withdraw</a>
+          <a href="?ojr=wallets" data-route="wallets" class="pill soft"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4"/></svg>Exchange</a>
+          <a href="?ojr=tracking" data-route="tracking" class="pill soft"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Track payment</a>
+        </div>
+  </section>
+  <div class="insights-toolbar"><div><h2>Account overview</h2></div><div class="insights-filters"><label><span>Currency</span><select aria-label="Insights currency" data-bind="value:overviewCurrency"><option>USD</option><option>EUR</option><option>INR</option></select></label><label><span>Period</span><select aria-label="Insights period" data-bind="value:period"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label></div></div>
+  <p class="insights-warning" role="status" data-bind="visible:activityWarning,text:activityWarning"></p>
+  <article class="panel insights-hero">
+    <div class="world-visual">
+      <div class="world-heading"><div><h2>A world of connections.</h2><p>Where your saved recipients are based.</p></div><span class="connection-count"><b data-bind="text:countries().length"></b> <span data-bind="text:countries().length===1?'country':'countries'"></span></span></div>
+      <div class="world-map-wrap">
+        <svg class="world-map" viewBox="0 0 720 360" role="img" aria-label="Illustrative world map highlighting saved recipient countries">
+          <defs><linearGradient id="world-land" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e5eaf5"/><stop offset="100%" stop-color="#d3dcee"/></linearGradient><pattern id="world-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#dce5f1"/></pattern><radialGradient id="world-glow"><stop offset="0%" stop-color="#9cc5ff" stop-opacity=".35"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+          <rect width="720" height="360" fill="url(#world-dots)" opacity=".45"/>
+          <g fill="url(#world-land)" stroke="#fff" stroke-width="2" data-bind="foreach:worldShapes"><path data-bind="attr:{d:$data}"></path></g>
+          <g data-bind="foreach:mapCountries"><circle r="35" fill="url(#world-glow)" data-bind="attr:{cx:point.x,cy:point.y}"></circle><circle class="map-halo" r="13" data-bind="attr:{cx:point.x,cy:point.y},css:{selected:$parent.highlightedCountry()?.code===code}"></circle><circle r="5" fill="#507ce8" stroke="#fff" stroke-width="2" data-bind="attr:{cx:point.x,cy:point.y}"><title data-bind="text:name+' · '+people+' saved recipient'+(people===1?'':'s')"></title></circle></g>
+          <!-- ko if:highlightedCountry()?.point --><g class="map-label" data-bind="with:highlightedCountry"><rect height="23" rx="7" fill="#20385a" data-bind="attr:{x:Math.min(650,Math.max(70,point.x))-66,y:point.y-36,width:132}"></rect><text text-anchor="middle" fill="#fff" font-size="11" data-bind="attr:{x:Math.min(650,Math.max(70,point.x)),y:point.y-21},text:name"></text></g><!-- /ko -->
+        </svg>
+        <div class="world-empty" data-bind="visible:!countries().length"><span>◎</span><strong>Your world starts here</strong><p>Add a recipient to see your global connections.</p><button class="pill soft compact" data-bind="click:paySomeoneNew">Add a recipient ↗</button></div>
+      </div>
+      <div class="country-chips" aria-label="Recipient countries" data-bind="foreach:countries"><button data-bind="click:$parent.selectCountry,css:{selected:$parent.highlightedCountry()?.code===code},attr:{'aria-pressed':$parent.highlightedCountry()?.code===code}"><span class="country-code" data-bind="text:code"></span><span data-bind="text:name"></span><b data-bind="text:people"></b></button></div>
+      <p class="map-footnote">Country-level overview from saved profiles, not live payment tracking.</p>
+    </div>
+    <div class="world-summary">
+      <span class="eyebrow">YOUR MONEY IN MOTION</span><h2 data-bind="text:overviewCurrency()+' at a glance'"></h2><p class="insight-period" data-bind="text:'Completed movements · last '+periodDays()+' days'"></p>
+      <div class="flow-metric incoming"><div><span class="metric-icon" aria-hidden="true">↙</span><span>Money in</span></div><strong data-bind="text:money(flow().incoming,overviewCurrency())"></strong><svg viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"><path class="spark-area" data-bind="attr:{d:incomingArea}"></path><path class="spark-line" data-bind="attr:{d:incomingPath}"></path></svg></div>
+      <div class="flow-metric outgoing"><div><span class="metric-icon" aria-hidden="true">↗</span><span>Money out</span></div><strong data-bind="text:money(flow().outgoing,overviewCurrency())"></strong><svg viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"><path class="spark-area" data-bind="attr:{d:outgoingArea}"></path><path class="spark-line" data-bind="attr:{d:outgoingPath}"></path></svg></div>
+      <div class="world-summary-footer"><span><b data-bind="text:flow().count"></b> recorded movements</span><a href="?ojr=payments-list" data-route="payments-list" aria-label="View transaction activity">↗</a></div>
+    </div>
+  </article>
   <div class="dashboard-grid">
     <div class="dashboard-main">
-      <article class="panel account-overview">
-        <div class="account-overview-top"><span class="eyebrow">PERSONAL ACCOUNT</span><span class="live-label"><i></i>Live balances</span></div>
-        <div class="overview-balance-row">
-          <div><label class="currency-picker"><span class="sr-only">Balance currency</span><select data-bind="options:wallets,optionsText:'currency',optionsValue:'currency',value:overviewCurrency"></select></label>
-            <!-- ko with: overviewWallet --><strong class="overview-amount" data-bind="text:$parent.money(availableBalance,currency)"></strong><p class="balance-caption">Available to spend <!-- ko if:$parent.processingForWallet($data).length --><span>·</span> <span data-bind="text:$parent.money($parent.processingAmount($data),currency)+' '+$parent.holdCaption($data).toLowerCase()"></span><!-- /ko --></p><!-- ko if:$parent.quotedForWallet($data).length --><p class="balance-caption">Quoted amounts await confirmation and are not deducted from your balance.</p><!-- /ko --><!-- /ko -->
-            <p data-bind="visible:!busy()&&!wallets().length">Your wallets will appear here once provisioned.</p>
-          </div>
-          <div class="overview-card-art" aria-hidden="true"><span>FluxPay<span class="card-chip">▥</span></span><b>✦</b><small>YOUR WORLD. CONNECTED.</small></div>
-        </div>
-        <div class="overview-actions"><a href="?ojr=wallets&amp;action=add-money" data-route="wallets" data-action="add-money" class="pill dark"><span>＋</span>Add money</a><a href="?ojr=payments-new" data-route="payments-new" class="pill soft"><span>↗</span>Send</a><a href="?ojr=wallets" data-route="wallets" class="pill soft"><span>⇄</span>Exchange</a><a href="?ojr=tracking" data-route="tracking" class="pill soft"><span>⌁</span>Track</a></div>
-        <div class="currency-strip" data-bind="foreach:wallets">
-          <button class="currency-tile" data-bind="click:function(){$parent.overviewCurrency(currency)},css:{selected:$parent.overviewCurrency()===currency},attr:{'aria-pressed':$parent.overviewCurrency()===currency}">
-            <span class="currency-flag" data-bind="text:currency==='USD'?'🇺🇸':currency==='EUR'?'🇪🇺':'🇮🇳'"></span><span><small data-bind="text:currency"></small><strong data-bind="text:$parent.money(availableBalance,currency)"></strong></span>
-          </button>
-        </div>
+      <article class="panel money-flow-panel">
+        <div class="panel-heading"><div><h2>Money flow</h2><p>Your daily activity, at a glance.</p></div><div class="chart-legend"><span><i class="legend-in"></i>Money in</span><span><i class="legend-out"></i>Money out</span></div></div>
+        <div class="money-flow-chart"><div class="chart-scale"><span data-bind="text:money(flowMaximum(),overviewCurrency())"></span><span data-bind="text:money(flowMaximum()/2,overviewCurrency())"></span><span>0</span></div><div class="chart-plot"><svg viewBox="0 0 600 150" preserveAspectRatio="none" role="img" data-bind="attr:{'aria-label':flowChartLabel}"><defs><linearGradient id="in-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#45bfa2" stop-opacity=".2"/><stop offset="100%" stop-color="#45bfa2" stop-opacity="0"/></linearGradient><linearGradient id="out-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#6c8bea" stop-opacity=".2"/><stop offset="100%" stop-color="#6c8bea" stop-opacity="0"/></linearGradient></defs><path class="chart-grid" d="M8 8 H592 M8 75 H592 M8 142 H592"/><path fill="url(#in-fill)" data-bind="attr:{d:incomingArea}"></path><path fill="url(#out-fill)" data-bind="attr:{d:outgoingArea}"></path><path class="chart-line line-in" data-bind="attr:{d:incomingPath}"></path><path class="chart-line line-out" data-bind="attr:{d:outgoingPath}"></path></svg><div class="chart-axis" data-bind="foreach:flowAxis"><span data-bind="text:$data"></span></div></div></div>
+        <p class="chart-empty" data-bind="visible:!flow().count">No completed movements in this currency and period yet.</p>
+        <div class="movement-bars" data-bind="foreach:flow().categories"><div><div><span data-bind="text:label"></span><b data-bind="text:count"></b></div><span class="movement-bar"><i data-bind="style:{width:($parent.flow().count?Math.min(100,count/$parent.flow().count*100):0)+'%',background:color}"></i></span></div></div>
+        <details class="chart-data"><summary>View daily amounts</summary><div class="chart-data-scroll"><table><thead><tr><th>Date</th><th>Money in</th><th>Money out</th></tr></thead><tbody data-bind="foreach:flow().buckets"><tr><td data-bind="text:date"></td><td data-bind="text:$parent.money(incoming,$parent.overviewCurrency())"></td><td data-bind="text:$parent.money(outgoing,$parent.overviewCurrency())"></td></tr></tbody></table></div></details><p class="insights-footnote">Completed activity includes exchanges. Currencies are never combined.</p>
       </article>
       <article class="panel activity-panel">
         <div class="panel-heading"><div><h2>Recent activity</h2><p>Money added, wallet transfers, exchanges and payments.</p></div><a href="?ojr=payments-list" data-route="payments-list" class="pill soft compact">View all ↗</a></div>
@@ -37,12 +71,12 @@
       </article>
     </div>
     <aside class="dashboard-rail" aria-label="Account shortcuts">
+      <article class="panel transfer-health"><div class="panel-heading"><div><h2>Transfer status</h2><p data-bind="text:'Last '+periodDays()+' days · all currencies'"></p></div><span class="health-icon" aria-hidden="true">↗</span></div><div class="status-visual"><div class="status-donut" role="img" data-bind="style:{background:transferSummary().background},attr:{'aria-label':transferSummary().completed+' of '+transferSummary().total+' payments completed'}"><div><strong data-bind="text:transferSummary().total"></strong><span>payments</span></div></div><div class="status-legend" data-bind="foreach:transferSummary().rows"><div><i data-bind="style:{background:color}"></i><span data-bind="text:label"></span><b data-bind="text:count"></b></div></div></div><p class="insights-footnote" data-bind="visible:!transferSummary().total">Your payment status overview will appear after your first transfer.</p><a class="insight-link" href="?ojr=payments-list" data-route="payments-list">See all activity <span>↗</span></a></article>
       <article class="panel dashboard-pay-people">
         <div class="panel-heading"><div><h2>Pay someone</h2><p>Pick a person. Pay in one simple flow.</p></div></div>
         <div class="send-people" data-bind="foreach:activeRecipients().slice(0,8)"><button class="send-person" data-bind="click:$parent.payPerson"><span class="avatar blue" data-bind="text:$parent.initials(name)"></span><strong data-bind="text:name"></strong><small data-bind="text:currency"></small></button></div>
         <p data-bind="visible:!activeRecipients().length">Your people will appear here. Add your first recipient to get started.</p><button class="pill soft wide" data-bind="click:paySomeoneNew">＋ Someone new</button>
       </article>
-      <article class="global-promo"><span class="eyebrow light">MAKE YOUR NEXT MOVE</span><h2>A little more<br>global.</h2><p>Three currencies.<br>One beautifully simple account.</p><div class="promo-globe" aria-hidden="true"><span>$</span><span>€</span><span>₹</span><i>✦</i></div><a href="?ojr=payments-new" data-route="payments-new" class="pill white">Explore transfers ↗</a></article>
       <a class="verification-nudge" href="?ojr=kyc" data-route="kyc"><span class="avatar blue">◇</span><div><strong>Your account, protected</strong><small data-bind="text:'Verification: '+label(session.user().kycStatus)"></small></div><span>↗</span></a>
     </aside>
   </div>

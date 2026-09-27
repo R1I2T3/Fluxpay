@@ -1,0 +1,12 @@
+.toast-region{position:fixed;z-index:4100;top:calc(20px + env(safe-area-inset-top,0px));right:calc(20px + env(safe-area-inset-right,0px));width:min(410px,calc(100vw - 40px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));display:grid;gap:10px;pointer-events:none}
+.app-toast{--toast-accent:#218866;display:flex;align-items:flex-start;gap:12px;position:relative;padding:17px 14px 17px 17px;border:1px solid #e0e9ed;border-left:4px solid var(--toast-accent);border-radius:18px;background:#fff;color:#18344f;box-shadow:0 12px 38px #15345820;pointer-events:auto;animation:toast-arrive .24s ease-out}
+.app-toast[data-kind=error]{--toast-accent:#c4484d;background:#fffafa;border-color:#efd9dc;border-left-color:var(--toast-accent)}
+.app-toast[data-kind=warning]{--toast-accent:#a66c16;background:#fffdf7;border-color:#efe3c8;border-left-color:var(--toast-accent)}
+.app-toast[data-kind=info]{--toast-accent:#2c70c9;background:#fafdff}
+.app-toast-icon{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border-radius:11px;background:#e7f5ee;color:var(--toast-accent);font-size:18px;font-weight:700}
+.app-toast[data-kind=error] .app-toast-icon{background:#fce8e9}.app-toast[data-kind=warning] .app-toast-icon{background:#fff0d4}.app-toast[data-kind=info] .app-toast-icon{background:#e8f1ff}
+.app-toast-copy{min-width:0;flex:1;max-height:220px;overflow:auto}.app-toast-copy strong{display:block;font-size:13px;line-height:1.5;font-weight:700;color:#203c56}.app-toast-copy p{margin:4px 0 0;font-size:12px;line-height:1.6;color:#52667a;overflow-wrap:anywhere;white-space:pre-wrap}
+.app-toast-close{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;margin:-5px -4px 0 0;padding:0!important;border:0;border-radius:50%;background:transparent;color:#718293;font-size:22px;line-height:1;cursor:pointer}.app-toast-close:hover{background:#e9eff5;color:#1d3854}.app-toast-close:focus-visible{outline:3px solid #80b0f2;outline-offset:2px}
+@keyframes toast-arrive{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media(max-width:600px){.toast-region{top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));width:min(410px,calc(100vw - 24px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));gap:8px}.app-toast{padding:14px 12px;border-radius:16px;gap:10px}.app-toast-close{flex-basis:36px;width:36px;height:36px}.app-toast-copy{max-height:150px}}
+@media(prefers-reduced-motion:reduce){.app-toast{animation:none}}

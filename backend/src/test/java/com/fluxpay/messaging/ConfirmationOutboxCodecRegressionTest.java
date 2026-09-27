@@ -9,9 +9,9 @@ import com.fluxpay.beans.OutboxEvent;
 import com.fluxpay.beans.Payment;
 import com.fluxpay.beans.PaymentPurpose;
 import com.fluxpay.beans.PaymentQuote;
-import com.fluxpay.beans.PayoutRoute;
 import com.fluxpay.beans.Recipient;
 import com.fluxpay.beans.RecipientStatus;
+import com.fluxpay.beans.TransferRoute;
 import com.fluxpay.common.contracts.ComplianceAssessor;
 import com.fluxpay.common.contracts.KycGate;
 import com.fluxpay.common.contracts.PostingPort;
@@ -24,8 +24,8 @@ import com.fluxpay.repository.OutboxEventRepository;
 import com.fluxpay.repository.PaymentOperationRepository;
 import com.fluxpay.repository.PaymentQuoteRepository;
 import com.fluxpay.repository.PaymentRepository;
-import com.fluxpay.repository.PayoutRouteRepository;
 import com.fluxpay.repository.RecipientRepository;
+import com.fluxpay.repository.TransferRouteRepository;
 import com.fluxpay.service.PaymentConfirmationService;
 import com.fluxpay.service.PaymentOperationService;
 import java.math.BigDecimal;
@@ -79,15 +79,16 @@ class ConfirmationOutboxCodecRegressionTest {
             NOW,
             NOW.plusSeconds(900));
     var route =
-        PayoutRoute.seed(UUID.randomUUID(), "BANK", "Bank", "Bank", "STANDARD", "5", "0", 1, "99");
+        TransferRoute.seed(
+            UUID.randomUUID(), "BANK", "Bank", "Bank", "STANDARD", "5", "0", 1, "99");
 
     var payments = mock(PaymentRepository.class);
     var quotes = mock(PaymentQuoteRepository.class);
     var recipients = mock(RecipientRepository.class);
-    var routes = mock(PayoutRouteRepository.class);
+    var routes = mock(TransferRouteRepository.class);
     when(payments.lockOwned(paymentId, user)).thenReturn(Optional.of(payment));
     when(quotes.findByIdAndPaymentId(quoteId, paymentId)).thenReturn(Optional.of(quote));
-    when(routes.findByCode("BANK")).thenReturn(Optional.of(route));
+    when(routes.findByRouteCode("BANK")).thenReturn(Optional.of(route));
     when(recipients.lockOwned(recipient.id(), user)).thenReturn(Optional.of(recipient));
     var kyc = mock(KycGate.class);
     when(kyc.isVerified(user)).thenReturn(true);

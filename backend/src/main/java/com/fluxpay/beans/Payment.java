@@ -40,7 +40,7 @@ public class Payment {
   private RoutePreference preference;
 
   @Column(name = "recipient_version")
-  private long recipientVersion;
+  private Long recipientVersion;
 
   @Lob
   @Column(name = "recipient_snapshot")
@@ -159,7 +159,7 @@ public class Payment {
   }
 
   public long recipientVersion() {
-    return recipientVersion;
+    return recipientVersion == null ? 0L : recipientVersion;
   }
 
   public String recipientSnapshot() {
