@@ -119,9 +119,9 @@ test('provider validation rejects malformed codes without API calls',async()=>{
 test('route validation rejects invalid corridor, money and limit values',async()=>{
   const {page,calls}=workspace();
   page.newRoute();
-  const valid={provider:providerId,code:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destination:'EXTERNAL_ACCOUNT',country:'IN',sourceCountry:'',sourceCurrency:'USD',currency:'INR',fee:'5',spread:'0.5',eta:'120',reliability:'99',min:'',max:''};
-  const fill=v=>{page.routeProviderId(v.provider);page.routeCode(v.code);page.routeName(v.name);page.routeDestination(v.destination);page.routeCountry(v.country);page.routeSourceCountry(v.sourceCountry);page.routeSourceCurrency(v.sourceCurrency);page.routeCurrency(v.currency);page.routeFee(v.fee);page.routeSpread(v.spread);page.routeEta(v.eta);page.routeReliability(v.reliability);page.routeMin(v.min);page.routeMax(v.max);};
-  for(const mutate of [v=>v.country='KENYA',v=>v.currency='IN',v=>v.sourceCurrency='US',v=>v.sourceCountry='USA',v=>v.fee='-1',v=>v.eta='0',v=>v.reliability='101',v=>{v.min='500';v.max='100';}]){
+  const valid={provider:providerId,code:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destination:'EXTERNAL_ACCOUNT',country:'IN',sourceCurrency:'USD',currency:'INR',fee:'5',spread:'0.5',eta:'120',reliability:'99',min:'',max:''};
+  const fill=v=>{page.routeProviderId(v.provider);page.routeCode(v.code);page.routeName(v.name);page.routeDestination(v.destination);page.routeCountry(v.country);page.routeSourceCurrency(v.sourceCurrency);page.routeCurrency(v.currency);page.routeFee(v.fee);page.routeSpread(v.spread);page.routeEta(v.eta);page.routeReliability(v.reliability);page.routeMin(v.min);page.routeMax(v.max);};
+  for(const mutate of [v=>v.country='KENYA',v=>v.currency='IN',v=>v.sourceCurrency='US',v=>v.fee='-1',v=>v.eta='0',v=>v.reliability='101',v=>{v.min='500';v.max='100';}]){
     const attempt={...valid};mutate(attempt);fill(attempt);
     await page.saveRoute();
     assert.equal(calls.length,0);

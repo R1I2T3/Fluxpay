@@ -84,7 +84,6 @@ export class RoutingWorkspace {
   routeName = ko.observable('');
   routeDestination = ko.observable('EXTERNAL_ACCOUNT');
   routeCountry = ko.observable('');
-  routeSourceCountry = ko.observable('');
   routeSourceCurrency = ko.observable('');
   routeCurrency = ko.observable('');
   routeFee = ko.observable('');
@@ -399,7 +398,6 @@ export class RoutingWorkspace {
     this.routeName('');
     this.routeDestination('EXTERNAL_ACCOUNT');
     this.routeCountry('');
-    this.routeSourceCountry('');
     this.routeSourceCurrency('');
     this.routeCurrency('');
     this.routeFee('');
@@ -421,7 +419,6 @@ export class RoutingWorkspace {
     this.routeName(route.name);
     this.routeDestination(route.destinationType);
     this.routeCountry(route.destinationCountry || '');
-    this.routeSourceCountry(route.sourceCountry || '');
     this.routeSourceCurrency(route.sourceCurrency || '');
     this.routeCurrency(route.payoutCurrency || '');
     this.routeFee(String(route.baseFee ?? ''));
@@ -461,9 +458,6 @@ export class RoutingWorkspace {
     if (!/^[A-Z]{3}$/.test(payoutCurrency)) invalid('Enter the three-letter ISO payout currency.');
     const sourceCurrency = this.routeSourceCurrency().trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(sourceCurrency)) invalid('Enter the three-letter ISO source currency.');
-    const sourceCountryRaw = this.routeSourceCountry().trim().toUpperCase();
-    if (sourceCountryRaw && !/^[A-Z]{2}$/.test(sourceCountryRaw))
-      invalid('Source country uses a two-letter ISO code.');
     const minimumRecipientAmount = optionalLimit(this.routeMin(), 'Minimum amount');
     const maximumRecipientAmount = optionalLimit(this.routeMax(), 'Maximum amount');
     if (
@@ -478,7 +472,7 @@ export class RoutingWorkspace {
       name,
       destinationType,
       destinationCountry: country || null,
-      sourceCountry: sourceCountryRaw || null,
+      sourceCountry: null,
       sourceCurrency,
       payoutCurrency,
       baseFee: nonNegative(this.routeFee(), 'Base fee'),
@@ -565,7 +559,6 @@ export class RoutingWorkspace {
           name: 'Name',
           destinationType: 'Payout method',
           destinationCountry: 'Country',
-          sourceCountry: 'Source country',
           sourceCurrency: 'Source currency',
           payoutCurrency: 'Currency',
           baseFee: 'Base fee',
@@ -582,7 +575,6 @@ export class RoutingWorkspace {
           'name',
           'destinationType',
           'destinationCountry',
-          'sourceCountry',
           'sourceCurrency',
           'payoutCurrency',
           'baseFee',

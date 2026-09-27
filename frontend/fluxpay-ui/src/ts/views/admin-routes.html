@@ -133,7 +133,7 @@
               <td data-bind="text:$parent.workspace.providerDisplayName(providerId)"></td>
               <td data-bind="text:destinationCountry||'—'"></td>
               <td data-bind="text:payoutCurrency"></td>
-              <td data-bind="text:(sourceCountry||'—')+' / '+sourceCurrency"></td>
+              <td data-bind="text:sourceCurrency"></td>
               <td data-bind="text:destinationType"></td>
               <td data-bind="text:baseFee"></td>
               <td data-bind="text:fxSpreadPercentage"></td>
@@ -255,12 +255,6 @@
                   placeholder="USD"
                   data-bind="textInput:routeSourceCurrency,disable:busy"
               /></label>
-              <label
-                >Source country (ISO, optional)<input
-                  maxlength="2"
-                  placeholder="US"
-                  data-bind="textInput:routeSourceCountry,disable:busy"
-              /></label>
             </div>
             <div class="form-row">
               <label
@@ -338,7 +332,7 @@
           <!-- ko with:routeEditTarget -->
           <p
             class="form-help"
-            data-bind="text:'Corridor sourceCountry='+(sourceCountry||'—')+' sourceCurrency='+sourceCurrency+' destinationCountry='+(destinationCountry||'—')+' payoutCurrency='+payoutCurrency+' destinationType='+destinationType"
+            data-bind="text:'Corridor sourceCurrency='+sourceCurrency+' destinationCountry='+(destinationCountry||'—')+' payoutCurrency='+payoutCurrency+' destinationType='+destinationType"
           ></p>
           <!-- /ko -->
           <table class="dense-table">
@@ -456,10 +450,6 @@
     <form class="eligibility-inputs" data-bind="submit:runPreview">
       <label>Country<input maxlength="2" data-bind="textInput:previewCountry" /></label
       ><label>Currency<input maxlength="3" data-bind="textInput:previewCurrency" /></label
-      ><label
-        >Source country (optional)<input
-          maxlength="2"
-          data-bind="textInput:previewSourceCountry" /></label
       ><label
         >Source currency<input maxlength="3" data-bind="textInput:previewSourceCurrency" /></label
       ><label>Amount<input inputmode="decimal" data-bind="textInput:previewAmount" /></label
