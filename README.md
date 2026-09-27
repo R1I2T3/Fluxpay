@@ -51,11 +51,11 @@ it never removes volumes or unrelated topics. In external mode, set
 contains no stale FluxPay events.
 
 After the reset, start the backend once so Flyway installs the versioned migrations, run
-the seed twice to prove idempotence, copy the reported system UUID into
+the infrastructure seed, copy the reported system UUID into
 `FLUXPAY_SYSTEM_USER_ID`, then restart the backend:
 
 ```bash
-python3 -B scripts/seed-local.py
+python3 -B scripts/seed-local.py --provision-only
 python3 -B scripts/seed-local.py
 python3 -B scripts/check-ledger.py
 ```
@@ -68,6 +68,69 @@ provider for each external rail with representative `IN`/`INR` routes. Passwords
 `SEED_SYSTEM_PASSWORD`, `SEED_ADMIN_PASSWORD`, and `SEED_CUSTOMER_PASSWORD`.
 Public registration never accepts a role. Catalogue inserts use deterministic UUIDs and
 `MERGE ... WHEN NOT MATCHED THEN INSERT` only, so reruns keep administrator edits.
+
+### Priya's transaction history (30 completed transactions)
+
+For local sample activity, set these values in `.env` and restart the backend:
+
+```dotenv
+FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true
+FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED=true
+```
+
+Keep `SIMULATE_FAILURE` unset, configure the system UUID from provisioning above,
+and leave the backend, Oracle, Kafka, and the configured FX provider available. Then run:
+
+```powershell
+python -B scripts/seed-local.py
+```
+
+The default run creates **six of each (30 total)**: linked-bank top-ups, bank withdrawals,
+wallet transfers to Arjun Mehta, currency exchanges, and completed recipient payments.
+It funds USD/EUR/INR through six top-ups, links three sample bank accounts, and adds
+four realistic fictional recipients: Neha Sharma, Rohan Sharma, Ananya Verma, and
+Vikram Mehta. Remaining funds stay available in the wallets. Extra backdated history
+is opt-in with `--demo-history`; use `--no-demo-history` to override an environment setting. Sign in as
+`priya.sharma@gmail.com` with `SEED_CUSTOMER_PASSWORD` and open Activity.
+`SEED_ALICE_EMAIL` / `SEED_BOB_EMAIL` override the two customer addresses.
+
+All money movement goes through authenticated APIs, including quote → confirm →
+payout for Send money. The script never writes balances, ledger amounts, or payment
+statuses directly. For **local fixtures only**, it inserts a labelled VERIFIED KYC
+case when either seed customer has no case (no real identity document is fabricated).
+Existing pending/rejected cases are not overridden: review those in Admin first.
+The `HDFC Bank India` provider and `HDFC INR Priority Transfer` route use the
+simulated bank rail. Every provider and route in the known seed catalogue is activated
+on each run; unrelated administrator-created catalogue records remain unchanged.
+
+Reruns reuse durable versioned idempotency keys and verify the current payment state,
+so they do not add another 30 transactions. Partial runs resume the same batch;
+completed payments are skipped, expired unconfirmed quotes can refresh, and uncertain,
+failed, or review-required payments stop with their ID instead of being marked successful
+or retried as a new payout. API errors stop the script with a nonzero exit code; earlier
+completed operations remain. The success summary prints `transactions=30` only after
+all five groups finish. Existing activity is retained, so total history may exceed 30.
+Use `--provision-only` to retain infrastructure-only seeding (also used by `test-all.py`).
+
+After completing the batch, the seed spreads its transaction timestamps across the
+last 24 hours with varied minute gaps. Money flow defaults to the per-minute view;
+the chart's period selector also offers a closer Last hour view. Only completed
+operations with the seed's exact v1/v2 keys and configured customer ownership are
+dated; manually created transactions and separate demo-history fixtures are excluded.
+Both sides of each ledger journal, payment dates, quotes, payout attempts, and recorded
+timeline dates move together, preserving their order. Long interrupted lifecycles fit
+within 45 seconds for these presentation fixtures. Transport envelopes and immutable
+idempotency snapshots retain their original timestamps. Re-running refreshes the same
+records into the current 24-hour window and does not add transactions.
+
+To update dates on already-seeded transactions without running any payment APIs:
+
+```powershell
+python -B scripts/seed-local.py --timestamps-only
+```
+
+This requires the local Oracle database. If a payment's events are still syncing,
+timestamp changes are rolled back; allow Kafka/backend to finish, then rerun the command.
 
 The catalogue concepts: code-shipped `TransferRail` implementations (one per `RailType`) do the
 actual delivery; administrators manage providers (institutions bound to one rail type) and routes

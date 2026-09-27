@@ -34,19 +34,31 @@ export function recipientCountries(recipients:any[],payments:any[]){
   }
   return [...countries.values()].sort((a,b)=>b.payments-a.payments||b.people-a.people||a.name.localeCompare(b.name));
 }
-export function periodRecords(rows:any[],days:number,now:number){
+export function periodRecords(rows:any[],days:number,now:number,interval:'day'|'minute'='day',minutes=1440){
+  if(interval==='minute'){
+    const start=Math.floor(now/60000)*60000-(minutes-1)*60000;
+    return rows.filter(row=>{const stamp=Date.parse(row.createdAt);return Number.isFinite(stamp)&&stamp>=start&&stamp<=now;});
+  }
   const start=new Date(now);start.setHours(0,0,0,0);start.setDate(start.getDate()-days+1);
   return rows.filter(row=>{const date=Date.parse(row.createdAt);return Number.isFinite(date)&&date>=start.getTime()&&date<=now;});
 }
-export function moneyFlow(payments:any[],entries:any[],currency:string,days:number,now:number){
+export function moneyFlow(payments:any[],entries:any[],currency:string,days:number,now:number,interval:'day'|'minute'='day',minutes=1440){
   const start=new Date(now);start.setHours(0,0,0,0);start.setDate(start.getDate()-days+1);
-  const buckets=Array.from({length:days},(_,index)=>{const day=new Date(start);day.setDate(start.getDate()+index);return {date:day.toLocaleDateString('en',{month:'short',day:'numeric'}),stamp:day.getTime(),incoming:0,outgoing:0};});
-  const rows=periodRecords([...payments,...entries],days,now).filter(row=>row.status==='COMPLETED'&&row.sourceCurrency===currency);
+  const minuteStart=Math.floor(now/60000)*60000-(minutes-1)*60000;
+  const timeFormat=new Intl.DateTimeFormat('en',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const buckets=Array.from({length:interval==='minute'?minutes:days},(_,index)=>{
+    const day=new Date(start);day.setDate(start.getDate()+index);
+    const stamp=interval==='minute'?minuteStart+index*60000:day.getTime();
+    return {date:interval==='minute'?timeFormat.format(stamp):day.toLocaleDateString('en',{month:'short',day:'numeric'}),stamp,incoming:0,outgoing:0};
+  });
+  const byStamp=new Map(buckets.map(bucket=>[bucket.stamp,bucket]));
+  const rows=periodRecords([...payments,...entries],days,now,interval,minutes).filter(row=>row.status==='COMPLETED'&&row.sourceCurrency===currency&&Number.isFinite(Number(row.sourceAmount))&&Number(row.sourceAmount)>0&&(!row.isLedger||!!movementDirection(row)));
   let count=0;
   for(const row of rows){
     const amount=Number(row.sourceAmount);if(!Number.isFinite(amount)||amount<=0)continue;
     const direction=row.isLedger?movementDirection(row):'Money out';if(!direction)continue;
-    const day=new Date(row.createdAt);day.setHours(0,0,0,0);const bucket=buckets.find(b=>b.stamp===day.getTime());if(!bucket)continue;
+    const day=new Date(row.createdAt);day.setHours(0,0,0,0);
+    const bucket=byStamp.get(interval==='minute'?Math.floor(Date.parse(row.createdAt)/60000)*60000:day.getTime());if(!bucket)continue;
     const key=direction==='Money in'?'incoming':'outgoing';bucket[key]=Math.round((bucket[key]+amount)*10000)/10000;count++;
   }
   const total=(key:'incoming'|'outgoing')=>Math.round(buckets.reduce((sum,b)=>sum+b[key],0)*10000)/10000;
@@ -54,8 +66,25 @@ export function moneyFlow(payments:any[],entries:any[],currency:string,days:numb
   return {buckets,incoming:total('incoming'),outgoing:total('outgoing'),count,categories};
 }
 export function chartPath(values:number[],maximum:number,width=600,height=150){
-  const pad=8,scale=Math.max(1,maximum);
-  return values.map((value,index)=>(index?'L':'M')+(pad+index*(width-2*pad)/Math.max(1,values.length-1)).toFixed(2)+','+(height-pad-Math.max(0,value)/scale*(height-pad*2)).toFixed(2)).join(' ');
+  const pad=8,scale=Math.max(1,maximum),count=Math.max(1,values.length),step=(width-2*pad)/Math.max(1,count-1);
+  const points=values.map((value,index)=>({
+    x:pad+index*step,
+    y:height-pad-Math.max(0,value)/scale*(height-pad*2)
+  }));
+  if(!points.length)return '';
+  if(points.length===1)return `M${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`;
+  // Horizontal tangents keep each segment between its actual endpoints, including zero.
+  let path=`M${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`;
+  for(let i=0;i<points.length-1;i++){
+    const current=points[i];
+    const next=points[i+1];
+    const c1x=current.x+(next.x-current.x)/3;
+    const c1y=current.y;
+    const c2x=next.x-(next.x-current.x)/3;
+    const c2y=next.y;
+    path+=` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${next.x.toFixed(2)},${next.y.toFixed(2)}`;
+  }
+  return path;
 }
 export function transferStatus(payments:any[]){
   const groups=[{label:'Completed',color:'#4e7ce8',statuses:['COMPLETED']},{label:'In progress',color:'#e8b358',statuses:['PROCESSING','QUOTED','UNDER_REVIEW']},{label:'Drafts',color:'#b9c5d8',statuses:['DRAFT']},{label:'Needs attention',color:'#ec8f92',statuses:['FAILED','REJECTED']},{label:'Closed / refunded',color:'#8f7acb',statuses:['CANCELLED','REFUNDED']}];

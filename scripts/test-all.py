@@ -74,7 +74,7 @@ def main():
         print("frontend FAIL")
         return 3
     if a.suite in ("all", "e2e"):
-        if run(python_command("scripts/seed-local.py")):
+        if run(python_command("scripts/seed-local.py", "--provision-only")):
             print("seed FAIL")
             return 3
         if run(python_command("scripts/smoke-local.py")):

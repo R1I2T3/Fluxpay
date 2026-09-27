@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """Deterministically provision the FluxPay schema, development identities, system
-wallets, and the transfer provider/route catalogue. Catalogue seeding is insert-only, so
-reruns and administrator edits never conflict."""
+wallets, the transfer catalogue, and 30 completed customer transactions (five types).
+Use --provision-only for infrastructure without transaction fixtures. Local use only;
+catalogue inserts and stable API idempotency keys make reruns safe."""
 
 import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from platform_commands import load_env
+from seed_transaction_times import spread_seed_transaction_times
 
 IDENTITIES = (
     ("system", "SEED_SYSTEM_EMAIL", "fluxpay.system@gmail.com", "SEED_SYSTEM_PASSWORD", "FluxPay System"),
@@ -25,10 +28,9 @@ IDENTITIES = (
 
 SYSTEM_WALLET_ROLES = ("FX_CLEARING", "FX_GAIN_LOSS", "DEMO_CLEARING", "PAYOUT_CLEARING", "FEE_REVENUE")
 CURRENCIES = ("USD", "EUR", "INR")
-# Sample catalogue: code, name, code-shipped rail type, active.
-# The external providers stay inactive because their simulated rails are only installed
-# when FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED=true; an administrator activates them
-# after enabling simulated payouts. The internal provider is always usable.
+# Sample catalogue: code, name, code-shipped rail type, active. The seeder activates
+# every one of these known demo providers and routes after it upserts the catalogue.
+# This makes a fresh local database ready for quotes and payout demonstrations.
 PROVIDERS = (
     ("FLUXPAY", "FluxPay", "INTERNAL_LEDGER", 1),
     ("BANK_ALPHA", "HDFC Bank", "BANK_NETWORK", 0),
@@ -49,7 +51,7 @@ ROUTES = (
         None,
         "INR",
         "INR",
-        "0.0000",
+        "1.0000",
         "0.000000",
         1,
         "100.00",
@@ -65,7 +67,7 @@ ROUTES = (
         None,
         "USD",
         "USD",
-        "0.0000",
+        "1.0000",
         "0.000000",
         1,
         "100.00",
@@ -81,7 +83,7 @@ ROUTES = (
         None,
         "EUR",
         "EUR",
-        "0.0000",
+        "1.0000",
         "0.000000",
         1,
         "100.00",
@@ -248,6 +250,24 @@ ROUTES = (
         0,
         0,
     ),
+)
+
+TRANSACTION_DEMO_PROVIDER = ("HDFC_BANK_INDIA", "HDFC Bank India", "BANK_NETWORK", 1)
+TRANSACTION_DEMO_ROUTE = (
+    "HDFC_INR_PRIORITY",
+    "HDFC INR Priority Transfer",
+    "HDFC_BANK_INDIA",
+    "EXTERNAL_ACCOUNT",
+    "IN",
+    None,
+    "USD",
+    "INR",
+    "1.0000",
+    "0.000000",
+    1,
+    "100.00",
+    1,
+    0,
 )
 
 
@@ -428,11 +448,57 @@ def activate_demo_routes(cursor, policies):
     ]
 
 
-def request_json(base_url, path, body):
+def activate_seeded_catalogue(cursor, providers, routes):
+    """Activate only the known seed catalogue, without touching unrelated admin data."""
+    for provider_code, _, _, _ in providers:
+        cursor.execute(DEMO_PROVIDER_ACTIVATION_SQL, provider_code=provider_code)
+    for route_code, *_ in routes:
+        cursor.execute(
+            """UPDATE transfer_routes
+                   SET active = 1, version = version + 1, updated_at = SYSTIMESTAMP
+                 WHERE route_code = :route_code AND active = 0 AND archived_at IS NULL""",
+            route_code=route_code,
+        )
+
+
+def rename_legacy_seed_catalogue(cursor):
+    """Rename existing demo rows in place so payment foreign keys remain valid."""
+    for table, code_column, name_column, old, new, name in (
+        ("transfer_providers", "provider_code", "provider_name", "LOCAL_SEED_BANK",
+         "HDFC_BANK_INDIA", "HDFC Bank India"),
+        ("transfer_routes", "route_code", "route_name", "LOCAL_SEED_INR",
+         "HDFC_INR_PRIORITY", "HDFC INR Priority Transfer"),
+    ):
+        cursor.execute(
+            f"""UPDATE {table} SET {code_column} = :new_code, {name_column} = :name,
+                       version = version + 1, updated_at = SYSTIMESTAMP
+                 WHERE {code_column} = :old_code""",
+            new_code=new, name=name, old_code=old,
+        )
+
+
+def ensure_seeded_route_fees(cursor):
+    """Upgrade zero-fee seed rows while preserving existing positive admin fees."""
+    for route in (*ROUTES, TRANSACTION_DEMO_ROUTE):
+        cursor.execute(
+            """UPDATE transfer_routes
+                   SET base_fee = :base_fee, version = version + 1, updated_at = SYSTIMESTAMP
+                 WHERE route_code = :route_code AND base_fee = 0 AND archived_at IS NULL""",
+            base_fee=route[8], route_code=route[0],
+        )
+
+
+def request_json(base_url, path, body=None, *, token=None, key=None, method=None):
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if key:
+        headers["Idempotency-Key"] = key
     request = urllib.request.Request(
         base_url.rstrip("/") + path,
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Accept": "application/json", "Content-Type": "application/json"},
+        data=json.dumps(body).encode("utf-8") if body is not None else None,
+        headers=headers,
+        method=method,
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
@@ -482,10 +548,14 @@ def require_local_oracle(jdbc_url):
 
 
 def _provider_id(provider_code):
+    if provider_code == "HDFC_BANK_INDIA":
+        provider_code = "LOCAL_SEED_BANK"  # Keep the stable identity across the rename.
     return uuid.uuid5(uuid.NAMESPACE_URL, "fluxpay:provider:" + provider_code).bytes
 
 
 def _route_id(route_code):
+    if route_code == "HDFC_INR_PRIORITY":
+        route_code = "LOCAL_SEED_INR"
     return uuid.uuid5(uuid.NAMESPACE_URL, "fluxpay:route:" + route_code).bytes
 
 
@@ -1020,7 +1090,7 @@ def _provider_route_id(route_code):
     return uuid.uuid5(uuid.NAMESPACE_URL, "fluxpay:route:" + route_code).bytes
 
 
-def provision_local_database(identities):
+def provision_local_database(identities, include_transactions=False):
     jdbc_url = os.environ.get("ORACLE_JDBC_URL", "").strip()
     username = os.environ.get("ORACLE_USERNAME", "").strip()
     password = os.environ.get("ORACLE_PASSWORD", "")
@@ -1044,6 +1114,7 @@ def provision_local_database(identities):
             if actual_schema != "FLUXPAY":
                 raise ValueError(f"connected schema is {actual_schema}, expected FLUXPAY")
 
+            rename_legacy_seed_catalogue(cursor)
             system_id = uuid.UUID(identities["system"]["id"]).bytes
             admin_id = uuid.UUID(identities["admin"]["id"]).bytes
             cursor.execute("UPDATE users SET role = 'SYSTEM' WHERE id = :user_id", user_id=system_id)
@@ -1075,7 +1146,14 @@ def provision_local_database(identities):
                         account_role=account_role,
                     )
 
-            for code, name, rail_type, active in PROVIDERS:
+            providers, routes = PROVIDERS, ROUTES
+            if include_transactions:
+                prepare_transaction_kyc(cursor, identities, admin_id)
+                # A separate local-only route leaves administrator-edited routes untouched.
+                providers += (TRANSACTION_DEMO_PROVIDER,)
+                routes += (TRANSACTION_DEMO_ROUTE,)
+
+            for code, name, rail_type, active in providers:
                 cursor.execute(
                     """MERGE INTO transfer_providers target
                        USING (SELECT :provider_code AS provider_code FROM dual) source
@@ -1093,7 +1171,7 @@ def provision_local_database(identities):
                     system_protected=1 if code in SYSTEM_PROTECTED_PROVIDERS else 0,
                 )
 
-            for route in ROUTES:
+            for route in routes:
                 (
                     code,
                     name,
@@ -1140,6 +1218,8 @@ def provision_local_database(identities):
                     system_protected=system_protected,
                 )
 
+            activate_seeded_catalogue(cursor, providers, routes)
+            ensure_seeded_route_fees(cursor)
             demo_routes = activate_demo_routes(cursor, policies)
 
             demo_history = {}
@@ -1168,16 +1248,244 @@ def provision_local_database(identities):
     }
 
 
+def require_local_api(base_url):
+    parsed = urlsplit(base_url)
+    if (parsed.scheme not in ("http", "https")
+            or parsed.hostname not in ("localhost", "127.0.0.1", "::1")
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or parsed.path not in ("", "/")):
+        raise ValueError("seeding requires a localhost API base URL, without credentials or a path")
+
+
+def transaction_settings():
+    for flag in ("FLUXPAY_DEVELOPMENT_SIMULATED_PAYOUTS_ENABLED",
+                 "FLUXPAY_DEVELOPMENT_SIMULATED_COMPLIANCE_ENABLED"):
+        if os.environ.get(flag, "").strip().lower() != "true":
+            raise ValueError(f"set {flag}=true in .env and restart the backend, or use --provision-only")
+    if os.environ.get("SIMULATE_FAILURE", "").strip():
+        raise ValueError("unset SIMULATE_FAILURE and restart the backend before seeding successful payments")
+
+
+def customer_email(key, fallback):
+    return os.environ.get(key, fallback).strip().lower()
+
+
+def prepare_transaction_kyc(cursor, identities, admin_id):
+    """Explicit local fixtures, not real identity verification; never overwrite a case."""
+    for email in (customer_email("SEED_ALICE_EMAIL", "priya.sharma@gmail.com"),
+                  customer_email("SEED_BOB_EMAIL", "arjun.mehta@gmail.com")):
+        user_id = uuid.UUID(identities[email]["id"]).bytes
+        cursor.execute("SELECT status FROM kyc_cases WHERE user_id = :user_id", user_id=user_id)
+        existing = cursor.fetchone()
+        if existing and existing[0] != "VERIFIED":
+            raise ValueError(f"{email} has an existing {existing[0]} KYC case; review it in Admin first")
+        cursor.execute(
+            """MERGE INTO kyc_cases target
+               USING (SELECT :user_id AS user_id FROM dual) source
+               ON (target.user_id = source.user_id)
+               WHEN NOT MATCHED THEN INSERT
+                 (id, user_id, status, doc_type, doc_number, created_at, submitted_at,
+                  decided_by, decided_at, version)
+               VALUES (SYS_GUID(), source.user_id, 'VERIFIED', 'PASSPORT', :doc_number,
+                       SYSTIMESTAMP, SYSTIMESTAMP, :admin_id, SYSTIMESTAMP, 0)""",
+            user_id=user_id, admin_id=admin_id,
+            doc_number="LOCAL-SEED-FIXTURE-" + str(uuid.UUID(bytes=user_id)),
+        )
+
+
+def api_data(base_url, path, body=None, **kwargs):
+    status, payload = request_json(base_url, path, body, **kwargs)
+    if status not in (200, 201, 202):
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        code = error.get("code", "UNKNOWN") if isinstance(error, dict) else "UNKNOWN"
+        message = error.get("message") if isinstance(error, dict) else None
+        if status == 503:
+            raise RuntimeError(
+                f"{path}: HTTP 503 ({code}){(': ' + message) if message else ''}. "
+                "Restart the backend after setting FLUXPAY_SYSTEM_USER_ID to the printed system-user-id, "
+                "then rerun; existing seeded operations are safe to replay."
+            )
+        raise RuntimeError(f"{path}: HTTP {status} ({code}){(': ' + message) if message else ''}; fix the cause and rerun with the same seed keys")
+    if not isinstance(payload, dict) or "data" not in payload:
+        raise ValueError(f"{path}: invalid API response")
+    return payload["data"]
+
+
+def seed_customer_transactions(base_url, identities):
+    """Six of each type, four recipients, and balances funded through the ledger."""
+    require_local_api(base_url)
+    transaction_settings()
+    priya_email = customer_email("SEED_ALICE_EMAIL", "priya.sharma@gmail.com")
+    arjun_email = customer_email("SEED_BOB_EMAIL", "arjun.mehta@gmail.com")
+    if priya_email == arjun_email:
+        raise ValueError("SEED_ALICE_EMAIL and SEED_BOB_EMAIL must be different")
+    expected_system = identities["system"]["id"]
+    if os.environ.get("FLUXPAY_SYSTEM_USER_ID", "").lower() != expected_system.lower():
+        raise ValueError(f"set FLUXPAY_SYSTEM_USER_ID={expected_system} and restart the backend, then rerun")
+    token = api_data(base_url, "/api/auth/login", {
+        "email": priya_email, "password": os.environ["SEED_CUSTOMER_PASSWORD"]})["token"]
+    admin_token = api_data(base_url, "/api/auth/login", {
+        "email": customer_email("SEED_ADMIN_EMAIL", "fluxpay.admin@gmail.com"),
+        "password": os.environ["SEED_ADMIN_PASSWORD"]})["token"]
+    rails = api_data(base_url, "/api/admin/rail-types", token=admin_token)["railTypes"]
+    if not any(r["railType"] == "BANK_NETWORK" for r in rails):
+        raise ValueError("running backend has no BANK_NETWORK rail; enable simulated payouts and restart")
+    if api_data(base_url, "/api/users/me", token=token)["kycStatus"] != "VERIFIED":
+        raise ValueError("Priya's KYC must be VERIFIED before creating transactions")
+
+    prefix = "seed-local:v2:" + identities[priya_email]["id"]
+
+    def call(path, body=None, step=None, method=None):
+        return api_data(base_url, path, body, token=token,
+                        key=f"{prefix}:{step}" if step else None, method=method)
+
+    banks = {}
+    for currency, name, last4 in (("USD", "Citi", "4821"), ("EUR", "HDFC Bank", "7316"),
+                                  ("INR", "State Bank of India", "9064")):
+        banks[currency] = call("/api/bank-accounts/link", {
+            "bankName": name, "accountLast4": last4, "currency": currency}, f"bank:{currency}")["id"]
+
+    counts = dict.fromkeys(("add-money", "withdraw", "wallet-transfer", "exchange", "send-money"), 0)
+
+    def posted(kind, index, path, body):
+        response = call(path, body, f"{kind}:{index}")
+        if not response.get("journalReference"):
+            raise RuntimeError(f"{kind} {index}: backend did not return a posted journal")
+        counts[kind] += 1
+        print(f"  {kind} {index}/6 completed (or already seeded)")
+
+    # Funding first: these top-ups are part of the batch, not extra balance edits.
+    for i, (currency, amount, note) in enumerate((
+        ("USD", "1500.00", "Monthly savings"), ("EUR", "1200.00", "Travel fund"),
+        ("INR", "75000.00", "Household budget"), ("USD", "500.00", "Freelance income"),
+        ("EUR", "400.00", "Holiday budget"), ("INR", "25000.00", "School fees")), 1):
+        posted("add-money", i, f"/api/bank-accounts/{banks[currency]}/topup", {"amount": amount, "note": note})
+
+    for i, (currency, amount, note) in enumerate((
+        ("USD", "80.00", "Savings account transfer"), ("EUR", "65.00", "Travel expenses"),
+        ("INR", "4000.00", "Household expenses"), ("USD", "120.00", "Monthly reserve"),
+        ("EUR", "40.00", "Dining expenses"), ("INR", "2200.00", "Utility bill")), 1):
+        posted("withdraw", i, "/api/wallets/withdraw", {
+            "bankAccountId": banks[currency], "currency": currency, "amount": amount, "note": note})
+
+    for i, (source, target, amount, note) in enumerate((
+        ("USD", "USD", "25.00", "Dinner share"), ("EUR", "EUR", "30.00", "Train tickets"),
+        ("INR", "INR", "1800.00", "Weekend groceries"), ("USD", "USD", "45.00", "Birthday gift"),
+        ("EUR", "EUR", "22.00", "Coffee share"), ("INR", "INR", "1250.00", "Cab fare")), 1):
+        posted("wallet-transfer", i, "/api/wallets/transfer", {
+            "toEmail": arjun_email, "fromCurrency": source, "toCurrency": target,
+            "amount": amount, "amountMode": "SOURCE", "note": note})
+
+    for i, (source, target, amount) in enumerate((
+        ("USD", "EUR", "75.00"), ("EUR", "INR", "60.00"),
+        ("INR", "USD", "2500.00"), ("USD", "INR", "90.00"),
+        ("EUR", "USD", "40.00"), ("INR", "EUR", "1800.00")), 1):
+        posted("exchange", i, "/api/wallets/convert", {"from": source, "to": target, "amount": amount})
+
+    wallets = {w["currency"]: w["walletId"] for w in call("/api/wallets")}
+    recipients = call("/api/recipients")
+    for i, (name, account, bank, source, amount, purpose) in enumerate((
+        ("Neha Sharma", "681234509201", "HDFC Bank", "USD", "40.00", "FAMILY_SUPPORT"),
+        ("Rohan Sharma", "681234509202", "State Bank of India", "USD", "55.00", "EDUCATION"),
+        ("Ananya Verma", "681234509203", "ICICI Bank", "USD", "70.00", "SAVINGS"),
+        ("Vikram Mehta", "681234509204", "Axis Bank", "USD", "85.00", "FAMILY_SUPPORT"),
+        ("Neha Sharma", "681234509201", "HDFC Bank", "USD", "125.00", "FAMILY_SUPPORT"),
+        ("Rohan Sharma", "681234509202", "State Bank of India", "USD", "180.00", "EDUCATION")), 1):
+        recipient = next((r for r in recipients if r["account"] == account and r["country"] == "IN"), None)
+        if recipient is None:
+            recipient = call("/api/recipients", {"name": name, "account": account, "bankName": bank,
+                             "country": "IN", "currency": "INR", "status": "ACTIVE"})
+            recipients.append(recipient)
+        draft = call("/api/payments/draft", {
+            "sourceWalletId": wallets[source], "recipientId": recipient["id"],
+            "sourceAmount": amount, "sourceCurrency": source, "payoutCurrency": "INR",
+            "purpose": purpose, "preference": "BALANCED"}, f"send:{i}:draft")
+        complete_seed_payment(call, draft["id"])
+        counts["send-money"] += 1
+        print(f"  send-money {i}/6 completed (or already seeded)")
+    return counts
+
+
+def complete_seed_payment(call, payment_id):
+    path = f"/api/payments/{payment_id}"
+    payment = call(path)  # Draft replay is an old snapshot; always read the live state.
+    if payment["status"] == "COMPLETED":
+        return
+    if payment["status"] in ("DRAFT", "QUOTED"):
+        if payment["status"] == "DRAFT":
+            quotes = call(path + "/quotes", step=f"{payment_id}:quotes:first", method="POST")
+        else:
+            quotes = call(path + "/quotes")
+        expires = quotes.get("expiresAt")
+        if expires and datetime.fromisoformat(expires.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+            quotes = call(path + "/quotes", step=f"{payment_id}:quotes:{expires}", method="POST")
+        quote = next((q for q in quotes["quotes"] if (q.get("routeCode") or q.get("route")) == "HDFC_INR_PRIORITY"), None)
+        if not quote:
+            raise RuntimeError(f"{payment_id}: HDFC_INR_PRIORITY quote unavailable; check active route and provider")
+        payment = call(path + "/confirm", {"quoteId": quote["id"]}, f"{payment_id}:confirm:{quote['id']}")
+    if payment["status"] != "PROCESSING":
+        raise RuntimeError(f"{payment_id}: status {payment['status']}; not completed. Review it in Admin/Activity; no automatic retry")
+    quotes = call(path + "/quotes")
+    quote = next((q for q in quotes["quotes"] if q["id"] == payment["selectedQuoteId"]), None)
+    if not quote or (quote.get("routeCode") or quote.get("route")) != "HDFC_INR_PRIORITY":
+        raise RuntimeError(f"{payment_id}: confirmed route is not the local seed route")
+    # Same durable key on resumption: never create a second payout attempt.
+    result = call(path + "/submit-payout", {"routeCode": "HDFC_INR_PRIORITY"}, f"{payment_id}:payout")
+    if result.get("status") not in ("COMPLETED", "PROCESSING"):
+        raise RuntimeError(f"{payment_id}: payout {result.get('status')}; inspect Activity before continuing")
+    for _ in range(15):
+        latest = call(path)
+        if latest["status"] == "COMPLETED":
+            return
+        if latest["status"] != "PROCESSING":
+            break
+        time.sleep(2)
+    raise RuntimeError(f"{payment_id}: completion not confirmed; inspect Activity, then rerun to resume")
+
+
+def retime_local_transactions(user_id=None):
+    """Refresh the presentation dates of this customer's completed seed batches."""
+    dsn = require_local_oracle(os.environ.get("ORACLE_JDBC_URL", "").strip())
+    username = os.environ.get("ORACLE_USERNAME", "").strip()
+    password = os.environ.get("ORACLE_PASSWORD", "")
+    if username.upper() != "FLUXPAY" or not password:
+        raise ValueError("timestamp fixtures require the local FLUXPAY schema credentials")
+    try:
+        import oracledb
+    except ImportError as exception:
+        raise RuntimeError("install the Python 'oracledb' package to date local fixtures") from exception
+    with oracledb.connect(user=username, password=password, dsn=dsn) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT SYS_CONTEXT('USERENV','CURRENT_SCHEMA') FROM dual")
+            if cursor.fetchone()[0].upper() != "FLUXPAY":
+                raise ValueError("timestamp fixtures require the FLUXPAY application schema")
+            cursor.execute("ALTER SESSION SET TIME_ZONE = '+00:00'")
+            if user_id is None:
+                cursor.execute("SELECT id FROM users WHERE email = :email",
+                               email=customer_email("SEED_ALICE_EMAIL", "priya.sharma@gmail.com"))
+                row = cursor.fetchone()
+                if not row:
+                    raise ValueError("Seed customer not found; run seed-local.py first")
+                user_id = str(uuid.UUID(bytes=bytes(row[0])))
+            count = spread_seed_transaction_times(cursor, user_id)
+        connection.commit()
+    print(f"dated-transactions={count} spread across the last 24 hours; refresh the dashboard")
+    return count
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env-file", default=".env")
     parser.add_argument("--base-url")
+    parser.add_argument("--timestamps-only", action="store_true",
+                        help="Spread existing completed seed activity over the last 24 hours without new transactions")
     parser.add_argument(
         "--demo-history", action="store_true", help="seed backdated demo history for Stats presentations"
     )
     parser.add_argument(
         "--no-demo-history", action="store_true", help="skip demo history even if SEED_DEMO_HISTORY=true"
     )
+    parser.add_argument("--provision-only", action="store_true", help="Skip customer transactions and local KYC fixtures")
     args = parser.parse_args()
     load_env(args.env_file)
     if args.demo_history:
@@ -1186,6 +1494,16 @@ def main():
         os.environ["SEED_DEMO_HISTORY"] = "false"
     base_url = args.base_url or os.environ.get("SEED_BASE_URL", "http://localhost:8080")
 
+    if args.timestamps_only:
+        if args.provision_only:
+            parser.error("--timestamps-only cannot be combined with --provision-only")
+        try:
+            retime_local_transactions()
+            return 0
+        except (OSError, RuntimeError, ValueError) as exception:
+            print(f"seed failed: {exception}")
+            return 2
+
     missing = [password_key for _, _, _, password_key, _ in IDENTITIES if not os.environ.get(password_key)]
     if missing:
         print("seed failed: missing " + ", ".join(sorted(set(missing))))
@@ -1193,11 +1511,23 @@ def main():
 
     identities = {}
     try:
+        require_local_api(base_url)
+        require_local_oracle(os.environ.get("ORACLE_JDBC_URL", ""))
+        if not args.provision_only:
+            transaction_settings()
+            if customer_email("SEED_ALICE_EMAIL", "priya.sharma@gmail.com") == customer_email("SEED_BOB_EMAIL", "arjun.mehta@gmail.com"):
+                raise ValueError("SEED_ALICE_EMAIL and SEED_BOB_EMAIL must be different")
         for kind, email_key, default_email, password_key, full_name in IDENTITIES:
             email = os.environ.get(email_key, default_email).strip().lower()
             user = register_or_login(base_url, email, os.environ[password_key], full_name)
             identities[kind if kind != "customer" else email] = user
-        result = provision_local_database(identities)
+        result = provision_local_database(identities, include_transactions=not args.provision_only)
+        print(f"system-user-id={result['systemUserId']} (set FLUXPAY_SYSTEM_USER_ID before backend restart)")
+        if not args.provision_only:
+            print("Seeding local sample transactions; absent customer KYC cases use labelled local fixtures.")
+            counts = seed_customer_transactions(base_url, identities)
+            retime_local_transactions(identities[customer_email("SEED_ALICE_EMAIL", "priya.sharma@gmail.com")]["id"])
+            print("transactions=" + str(sum(counts.values())) + " " + " ".join(f"{k}={v}" for k, v in counts.items()))
     except (OSError, RuntimeError, ValueError) as exception:
         print(f"seed failed: {exception}")
         return 2
@@ -1206,7 +1536,6 @@ def main():
         f"users={result['users']} system-wallets={result['systemWallets']} "
         f"providers={result['providers']} routes={result['routes']}"
     )
-    print(f"system-user-id={result['systemUserId']} (set FLUXPAY_SYSTEM_USER_ID before backend restart)")
     demo_history = result.get("demoHistory", {})
     if demo_history:
         print(

@@ -11,24 +11,31 @@ class ViewModel extends Page {
   movementLabel=movementLabel;
   movementDirection=movementDirection;
   worldShapes=worldShapes;
-  period=ko.observable('30');
+  period=ko.observable('minute');
+  flowDetailsOpen=ko.observable(false);
+  toggleFlowDetails=(_:any,event:Event)=>{this.flowDetailsOpen((event.target as HTMLDetailsElement).open);return true;};
   loadedAt=ko.observable(Date.now());
   selectedCountry=ko.observable('');
+  minuteView=ko.pureComputed(()=>['minute','hour'].includes(this.period()));
+  minuteWindow=ko.pureComputed(()=>this.period()==='hour'?60:1440);
+  periodLabel=ko.pureComputed(()=>this.minuteView()?(this.period()==='hour'?'Last hour':'Last 24 hours'):`Last ${this.periodDays()} days`);
   periodDays=ko.pureComputed(()=>[7,30,90].includes(Number(this.period()))?Number(this.period()):30);
-  periodPayments=ko.pureComputed(()=>periodRecords(this.payments(),this.periodDays(),this.loadedAt()));
+  periodPayments=ko.pureComputed(()=>periodRecords(this.payments(),this.periodDays(),this.loadedAt(),this.minuteView()?'minute':'day',this.minuteWindow()));
   countries=ko.pureComputed(()=>recipientCountries(this.recipients(),this.periodPayments()));
   mapCountries=ko.pureComputed(()=>this.countries().filter(country=>country.point));
   highlightedCountry=ko.pureComputed(()=>this.countries().find(country=>country.code===this.selectedCountry())||this.countries()[0]);
   selectCountry=(country:any)=>this.selectedCountry(country.code);
-  flow=ko.pureComputed(()=>moneyFlow(this.payments(),this.entries(),this.overviewCurrency(),this.periodDays(),this.loadedAt()));
+  flow=ko.pureComputed(()=>moneyFlow(this.payments(),this.entries(),this.overviewCurrency(),this.periodDays(),this.loadedAt(),this.minuteView()?'minute':'day',this.minuteWindow()));
   flowMaximum=ko.pureComputed(()=>Math.max(1,...this.flow().buckets.flatMap(day=>[day.incoming,day.outgoing])));
   incomingPath=ko.pureComputed(()=>chartPath(this.flow().buckets.map(day=>day.incoming),this.flowMaximum()));
   outgoingPath=ko.pureComputed(()=>chartPath(this.flow().buckets.map(day=>day.outgoing),this.flowMaximum()));
   incomingArea=ko.pureComputed(()=>this.incomingPath()+' L592,142 L8,142 Z');
   outgoingArea=ko.pureComputed(()=>this.outgoingPath()+' L592,142 L8,142 Z');
-  flowAxis=ko.pureComputed(()=>[this.flow().buckets[0].date,this.flow().buckets[Math.floor(this.periodDays()/2)].date,this.flow().buckets[this.periodDays()-1].date]);
+  flowAxis=ko.pureComputed(()=>{const buckets=this.flow().buckets;return [buckets[0].date,buckets[Math.floor(buckets.length/2)].date,buckets[buckets.length-1].date];});
   transferSummary=ko.pureComputed(()=>transferStatus(this.periodPayments()));
-  flowChartLabel=ko.pureComputed(()=>`Completed ${this.overviewCurrency()} movements in the last ${this.periodDays()} days: ${this.money(this.flow().incoming,this.overviewCurrency())} in and ${this.money(this.flow().outgoing,this.overviewCurrency())} out.`);
+  flowChartLabel=ko.pureComputed(()=>`Completed ${this.overviewCurrency()} movements: ${this.periodLabel()}, ${this.minuteView()?'per minute':'per day'}. ${this.money(this.flow().incoming,this.overviewCurrency())} in and ${this.money(this.flow().outgoing,this.overviewCurrency())} out.`);
+  private flowTimeFormat=new Intl.DateTimeFormat('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+  flowTimeLabel=(bucket:any)=>this.minuteView()?this.flowTimeFormat.format(bucket.stamp):bucket.date;
   private stopped=false;
   constructor(params:any) { super('home',params);this.screen='dashboard';void this.load(); }
   async load(){

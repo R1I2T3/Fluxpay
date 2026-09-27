@@ -348,11 +348,32 @@ class SeedLocalTests(unittest.TestCase):
                     self.assertIn("WHEN NOT MATCHED THEN INSERT", sql)
                     self.assertNotIn("WHEN MATCHED THEN", sql)
                     self.assertNotIn("payout_routes", sql)
-                self.assertFalse(
-                    any(
-                        "UPDATE transfer_providers" in call.args[0] or "UPDATE transfer_routes" in call.args[0]
-                        for call in cursor.execute.call_args_list
-                    )
+                activation_updates = [
+                    call for call in cursor.execute.call_args_list
+                    if "SET active = 1" in call.args[0]
+                ]
+                self.assertEqual(len(activation_updates), 17)
+                self.assertEqual(
+                    {call.kwargs.get("provider_code") for call in activation_updates if "provider_code" in call.kwargs},
+                    {"FLUXPAY", "BANK_ALPHA", "REAL_TIME", "PARTNER"},
+                )
+                self.assertEqual(
+                    {call.kwargs.get("route_code") for call in activation_updates if "route_code" in call.kwargs},
+                    {
+                        "FLUXPAY_INTERNAL",
+                        "FLUXPAY_INTERNAL_USD",
+                        "FLUXPAY_INTERNAL_EUR",
+                        "BANK_STANDARD",
+                        "BANK_EXPRESS",
+                        "REALTIME_INR",
+                        "PARTNER_INR",
+                        "BANK_USD_STANDARD",
+                        "REALTIME_USD",
+                        "PARTNER_USD",
+                        "BANK_EUR_STANDARD",
+                        "REALTIME_EUR",
+                        "PARTNER_EUR",
+                    },
                 )
         self.assertEqual(connection.commit.call_count, 2)
 
@@ -384,7 +405,7 @@ class SeedLocalTests(unittest.TestCase):
         }
         output = io.StringIO()
         with (
-            mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(sys, "argv", ["seed-local.py", "--provision-only"]),
             mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
@@ -434,7 +455,7 @@ class SeedLocalTests(unittest.TestCase):
         }
         output = io.StringIO()
         with (
-            mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(sys, "argv", ["seed-local.py", "--provision-only"]),
             mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
@@ -445,6 +466,8 @@ class SeedLocalTests(unittest.TestCase):
                 },
                 clear=True,
             ),
+            mock.patch.object(script, "require_local_api"),
+            mock.patch.object(script, "require_local_oracle"),
             mock.patch.object(
                 script,
                 "register_or_login",
@@ -622,7 +645,7 @@ class SeedLocalTests(unittest.TestCase):
             "demoHistory": {"users": 8, "payments": 20, "attempts": 25, "kyc": 2, "compliance": 2, "tickets": 2},
         }
         with (
-            mock.patch.object(sys, "argv", ["seed-local.py"]),
+            mock.patch.object(sys, "argv", ["seed-local.py", "--provision-only"]),
             mock.patch.object(script, "load_env"),
             mock.patch.dict(
                 os.environ,
@@ -633,6 +656,8 @@ class SeedLocalTests(unittest.TestCase):
                 },
                 clear=True,
             ),
+            mock.patch.object(script, "require_local_api"),
+            mock.patch.object(script, "require_local_oracle"),
             mock.patch.object(script, "register_or_login", return_value={"id": "11111111-1111-1111-1111-111111111111"}),
             mock.patch.object(script, "provision_local_database", return_value=provisioned),
             contextlib.redirect_stdout(output),

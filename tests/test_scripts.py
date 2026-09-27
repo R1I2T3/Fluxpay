@@ -321,7 +321,7 @@ class ScriptCommandTests(unittest.TestCase):
             self.assertEqual(script.main(), 0)
 
         seed_command = run.call_args_list[0].args[0]
-        self.assertEqual(seed_command, [sys.executable, str(PROJECT_ROOT / "scripts" / "seed-local.py")])
+        self.assertEqual(seed_command, [sys.executable, str(PROJECT_ROOT / "scripts" / "seed-local.py"), "--provision-only"])
         smoke_command = run.call_args_list[1].args[0]
         self.assertEqual(smoke_command, [sys.executable, str(PROJECT_ROOT / "scripts" / "smoke-local.py")])
 

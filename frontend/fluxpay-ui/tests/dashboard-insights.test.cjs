@@ -17,6 +17,27 @@ test('recipient geography counts real active recipients without inventing locati
  const countries=recipientCountries([{id:'a',country:'IN',status:'ACTIVE'},{id:'b',country:'IN',status:'ACTIVE'},{id:'c',country:'DE',status:'INACTIVE'},{id:'d',country:'IS',status:'ACTIVE'}],[{recipientId:'a',status:'COMPLETED'}]);
  assert.equal(countries.length,2);assert.equal(countries[0].people,2);assert.equal(countries[0].payments,1);assert.equal(countries[0].name,'India');assert.ok(countries[0].point);assert.equal(countries.find(c=>c.code==='IS').point,undefined);assert.equal(recipientCountries([],[]).length,0);
 });
+test('minute buckets follow clock boundaries and include the current partial minute without merging neighbours',()=>{
+ const end=Date.parse('2026-09-27T14:05:37Z'),current=Date.parse('2026-09-27T14:05:00Z');
+ const row=(stamp,amount,extra={})=>({createdAt:new Date(stamp).toISOString(),sourceCurrency:'USD',sourceAmount:String(amount),status:'COMPLETED',...extra});
+ const start=current-1439*60000;
+ const payments=[row(current-1,10),row(current,20),row(end,5),row(end+1,99),row(start-1,99),row(start,3),row(current,99,{status:'FAILED'}),row(current,99,{sourceCurrency:'EUR'})];
+ const entries=[row(current+1000,12,{isLedger:true,entryType:'CREDIT'}),row(current+2000,8,{isLedger:true,entryType:'CREDIT'})];
+ const flow=moneyFlow(payments,entries,'USD',30,end,'minute');
+ assert.equal(flow.buckets.length,1440);assert.equal(flow.buckets[0].stamp,start);assert.equal(flow.buckets[1439].stamp,current);
+ assert.equal(flow.buckets[1438].outgoing,10);assert.equal(flow.buckets[1439].outgoing,25);assert.equal(flow.buckets[1439].incoming,20);
+ assert.equal(flow.outgoing,38);assert.equal(flow.incoming,20);assert.equal(flow.count,6);assert.match(flow.buckets[1439].date,/^\d{2}:\d{2}$/);
+ const hour=moneyFlow(payments,entries,'USD',30,end,'minute',60);
+ assert.equal(hour.buckets.length,60);assert.equal(hour.outgoing,35);
+ assert.equal(periodRecords(payments,30,end,'minute',60).length,5);
+});
+test('smooth paths do not dip below zero at isolated transaction spikes',()=>{
+ for(const values of [[0,0,100,0,0],[100,0,100],[0,0,0]]){
+   const path=chartPath(values,100);assert.match(path,/ C/);
+   const coordinates=[...path.matchAll(/(-?\d+\.\d+),(-?\d+\.\d+)/g)];
+   for(const [,x,y] of coordinates){assert.ok(Number(x)>=8&&Number(x)<=592);assert.ok(Number(y)>=8&&Number(y)<=142);}
+ }
+});
 test('transfer-status distribution distinguishes completed, review, drafts, failures and refunds',()=>{
  const summary=transferStatus(['COMPLETED','PROCESSING','QUOTED','UNDER_REVIEW','DRAFT','FAILED','REJECTED','REFUNDED','CANCELLED'].map(status=>({status})));
  assert.equal(summary.total,9);assert.equal(summary.completed,1);assert.equal(summary.rows.reduce((sum,row)=>sum+row.count,0),9);assert.equal(summary.rows[1].count,3);assert.match(summary.background,/conic-gradient/);assert.equal(transferStatus([]).background,'#edf1f8');
