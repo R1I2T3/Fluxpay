@@ -283,7 +283,7 @@ class TransferRouteAdminControllerTest {
   }
 
   @Test
-  void blankSourceCurrencyIsBadRequestWithoutServiceInvocation() throws Exception {
+  void malformedSourceCurrencyIsBadRequestWithoutServiceInvocation() throws Exception {
     when(authorizer.isAdmin(any())).thenReturn(true);
     mvc.perform(
             post("/api/admin/routes")
@@ -293,6 +293,32 @@ class TransferRouteAdminControllerTest {
                     CREATE_BODY
                         .formatted(P_HDFC)
                         .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":\"US\"")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
+    verify(service, never()).create(any());
+  }
+
+  @Test
+  void blankSourceCurrencyIsBadRequestWithoutServiceInvocation() throws Exception {
+    when(authorizer.isAdmin(any())).thenReturn(true);
+    mvc.perform(
+            post("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    CREATE_BODY
+                        .formatted(P_HDFC)
+                        .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":\"\"")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
+    mvc.perform(
+            post("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    CREATE_BODY
+                        .formatted(P_HDFC)
+                        .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":null")))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
     verify(service, never()).create(any());

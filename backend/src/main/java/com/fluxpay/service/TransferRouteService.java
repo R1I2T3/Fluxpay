@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,8 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Administrator lifecycle for transfer routes: CRUD, optimistic locking, provider/destination
- * binding immutability after first use, and delete/archive decisions.
+ * Administrator lifecycle for transfer routes: CRUD, optimistic locking,
+ * provider/destination/source binding immutability after first use, and delete/archive decisions.
  */
 @Service
 public class TransferRouteService {
@@ -42,7 +43,9 @@ public class TransferRouteService {
       BigDecimal maximumRecipientAmount,
       boolean active) {}
 
-  /** Mutable route fields; the code is immutable and the provider/destination bind after use. */
+  /**
+   * Mutable route fields; the code is immutable and the provider/destination/source bind after use.
+   */
   public record UpdateRoute(
       UUID providerId,
       String name,
@@ -157,12 +160,14 @@ public class TransferRouteService {
     boolean bindingChanged =
         !command.providerId().equals(route.provider().id())
             || !command.destinationType().equals(route.destinationType())
-            || !Objects.equals(command.sourceCurrency(), route.sourceCurrency())
-            || !Objects.equals(command.sourceCountry(), route.sourceCountry());
+            || !Objects.equals(
+                normalizeBindingCode(command.sourceCurrency()), route.sourceCurrency())
+            || !Objects.equals(
+                normalizeBindingCode(command.sourceCountry()), route.sourceCountry());
     if (bindingChanged && usage.routeUsed(id)) {
       throw conflict(
           "ROUTING_BINDING_IMMUTABLE",
-          "The route provider and destination cannot change after the route has been used.");
+          "The route provider, destination and source cannot change after the route has been used.");
     }
     TransferProvider provider = findProviderForUpdate(command.providerId());
     if (command.active() && !provider.active()) {
@@ -223,6 +228,13 @@ public class TransferRouteService {
     if (expectedVersion == null || !expectedVersion.equals(route.version())) {
       throw conflict("STALE_ROUTE", "The route was changed. Refresh and try again.");
     }
+  }
+
+  private static String normalizeBindingCode(String value) {
+    if (value == null) {
+      return null;
+    }
+    return value.trim().toUpperCase(Locale.ROOT);
   }
 
   private BusinessException invalid(String message) {

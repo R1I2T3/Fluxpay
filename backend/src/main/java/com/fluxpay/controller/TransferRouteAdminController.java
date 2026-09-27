@@ -32,8 +32,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Administrator CRUD for transfer routes. Route codes are immutable; the provider/destination
- * binding is immutable once the route has been used.
+ * Administrator CRUD for transfer routes. Route codes are immutable; the
+ * provider/destination/source binding is immutable once the route has been used.
  */
 @RestController
 @RequestMapping("/api/admin/routes")

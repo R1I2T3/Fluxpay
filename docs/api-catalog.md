@@ -230,6 +230,8 @@ provider and route are active and unarchived, whose source currency (and pinned 
 is installed and compatible. Learned reliability blends the configured success rate (a 20-attempt
 prior) with terminal `COMPLETED`/`FAILED` outcomes; processing or uncertain outcomes are ignored.
 
+Ops note: the source-corridor columns are `NOT NULL` with no default or backfill, so existing databases require a fresh rebuild — there is no rolling-upgrade path. Leave `sourceCountry` blank unless pinning is intended: a pinned country disables the route until sender-country plumbing exists (all production callers currently pass `sourceCountry=null`). Cross-currency wallet transfers require an explicit source-to-payout internal route; the same-currency seeds alone do not serve FX.
+
 ## Payout, recovery, and timeline APIs
 
 | # | Method and URL | Auth / headers | Request body | Status and sample output |

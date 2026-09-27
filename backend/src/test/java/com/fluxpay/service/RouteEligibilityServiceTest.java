@@ -1,6 +1,7 @@
 package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fluxpay.beans.TransferProvider;
 import com.fluxpay.beans.TransferRoute;
@@ -37,7 +38,7 @@ class RouteEligibilityServiceTest {
   @Test
   void rejectsBlankSourceCurrency() {
     TransferProvider p = provider(RailType.BANK_NETWORK, true);
-    org.assertj.core.api.Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 TransferRoute.create(
                     UUID.randomUUID(),
