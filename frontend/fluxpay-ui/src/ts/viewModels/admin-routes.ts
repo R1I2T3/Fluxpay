@@ -22,6 +22,8 @@ class AdminRoutesViewModel {
   attentionOnly = ko.observable(false);
   previewCountry = ko.observable('');
   previewCurrency = ko.observable('');
+  previewSourceCountry = ko.observable('');
+  previewSourceCurrency = ko.observable('');
   previewAmount = ko.observable('');
   previewDestination = ko.observable('EXTERNAL_ACCOUNT');
   previewSubmitted = ko.observable(false);
@@ -48,6 +50,8 @@ class AdminRoutesViewModel {
         currency: this.previewCurrency(),
         amount: this.previewAmount(),
         destinationType: this.previewDestination(),
+        sourceCurrency: this.previewSourceCurrency(),
+        sourceCountry: this.previewSourceCountry() || null,
       },
       this.workspace.routes(),
       this.workspace.providers(),

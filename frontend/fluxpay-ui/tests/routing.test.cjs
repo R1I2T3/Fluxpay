@@ -66,7 +66,7 @@ test('provider and route updates pass versions in the body with auth and encoded
 function workspace(overrides={},admin=true,runtime={}){
   const calls=[];
   const provider={id:providerId,providerCode:'HDFC_BANK',providerName:'HDFC Bank',railType:'BANK_NETWORK',active:true,version:0};
-  const route={id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0};
+  const route={id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',sourceCountry:null,sourceCurrency:'USD',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0};
   const api=new Proxy(overrides,{get:(obj,name)=>async(...args)=>{calls.push([name,...args]);if(name in obj)return obj[name](...args);if(name==='railTypes')return [{railType:'BANK_NETWORK',displayLabel:'Bank Network',supportedDestinations:['EXTERNAL_ACCOUNT']}];if(name==='providers')return [provider];if(name==='routesAdmin')return [route];if(name==='createProvider'||name==='updateProvider')return {...provider};if(name==='createRoute'||name==='updateRoute')return {...route};if(name==='deleteProvider')return {disposition:'DELETED',id:providerId};if(name==='deleteRoute')return {disposition:'ARCHIVED',id:routeId};}});
   const session={user:ko.observable({role:admin?'ADMIN':'USER'})};session.isAdmin=ko.pureComputed(()=>session.user()?.role==='ADMIN');
   const context={exports:{},require:name=>name==='knockout'?ko:name==='./session'?{session}:{fluxApi:api},...runtime};
@@ -119,9 +119,9 @@ test('provider validation rejects malformed codes without API calls',async()=>{
 test('route validation rejects invalid corridor, money and limit values',async()=>{
   const {page,calls}=workspace();
   page.newRoute();
-  const valid={provider:providerId,code:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destination:'EXTERNAL_ACCOUNT',country:'IN',currency:'INR',fee:'5',spread:'0.5',eta:'120',reliability:'99',min:'',max:''};
-  const fill=v=>{page.routeProviderId(v.provider);page.routeCode(v.code);page.routeName(v.name);page.routeDestination(v.destination);page.routeCountry(v.country);page.routeCurrency(v.currency);page.routeFee(v.fee);page.routeSpread(v.spread);page.routeEta(v.eta);page.routeReliability(v.reliability);page.routeMin(v.min);page.routeMax(v.max);};
-  for(const mutate of [v=>v.country='KENYA',v=>v.currency='IN',v=>v.fee='-1',v=>v.eta='0',v=>v.reliability='101',v=>{v.min='500';v.max='100';}]){
+  const valid={provider:providerId,code:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destination:'EXTERNAL_ACCOUNT',country:'IN',sourceCountry:'',sourceCurrency:'USD',currency:'INR',fee:'5',spread:'0.5',eta:'120',reliability:'99',min:'',max:''};
+  const fill=v=>{page.routeProviderId(v.provider);page.routeCode(v.code);page.routeName(v.name);page.routeDestination(v.destination);page.routeCountry(v.country);page.routeSourceCountry(v.sourceCountry);page.routeSourceCurrency(v.sourceCurrency);page.routeCurrency(v.currency);page.routeFee(v.fee);page.routeSpread(v.spread);page.routeEta(v.eta);page.routeReliability(v.reliability);page.routeMin(v.min);page.routeMax(v.max);};
+  for(const mutate of [v=>v.country='KENYA',v=>v.currency='IN',v=>v.sourceCurrency='US',v=>v.sourceCountry='USA',v=>v.fee='-1',v=>v.eta='0',v=>v.reliability='101',v=>{v.min='500';v.max='100';}]){
     const attempt={...valid};mutate(attempt);fill(attempt);
     await page.saveRoute();
     assert.equal(calls.length,0);
@@ -135,7 +135,7 @@ test('route validation rejects invalid corridor, money and limit values',async()
 test('route filters narrow the catalogue by provider, corridor and status',async()=>{
   const {page}=workspace();
   await page.loadAll();
-  page.routes.push({id:'33333333-3333-4333-8333-333333333333',providerId,routeCode:'HDFC_INR_EXPRESS',name:'HDFC INR Express',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'KE',payoutCurrency:'KES',baseFee:'6.0000',fxSpreadPercentage:'1.000000',estimatedMinutes:30,configuredSuccessRate:'98.00',effectiveSuccessRate:'98.00',completedCount:1,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:false,version:0});
+  page.routes.push({id:'33333333-3333-4333-8333-333333333333',providerId,routeCode:'HDFC_INR_EXPRESS',name:'HDFC INR Express',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'KE',sourceCountry:null,sourceCurrency:'USD',payoutCurrency:'KES',baseFee:'6.0000',fxSpreadPercentage:'1.000000',estimatedMinutes:30,configuredSuccessRate:'98.00',effectiveSuccessRate:'98.00',completedCount:1,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:false,version:0});
   assert.equal(page.filteredRoutes().length,2);
   page.countryFilter('KE');
   assert.deepEqual(page.filteredRoutes().map(r=>r.routeCode),['HDFC_INR_EXPRESS']);
@@ -224,7 +224,7 @@ test('provider stale conflict rebases the edit target and retries retained entri
 });
 
 test('route stale conflict rebases the edit target and retries retained entries with the refreshed version',async()=>{
-  const initial={id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0};
+  const initial={id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',sourceCountry:null,sourceCurrency:'USD',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0};
   const latest={...initial,name:'Server renamed route',baseFee:'6.0000',version:7};
   let routeReads=0;
   const updates=[];
@@ -292,7 +292,7 @@ test('stale editors retain entries and block another update when the record was 
   let routeUpdates=0;
   let routeReads=0;
   const routeResult=workspace({
-    routesAdmin:async()=>routeReads++===0?[{id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0}]:[],
+    routesAdmin:async()=>routeReads++===0?[{id:routeId,providerId,routeCode:'HDFC_INR_STANDARD',name:'HDFC INR Standard',destinationType:'EXTERNAL_ACCOUNT',destinationCountry:'IN',sourceCountry:null,sourceCurrency:'USD',payoutCurrency:'INR',baseFee:'5.0000',fxSpreadPercentage:'0.500000',estimatedMinutes:120,configuredSuccessRate:'99.00',effectiveSuccessRate:'99.00',completedCount:0,failedCount:0,minimumRecipientAmount:null,maximumRecipientAmount:null,active:true,version:0}]:[],
     updateRoute:async()=>{routeUpdates++;throw new Error('STALE_ROUTE: version 0 is stale');}
   });
   await routeResult.page.loadAll();
@@ -390,7 +390,7 @@ test('admin routes view model parses mode, attention status and preview state',a
   assert.equal(page.previewSubmitted(),false);
   assert.equal(page.runPreview(),false);
   assert.equal(page.previewSubmitted(),true);
-  assert.deepEqual(JSON.parse(JSON.stringify(page.preview())),{inputErrors:['Enter an amount greater than zero.','Enter a two-letter destination country.','Enter a three-letter payout currency.'],routes:[]});
+  assert.deepEqual(JSON.parse(JSON.stringify(page.preview())),{inputErrors:['Enter an amount greater than zero.','Enter a two-letter destination country.','Enter a three-letter payout currency.','Enter a three-letter source currency.'],routes:[]});
   page.mode('MATRIX');
   page.changeMode();
   assert.deepEqual(JSON.parse(JSON.stringify(navigations)),[['admin-routes',{view:'MATRIX',status:'ATTENTION'}]]);

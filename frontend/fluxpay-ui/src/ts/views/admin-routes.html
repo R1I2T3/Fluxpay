@@ -50,102 +50,161 @@
   </div>
   <!-- ko if:mode()==='CATALOGUE' -->
   <div class="configuration-workspace">
-  <section class="configuration-list" aria-label="Route catalogue">
-    <div class="filter-row">
-      <label>Search<input type="search" aria-label="Search payout routes" data-bind="textInput:workspace.search" /></label>
-      <label>Provider<select data-bind="value:workspace.providerFilter">
-        <option value="ALL">All providers</option>
-        <!-- ko foreach:workspace.providers --><option data-bind="value:id,text:providerName"></option><!-- /ko -->
-      </select></label>
-      <label>Destination<select data-bind="value:workspace.destinationFilter">
-        <option value="ALL">All destinations</option><option value="EXTERNAL_ACCOUNT">External account</option><option value="INTERNAL_WALLET">Internal wallet</option>
-      </select></label>
-      <label>Country<input maxlength="2" placeholder="All" data-bind="textInput:workspace.countryFilter" /></label>
-      <label>Currency<input maxlength="3" placeholder="All" data-bind="textInput:workspace.currencyFilter" /></label>
-      <label>Status<select data-bind="value:workspace.statusFilter">
-        <option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
-      </select></label>
-    </div>
-    <div class="action-row">
-      <button class="pill dark" data-bind="click:workspace.newRoute,disable:workspace.busy">
-        New route
-      </button>
-    </div>
-    <p class="subtle-note" data-bind="visible:attentionOnly">
-      Attention only: showing routes that need attention.
-    </p>
-    <div class="table-scroll">
-      <table class="dense-table admin-wide-table route-catalogue-table">
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Provider</th>
-            <th>Country</th>
-            <th>Currency</th>
-            <th>Method</th>
-            <th>Fee</th>
-            <th>Spread</th>
-            <th>ETA</th>
-            <th>Reliability</th>
-            <th>Limits</th>
-            <th>Status</th>
-            <th class="sticky-action"></th>
-          </tr>
-        </thead>
-        <tbody data-bind="foreach:catalogueRoutes">
-          <tr>
-            <td class="mono" data-bind="text:routeCode"></td>
-            <td>
-              <span data-bind="text:name"></span>
-              <!-- ko if:$parent.workspace.routeProtected($data) -->
-              <span class="protected-badge">System protected</span>
-              <!-- /ko -->
-            </td>
-            <td data-bind="text:$parent.workspace.providerDisplayName(providerId)"></td>
-            <td data-bind="text:destinationCountry||'—'"></td>
-            <td data-bind="text:payoutCurrency"></td>
-            <td data-bind="text:destinationType"></td>
-            <td data-bind="text:baseFee"></td>
-            <td data-bind="text:fxSpreadPercentage"></td>
-            <td data-bind="text:estimatedMinutes+' min'"></td>
-            <td data-bind="text:configuredSuccessRate+'% / '+effectiveSuccessRate+'%'"></td>
-            <td
-              data-bind="text:(minimumRecipientAmount==null&&maximumRecipientAmount==null)?'No limits':(minimumRecipientAmount||'0')+' – '+(maximumRecipientAmount||'∞')"
-            ></td>
-            <td>
-              <span
-                class="status"
-                data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"
-              ></span>
-            </td>
-            <td class="sticky-action">
-              <button type="button" class="icon-action" aria-label="Edit payout route" title="Edit payout route" data-bind="click:$parent.workspace.editRoute"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="empty-state" data-bind="visible:!catalogueRoutes().length">
-      <h3>No matching routes</h3>
-      <p>No routes match the current filters.</p>
-    </div>
-  </section>
-  <!-- ko if:workspace.routeForm -->
-  <div class="admin-confirmation modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="route-editor-title" data-bind="adminDialog:{initialFocus:'#route-editor-title'}">
-    <section class="panel admin-workflow-modal route-editor-modal">
-      <!-- ko with:workspace -->
-      <!-- ko if:saveReview()!=='route' -->
+    <section class="configuration-list" aria-label="Route catalogue">
+      <div class="filter-row">
+        <label
+          >Search<input
+            type="search"
+            aria-label="Search payout routes"
+            data-bind="textInput:workspace.search"
+        /></label>
+        <label
+          >Provider<select data-bind="value:workspace.providerFilter">
+            <option value="ALL">All providers</option>
+            <!-- ko foreach:workspace.providers -->
+            <option data-bind="value:id,text:providerName"></option>
+            <!-- /ko -->
+          </select></label
+        >
+        <label
+          >Destination<select data-bind="value:workspace.destinationFilter">
+            <option value="ALL">All destinations</option>
+            <option value="EXTERNAL_ACCOUNT">External account</option>
+            <option value="INTERNAL_WALLET">Internal wallet</option>
+          </select></label
+        >
+        <label
+          >Country<input
+            maxlength="2"
+            placeholder="All"
+            data-bind="textInput:workspace.countryFilter"
+        /></label>
+        <label
+          >Currency<input
+            maxlength="3"
+            placeholder="All"
+            data-bind="textInput:workspace.currencyFilter"
+        /></label>
+        <label
+          >Status<select data-bind="value:workspace.statusFilter">
+            <option value="ALL">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select></label
+        >
+      </div>
+      <div class="action-row">
+        <button class="pill dark" data-bind="click:workspace.newRoute,disable:workspace.busy">
+          New route
+        </button>
+      </div>
+      <p class="subtle-note" data-bind="visible:attentionOnly">
+        Attention only: showing routes that need attention.
+      </p>
+      <div class="table-scroll">
+        <table class="dense-table admin-wide-table route-catalogue-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Provider</th>
+              <th>Country</th>
+              <th>Currency</th>
+              <th>Source</th>
+              <th>Method</th>
+              <th>Fee</th>
+              <th>Spread</th>
+              <th>ETA</th>
+              <th>Reliability</th>
+              <th>Limits</th>
+              <th>Status</th>
+              <th class="sticky-action"></th>
+            </tr>
+          </thead>
+          <tbody data-bind="foreach:catalogueRoutes">
+            <tr>
+              <td class="mono" data-bind="text:routeCode"></td>
+              <td>
+                <span data-bind="text:name"></span>
+                <!-- ko if:$parent.workspace.routeProtected($data) -->
+                <span class="protected-badge">System protected</span>
+                <!-- /ko -->
+              </td>
+              <td data-bind="text:$parent.workspace.providerDisplayName(providerId)"></td>
+              <td data-bind="text:destinationCountry||'—'"></td>
+              <td data-bind="text:payoutCurrency"></td>
+              <td data-bind="text:(sourceCountry||'—')+' / '+sourceCurrency"></td>
+              <td data-bind="text:destinationType"></td>
+              <td data-bind="text:baseFee"></td>
+              <td data-bind="text:fxSpreadPercentage"></td>
+              <td data-bind="text:estimatedMinutes+' min'"></td>
+              <td data-bind="text:configuredSuccessRate+'% / '+effectiveSuccessRate+'%'"></td>
+              <td
+                data-bind="text:(minimumRecipientAmount==null&&maximumRecipientAmount==null)?'No limits':(minimumRecipientAmount||'0')+' – '+(maximumRecipientAmount||'∞')"
+              ></td>
+              <td>
+                <span
+                  class="status"
+                  data-bind="text:archivedAt?'Archived':active?'Active':'Inactive',attr:{'data-status':archivedAt?'ARCHIVED':active?'ACTIVE':'INACTIVE'}"
+                ></span>
+              </td>
+              <td class="sticky-action">
+                <button
+                  type="button"
+                  class="icon-action"
+                  aria-label="Edit payout route"
+                  title="Edit payout route"
+                  data-bind="click:$parent.workspace.editRoute"
+                >
+                  <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="empty-state" data-bind="visible:!catalogueRoutes().length">
+        <h3>No matching routes</h3>
+        <p>No routes match the current filters.</p>
+      </div>
+    </section>
+    <!-- ko if:workspace.routeForm -->
+    <div
+      class="admin-confirmation modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="route-editor-title"
+      data-bind="adminDialog:{initialFocus:'#route-editor-title'}"
+    >
+      <section class="panel admin-workflow-modal route-editor-modal">
+        <!-- ko with:workspace -->
+        <!-- ko if:saveReview()!=='route' -->
         <header class="admin-modal-header">
           <div>
             <span class="eyebrow">PAYOUT ROUTE</span>
-            <h2 id="route-editor-title" tabindex="-1" data-bind="text:routeEditTarget()?'Edit route':'New route'"></h2>
+            <h2
+              id="route-editor-title"
+              tabindex="-1"
+              data-bind="text:routeEditTarget()?'Edit route':'New route'"
+            ></h2>
             <p data-bind="text:'Target environment: '+$parent.environment.label"></p>
           </div>
-          <button type="button" class="close-button" aria-label="Close route editor" title="Close" data-bind="click:closeRouteEditor,disable:busy">&#10005;</button>
+          <button
+            type="button"
+            class="close-button"
+            aria-label="Close route editor"
+            title="Close"
+            data-bind="click:closeRouteEditor,disable:busy"
+          >
+            &#10005;
+          </button>
         </header>
         <div class="admin-modal-body route-edit-body">
-          <form id="route-edit-form" class="admin-modal-form route-edit-form" data-bind="submit:function(){requestRouteSave();return false}">
+          <form
+            id="route-edit-form"
+            class="admin-modal-form route-edit-form"
+            data-bind="submit:function(){requestRouteSave();return false}"
+          >
             <div class="form-row">
               <label
                 >Provider<select
@@ -186,6 +245,21 @@
                   maxlength="3"
                   placeholder="INR"
                   data-bind="textInput:routeCurrency,disable:busy"
+              /></label>
+            </div>
+            <div class="form-row">
+              <label
+                >Source currency (ISO)<input
+                  required
+                  maxlength="3"
+                  placeholder="USD"
+                  data-bind="textInput:routeSourceCurrency,disable:busy"
+              /></label>
+              <label
+                >Source country (ISO, optional)<input
+                  maxlength="2"
+                  placeholder="US"
+                  data-bind="textInput:routeSourceCountry,disable:busy"
               /></label>
             </div>
             <div class="form-row">
@@ -235,41 +309,63 @@
           </form>
         </div>
         <footer class="admin-modal-footer">
-          <button type="button" class="pill soft" data-bind="click:closeRouteEditor,disable:busy">Cancel</button>
-          <button type="submit" form="route-edit-form" class="pill dark" data-bind="disable:busy">Review changes</button>
+          <button type="button" class="pill soft" data-bind="click:closeRouteEditor,disable:busy">
+            Cancel
+          </button>
+          <button type="submit" form="route-edit-form" class="pill dark" data-bind="disable:busy">
+            Review changes
+          </button>
         </footer>
-      <!-- /ko -->
-      <!-- ko if:saveReview()==='route' -->
-      <header class="admin-modal-header">
-        <div><span class="eyebrow">REVIEW CHANGES</span><h2 id="route-editor-title" tabindex="-1">Review route changes</h2><p data-bind="text:'Target environment: '+$parent.environment.label"></p></div>
-        <button type="button" class="close-button" aria-label="Close route editor" title="Close" data-bind="click:closeRouteEditor,disable:busy">&#10005;</button>
-      </header>
-      <div class="admin-modal-body">
-        <!-- ko with:routeEditTarget -->
-        <p
-          class="form-help"
-          data-bind="text:'Corridor destinationCountry='+(destinationCountry||'—')+' payoutCurrency='+payoutCurrency+' destinationType='+destinationType"
-        ></p>
         <!-- /ko -->
-        <table class="dense-table">
-          <tbody data-bind="foreach:routeChanges">
-            <tr>
-              <th data-bind="text:label"></th>
-              <td data-bind="text:before"></td>
-              <td data-bind="text:after"></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <footer class="admin-modal-footer">
-        <button type="button" class="pill soft" data-bind="click:cancelSaveReview,disable:busy">Back</button>
-        <button type="button" class="pill dark" data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$parent.environment.label"></button>
-      </footer>
-      <!-- /ko -->
-      <!-- /ko -->
-    </section>
-  </div>
-  <!-- /ko -->
+        <!-- ko if:saveReview()==='route' -->
+        <header class="admin-modal-header">
+          <div>
+            <span class="eyebrow">REVIEW CHANGES</span>
+            <h2 id="route-editor-title" tabindex="-1">Review route changes</h2>
+            <p data-bind="text:'Target environment: '+$parent.environment.label"></p>
+          </div>
+          <button
+            type="button"
+            class="close-button"
+            aria-label="Close route editor"
+            title="Close"
+            data-bind="click:closeRouteEditor,disable:busy"
+          >
+            &#10005;
+          </button>
+        </header>
+        <div class="admin-modal-body">
+          <!-- ko with:routeEditTarget -->
+          <p
+            class="form-help"
+            data-bind="text:'Corridor sourceCountry='+(sourceCountry||'—')+' sourceCurrency='+sourceCurrency+' destinationCountry='+(destinationCountry||'—')+' payoutCurrency='+payoutCurrency+' destinationType='+destinationType"
+          ></p>
+          <!-- /ko -->
+          <table class="dense-table">
+            <tbody data-bind="foreach:routeChanges">
+              <tr>
+                <th data-bind="text:label"></th>
+                <td data-bind="text:before"></td>
+                <td data-bind="text:after"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="admin-modal-footer">
+          <button type="button" class="pill soft" data-bind="click:cancelSaveReview,disable:busy">
+            Back
+          </button>
+          <button
+            type="button"
+            class="pill dark"
+            data-bind="click:confirmRouteSave,disable:busy,text:'Apply in '+$parent.environment.label"
+          ></button>
+        </footer>
+        <!-- /ko -->
+        <!-- /ko -->
+      </section>
+    </div>
+    <!-- /ko -->
   </div>
   <!-- /ko -->
   <!-- ko if:mode()==='MATRIX' -->
@@ -283,15 +379,15 @@
       <table class="dense-table">
         <thead>
           <tr>
-            <th>Country</th>
+            <th>Source</th>
             <!-- ko foreach:matrix()[0].cells -->
-            <th data-bind="text:currency"></th>
+            <th data-bind="text:corridor"></th>
             <!-- /ko -->
           </tr>
         </thead>
         <tbody data-bind="foreach:matrix">
           <tr>
-            <td data-bind="text:country"></td>
+            <td data-bind="text:source"></td>
             <!-- ko foreach:cells -->
             <td
               data-bind="text:count?('Available · '+count+' routes'):'Unavailable · 0 routes',attr:{'data-state':count?'available':'unavailable'}"
@@ -314,6 +410,7 @@
             <th>Route</th>
             <th>Country</th>
             <th>Currency</th>
+            <th>Source</th>
             <th>Destination type</th>
             <th>Base fee</th>
             <th>Spread</th>
@@ -332,6 +429,7 @@
             <td class="mono" data-bind="text:routeCode"></td>
             <td data-bind="text:destinationCountry||'—'"></td>
             <td data-bind="text:payoutCurrency"></td>
+            <td data-bind="text:(sourceCountry||'—')+' / '+sourceCurrency"></td>
             <td data-bind="text:destinationType"></td>
             <td data-bind="text:baseFee"></td>
             <td data-bind="text:fxSpreadPercentage"></td>
@@ -358,6 +456,12 @@
     <form class="eligibility-inputs" data-bind="submit:runPreview">
       <label>Country<input maxlength="2" data-bind="textInput:previewCountry" /></label
       ><label>Currency<input maxlength="3" data-bind="textInput:previewCurrency" /></label
+      ><label
+        >Source country (optional)<input
+          maxlength="2"
+          data-bind="textInput:previewSourceCountry" /></label
+      ><label
+        >Source currency<input maxlength="3" data-bind="textInput:previewSourceCurrency" /></label
       ><label>Amount<input inputmode="decimal" data-bind="textInput:previewAmount" /></label
       ><label
         >Payout method<select data-bind="value:previewDestination">

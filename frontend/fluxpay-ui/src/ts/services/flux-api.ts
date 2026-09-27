@@ -663,6 +663,8 @@ export interface TransferRoute {
   name: string;
   destinationType: string;
   destinationCountry: string | null;
+  sourceCountry: string | null;
+  sourceCurrency: string;
   payoutCurrency: string;
   baseFee: number | string;
   fxSpreadPercentage: number | string;
@@ -700,6 +702,8 @@ export interface CreateRouteRequest {
   name: string;
   destinationType: string;
   destinationCountry: string | null;
+  sourceCountry: string | null;
+  sourceCurrency: string;
   payoutCurrency: string;
   baseFee: number | string;
   fxSpreadPercentage: number | string;
@@ -714,6 +718,8 @@ export interface UpdateRouteRequest {
   name: string;
   destinationType: string;
   destinationCountry: string | null;
+  sourceCountry: string | null;
+  sourceCurrency: string;
   payoutCurrency: string;
   baseFee: number | string;
   fxSpreadPercentage: number | string;

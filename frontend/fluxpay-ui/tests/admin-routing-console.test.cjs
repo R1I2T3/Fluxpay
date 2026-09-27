@@ -18,7 +18,7 @@ const routeId = '22222222-2222-4222-8222-222222222222';
 function routingWorkspace(overrides = {}, admin = true) {
   const calls = [];
   const provider = {id: providerId, providerCode: 'WISE', providerName: 'Wise', railType: 'BANK_NETWORK', active: true, version: 0};
-  const route = {id: routeId, providerId, routeCode: 'WISE_INR_STANDARD', name: 'Wise INR Standard', destinationType: 'EXTERNAL_ACCOUNT', destinationCountry: 'IN', payoutCurrency: 'INR', baseFee: '5.0000', fxSpreadPercentage: '0.500000', estimatedMinutes: 120, configuredSuccessRate: '99.00', effectiveSuccessRate: '99.00', completedCount: 0, failedCount: 0, minimumRecipientAmount: null, maximumRecipientAmount: null, active: true, version: 0};
+  const route = {id: routeId, providerId, routeCode: 'WISE_INR_STANDARD', name: 'Wise INR Standard', destinationType: 'EXTERNAL_ACCOUNT', destinationCountry: 'IN', sourceCountry: null, sourceCurrency: 'USD', payoutCurrency: 'INR', baseFee: '5.0000', fxSpreadPercentage: '0.500000', estimatedMinutes: 120, configuredSuccessRate: '99.00', effectiveSuccessRate: '99.00', completedCount: 0, failedCount: 0, minimumRecipientAmount: null, maximumRecipientAmount: null, active: true, version: 0};
   const api = new Proxy(overrides, {get: (obj, name) => async (...args) => {calls.push([name, ...args]); if (name in obj) return obj[name](...args); if (name === 'railTypes') return [{railType: 'BANK_NETWORK', displayLabel: 'Bank Network', supportedDestinations: ['EXTERNAL_ACCOUNT']}]; if (name === 'providers') return [provider]; if (name === 'routesAdmin') return [route]; if (name === 'createProvider' || name === 'updateProvider') return {...provider}; if (name === 'createRoute' || name === 'updateRoute') return {...route}; throw new Error(`Unexpected api call: ${String(name)}`);}});
   const user = ko.observable(admin ? {role: 'ADMIN'} : null);
   const session = {user, isAdmin: ko.pureComputed(() => user()?.role === 'ADMIN'), restore: async () => {}};
@@ -112,6 +112,21 @@ test('route update shows a before/after diff before making the existing PUT', as
   ]);
   await page.confirmRouteSave();
   assert.equal(calls.filter(call => call[0] === 'updateRoute').length, 1);
+  page.dispose();
+});
+
+test('route payload requires a three-letter source currency', async () => {
+  const {page} = routingWorkspace();
+  await page.loadAll();
+  page.newRoute();
+  page.routeCode('WISE_INR_STANDARD');
+  page.routeName('Wise INR Standard');
+  page.routeCountry('IN');
+  page.routeCurrency('INR');
+  page.routeSourceCurrency('US');
+  page.routeFee('5'); page.routeSpread('0.5'); page.routeEta('60'); page.routeReliability('99');
+  page.requestRouteSave();
+  assert.match(page.routeError(), /source currency/i);
   page.dispose();
 });
 
@@ -239,7 +254,7 @@ function loadAnalysis() {
 const analysisProvider = {id: '33333333-3333-4333-8333-333333333333', providerCode: 'WISE', providerName: 'Wise', railType: 'BANK_NETWORK', active: true, systemProtected: false, archivedAt: null, version: 0};
 const analysisRails = [{railType: 'BANK_NETWORK', displayLabel: 'Bank network', supportedDestinations: ['EXTERNAL_ACCOUNT']}];
 function analysisRoute(overrides = {}) {
-  return {id: '44444444-4444-4444-8444-444444444444', providerId: analysisProvider.id, routeCode: 'ELIGIBLE', name: 'Eligible route', destinationType: 'EXTERNAL_ACCOUNT', destinationCountry: 'IN', payoutCurrency: 'INR', baseFee: '5.0000', fxSpreadPercentage: '0.500000', estimatedMinutes: 120, configuredSuccessRate: '99.00', effectiveSuccessRate: '99.00', completedCount: 10, failedCount: 0, minimumRecipientAmount: null, maximumRecipientAmount: null, active: true, systemProtected: false, archivedAt: null, version: 0, ...overrides};
+  return {id: '44444444-4444-4444-8444-444444444444', providerId: analysisProvider.id, routeCode: 'ELIGIBLE', name: 'Eligible route', destinationType: 'EXTERNAL_ACCOUNT', destinationCountry: 'IN', sourceCountry: null, sourceCurrency: 'USD', payoutCurrency: 'INR', baseFee: '5.0000', fxSpreadPercentage: '0.500000', estimatedMinutes: 120, configuredSuccessRate: '99.00', effectiveSuccessRate: '99.00', completedCount: 10, failedCount: 0, minimumRecipientAmount: null, maximumRecipientAmount: null, active: true, systemProtected: false, archivedAt: null, version: 0, ...overrides};
 }
 
 test('eligibility preview reports every route and never chooses a winner', () => {
@@ -249,7 +264,7 @@ test('eligibility preview reports every route and never chooses a winner', () =>
   const overLimitRoute = analysisRoute({id: '66666666-6666-4666-8666-666666666666', routeCode: 'OVER_LIMIT', maximumRecipientAmount: '50'});
   const missingProviderRoute = analysisRoute({id: '77777777-7777-4777-8777-777777777777', routeCode: 'NO_PROVIDER', providerId: '99999999-9999-4999-8999-999999999999'});
   const result = analysis.evaluateRouteEligibility(
-    {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT'},
+    {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT', sourceCurrency: 'USD', sourceCountry: null},
     [eligibleRoute, inactiveRoute, overLimitRoute, missingProviderRoute],
     [analysisProvider],
     analysisRails
@@ -267,16 +282,16 @@ test('eligibility preview reports every route and never chooses a winner', () =>
 test('invalid amount and unknown rail produce explicit non-authoritative errors', () => {
   const analysis = loadAnalysis();
   const eligibleRoute = analysisRoute({routeCode: 'ELIGIBLE'});
-  const invalid = analysis.evaluateRouteEligibility({country: 'IN', currency: 'INR', amount: 'abc', destinationType: 'EXTERNAL_ACCOUNT'}, [eligibleRoute], [analysisProvider], analysisRails);
+  const invalid = analysis.evaluateRouteEligibility({country: 'IN', currency: 'INR', amount: 'abc', destinationType: 'EXTERNAL_ACCOUNT', sourceCurrency: 'USD', sourceCountry: null}, [eligibleRoute], [analysisProvider], analysisRails);
   assert.deepEqual(Array.from(invalid.inputErrors), ['Enter an amount greater than zero.']);
-  const rail = analysis.evaluateRouteEligibility({country: 'IN', currency: 'INR', amount: '10', destinationType: 'EXTERNAL_ACCOUNT'}, [eligibleRoute], [analysisProvider], []);
+  const rail = analysis.evaluateRouteEligibility({country: 'IN', currency: 'INR', amount: '10', destinationType: 'EXTERNAL_ACCOUNT', sourceCurrency: 'USD', sourceCountry: null}, [eligibleRoute], [analysisProvider], []);
   assert.deepEqual(Array.from(rail.routes[0].reasons), ['Rail compatibility is unavailable.']);
 });
 
 test('eligibility boundaries, archived records, mismatches and limits share one table', () => {
   const analysis = loadAnalysis();
   const archivedAt = '2026-01-01T00:00:00.000Z';
-  const baseInput = {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT'};
+  const baseInput = {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT', sourceCurrency: 'USD', sourceCountry: null};
   const cases = [
     {name: 'amount equals minimum', route: {minimumRecipientAmount: '100'}, input: baseInput, eligible: true, reasons: []},
     {name: 'amount equals maximum', route: {maximumRecipientAmount: '100'}, input: baseInput, eligible: true, reasons: []},
@@ -303,6 +318,49 @@ test('eligibility boundaries, archived records, mismatches and limits share one 
   }
 });
 
+test('eligibility enforces the source corridor before payout checks', () => {
+  const analysis = loadAnalysis();
+  const baseInput = {country: 'IN', currency: 'INR', amount: '100', destinationType: 'EXTERNAL_ACCOUNT', sourceCurrency: 'USD', sourceCountry: null};
+  const route = analysisRoute({routeCode: 'SOURCE_PINNED'});
+  const mismatch = analysis.evaluateRouteEligibility(
+    {...baseInput, sourceCurrency: 'AED'},
+    [route],
+    [analysisProvider],
+    analysisRails
+  );
+  assert.equal(mismatch.routes[0].eligible, false);
+  assert.deepEqual(Array.from(mismatch.routes[0].reasons), ['Source currency does not match.']);
+  const match = analysis.evaluateRouteEligibility(baseInput, [route], [analysisProvider], analysisRails);
+  assert.equal(match.routes[0].eligible, true);
+  assert.deepEqual(Array.from(match.routes[0].reasons), []);
+  const pinned = analysisRoute({routeCode: 'COUNTRY_PINNED', sourceCountry: 'US'});
+  const countryMismatch = analysis.evaluateRouteEligibility(
+    {...baseInput, sourceCountry: 'AE'},
+    [pinned],
+    [analysisProvider],
+    analysisRails
+  );
+  assert.equal(countryMismatch.routes[0].eligible, false);
+  assert.deepEqual(Array.from(countryMismatch.routes[0].reasons), ['Source country does not match.']);
+  const wildcard = analysis.evaluateRouteEligibility(baseInput, [pinned], [analysisProvider], analysisRails);
+  assert.equal(wildcard.routes[0].eligible, false);
+  assert.deepEqual(Array.from(wildcard.routes[0].reasons), ['Source country does not match.']);
+  const pinnedMatch = analysis.evaluateRouteEligibility(
+    {...baseInput, sourceCountry: 'US'},
+    [pinned],
+    [analysisProvider],
+    analysisRails
+  );
+  assert.equal(pinnedMatch.routes[0].eligible, true);
+  const badSource = analysis.evaluateRouteEligibility(
+    {...baseInput, sourceCurrency: 'US'},
+    [route],
+    [analysisProvider],
+    analysisRails
+  );
+  assert.deepEqual(Array.from(badSource.inputErrors), ['Enter a three-letter source currency.']);
+});
+
 test('corridor matrix counts only active, non-archived route and provider combinations', () => {
   const analysis = loadAnalysis();
   const archivedAt = '2026-01-01T00:00:00.000Z';
@@ -316,11 +374,12 @@ test('corridor matrix counts only active, non-archived route and provider combin
     analysisRoute({id: 'm5', routeCode: 'M5', providerId: archivedProvider.id, destinationCountry: 'IN', payoutCurrency: 'INR'}),
     analysisRoute({id: 'm6', routeCode: 'M6', providerId: inactiveProvider.id, destinationCountry: 'IN', payoutCurrency: 'INR'}),
     analysisRoute({id: 'm7', routeCode: 'M7', providerId: 'missing-provider', destinationCountry: 'IN', payoutCurrency: 'INR'}),
-    analysisRoute({id: 'm8', routeCode: 'M8', destinationCountry: null, payoutCurrency: 'USD'})
+    analysisRoute({id: 'm8', routeCode: 'M8', destinationCountry: null, payoutCurrency: 'USD'}),
+    analysisRoute({id: 'm9', routeCode: 'M9', destinationCountry: 'IN', payoutCurrency: 'INR', sourceCurrency: 'AED'})
   ];
   assert.deepEqual(JSON.parse(JSON.stringify(analysis.buildCorridorMatrix(routes, [analysisProvider, archivedProvider, inactiveProvider]))), [
-    {country: 'GLOBAL', cells: [{currency: 'INR', count: 0}, {currency: 'USD', count: 1}]},
-    {country: 'IN', cells: [{currency: 'INR', count: 2}, {currency: 'USD', count: 0}]}
+    {source: 'GLOBAL/AED', cells: [{corridor: 'GLOBAL/USD', count: 0}, {corridor: 'IN/INR', count: 1}]},
+    {source: 'GLOBAL/USD', cells: [{corridor: 'GLOBAL/USD', count: 1}, {corridor: 'IN/INR', count: 2}]}
   ]);
 });
 
