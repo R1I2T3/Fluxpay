@@ -17,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 /** Builds cited, extractive compliance answers from the current indexed policy corpus. */
 @Service
 public class CopilotService {
+  private static final String OUT_OF_SCOPE_MARKER = "OUT_OF_SCOPE";
+  private static final String OUT_OF_SCOPE_MESSAGE =
+      "This question is outside the scope of the indexed compliance policies and cannot be answered from the available evidence.";
   private final EmbeddingPort embeddingPort;
   private final ChatPort chatPort;
   private final PolicySearchPort policySearchPort;
@@ -57,7 +60,11 @@ public class CopilotService {
                         match.chunkNumber(),
                         match.content().trim()))
             .toList();
-    return new CopilotAnswerResponse(chatPort.answer(request.question(), sources), sources);
+    String answer = chatPort.answer(request.question(), sources);
+    if (OUT_OF_SCOPE_MARKER.equals(answer.trim())) {
+      return new CopilotAnswerResponse(OUT_OF_SCOPE_MESSAGE, List.of());
+    }
+    return new CopilotAnswerResponse(answer, sources);
   }
 
   @Transactional(readOnly = true)

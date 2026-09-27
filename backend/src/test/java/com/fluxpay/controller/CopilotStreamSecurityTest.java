@@ -1,5 +1,6 @@
 package com.fluxpay.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fluxpay.common.TestAuthHelper;
 import com.fluxpay.common.security.*;
+import com.fluxpay.config.CopilotProperties;
 import com.fluxpay.service.CopilotService;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -18,6 +20,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @WebMvcTest(CopilotController.class)
 @Import({SecurityConfig.class, JwtAuthFilter.class, MethodSecurityConfig.class})
@@ -25,6 +28,18 @@ class CopilotStreamSecurityTest {
   @Autowired MockMvc mvc;
   @MockBean CopilotService copilot;
   @MockBean JwtUtil jwt;
+  @MockBean CopilotProperties copilotProperties;
+
+  @Test
+  void keepsTheLiveStreamOpenPastTheConfiguredChatDeadline() {
+    when(copilotProperties.chatTimeoutSeconds()).thenReturn(300);
+
+    SseEmitter emitter =
+        new CopilotController(copilot, copilotProperties)
+            .stream(new com.fluxpay.dto.CopilotRequest("Policy?", null));
+
+    assertThat(emitter.getTimeout()).isEqualTo(330_000L);
+  }
 
   @Test
   void authenticatedAdminCanCompleteTheAsyncStream() throws Exception {
