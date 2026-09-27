@@ -58,6 +58,8 @@ public class RouteCatalogService {
     BigDecimal marketRate = fx.rate(payment.sourceCurrency(), payment.targetCurrency());
     TransferRoutingContext context =
         new TransferRoutingContext(
+            payment.sourceCurrency(),
+            null,
             DestinationType.EXTERNAL_ACCOUNT,
             Objects.requireNonNull(payment.destination(), "payment has no frozen destination")
                 .country(),

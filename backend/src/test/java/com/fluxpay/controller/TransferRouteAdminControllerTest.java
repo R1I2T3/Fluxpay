@@ -66,7 +66,7 @@ class TransferRouteAdminControllerTest {
   private static final String CREATE_BODY =
       """
       {"providerId":"%s","routeCode":"HDFC_KE","name":"HDFC Kenya",
-       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","payoutCurrency":"KES",
+       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","sourceCountry":null,"sourceCurrency":"USD","payoutCurrency":"KES",
        "baseFee":5.00,"fxSpreadPercentage":0.8,"estimatedMinutes":240,
        "configuredSuccessRate":99.50,"active":true}
       """;
@@ -74,7 +74,7 @@ class TransferRouteAdminControllerTest {
   private static final String UPDATE_BODY =
       """
       {"providerId":"%s","name":"HDFC Kenya",
-       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","payoutCurrency":"KES",
+       "destinationType":"EXTERNAL_ACCOUNT","destinationCountry":"KE","sourceCountry":null,"sourceCurrency":"USD","payoutCurrency":"KES",
        "baseFee":6.00,"fxSpreadPercentage":1.0,"estimatedMinutes":120,
        "configuredSuccessRate":99.00,"active":true,"version":0}
       """;
@@ -117,6 +117,8 @@ class TransferRouteAdminControllerTest {
             "HDFC Kenya",
             DestinationType.EXTERNAL_ACCOUNT,
             "KE",
+            null,
+            "USD",
             "KES",
             new BigDecimal("5.00"),
             new BigDecimal("0.8"),
@@ -170,6 +172,8 @@ class TransferRouteAdminControllerTest {
             "FluxPay INR",
             DestinationType.EXTERNAL_ACCOUNT,
             "IN",
+            null,
+            "USD",
             "INR",
             new BigDecimal("0.00"),
             new BigDecimal("0.0"),
@@ -276,6 +280,48 @@ class TransferRouteAdminControllerTest {
                 .content(CREATE_BODY.formatted(P_HDFC)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ROUTE_CODE_CONFLICT"));
+  }
+
+  @Test
+  void malformedSourceCurrencyIsBadRequestWithoutServiceInvocation() throws Exception {
+    when(authorizer.isAdmin(any())).thenReturn(true);
+    mvc.perform(
+            post("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    CREATE_BODY
+                        .formatted(P_HDFC)
+                        .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":\"US\"")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
+    verify(service, never()).create(any());
+  }
+
+  @Test
+  void blankSourceCurrencyIsBadRequestWithoutServiceInvocation() throws Exception {
+    when(authorizer.isAdmin(any())).thenReturn(true);
+    mvc.perform(
+            post("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    CREATE_BODY
+                        .formatted(P_HDFC)
+                        .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":\"\"")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
+    mvc.perform(
+            post("/api/admin/routes")
+                .header("Authorization", MockSecurity.bearer(ADMIN_ID, "ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    CREATE_BODY
+                        .formatted(P_HDFC)
+                        .replace("\"sourceCurrency\":\"USD\"", "\"sourceCurrency\":null")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_TRANSFER_ROUTE"));
+    verify(service, never()).create(any());
   }
 
   @Test

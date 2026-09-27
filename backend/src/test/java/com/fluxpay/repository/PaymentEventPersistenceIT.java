@@ -183,6 +183,8 @@ class PaymentEventPersistenceIT {
               "Timeline route",
               DestinationType.EXTERNAL_ACCOUNT,
               "IN",
+              null,
+              "USD",
               "INR",
               new BigDecimal("5.0000"),
               new BigDecimal("0.000000"),

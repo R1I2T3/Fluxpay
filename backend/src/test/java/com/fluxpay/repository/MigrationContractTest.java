@@ -39,7 +39,10 @@ class MigrationContractTest {
         .contains("failure_reason VARCHAR2(1000)")
         .contains("provider_reference VARCHAR2(100) UNIQUE")
         .contains("CONSTRAINT uq_payout_attempt UNIQUE (payment_id, attempt_number)")
-        .contains("status IN ('INITIATED', 'PROCESSING', 'COMPLETED', 'FAILED')");
+        .contains("status IN ('INITIATED', 'PROCESSING', 'COMPLETED', 'FAILED')")
+        .contains("source_currency VARCHAR2(3) NOT NULL")
+        .contains("source_country VARCHAR2(2)")
+        .contains("chk_transfer_route_source_currency");
     assertThat(sql)
         .doesNotContain("payout_routes_legacy")
         .doesNotContain("payout_attempts_legacy")

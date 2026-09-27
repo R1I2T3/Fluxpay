@@ -32,8 +32,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Administrator CRUD for transfer routes. Route codes are immutable; the provider/destination
- * binding is immutable once the route has been used.
+ * Administrator CRUD for transfer routes. Route codes are immutable; the
+ * provider/destination/source binding is immutable once the route has been used.
  */
 @RestController
 @RequestMapping("/api/admin/routes")
@@ -99,6 +99,8 @@ public class TransferRouteAdminController {
                 requireText(body.name(), "name"),
                 destinationType,
                 normalizeCountry(body.destinationCountry(), destinationType),
+                normalizeSourceCountry(body.sourceCountry()),
+                normalizeSourceCurrency(body.sourceCurrency()),
                 normalizeCurrency(body.payoutCurrency()),
                 requireNonnegative(body.baseFee(), "baseFee"),
                 requireNonnegative(body.fxSpreadPercentage(), "fxSpreadPercentage"),
@@ -133,6 +135,8 @@ public class TransferRouteAdminController {
                 requireText(body.name(), "name"),
                 destinationType,
                 normalizeCountry(body.destinationCountry(), destinationType),
+                normalizeSourceCountry(body.sourceCountry()),
+                normalizeSourceCurrency(body.sourceCurrency()),
                 normalizeCurrency(body.payoutCurrency()),
                 requireNonnegative(body.baseFee(), "baseFee"),
                 requireNonnegative(body.fxSpreadPercentage(), "fxSpreadPercentage"),
@@ -238,6 +242,20 @@ public class TransferRouteAdminController {
     if (!normalized.matches("[A-Z]{2}")) {
       throw invalid("destinationCountry must be ISO-3166 alpha-2");
     }
+    return normalized;
+  }
+
+  private static String normalizeSourceCurrency(String currency) {
+    if (currency == null || currency.isBlank()) throw invalid("sourceCurrency must not be blank");
+    String normalized = currency.trim().toUpperCase(Locale.ROOT);
+    if (!normalized.matches("[A-Z]{3}")) throw invalid("sourceCurrency must be ISO-4217");
+    return normalized;
+  }
+
+  private static String normalizeSourceCountry(String country) {
+    if (country == null || country.isBlank()) return null;
+    String normalized = country.trim().toUpperCase(Locale.ROOT);
+    if (!normalized.matches("[A-Z]{2}")) throw invalid("sourceCountry must be ISO-3166 alpha-2");
     return normalized;
   }
 

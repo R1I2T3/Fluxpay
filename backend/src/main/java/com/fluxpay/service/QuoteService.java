@@ -123,6 +123,8 @@ public class QuoteService {
     ExternalAccountDestination destination =
         DbPaymentReader.parseDestination(payment.recipientSnapshot(), payment.payoutCurrency());
     return new TransferRoutingContext(
+        payment.sourceCurrency(),
+        null,
         DestinationType.EXTERNAL_ACCOUNT,
         destination.country(),
         destination.currency(),

@@ -224,12 +224,12 @@ USING (SELECT 'FLUXPAY_INTERNAL' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
-   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   source_country, source_currency, payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
   (HEXTORAW('69BF56EC453C519681E768F3D7F6DE0C'),
    HEXTORAW('38306FCF068655B19C26932512E8E4CF'), source.route_code, 'FluxPay wallet',
-   'INTERNAL_WALLET', NULL, 'INR', 0.0000, 0.000000, 1, 100.00, 1, 1, 0,
+   'INTERNAL_WALLET', NULL, NULL, 'INR', 'INR', 0.0000, 0.000000, 1, 100.00, 1, 1, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
@@ -237,12 +237,12 @@ USING (SELECT 'BANK_STANDARD' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
-   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   source_country, source_currency, payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
   (HEXTORAW('4E486C5C0B12563F88E4FABAD73CB88A'),
    HEXTORAW('56F19E4B9DBC537E943DC2FF9DC47945'), source.route_code, 'HDFC INR Standard',
-   'EXTERNAL_ACCOUNT', 'IN', 'INR', 5.0000, 0.500000, 240, 99.00, 0, 0, 0,
+   'EXTERNAL_ACCOUNT', 'IN', NULL, 'USD', 'INR', 5.0000, 0.500000, 240, 99.00, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
@@ -250,12 +250,12 @@ USING (SELECT 'BANK_EXPRESS' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
-   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   source_country, source_currency, payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
   (HEXTORAW('D49DA17AB636547787D6E088F0E33AB4'),
    HEXTORAW('56F19E4B9DBC537E943DC2FF9DC47945'), source.route_code, 'HDFC INR Express',
-   'EXTERNAL_ACCOUNT', 'IN', 'INR', 11.0000, 0.750000, 30, 98.00, 0, 0, 0,
+   'EXTERNAL_ACCOUNT', 'IN', NULL, 'USD', 'INR', 11.0000, 0.750000, 30, 98.00, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
@@ -263,12 +263,12 @@ USING (SELECT 'REALTIME_INR' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
-   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   source_country, source_currency, payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
   (HEXTORAW('7FA87A43F1955CA38D2CC50B7EBE6E4B'),
    HEXTORAW('9CCF60CF35545F519454BBAD7014D4B2'), source.route_code, 'UPI Instant INR',
-   'EXTERNAL_ACCOUNT', 'IN', 'INR', 8.0000, 0.400000, 5, 97.50, 0, 0, 0,
+   'EXTERNAL_ACCOUNT', 'IN', NULL, 'USD', 'INR', 8.0000, 0.400000, 5, 97.50, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 MERGE INTO transfer_routes target
@@ -276,12 +276,12 @@ USING (SELECT 'PARTNER_INR' AS route_code FROM dual) source
 ON (target.route_code = source.route_code)
 WHEN NOT MATCHED THEN INSERT
   (id, provider_id, route_code, route_name, destination_type, destination_country,
-   payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
+   source_country, source_currency, payout_currency, base_fee, fx_spread_percentage, estimated_minutes,
    configured_success_rate, active, system_protected, version, created_at, updated_at)
 VALUES
   (HEXTORAW('D57E0E5CA72258CD8C79331D5E91D583'),
    HEXTORAW('196DC96DC95D5B46B24213E7FB3C16E7'), source.route_code, 'SBI Partner INR',
-   'EXTERNAL_ACCOUNT', 'IN', 'INR', 2.0000, 0.250000, 60, 97.50, 0, 0, 0,
+   'EXTERNAL_ACCOUNT', 'IN', NULL, 'USD', 'INR', 2.0000, 0.250000, 60, 97.50, 0, 0, 0,
    SYSTIMESTAMP, SYSTIMESTAMP);
 
 COMMIT;

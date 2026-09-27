@@ -74,6 +74,7 @@ class SeedMigrationContractTest {
         .contains("'EXTERNAL_ACCOUNT'")
         .contains("'IN'")
         .contains("'INR'");
+    assertThat(sql).contains("source_currency").contains("'USD'");
   }
 
   @Test

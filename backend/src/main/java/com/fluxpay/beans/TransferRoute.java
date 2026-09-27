@@ -44,6 +44,12 @@ public class TransferRoute {
   @Column(name = "destination_country", length = 2)
   private String destinationCountry;
 
+  @Column(name = "source_country", length = 2)
+  private String sourceCountry;
+
+  @Column(name = "source_currency", nullable = false, length = 3)
+  private String sourceCurrency;
+
   @Column(name = "payout_currency", nullable = false, length = 3)
   private String payoutCurrency;
 
@@ -96,6 +102,8 @@ public class TransferRoute {
       String name,
       DestinationType destinationType,
       String destinationCountry,
+      String sourceCountry,
+      String sourceCurrency,
       String payoutCurrency,
       BigDecimal baseFee,
       BigDecimal fxSpreadPercentage,
@@ -114,6 +122,8 @@ public class TransferRoute {
     route.destinationType =
         Objects.requireNonNull(destinationType, "destinationType must not be null");
     route.destinationCountry = normalizeCountry(destinationCountry, destinationType);
+    route.sourceCountry = normalizeSourceCountry(sourceCountry);
+    route.sourceCurrency = normalizeSourceCurrency(sourceCurrency);
     route.payoutCurrency = normalizeCurrency(payoutCurrency);
     validateCommercials(
         baseFee,
@@ -170,6 +180,8 @@ public class TransferRoute {
             name,
             DestinationType.EXTERNAL_ACCOUNT,
             "ZZ",
+            null,
+            "USD",
             "USD",
             new BigDecimal(baseFee),
             new BigDecimal(fxSpreadPercentage),
@@ -190,6 +202,8 @@ public class TransferRoute {
       String name,
       DestinationType destinationType,
       String destinationCountry,
+      String sourceCountry,
+      String sourceCurrency,
       String payoutCurrency,
       BigDecimal baseFee,
       BigDecimal fxSpreadPercentage,
@@ -204,6 +218,8 @@ public class TransferRoute {
     this.destinationType =
         Objects.requireNonNull(destinationType, "destinationType must not be null");
     this.destinationCountry = normalizeCountry(destinationCountry, destinationType);
+    this.sourceCountry = normalizeSourceCountry(sourceCountry);
+    this.sourceCurrency = normalizeSourceCurrency(sourceCurrency);
     this.payoutCurrency = normalizeCurrency(payoutCurrency);
     validateCommercials(
         baseFee,
@@ -305,6 +321,21 @@ public class TransferRoute {
     return normalized;
   }
 
+  private static String normalizeSourceCurrency(String currency) {
+    String normalized = requireText(currency, "sourceCurrency").toUpperCase(Locale.ROOT);
+    if (!normalized.matches("[A-Z]{3}"))
+      throw new IllegalArgumentException("sourceCurrency must be ISO-4217");
+    return normalized;
+  }
+
+  private static String normalizeSourceCountry(String country) {
+    if (country == null || country.isBlank()) return null;
+    String normalized = country.trim().toUpperCase(Locale.ROOT);
+    if (!normalized.matches("[A-Z]{2}"))
+      throw new IllegalArgumentException("sourceCountry must be ISO-3166 alpha-2");
+    return normalized;
+  }
+
   private static String requireText(String value, String name) {
     if (value == null || value.isBlank())
       throw new IllegalArgumentException(name + " must not be blank");
@@ -333,6 +364,14 @@ public class TransferRoute {
 
   public String destinationCountry() {
     return destinationCountry;
+  }
+
+  public String sourceCountry() {
+    return sourceCountry;
+  }
+
+  public String sourceCurrency() {
+    return sourceCurrency;
   }
 
   public String payoutCurrency() {
@@ -413,6 +452,14 @@ public class TransferRoute {
 
   public String getDestinationCountry() {
     return destinationCountry;
+  }
+
+  public String getSourceCountry() {
+    return sourceCountry;
+  }
+
+  public String getSourceCurrency() {
+    return sourceCurrency;
   }
 
   public String getPayoutCurrency() {

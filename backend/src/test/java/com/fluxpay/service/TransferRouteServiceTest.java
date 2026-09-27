@@ -178,6 +178,8 @@ class TransferRouteServiceTest {
                         "HDFC INR Standard",
                         DestinationType.EXTERNAL_ACCOUNT,
                         null,
+                        null,
+                        "USD",
                         "INR",
                         new BigDecimal("5.0000"),
                         new BigDecimal("0.500000"),
@@ -199,6 +201,8 @@ class TransferRouteServiceTest {
                         "HDFC INR Standard",
                         DestinationType.EXTERNAL_ACCOUNT,
                         "IN",
+                        null,
+                        "USD",
                         "INR",
                         new BigDecimal("5.0000"),
                         new BigDecimal("0.500000"),
@@ -220,6 +224,8 @@ class TransferRouteServiceTest {
                         "HDFC INR Standard",
                         DestinationType.EXTERNAL_ACCOUNT,
                         "IN",
+                        null,
+                        "USD",
                         "INR",
                         new BigDecimal("5.0000"),
                         new BigDecimal("0.500000"),
@@ -295,6 +301,8 @@ class TransferRouteServiceTest {
                 "HDFC INR Standard",
                 DestinationType.EXTERNAL_ACCOUNT,
                 "IN",
+                null,
+                "USD",
                 "INR",
                 new BigDecimal("7.5000"),
                 new BigDecimal("0.750000"),
@@ -401,6 +409,36 @@ class TransferRouteServiceTest {
   }
 
   @Test
+  void updateIgnoresSourceCaseWhenCheckingBinding() {
+    // Direct service callers may pass unnormalized source values; case alone is not a change.
+    when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
+    when(providers.findByIdForUpdate(PROVIDER_ID)).thenReturn(Optional.of(provider));
+
+    TransferRoute updated =
+        service.update(
+            ROUTE_ID,
+            new UpdateRoute(
+                PROVIDER_ID,
+                "HDFC INR Standard",
+                DestinationType.EXTERNAL_ACCOUNT,
+                "IN",
+                null,
+                "usd",
+                "INR",
+                new BigDecimal("5.0000"),
+                new BigDecimal("0.500000"),
+                60,
+                new BigDecimal("99.00"),
+                new BigDecimal("1.0000"),
+                new BigDecimal("500000.0000"),
+                true,
+                0L));
+
+    assertThat(updated.sourceCurrency()).isEqualTo("USD");
+    verify(routes).flush();
+  }
+
+  @Test
   void updateRejectsStaleVersion() {
     when(routes.findById(ROUTE_ID)).thenReturn(Optional.of(route));
 
@@ -448,6 +486,8 @@ class TransferRouteServiceTest {
             "FluxPay INR Internal",
             DestinationType.INTERNAL_WALLET,
             null,
+            null,
+            "INR",
             "INR",
             BigDecimal.ZERO,
             BigDecimal.ZERO,
@@ -488,6 +528,8 @@ class TransferRouteServiceTest {
         "HDFC INR Standard",
         DestinationType.EXTERNAL_ACCOUNT,
         "IN",
+        null,
+        "USD",
         "INR",
         new BigDecimal("5.0000"),
         new BigDecimal("0.500000"),
@@ -505,6 +547,8 @@ class TransferRouteServiceTest {
         "HDFC INR Standard",
         destinationType,
         destinationType == DestinationType.EXTERNAL_ACCOUNT ? "IN" : null,
+        null,
+        "USD",
         "INR",
         new BigDecimal("5.0000"),
         new BigDecimal("0.500000"),

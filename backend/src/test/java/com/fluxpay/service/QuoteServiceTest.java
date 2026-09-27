@@ -113,6 +113,8 @@ class QuoteServiceTest extends DbPaymentEligibilityGateFixture {
         code + " name",
         DestinationType.EXTERNAL_ACCOUNT,
         "KE",
+        null,
+        "USD",
         "KES",
         new BigDecimal(baseFee),
         new BigDecimal(spread),

@@ -55,6 +55,8 @@ class RouteRecommenderTest {
             code + " Rail",
             DestinationType.EXTERNAL_ACCOUNT,
             "IN",
+            null,
+            "USD",
             "INR",
             new BigDecimal("5.00"),
             new BigDecimal("0.80"),

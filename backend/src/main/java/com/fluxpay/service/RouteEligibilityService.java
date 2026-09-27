@@ -10,9 +10,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * Pure contextual filtering over the catalogue. A candidate survives only when the provider and
- * route are active and unarchived, the destination corridor matches, and an installed rail supports
- * the destination type. Pricing and limits are applied later; this stage never fails the request,
- * it only narrows the candidates.
+ * route are active and unarchived, the source and destination corridors match, and an installed
+ * rail supports the destination type. Pricing and limits are applied later; this stage never fails
+ * the request, it only narrows the candidates.
  */
 @Service
 public class RouteEligibilityService {
@@ -46,6 +46,13 @@ public class RouteEligibilityService {
       return false;
     }
     if (!route.getPayoutCurrency().equals(context.payoutCurrency())) {
+      return false;
+    }
+    if (!Objects.equals(route.getSourceCurrency(), context.sourceCurrency())) {
+      return false;
+    }
+    if (route.getSourceCountry() != null
+        && !route.getSourceCountry().equals(context.sourceCountry())) {
       return false;
     }
     try {

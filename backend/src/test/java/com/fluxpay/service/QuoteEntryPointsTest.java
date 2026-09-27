@@ -248,6 +248,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
 
   static TransferRoutingContext externalContext(String country, String currency) {
     return new TransferRoutingContext(
+        "USD",
+        null,
         DestinationType.EXTERNAL_ACCOUNT,
         country,
         currency,
@@ -271,6 +273,8 @@ class QuoteEntryPointsTest extends DbPaymentEligibilityGateFixture {
         code + " name",
         DestinationType.EXTERNAL_ACCOUNT,
         country,
+        null,
+        "USD",
         currency,
         new BigDecimal(baseFee),
         new BigDecimal(spread),

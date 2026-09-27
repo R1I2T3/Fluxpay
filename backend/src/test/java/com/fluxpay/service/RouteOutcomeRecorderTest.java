@@ -91,6 +91,8 @@ class RouteOutcomeRecorderTest {
                       "HDFC INR Standard",
                       DestinationType.EXTERNAL_ACCOUNT,
                       "IN",
+                      null,
+                      "USD",
                       "INR",
                       new BigDecimal("5.0000"),
                       new BigDecimal("0.500000"),

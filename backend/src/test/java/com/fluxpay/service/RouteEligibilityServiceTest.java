@@ -1,6 +1,7 @@
 package com.fluxpay.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fluxpay.beans.TransferProvider;
 import com.fluxpay.beans.TransferRoute;
@@ -35,22 +36,52 @@ class RouteEligibilityServiceTest {
   }
 
   @Test
+  void rejectsBlankSourceCurrency() {
+    TransferProvider p = provider(RailType.BANK_NETWORK, true);
+    assertThatThrownBy(
+            () ->
+                TransferRoute.create(
+                    UUID.randomUUID(),
+                    p,
+                    "SRC_BAD",
+                    "bad",
+                    DestinationType.EXTERNAL_ACCOUNT,
+                    "IN",
+                    null,
+                    "US",
+                    "INR",
+                    new BigDecimal("5.0000"),
+                    new BigDecimal("0.5"),
+                    60,
+                    new BigDecimal("99.00"),
+                    null,
+                    null,
+                    true,
+                    false,
+                    NOW))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void keepsCompatibleActiveExternalRoute() {
     TransferProvider provider = provider(RailType.BANK_NETWORK, true);
     TransferRoute route =
-        external(provider, "HDFC_INR_STANDARD", "IN", "INR", new BigDecimal("99.00"));
+        external(provider, "HDFC_INR_STANDARD", null, "USD", "IN", "INR", new BigDecimal("99.00"));
 
-    assertThat(service.filter(List.of(route), externalContext("IN", "INR"))).containsExactly(route);
+    assertThat(service.filter(List.of(route), externalContext("USD", null, "IN", "INR")))
+        .containsExactly(route);
   }
 
   @Test
   void excludesDestinationTypeMismatch() {
     TransferProvider bank = provider(RailType.BANK_NETWORK, true);
-    TransferRoute external = external(bank, "HDFC_INR_STANDARD", "IN", "INR", rate("99.00"));
+    TransferRoute external =
+        external(bank, "HDFC_INR_STANDARD", null, "USD", "IN", "INR", rate("99.00"));
     TransferProvider ledger = provider(RailType.INTERNAL_LEDGER, true);
     TransferRoute internal = internal(ledger, "FLUXPAY_WALLET", null, "INR");
 
-    assertThat(service.filter(List.of(external, internal), externalContext("IN", "INR")))
+    assertThat(
+            service.filter(List.of(external, internal), externalContext("USD", null, "IN", "INR")))
         .containsExactly(external);
     assertThat(service.filter(List.of(external, internal), internalContext("IN", "INR")))
         .containsExactly(internal);
@@ -60,11 +91,13 @@ class RouteEligibilityServiceTest {
   void excludesCountryAndCurrencyMismatch() {
     TransferProvider provider = provider(RailType.BANK_NETWORK, true);
     TransferRoute wrongCountry =
-        external(provider, "HDFC_INR_STANDARD", "KE", "INR", rate("99.00"));
+        external(provider, "HDFC_INR_STANDARD", null, "USD", "KE", "INR", rate("99.00"));
     TransferRoute wrongCurrency =
-        external(provider, "HDFC_USD_STANDARD", "IN", "USD", rate("99.00"));
+        external(provider, "HDFC_USD_STANDARD", null, "USD", "IN", "USD", rate("99.00"));
 
-    assertThat(service.filter(List.of(wrongCountry, wrongCurrency), externalContext("IN", "INR")))
+    assertThat(
+            service.filter(
+                List.of(wrongCountry, wrongCurrency), externalContext("USD", null, "IN", "INR")))
         .isEmpty();
   }
 
@@ -74,13 +107,17 @@ class RouteEligibilityServiceTest {
     TransferProvider idleProvider = provider(RailType.BANK_NETWORK, false);
     TransferProvider archivedProvider = provider(RailType.BANK_NETWORK, true);
     archivedProvider.archive(NOW);
-    TransferRoute active = external(activeProvider, "HDFC_INR_ACTIVE", "IN", "INR", rate("99.00"));
-    TransferRoute idle = external(activeProvider, "HDFC_INR_IDLE", "IN", "INR", rate("99.00"));
+    TransferRoute active =
+        external(activeProvider, "HDFC_INR_ACTIVE", null, "USD", "IN", "INR", rate("99.00"));
+    TransferRoute idle =
+        external(activeProvider, "HDFC_INR_IDLE", null, "USD", "IN", "INR", rate("99.00"));
     idle.update(
         idle.provider(),
         idle.name(),
         idle.destinationType(),
         idle.destinationCountry(),
+        idle.sourceCountry(),
+        idle.sourceCurrency(),
         idle.payoutCurrency(),
         idle.baseFee(),
         idle.fxSpreadPercentage(),
@@ -91,17 +128,24 @@ class RouteEligibilityServiceTest {
         false,
         NOW);
     TransferRoute archived =
-        external(activeProvider, "HDFC_INR_ARCHIVED", "IN", "INR", rate("99.00"));
+        external(activeProvider, "HDFC_INR_ARCHIVED", null, "USD", "IN", "INR", rate("99.00"));
     archived.archive(NOW);
     TransferRoute idleProviderRoute =
-        external(idleProvider, "HDFC_INR_IDLE_PROVIDER", "IN", "INR", rate("99.00"));
+        external(idleProvider, "HDFC_INR_IDLE_PROVIDER", null, "USD", "IN", "INR", rate("99.00"));
     TransferRoute archivedProviderRoute =
-        external(archivedProvider, "HDFC_INR_ARCHIVED_PROVIDER", "IN", "INR", rate("99.00"));
+        external(
+            archivedProvider,
+            "HDFC_INR_ARCHIVED_PROVIDER",
+            null,
+            "USD",
+            "IN",
+            "INR",
+            rate("99.00"));
 
     assertThat(
             service.filter(
                 List.of(active, idle, archived, idleProviderRoute, archivedProviderRoute),
-                externalContext("IN", "INR")))
+                externalContext("USD", null, "IN", "INR")))
         .containsExactly(active);
   }
 
@@ -121,7 +165,7 @@ class RouteEligibilityServiceTest {
     // BANK_NETWORK never supports internal destinations; PARTNER_NETWORK is not installed.
     TransferRoute bankForInternal = internal(bank, "BANK_INTERNAL", null, "INR");
     TransferRoute partnerForExternal =
-        external(partner, "PARTNER_INR_STANDARD", "IN", "INR", rate("99.00"));
+        external(partner, "PARTNER_INR_STANDARD", null, "USD", "IN", "INR", rate("99.00"));
     TransferRoute ledgerForInternal = internal(ledger, "FLUXPAY_WALLET", null, "INR");
 
     assertThat(
@@ -129,7 +173,9 @@ class RouteEligibilityServiceTest {
                 List.of(bankForInternal, partnerForExternal, ledgerForInternal),
                 internalContext("IN", "INR")))
         .containsExactly(ledgerForInternal);
-    assertThat(service.filter(List.of(partnerForExternal), externalContext("IN", "INR"))).isEmpty();
+    assertThat(
+            service.filter(List.of(partnerForExternal), externalContext("USD", null, "IN", "INR")))
+        .isEmpty();
   }
 
   @Test
@@ -145,12 +191,35 @@ class RouteEligibilityServiceTest {
   }
 
   @Test
-  void emptyCatalogueStaysEmpty() {
-    assertThat(service.filter(List.of(), externalContext("IN", "INR"))).isEmpty();
+  void excludesSourceCurrencyMismatch() {
+    TransferProvider p = provider(RailType.BANK_NETWORK, true);
+    TransferRoute usd = external(p, "USD_INR", null, "USD", "IN", "INR", rate("99.00"));
+    assertThat(service.filter(List.of(usd), externalContext("AED", null, "IN", "INR"))).isEmpty();
+    assertThat(service.filter(List.of(usd), externalContext("USD", null, "IN", "INR")))
+        .containsExactly(usd);
   }
 
-  private static TransferRoutingContext externalContext(String country, String currency) {
+  @Test
+  void nullSourceCountryIsWildcardButPinnedCountryMustMatch() {
+    TransferProvider p = provider(RailType.BANK_NETWORK, true);
+    TransferRoute wildcard = external(p, "WILD", null, "USD", "IN", "INR", rate("99.00"));
+    TransferRoute pinned = external(p, "PINNED", "US", "USD", "IN", "INR", rate("99.00"));
+    assertThat(service.filter(List.of(wildcard, pinned), externalContext("USD", "US", "IN", "INR")))
+        .containsExactly(wildcard, pinned);
+    assertThat(service.filter(List.of(wildcard, pinned), externalContext("USD", "AE", "IN", "INR")))
+        .containsExactly(wildcard);
+  }
+
+  @Test
+  void emptyCatalogueStaysEmpty() {
+    assertThat(service.filter(List.of(), externalContext("USD", null, "IN", "INR"))).isEmpty();
+  }
+
+  private static TransferRoutingContext externalContext(
+      String sourceCurrency, String sourceCountry, String country, String currency) {
     return new TransferRoutingContext(
+        sourceCurrency,
+        sourceCountry,
         DestinationType.EXTERNAL_ACCOUNT,
         country,
         currency,
@@ -160,6 +229,8 @@ class RouteEligibilityServiceTest {
 
   private static TransferRoutingContext internalContext(String country, String currency) {
     return new TransferRoutingContext(
+        currency,
+        null,
         DestinationType.INTERNAL_WALLET,
         country,
         currency,
@@ -173,7 +244,13 @@ class RouteEligibilityServiceTest {
   }
 
   private static TransferRoute external(
-      TransferProvider provider, String code, String country, String currency, BigDecimal rate) {
+      TransferProvider provider,
+      String code,
+      String sourceCountry,
+      String sourceCurrency,
+      String country,
+      String currency,
+      BigDecimal rate) {
     return TransferRoute.create(
         UUID.randomUUID(),
         provider,
@@ -181,6 +258,8 @@ class RouteEligibilityServiceTest {
         code + " name",
         DestinationType.EXTERNAL_ACCOUNT,
         country,
+        sourceCountry,
+        sourceCurrency,
         currency,
         new BigDecimal("5.0000"),
         new BigDecimal("0.500000"),
@@ -202,6 +281,8 @@ class RouteEligibilityServiceTest {
         code + " name",
         DestinationType.INTERNAL_WALLET,
         country,
+        null,
+        currency,
         currency,
         BigDecimal.ZERO,
         BigDecimal.ZERO,

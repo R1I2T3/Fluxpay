@@ -186,7 +186,7 @@ class WalletTransferTest {
 
   @Test
   void routedSameCurrencyPersistsDecisionAndReplays() {
-    internalRoute("FLUXPAY_A", "FLUXPAY_USD_A", "USD");
+    internalRoute("FLUXPAY_A", "FLUXPAY_USD_A", "USD", "USD");
     var response =
         routed.transfer(sender, transfer(recipient, "USD", "USD", "20", "SOURCE"), "route-same");
     assertThat(response.providerCode()).isEqualTo("FLUXPAY_A");
@@ -218,7 +218,7 @@ class WalletTransferTest {
 
   @Test
   void routedFxPostsSingleSenderDebitThroughInternalRail() {
-    internalRoute("FLUXPAY_B", "FLUXPAY_INR_B", "INR");
+    internalRoute("FLUXPAY_B", "FLUXPAY_INR_B", "USD", "INR");
     quote("USD", "INR", "83.50");
     var response =
         routed.transfer(sender, transfer(recipient, "USD", "INR", "100", "SOURCE"), "route-fx");
@@ -247,7 +247,7 @@ class WalletTransferTest {
 
   @Test
   void routedFxReplayUsesStoredResponseWhenLiveQuoteIsUnavailable() {
-    TransferRoute route = internalRoute("FLUXPAY_REPLAY", "FLUXPAY_INR_REPLAY", "INR");
+    TransferRoute route = internalRoute("FLUXPAY_REPLAY", "FLUXPAY_INR_REPLAY", "USD", "INR");
     quote("USD", "INR", "83.50");
     var request = transfer(recipient, "USD", "INR", "100", "SOURCE");
     var response = routed.transfer(sender, request, "route-fx-replay");
@@ -274,7 +274,7 @@ class WalletTransferTest {
   @Test
   void routedFailureRecordsFailedOutcome() {
     customer(sender, "EUR", "20000");
-    TransferRoute route = internalRoute("FLUXPAY_C", "FLUXPAY_EUR_C", "EUR");
+    TransferRoute route = internalRoute("FLUXPAY_C", "FLUXPAY_EUR_C", "EUR", "EUR");
     assertThatThrownBy(
             () ->
                 routed.transfer(
@@ -697,7 +697,8 @@ class WalletTransferTest {
     return new WalletTransferRequest(to, null, from, target, amount, mode, null);
   }
 
-  private TransferRoute internalRoute(String providerCode, String routeCode, String payout) {
+  private TransferRoute internalRoute(
+      String providerCode, String routeCode, String source, String payout) {
     TransferProvider provider =
         TransferProvider.create(
             UUID.randomUUID(),
@@ -716,6 +717,8 @@ class WalletTransferTest {
             routeCode + " route",
             DestinationType.INTERNAL_WALLET,
             null,
+            null,
+            source,
             payout,
             new BigDecimal("0.0000"),
             new BigDecimal("0.000000"),

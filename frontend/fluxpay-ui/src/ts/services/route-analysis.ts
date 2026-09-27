@@ -6,6 +6,8 @@ export interface EligibilityInput {
   currency: string;
   amount: string;
   destinationType: string;
+  sourceCurrency: string;
+  sourceCountry?: string | null;
 }
 export interface EligibilityRow {
   route: TransferRoute;
@@ -44,6 +46,11 @@ export function evaluateRouteEligibility(
     inputErrors.push('Enter a two-letter destination country.');
   if (!/^[A-Z]{3}$/.test(normalized(input.currency)))
     inputErrors.push('Enter a three-letter payout currency.');
+  if (!/^[A-Z]{3}$/.test(normalized(input.sourceCurrency)))
+    inputErrors.push('Enter a three-letter source currency.');
+  const sourceCountry = normalized(input.sourceCountry);
+  if (sourceCountry && !/^[A-Z]{2}$/.test(sourceCountry))
+    inputErrors.push('Enter a two-letter source country.');
   const rows: EligibilityRow[] = routes.map((route) => {
     const provider = providers.find((item) => item.id === route.providerId);
     const rail = provider && rails.find((item) => item.railType === provider.railType);
@@ -60,6 +67,10 @@ export function evaluateRouteEligibility(
       reasons.push('Destination country does not match.');
     if (normalized(route.payoutCurrency) !== normalized(input.currency))
       reasons.push('Payout currency does not match.');
+    if (normalized(route.sourceCurrency) !== normalized(input.sourceCurrency))
+      reasons.push('Source currency does not match.');
+    if (route.sourceCountry && normalized(route.sourceCountry) !== normalized(input.sourceCountry))
+      reasons.push('Source country does not match.');
     if (normalized(route.destinationType) !== normalized(input.destinationType))
       reasons.push('Payout method does not match.');
     if (provider && !rail) reasons.push('Rail compatibility is unavailable.');
@@ -76,25 +87,33 @@ export function evaluateRouteEligibility(
   return { inputErrors, routes: rows };
 }
 
+export interface CorridorMatrixCell {
+  corridor: string;
+  count: number;
+}
+export interface CorridorMatrixRow {
+  source: string;
+  cells: CorridorMatrixCell[];
+}
+
+const sourceKey = (route: TransferRoute) =>
+  `${normalized(route.sourceCountry) || 'GLOBAL'}/${normalized(route.sourceCurrency)}`;
+const destinationKey = (route: TransferRoute) =>
+  `${normalized(route.destinationCountry) || 'GLOBAL'}/${normalized(route.payoutCurrency)}`;
+
 export function buildCorridorMatrix(routes: TransferRoute[], providers: TransferProvider[]) {
   const eligible = routes.filter((route) => {
     const provider = providers.find((item) => item.id === route.providerId);
     return active(route) && Boolean(provider && active(provider));
   });
-  const countries = Array.from(
-    new Set(eligible.map((route) => normalized(route.destinationCountry) || 'GLOBAL')),
-  ).sort();
-  const currencies = Array.from(
-    new Set(eligible.map((route) => normalized(route.payoutCurrency))),
-  ).sort();
-  return countries.map((country) => ({
-    country,
-    cells: currencies.map((currency) => ({
-      currency,
+  const sources = Array.from(new Set(eligible.map(sourceKey))).sort();
+  const corridors = Array.from(new Set(eligible.map(destinationKey))).sort();
+  return sources.map((source) => ({
+    source,
+    cells: corridors.map((corridor) => ({
+      corridor,
       count: eligible.filter(
-        (route) =>
-          (normalized(route.destinationCountry) || 'GLOBAL') === country &&
-          normalized(route.payoutCurrency) === currency,
+        (route) => sourceKey(route) === source && destinationKey(route) === corridor,
       ).length,
     })),
   }));
