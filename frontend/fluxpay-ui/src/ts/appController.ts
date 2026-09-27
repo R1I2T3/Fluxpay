@@ -35,17 +35,13 @@ class RootViewModel {
   isPublic: ko.PureComputed<boolean>;
   isAdminWorkspace: ko.PureComputed<boolean>;
   accountPath = ko.pureComputed(()=>session.isAdmin()?'admin':'dashboard');
-<<<<<<< HEAD
-  visibleNav = ko.pureComputed(()=>this.nav.filter(n=>session.isAdmin()?n.path.startsWith('admin'):!n.path.startsWith('admin')));
-=======
   needsVerificationSubmission = ko.pureComputed(()=>!!session.user()&&!session.isAdmin()&&['NONE','NOT_SUBMITTED','UNVERIFIED'].includes(session.user()?.kycStatus));
-  visibleNav = ko.pureComputed(()=>this.nav.filter(n=>session.isAdmin()?n.path==='admin':n.path!=='admin'));
+  visibleNav = ko.pureComputed(()=>this.nav.filter(n=>session.isAdmin()?n.path.startsWith('admin'):!n.path.startsWith('admin')&&n.path!=='tickets'));
   bottomNav = this.nav.filter(n=>['dashboard','wallets','payments-new','payments-list','account'].includes(n.path)).map(n=>({...n,label:n.path==='account'?'More':n.label}));
   activeTab = ko.pureComputed(()=>{
     const path=this.selection?.path();
     return path==='send'?'payments-new':path==='add-money'?'wallets':['tracking','activity','history','payments-list'].includes(path||'')?'payments-list':['recipients','kyc','tickets','account'].includes(path||'')?'account':path;
   });
->>>>>>> d0ef60141524f31198ba72c7972e79ca562d4f00
   constructor(){
     const savedQuery=new URLSearchParams(location.search||'');
     const savedRoute=savedQuery.get('ojr')||'';
@@ -55,20 +51,14 @@ class RootViewModel {
       {path:'activity/{id}',detail:{label:'Transfer details',module:'tracking'}},
       {path:'history/{id}',detail:{label:'Transaction receipt',module:'payments-list'}},
       {path:'send/{recipient}',detail:{label:'Send to someone',module:'payments-new'}},
-      {path:'add-money',detail:{label:'Add money',module:'wallets'}},
-      {path:'tickets',detail:{label:'Support',module:'support-mount'}}];
+      {path:'add-money',detail:{label:'Add money',module:'wallets'}}];
     this.router = new CoreRouter(routes,{urlAdapter:new UrlParamAdapter(new UrlPathParamAdapter(''))});
     this.moduleAdapter = new ModuleRouterAdapter(this.router,{pathKey:'module'});
     this.selection = new KnockoutRouterAdapter(this.router);
     this.isHome = ko.pureComputed(()=>this.selection.path()==='home');
     this.isPublic = ko.pureComputed(()=>['home','login','register',''].includes(this.selection.path()||''));
-<<<<<<< HEAD
     this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||['admin','admin-tickets'].includes(this.selection.path()||'')));
-    this.selection.path.subscribe(()=>{this.menuOpen(false);window.scrollTo({top:0});});
-=======
-    this.isAdminWorkspace = ko.pureComputed(()=>!this.isPublic()&&(session.isAdmin()||this.selection.path()==='admin'));
     this.selection.path.subscribe(()=>{this.menuOpen(false);document.querySelector?.('.profile-menu')?.removeAttribute('open');window.scrollTo({top:0});});
->>>>>>> d0ef60141524f31198ba72c7972e79ca562d4f00
     window.addEventListener('fluxpay:navigate', (event:any)=> {
       const {path,params} = event.detail;
       // Existing login and account links request dashboard; admins land in Administration.

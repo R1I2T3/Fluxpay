@@ -119,12 +119,9 @@ class DevelopmentDefaultsTest {
           ComplianceCaseRepository.class,
           PolicyDocumentRepository.class,
           PolicyChunkRepository.class,
-<<<<<<< HEAD
+          PolicyGuidanceRepository.class,
           SupportTicketRepository.class,
           TicketMessageRepository.class
-=======
-          PolicyGuidanceRepository.class
->>>>>>> d0ef60141524f31198ba72c7972e79ca562d4f00
         }) {
       base = base.withBean(repository, () -> mock(repository));
     }

@@ -1,0 +1,7 @@
+# Use this profile only for an approved one-time upgrade of a schema that is already beyond
+# V006 (for example, one with V601+ recorded in Flyway history). It must not be a normal
+# runtime profile: review pending migrations, take a backup, run the upgrade once, then
+# restart without this profile. Fresh schemas do not need it.
+spring:
+  flyway:
+    out-of-order: true

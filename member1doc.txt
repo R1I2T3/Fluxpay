@@ -1,0 +1,1521 @@
+FLUXPAY - MEMBER 1 STUDY GUIDE
+================================
+
+Purpose
+-------
+This is a file-by-file guide to the modules you worked on. It explains the
+current project code, not an older handoff document. Read it from top to
+bottom once, then use the endpoint and viva-question sections before a demo.
+
+Your work is mainly in two tracks:
+
+1. Member 1 identity foundation
+   - authentication and JWT
+   - user profile
+   - user KYC upload and status
+   - admin KYC review
+   - KYC security gate and wallet provisioning
+   - tests and Oracle integration tests
+
+2. Plan 1 support platform
+   - support tickets and ticket persistence
+   - user and admin ticket APIs
+   - provider summary report API
+   - user ticket and admin ticket-review frontend
+
+Important current-code note
+---------------------------
+Older task notes may mention V502, an M1 mock wallet provisioner, or a JSON
+KYC metadata endpoint. The current integrated application has evolved:
+
+- Identity/KYC schema is V001__identity_and_kyc.sql.
+- Registration uses PersistentWalletProvisioner, which creates real database
+  wallet rows for USD, EUR, and INR inside the registration transaction.
+- Real KYC submission is multipart/form-data and uploads actual files.
+- The old JSON KYC submission mapping still exists only to reject metadata-only
+  submissions safely; it is hidden from OpenAPI.
+
+Do not describe the old behavior as the current implementation.
+
+
+====================================================================
+1. BIG PICTURE ARCHITECTURE
+====================================================================
+
+Technology
+----------
+- Backend: Java 17, Spring Boot, Spring MVC, Spring Security, JPA/Hibernate,
+  Flyway, Oracle.
+- Frontend: Oracle JET, TypeScript, Knockout MVVM, RequireJS.
+- Database IDs: Java UUID values are persisted as Oracle RAW(16).
+- Authentication: signed HMAC JWT bearer tokens.
+- Browser storage: sessionStorage, not a long-lived cookie.
+
+The request path
+----------------
+
+  Browser screen / HTML form
+          |
+          v
+  Knockout ViewModel (.ts)
+          |
+          v
+  flux-api.ts request wrapper
+          |
+          |  Authorization: Bearer <JWT>, when logged in
+          |  Idempotency-Key, for protected POST mutations where enabled
+          v
+  Frontend proxy on :8000
+          |
+          v
+  Spring Security + JwtAuthFilter
+          |
+          v
+  Controller
+          |
+          v
+  Service (business rules, transactions)
+          |
+          v
+  Repository (Spring Data JPA) or JdbcTemplate
+          |
+          v
+  Oracle tables / private document storage
+          |
+          v
+  ApiResponse<T> or ApiError
+          |
+          v
+  flux-api.ts unwraps response.data
+          |
+          v
+  Knockout observables update the HTML view
+
+Standard response shapes
+------------------------
+
+Successful API response:
+
+  {
+    "correlationId": "...",
+    "data": { ... }
+  }
+
+Error API response:
+
+  {
+    "correlationId": "...",
+    "code": "AUTH_REQUIRED",
+    "message": "authentication is required",
+    "fieldErrors": {},
+    "ts": "..."
+  }
+
+The correlation ID comes from X-Correlation-ID if the caller supplies it;
+otherwise the backend generates one. It is useful when matching a Postman
+response to backend logs.
+
+
+====================================================================
+2. REPOSITORY MAP - WHERE YOUR CODE LIVES
+====================================================================
+
+Backend - core Member 1 files
+-----------------------------
+
+backend/src/main/resources/db/migration/
+  V001__identity_and_kyc.sql       Identity and KYC schema
+
+backend/src/main/java/com/fluxpay/beans/
+  User.java                        users table entity
+  KycCase.java                     kyc_cases table entity and state helpers
+  KycDocument.java                 kyc_documents table entity
+  KycDocumentType.java             PASSPORT/AADHAAR/PAN/DRIVING_LICENSE
+
+backend/src/main/java/com/fluxpay/repository/
+  UserRepository.java              canonical email and locking queries
+  KycCaseRepository.java           KYC lookup, queue queries, row locks
+  KycDocumentRepository.java       document metadata queries
+
+backend/src/main/java/com/fluxpay/dto/
+  RegisterRequest.java             public registration input
+  LoginRequest.java                login input
+  AuthResponse.java                token plus user response
+  UserResponse.java                safe account response
+  UpdateProfileRequest.java        only fullName is editable
+  KycSubmitRequest.java            old/metadata DTO; not the real upload API
+  KycFileMeta.java                 safe file metadata sent to clients
+  KycStatusResponse.java           user KYC state response
+  KycReviewRequest.java            expectedVersion and rejection reason
+  KycAdminRow.java                 KYC queue row for an administrator
+
+backend/src/main/java/com/fluxpay/controller/
+  AuthController.java              /api/auth/register and /api/auth/login
+  UserController.java              /api/users/me
+  KycController.java               JSON KYC mapping, deliberately rejected
+  KycDocumentController.java       real multipart KYC upload and file download
+  AdminKycController.java          admin KYC queue, approve and reject
+
+backend/src/main/java/com/fluxpay/service/
+  AuthService.java                 registration/login business rules
+  UserService.java                 self-profile business rules
+  KycService.java                  status, metadata path, admin review logic
+  KycUploadService.java            real file upload, resubmit, document read
+  KycDocumentStorage.java          private local file validation/storage
+  DatabaseKycGate.java             returns true only for VERIFIED KYC
+  PersistentWalletProvisioner.java creates new-user customer wallets
+
+backend/src/main/java/com/fluxpay/common/security/
+  SecurityConfig.java              HTTP security, JSON 401/403 responses
+  MethodSecurityConfig.java        enables @PreAuthorize
+  JwtAuthFilter.java               bearer token -> authenticated principal
+  JwtUtil.java                     create/verify JWTs
+  CurrentUser.java                 principal record: userId, email, role
+
+backend/src/main/java/com/fluxpay/common/
+  api/ApiResponse.java             normal response envelope
+  api/ApiError.java                normal error envelope
+  web/CorrelationIdFilter.java     X-Correlation-ID handling
+  web/ApiErrorFactory.java         safe consistent error construction
+  contracts/WalletProvisioner.java abstraction used by AuthService
+  contracts/KycGate.java           abstraction consumed by money modules
+
+backend/src/main/java/com/fluxpay/web/advice/
+  AuthKycApiExceptionHandler.java  maps auth/KYC exceptions to HTTP responses
+  AuthDataIntegrityHandler.java    maps database integrity errors for auth
+  KycDataIntegrityHandler.java     maps database integrity errors for KYC
+
+Backend - Plan 1 support files
+------------------------------
+
+backend/src/main/resources/db/migration/
+  V006__support_tickets.sql        support ticket/message tables and indexes
+
+backend/src/main/java/com/fluxpay/beans/
+  SupportTicket.java               support_tickets entity
+  TicketMessage.java               support_ticket_messages entity
+
+backend/src/main/java/com/fluxpay/repository/
+  SupportTicketRepository.java     owner/status/pagination queries
+  TicketMessageRepository.java     chronological message query
+
+backend/src/main/java/com/fluxpay/dto/
+  CreateTicketRequest.java
+  UpdateTicketRequest.java
+  TicketResponse.java
+  TicketPageResponse.java
+  ProviderRow.java
+
+backend/src/main/java/com/fluxpay/controller/
+  TicketController.java            user ticket endpoints
+  AdminTicketController.java       administrator ticket endpoints
+  AdminReportController.java       administrator report endpoint
+
+backend/src/main/java/com/fluxpay/service/
+  TicketService.java               ownership, validation, status logic
+  ReportQueryService.java          read-only provider aggregate query
+  PaymentOperationService.java     durable idempotency used by tickets
+
+backend/src/main/java/com/fluxpay/web/advice/
+  TicketApiExceptionHandler.java   maps ticket BusinessException errors
+
+Frontend - active files
+-------------------------
+
+frontend/fluxpay-ui/src/js/main.js
+  Active JET browser entry point.
+
+frontend/fluxpay-ui/src/ts/root.ts
+  Boots Knockout with RootViewModel.
+
+frontend/fluxpay-ui/src/ts/appController.ts
+  Central routing, navigation, route-to-module mapping, session restore.
+
+frontend/fluxpay-ui/src/ts/services/
+  flux-api.ts                      one HTTP client for frontend APIs
+  session.ts                       JWT/session state and navigation event
+  page.ts                          common Page base class and shared actions
+  auth-page.ts                     login/register presentation helper
+
+frontend/fluxpay-ui/src/ts/viewModels/ and views/
+  login.ts / login.html
+  register.ts / register.html
+  account.ts / account.html
+  kyc.ts / kyc.html
+  admin.ts / admin.html
+  tickets.ts / tickets.html
+  admin-tickets.ts / admin-tickets.html
+
+Do not use old frontend/src/js/viewModels/* files when explaining the current
+application. The active UI is the TypeScript code under src/ts.
+
+
+====================================================================
+3. DATABASE DESIGN
+====================================================================
+
+3.1 Users and authentication
+----------------------------
+
+Migration: V001__identity_and_kyc.sql
+
+Table: users
+  id             RAW(16) primary key
+  email          VARCHAR2(255), not null
+  password_hash  VARCHAR2(255), not null
+  role           VARCHAR2(50), default USER
+  full_name      VARCHAR2(255), not null
+  created_at     timestamp
+  updated_at     timestamp
+
+Rules:
+- The normal unique email constraint prevents exact duplicates.
+- uq_users_email_canonical is a function-based unique index on
+  LOWER(TRIM(email)). It prevents duplicates such as:
+    Alice@Example.com
+    alice@example.com
+    " alice@example.com "
+- password_hash stores the BCrypt hash, never the plaintext password.
+- trg_users_updated_at is an Oracle trigger that refreshes updated_at on a
+  user update.
+- user_roles and refresh_tokens are present in the baseline schema. The
+  current login flow uses the users.role string and short-lived JWT, not a
+  refresh-token endpoint.
+
+Why RAW(16)?
+----------------
+Oracle has no native UUID column type. A UUID is 16 bytes, so the entity uses:
+
+  @JdbcTypeCode(Types.BINARY)
+  @Column(columnDefinition = "RAW(16)")
+
+Hibernate converts Java UUID <-> Oracle RAW(16). This uses less space and is
+more structured than putting UUID text in VARCHAR2(36).
+
+3.2 KYC tables
+--------------
+
+Table: kyc_cases
+  id               RAW(16) primary key
+  user_id          RAW(16) FK users(id), unique
+  status           PENDING | VERIFIED | REJECTED
+  doc_type         PASSPORT | AADHAAR | PAN | DRIVING_LICENSE
+  doc_number       VARCHAR2(64)
+  created_at
+  submitted_at
+  decided_by       RAW(16) FK users(id), nullable while pending
+  decided_at       nullable while pending
+  reject_reason    nullable except rejected cases
+  version          NUMBER, optimistic version counter
+
+Important constraints:
+- One KYC case per user: uq_kyc_cases_user.
+- A PENDING case has no reviewer/time/reason.
+- A VERIFIED case has reviewer and time, no reject reason.
+- A REJECTED case has reviewer, time, and a reject reason.
+- idx_kyc_cases_queue(status, submitted_at, id) supports the admin queue.
+
+Table: kyc_documents
+  id               RAW(16) primary key
+  case_id          RAW(16) FK kyc_cases(id), cascade delete
+  file_name        safe client filename
+  file_type        application/pdf | image/jpeg | image/png
+  file_size        > 0 and <= 5 MiB
+  storage_url      private storage key, normally local:<uuid>
+  uploaded_at
+
+The database stores document metadata and a storage key. Binary document bytes
+are stored privately on disk in the configured KYC storage directory, not in a
+public static directory and not exposed by a URL.
+
+3.3 Support-ticket tables
+-------------------------
+
+Migration: V006__support_tickets.sql
+
+Table: support_tickets
+  id                 RAW(16) primary key
+  user_id            RAW(16) FK users(id)
+  payment_id         RAW(16) FK payments(id), optional
+  subject            VARCHAR2(120)
+  body               VARCHAR2(4000)
+  status             OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  assignee_admin_id  RAW(16) FK users(id), optional
+  created_at
+  updated_at
+
+Indexes:
+- (user_id, created_at DESC): fast "my tickets" screen.
+- (status, created_at DESC): fast admin work queue.
+
+Table: support_ticket_messages
+  id, ticket_id, author_user_id, body, created_at
+
+The entity and repository for ticket messages are ready, but there is currently
+no ticket-message API or chat/reply UI. Do not claim conversation replies are
+implemented yet.
+
+
+====================================================================
+4. SECURITY - WHAT PROTECTS THE SYSTEM
+====================================================================
+
+4.1 Password protection
+-----------------------
+
+Location: AuthService.java and SecurityConfig.java
+
+- SecurityConfig creates BCryptPasswordEncoder.
+- AuthService.register calls passwordEncoder.encode(request.password()).
+- The hash is saved in users.password_hash.
+- AuthService.login calls passwordEncoder.matches(enteredPassword, hash).
+- BCrypt is salted, so two equal passwords normally produce different hashes.
+- BCrypt only safely accepts up to 72 UTF-8 bytes. The service checks this
+  explicitly before hashing and before matching.
+- The plaintext password is never returned by API responses.
+- On the frontend the password is only held in the active Knockout input
+  observable. AuthPage clears it when the auth screen disconnects.
+
+4.2 JWT lifecycle
+-----------------
+
+JWT creation: common/security/JwtUtil.java
+
+Claims in the signed token:
+  sub   = user UUID
+  email = canonical user email
+  role  = USER or ADMIN
+  iat   = issued time
+  exp   = issued time + 3600 seconds
+
+The signing key comes from fluxpay.jwt-secret, whose environment input is
+JWT_SECRET. The secret must be at least 32 bytes for an HMAC key.
+
+JWT request flow:
+
+1. Login/register succeeds.
+2. AuthResponse contains token, tokenType "Bearer", expiresIn 3600, and user.
+3. Frontend session.set stores token under sessionStorage['fluxpay.token'].
+4. flux-api.ts adds Authorization: Bearer <token> to authenticated requests.
+5. JwtAuthFilter validates signature and expiry.
+6. It builds CurrentUser(userId, email, role).
+7. It puts ROLE_USER or ROLE_ADMIN in Spring Security's SecurityContext.
+8. Controllers receive CurrentUser through @AuthenticationPrincipal.
+
+JWT failure behavior:
+- Missing token on a protected endpoint -> 401 AUTH_REQUIRED.
+- Invalid signature or malformed token -> filter clears security context,
+  SecurityConfig returns 401 AUTH_REQUIRED.
+- Expired token -> same 401 response.
+- The response intentionally does not expose parser internals or token details.
+- A role in a JWT is a signed claim. Current code does not re-check the user
+  role in the database for every request and has no refresh/logout revocation
+  endpoint. A changed role takes effect after a new login/token or expiry.
+
+4.3 HTTP and method security
+----------------------------
+
+SecurityConfig.java:
+- CSRF disabled because this is a stateless bearer-token API.
+- Session creation policy is STATELESS.
+- Public paths:
+    /api/auth/**
+    /swagger-ui.html
+    /swagger-ui/**
+    /v3/api-docs/**
+- All other endpoints require authentication.
+- JSON error handlers return:
+    401 AUTH_REQUIRED
+    403 FORBIDDEN
+
+MethodSecurityConfig.java enables @PreAuthorize.
+
+Examples:
+- AdminKycController has @PreAuthorize("hasRole('ADMIN')").
+- AdminTicketController has @PreAuthorize("hasRole('ADMIN')").
+- AdminReportController has @PreAuthorize("hasRole('ADMIN')").
+
+Frontend role checks are only for user experience. They do not secure data.
+The backend is the final authority.
+
+4.4 Ownership protection
+------------------------
+
+Examples:
+- User profile endpoints do not accept a user ID. They use CurrentUser.userId.
+- Ticket GET uses findByIdAndUserId(ticketId, currentUserId). A different user
+  gets 404 TICKET_NOT_FOUND, not 403. This avoids revealing that a ticket
+  exists.
+- A related ticket payment must pass findByIdAndSenderId(paymentId, userId).
+- KYC document content can be read only by its owner or a literal ADMIN role.
+  A different normal user gets a deliberate 404.
+
+4.5 File upload security
+------------------------
+
+KycDocumentStorage.java protects uploads by validating:
+- exactly one to four files per submission;
+- nonempty file and maximum 5 MiB each;
+- MIME type PDF/JPEG/PNG;
+- valid safe filename: no path slash, backslash, control character, or blank;
+- PDF header (%PDF-) and EOF marker;
+- actual JPEG/PNG decode through ImageIO, not only the claimed MIME type;
+- image maximum 25 megapixels;
+- UUID-based filename in private storage;
+- no symbolic storage directory/file traversal;
+- Cache-Control: no-store, X-Content-Type-Options: nosniff and sandbox CSP
+  on document downloads.
+
+4.6 Correlation IDs
+-------------------
+
+CorrelationIdFilter.java:
+- Reads X-Correlation-ID if supplied.
+- Generates a UUID if omitted.
+- Places it in logging MDC and response header.
+- ApiResponse and ApiError expose the same ID.
+
+Use this during debugging: copy the correlation ID from Postman and search the
+backend terminal logs.
+
+
+====================================================================
+5. AUTHENTICATION MODULE - COMPLETE WORKFLOW
+====================================================================
+
+5.1 Registration
+----------------
+
+Frontend route and files
+  URL:          http://localhost:8000/?ojr=register
+  ViewModel:    frontend/fluxpay-ui/src/ts/viewModels/register.ts
+  View:         frontend/fluxpay-ui/src/ts/views/register.html
+  Shared logic: frontend/fluxpay-ui/src/ts/services/page.ts, signUp()
+  API facade:   frontend/fluxpay-ui/src/ts/services/flux-api.ts, register()
+
+Backend files
+  Controller:   backend/.../controller/AuthController.java
+  Service:      backend/.../service/AuthService.java
+  DTO:          backend/.../dto/RegisterRequest.java
+  Repositories: UserRepository, KycCaseRepository, WalletRepository
+
+Browser-to-database sequence
+----------------------------
+
+1. The register.html form binds name/email/password to Knockout observables.
+2. register.ts extends AuthPage, which extends Page. Page.signUp() runs.
+3. Page.signUp validates that all three fields have values.
+4. fluxApi.register sends:
+
+     POST /api/auth/register
+     Content-Type: application/json
+
+     {
+       "fullName": "Alice Example",
+       "email": "Alice@Example.com",
+       "password": "a-password-at-least-8-chars"
+     }
+
+5. AuthController uses @Valid and passes RegisterRequest to AuthService.
+6. AuthService canonicalizes email with trim().toLowerCase(Locale.ROOT).
+7. UserRepository.existsByCanonicalEmail uses lower(trim(email)) to check both
+   existing legacy rows and new canonical values.
+8. If duplicate, AuthException EMAIL_EXISTS is mapped to HTTP 409.
+9. AuthService checks password byte length <= 72 UTF-8 bytes.
+10. It creates User with:
+      - random UUID
+      - canonical email
+      - BCrypt password hash
+      - role hardcoded to USER
+      - trimmed full name
+      - created/updated timestamps
+11. users.saveAndFlush writes the user.
+12. walletProvisioner.provision(userId) creates/finds USD, EUR, INR CUSTOMER
+    wallets through PersistentWalletProvisioner.
+13. The transaction commits only if both user and wallet provisioning succeed.
+    If provisioning throws an exception, registration rolls back.
+14. AuthService creates a one-hour JWT and UserResponse with KYC status NONE.
+15. AuthController returns HTTP 201 ApiResponse<AuthResponse>.
+16. Page.signUp calls session.set(response): token goes to sessionStorage and
+    user data goes to the Knockout session observable.
+17. Frontend navigates to ?ojr=kyc.
+
+What an interviewer may ask
+---------------------------
+
+Q: Can somebody make themselves ADMIN by sending role=ADMIN during signup?
+A: No. RegisterRequest has no role property and AuthService always uses the
+   constant USER_ROLE = "USER". The server owns role assignment.
+
+Q: Why canonicalize email in both code and database?
+A: Code gives friendly, consistent behavior. The Oracle function-based unique
+   index protects against race conditions and legacy/non-canonical rows.
+
+Q: Why saveAndFlush before wallet provisioning?
+A: It makes database issues surface before subsequent provisioning work. The
+   entire method remains one transaction, so a provisioning failure rolls it
+   back.
+
+5.2 Login
+-----------
+
+Frontend route/files
+  URL:          ?ojr=login
+  ViewModel:    viewModels/login.ts
+  View:         views/login.html
+  Logic:        Page.signIn()
+
+Request:
+
+  POST /api/auth/login
+  {
+    "email": " Alice@Example.com ",
+    "password": "..."
+  }
+
+Backend flow
+------------
+
+1. AuthService canonicalizes email with trim + lowercase.
+2. UserRepository.findByCanonicalEmail finds lower(trim(email)).
+3. BCryptPasswordEncoder.matches checks password against password_hash.
+4. A nonexisting email and a wrong password both return the same error:
+
+     HTTP 401
+     code: INVALID_CREDENTIALS
+     message: invalid email or password
+
+   This prevents account-existence disclosure.
+5. KycCaseRepository finds the user's current KYC case. If absent, KYC status
+   is NONE.
+6. AuthService returns a fresh one-hour JWT and current UserResponse.
+7. session.set saves token/user. RootViewModel later redirects an admin who
+   reaches dashboard to the Administration route.
+
+Legacy email answer
+-------------------
+
+Login supports padded/mixed-case values because AuthService canonicalizes the
+input and the repository query uses LOWER(TRIM(email)). The @Email annotation is
+on RegisterRequest, not LoginRequest, so a valid legacy stored address can be
+normalized at login rather than rejected prematurely by email validation.
+
+
+====================================================================
+6. USER PROFILE MODULE - COMPLETE WORKFLOW
+====================================================================
+
+Routes/files
+------------
+
+  URL:       ?ojr=account
+  ViewModel: frontend/fluxpay-ui/src/ts/viewModels/account.ts
+  View:      frontend/fluxpay-ui/src/ts/views/account.html
+  Base logic: services/page.ts
+
+GET current profile
+-------------------
+
+  GET /api/users/me
+  Authorization: Bearer <JWT>
+
+Flow:
+1. Page.load() sees screen === "account".
+2. It calls fluxApi.me().
+3. UserController.getProfile receives CurrentUser from JwtAuthFilter.
+4. UserService.getProfile(currentUser.userId()) loads only that user.
+5. UserService reads a KYC case and derives KYC NONE when no case exists.
+6. Response is UserResponse(id, email, fullName, role, kycStatus).
+
+Update current profile
+----------------------
+
+  PUT /api/users/me
+  Authorization: Bearer <JWT>
+  {
+    "fullName": "Alice Updated"
+  }
+
+Flow:
+1. account.html only gives an editable full-name field. Email is readonly.
+2. Page.saveProfile() calls fluxApi.updateMe({fullName}).
+3. UserController uses the authenticated principal, not a client user ID.
+4. UpdateProfileRequest only has fullName.
+5. UserService calls User.setFullName(trimmedName).
+6. JPA dirty checking writes the change. Oracle trigger updates updated_at.
+7. The API returns the same safe UserResponse format.
+
+Why email, role, password, and other profiles cannot be edited here
+--------------------------------------------------------------------
+- The route is /me, not /users/{id}.
+- CurrentUser.userId comes from a signed token.
+- UpdateProfileRequest has only fullName.
+- User has no setters exposed for email, role, or password.
+- Therefore there is no server path to mutate those fields through this module.
+
+
+====================================================================
+7. KYC USER MODULE - COMPLETE WORKFLOW
+====================================================================
+
+7.1 State model
+---------------
+
+No KYC case              -> response status NONE
+First valid upload       -> PENDING
+PENDING or VERIFIED      -> documents are read-only; new upload rejected
+Admin rejection          -> REJECTED
+Valid resubmit from REJECTED -> PENDING and decision fields reset
+Admin approval           -> VERIFIED
+
+The current real upload service reports a conflict if a PENDING/VERIFIED case
+is overwritten. This is the correct current behavior for file-backed KYC.
+
+7.2 User route/files
+--------------------
+
+  URL:       ?ojr=kyc
+  ViewModel: frontend/fluxpay-ui/src/ts/viewModels/kyc.ts
+  View:      frontend/fluxpay-ui/src/ts/views/kyc.html
+  API:       fluxApi.uploadKyc(), fluxApi.kyc(), fluxApi.kycDocument()
+
+The KYC view shows:
+- status: NONE, PENDING, REJECTED, or VERIFIED;
+- submitted/decision timestamps and rejection reason;
+- file selection and submission only when allowed;
+- previous document cards;
+- secure document preview/download only when document metadata says available.
+
+7.3 Get KYC status
+------------------
+
+  GET /api/kyc/my-status
+  Authorization: Bearer <JWT>
+
+Controller: KycController.getMyStatus()
+Service:    KycService.getMyStatus(userId)
+
+If KycCaseRepository.findByUserId returns empty, the service builds:
+
+  {
+    "applicationId": null,
+    "version": null,
+    "status": "NONE",
+    "rejectReason": null,
+    "submittedAt": null,
+    "decidedAt": null,
+    "documents": []
+  }
+
+7.4 Real KYC submission - multipart upload
+-------------------------------------------
+
+Correct current request:
+
+  POST /api/kyc/applications
+  Content-Type: multipart/form-data
+  Authorization: Bearer <JWT>
+
+  form-data fields:
+    docType     PAN | AADHAAR | PASSPORT | DRIVING_LICENSE
+    docNumber   text up to 64 characters
+    files       one to four actual file parts
+
+Controller: KycDocumentController.submit()
+Service:    KycUploadService.submit()
+
+Step-by-step:
+1. kyc.html accepts only PDF/JPG/PNG and allows multiple files.
+2. kyc.ts checks client-side: one to four, correct MIME type, nonzero, <=5 MiB.
+3. fluxApi.uploadKyc creates FormData with docType, docNumber, and repeated
+   files parts. It does not set JSON Content-Type for FormData.
+4. KycDocumentController gets @RequestParam docType/docNumber and
+   @RequestPart("files") List<MultipartFile>.
+5. KycUploadService validates details and locks the user row first. Locking the
+   user matters because a first KYC submission does not yet have a KYC case row
+   to lock.
+6. It locks the existing KYC case if it exists.
+7. If case is absent, it creates a new PENDING KycCase.
+8. If case is REJECTED, KycCase.resubmit changes it to PENDING, refreshes
+   document type/number/submitted time, and clears reviewer/time/reject reason.
+9. If case is PENDING or VERIFIED, it returns KYC_CONFLICT. The user must wait
+   or be rejected before replacing actual documents.
+10. KycDocumentStorage.validate validates file name, bytes, real format, and
+    file size.
+11. Each byte array is stored under a generated UUID .bin file in private
+    storage; kyc_documents records local:<uuid>, name, type, size, timestamp.
+12. Old document database rows are replaced. Old physical files are removed
+    only after a successful commit. New physical files are removed on rollback.
+13. Service returns KycStatusResponse (HTTP 201 through the controller).
+14. kyc.ts clears selected files/number, updates its KYC observable, then calls
+    session.restore() so the header/profile's kycStatus is refreshed.
+
+Why two /api/kyc/applications controller mappings exist
+--------------------------------------------------------
+
+- KycDocumentController handles consumes=multipart/form-data and is the real
+  endpoint.
+- KycController has consumes=application/json but is @Hidden in OpenAPI and
+  deliberately throws VALIDATION with a message that actual files are required.
+
+This prevents an old client from pretending that metadata-only KYC documents
+were uploaded. In a demo or viva, always use multipart/form-data.
+
+7.5 Secure document content endpoint
+-------------------------------------
+
+  GET /api/kyc/documents/{documentId}/content
+  Authorization: Bearer <JWT>
+
+Flow:
+1. KycUploadService.read finds document metadata by id.
+2. If caller is not ADMIN and does not own document.kycCase.userId, it throws
+   KYC_NOT_FOUND. A normal user cannot discover another user's document.
+3. Storage reads the UUID-based private file.
+4. Controller returns attachment bytes with no-store, nosniff and sandbox CSP.
+5. frontend fluxApi.kycDocument fetches Blob bytes.
+6. Page.openDocument creates a temporary Blob URL for preview.
+7. Page.closeDocument revokes the Blob URL; session changes also close it.
+
+7.6 DatabaseKycGate integration
+--------------------------------
+
+File: backend/src/main/java/com/fluxpay/service/DatabaseKycGate.java
+
+  boolean isVerified(UUID userId)
+
+returns true only when a kyc_cases record exists and status == VERIFIED.
+
+It is consumed by PaymentService, PaymentConfirmationService, and
+BankAccountPostingService. This means KYC does more than update a profile badge:
+later money operations can deny nonverified users with KYC-required errors.
+
+
+====================================================================
+8. ADMIN KYC REVIEW MODULE - COMPLETE WORKFLOW
+====================================================================
+
+Admin API endpoints
+-------------------
+
+  GET /api/admin/kyc/applications?status=PENDING&page=0&size=50
+  PUT /api/admin/kyc/applications/{id}/approve
+  PUT /api/admin/kyc/applications/{id}/reject
+
+All require a JWT with role ADMIN.
+
+List endpoint
+-------------
+
+Controller: AdminKycController.listApplications()
+Service:    KycService.listForAdmin()
+
+- Filter is case-insensitive.
+- ALL is accepted to list all statuses.
+- page must be >= 0.
+- size must be 1 to 100.
+- Queue ordering is submittedAt ascending, then id ascending, so oldest pending
+  cases come first.
+- Each KycAdminRow has applicant email/name, document metadata, state, dates,
+  reason and optimistic version.
+
+Frontend integration
+--------------------
+
+  URL:       ?ojr=admin
+  ViewModel: frontend/fluxpay-ui/src/ts/viewModels/admin.ts
+  View:      frontend/fluxpay-ui/src/ts/views/admin.html
+  Shared KYC review actions: frontend/.../services/page.ts
+
+Page.load() restores the session, checks session.isAdmin for the UI, calls
+fluxApi.adminKyc, and displays the queue. The backend still enforces the role
+even if someone manually enters the route URL.
+
+Approve endpoint
+----------------
+
+  PUT /api/admin/kyc/applications/{id}/approve
+  {
+    "expectedVersion": 0,
+    "reason": null
+  }
+
+Flow:
+1. @PreAuthorize verifies ADMIN.
+2. CurrentUser supplies reviewer ID.
+3. KycService.reviewableCase uses findByIdForUpdate to lock the row.
+4. It requires expectedVersion equal to KycCase.version.
+5. It requires current status PENDING.
+6. It loads submitted documents, requires real local storage keys, and reads
+   every stored file. Approval cannot pretend unavailable originals exist.
+7. KycCase.approve sets VERIFIED, reviewer, decision time, and clears reason.
+8. JPA @Version increments when persisted.
+
+Reject endpoint
+---------------
+
+  PUT /api/admin/kyc/applications/{id}/reject
+  {
+    "expectedVersion": 0,
+    "reason": "Please upload a clearer PAN image."
+  }
+
+Rules:
+- expectedVersion is mandatory and >= 0.
+- reason must be nonblank and max 500 characters.
+- Reject writes REJECTED, reviewer, decision time, reason, and increments
+  version.
+- The user may then upload corrected documents. resubmit clears all prior
+  decision fields and returns the case to PENDING.
+
+Why expectedVersion is needed
+-----------------------------
+
+Suppose two admins load version 0. Admin A approves first; the entity becomes
+version 1. Admin B sends a decision using expectedVersion 0. The service sees a
+stale version and returns HTTP 409 KYC_CONFLICT instead of overwriting A's
+decision. Pessimistic row locks plus optimistic version comparison provide safe
+review behavior.
+
+
+====================================================================
+9. PLAN 1 SUPPORT TICKETS - COMPLETE WORKFLOW
+====================================================================
+
+9.1 User ticket API
+-------------------
+
+  POST /api/tickets
+  GET  /api/tickets?page=0&size=20
+  GET  /api/tickets/{id}
+
+All require an authenticated user. Successful output is wrapped in ApiResponse.
+
+Create request:
+
+  POST /api/tickets
+  Authorization: Bearer <user JWT>
+  Idempotency-Key: a-client-generated-unique-key
+  Content-Type: application/json
+
+  {
+    "paymentId": "optional-UUID-of-user-owned-payment",
+    "subject": "Payout status request",
+    "body": "Please review my payout processing status."
+  }
+
+Create flow
+-----------
+
+1. TicketController.create obtains CurrentUser and Idempotency-Key.
+2. PaymentOperationService.requireKey requires 1 to 255 nonblank characters.
+3. @Valid checks DTO shape; TicketService additionally trims and validates:
+      subject: 1 to 120 characters
+      body:    1 to 4000 characters
+4. If paymentId is included, TicketService calls
+   PaymentRepository.findByIdAndSenderId(paymentId, currentUserId).
+5. If user does not own that payment, it returns 404 PAYMENT_NOT_FOUND.
+6. TicketService sends the work through PaymentOperationService.execute:
+      action = CREATE_TICKET
+7. The durable operation record is keyed by (user_id, client_key).
+8. The supplier creates SupportTicket with default status OPEN and timestamps.
+9. Ticket and saved API response commit transactionally.
+10. Controller returns HTTP 201 plus TicketResponse.
+
+Idempotency behavior
+--------------------
+
+Same user + same key + same normalized request:
+  returns the saved original TicketResponse instead of creating a duplicate.
+
+Same user + same key + different request:
+  HTTP 409 IDEMPOTENCY_CONFLICT.
+
+Same key while original request is incomplete:
+  HTTP 409 OPERATION_IN_PROGRESS.
+
+This is important because browser retries or user double-clicks should not create
+two identical tickets.
+
+Owner-only reads
+----------------
+
+TicketService.getOwned uses SupportTicketRepository.findByIdAndUserId.
+
+  GET /api/tickets/{id}
+
+works only for the owner. A ticket belonging to a different user returns:
+
+  HTTP 404
+  code: TICKET_NOT_FOUND
+
+It deliberately does not return 403, because 403 would reveal that the guessed
+ticket exists.
+
+9.2 User ticket frontend
+------------------------
+
+Routes and files
+  URL:       ?ojr=tickets
+  ViewModel: frontend/fluxpay-ui/src/ts/viewModels/tickets.ts
+  View:      frontend/fluxpay-ui/src/ts/views/tickets.html
+  API:       ticketApi at end of services/flux-api.ts
+
+How a user reaches it
+---------------------
+- Account page: "Support tickets" link.
+- Profile dropdown: "Help & support" for a normal user.
+- Direct route: ?ojr=tickets.
+
+TicketsViewModel behavior
+-------------------------
+
+On load it:
+1. GETs /api/tickets?page=0&size=20.
+2. Fetches all paged own payments using /api/payments?page=N&size=100.
+3. Fetches own recipients using /api/recipients.
+4. Filters out DRAFT and QUOTED payments.
+5. Builds optional payment labels in this exact visual format:
+
+     [date - recipient name - amount]
+
+   Example:
+
+     [9/21/2026 - Riya Patel - $125.00]
+
+The related payment is a select/dropdown, not a free-text input. The client only
+shows the signed-in user's submitted transactions. The server repeats the owner
+check so client filtering cannot be bypassed.
+
+On submit it trims/validates subject/body, omits paymentId when blank, calls
+ticketApi.create(), clears the form, and refreshes the ticket list.
+
+The current user ticket view displays the first 20 ticket records and their
+total count. It does not currently provide user-side pagination controls.
+
+9.3 Administrator ticket API
+----------------------------
+
+  GET /api/admin/tickets?status=ALL&page=0&size=20
+  PUT /api/admin/tickets/{id}
+
+Class: AdminTicketController.java
+Class-level security: @PreAuthorize("hasRole('ADMIN')")
+
+Update request:
+
+  {
+    "status": "IN_PROGRESS",
+    "assigneeAdminId": "optional-admin-uuid"
+  }
+
+Rules enforced by TicketService
+-------------------------------
+- status must be OPEN, IN_PROGRESS, RESOLVED, or CLOSED.
+- Optional assigneeAdminId must identify an existing user whose role is ADMIN.
+- If assigneeAdminId is omitted, status changes but existing assignment stays.
+- This API currently has no explicit way to clear an existing assignment.
+- Any valid status can generally be set, except CLOSED tickets must first move
+  to OPEN before any other status. A CLOSED -> OPEN reopen is allowed.
+- There is no ticket expectedVersion field; ticket state safety is different
+  from KYC review's optimistic-version flow.
+
+9.4 Admin ticket frontend
+-------------------------
+
+  URL:       ?ojr=admin-tickets
+  ViewModel: frontend/fluxpay-ui/src/ts/viewModels/admin-tickets.ts
+  View:      frontend/fluxpay-ui/src/ts/views/admin-tickets.html
+
+The profile menu exposes "Support review" to ADMIN users.
+
+AdminTicketsViewModel:
+- restores session if needed;
+- does not call admin APIs if session.isAdmin is false;
+- lists/filter/pages ticket queue in groups of 20;
+- uses current admin's own ID for "Assign to me";
+- sends PUT updates for user-interface lifecycle buttons:
+
+    OPEN        -> IN_PROGRESS  (Start)
+    IN_PROGRESS -> RESOLVED     (Resolve)
+    RESOLVED    -> CLOSED       (Close)
+    CLOSED      -> OPEN         (Reopen)
+
+The user interface supports self-assignment. The backend can accept another
+valid ADMIN UUID, but there is no current UI picker to assign to a different
+administrator.
+
+9.5 Admin report API
+--------------------
+
+  GET /api/admin/reports/provider-summary?from=<ISO-8601>&to=<ISO-8601>
+
+Example:
+
+  /api/admin/reports/provider-summary?from=2026-09-01T00:00:00Z&to=2026-10-01T00:00:00Z
+
+Controller: AdminReportController.java
+Service:    ReportQueryService.java
+
+It is ADMIN-only and read-only. JdbcTemplate executes a grouped query over
+payout_routes and payout_attempts, counting total/completed/failed attempts for
+each provider inside [from, to). It returns ProviderRow:
+
+  providerName, totalAttempts, completedAttempts, failedAttempts
+
+Missing/malformed/reversed date range returns HTTP 400 INVALID_REPORT_RANGE.
+
+There is no current dedicated report frontend screen. This capability is API
+and backend-test ready; it can be exercised from Swagger/Postman.
+
+9.6 What is not implemented for tickets
+---------------------------------------
+
+- No automatic ticket creation when a payment fails.
+- No ticket-message/reply API or conversation UI yet.
+- No user ticket close/reopen API.
+- No ticket optimistic version/expectedVersion field.
+- No admin report visual page yet.
+
+
+====================================================================
+10. FRONTEND ROUTING AND MVVM - HOW FILES CONNECT
+====================================================================
+
+10.1 Bootstrap
+--------------
+
+  src/js/main.js
+      -> imports/binds TypeScript root
+      -> src/ts/root.ts
+      -> appController.ts RootViewModel
+      -> Knockout binds to #globalBody in src/index.html
+
+Oracle JET components used:
+- CoreRouter
+- ModuleRouterAdapter
+- KnockoutRouterAdapter
+- UrlParamAdapter / UrlPathParamAdapter
+- oj-module
+
+When a route's module is "tickets", JET loads:
+
+  src/ts/viewModels/tickets.ts
+  src/ts/views/tickets.html
+
+The view model provides observables/functions; the HTML uses Knockout
+data-bind attributes to display them and call methods.
+
+10.2 Route table
+----------------
+
+Primary URL format is:
+
+  http://localhost:8000/?ojr=<route>
+
+Route                    Module/ViewModel + View
+-----                    ------------------------
+home                     home.ts + home.html
+login                    login.ts + login.html
+register                 register.ts + register.html
+dashboard                dashboard.ts + dashboard.html
+wallets                  wallets.ts + wallets.html
+payments-new             payments-new.ts + payments-new.html
+payments-list            payments-list.ts + payments-list.html
+recipients               recipients.ts + recipients.html
+kyc                      kyc.ts + kyc.html
+account                  account.ts + account.html
+admin                    admin.ts + admin.html
+admin-tickets            admin-tickets.ts + admin-tickets.html
+tickets                  tickets.ts + tickets.html
+activity/{id}            tracking.ts + tracking.html
+history/{id}             payments-list.ts + payments-list.html
+send/{recipient}         payments-new.ts + payments-new.html
+add-money                wallets.ts + wallets.html
+
+Routing facts
+-------------
+- appController.ts keeps nav definitions and converts nav paths into direct
+  module route entries.
+- support-mount.ts/html exists but is not the active ticket route. The live
+  tickets route loads tickets.ts directly.
+- Native anchors use data-route. RootViewModel captures clicks, calls
+  navigate(), and dispatches fluxpay:navigate.
+- appController listens for that event and calls router.go(...).
+- Ordinary href values preserve bookmarks and direct URL access.
+- ?ojr=tracking redirects to payments-list; newer activity/history routes keep
+  deep-link behavior.
+- Admin accountPath maps a generic dashboard action to admin after session
+  restore.
+- Non-admin navigation hides tickets from generic nav because index.html adds
+  the explicit Help & support link. Admin visible navigation includes
+  Administration and Support review.
+
+10.3 Frontend session flow
+--------------------------
+
+File: frontend/fluxpay-ui/src/ts/services/session.ts
+
+session.set(authResult):
+  sessionStorage['fluxpay.token'] = authResult.token
+  session.user(authResult.user)
+  dispatches fluxpay:session
+
+session.restore():
+  if a token exists, calls GET /api/users/me
+  fills session.user from the safe server response
+
+session.clear():
+  removes the token
+  clears the observable user
+  dispatches fluxpay:session
+
+On any non-auth HTTP 401, flux-api.ts removes the token and emits
+fluxpay:expired. session.ts handles that by clearing session and navigating
+home. Thus an expired JWT cannot keep the UI looking logged in.
+
+10.4 flux-api.ts request wrapper
+--------------------------------
+
+File: frontend/fluxpay-ui/src/ts/services/flux-api.ts
+
+The request<T>() helper:
+- uses a relative API path so development proxy can forward it;
+- adds Accept: application/json;
+- adds Content-Type: application/json for JSON bodies;
+- skips JSON content type for FormData uploads;
+- adds Authorization bearer header when a token exists;
+- unwraps ApiResponse by returning json.data;
+- combines API message and fieldErrors for frontend error display;
+- clears session after a protected 401;
+- adds an Idempotency-Key for calls using idem=true.
+
+The in-memory pending map chooses crypto.randomUUID keyed by method + path +
+body. A retry of the same in-flight equivalent call gets the same key. The
+backend remains authoritative because it stores completed operation snapshots.
+
+10.5 Development proxy
+-----------------------
+
+Start script:
+
+  scripts/start-frontend.py
+
+It serves the JET app on port 8000. API_PROXY defaults to:
+
+  http://127.0.0.1:<SERVER_PORT>
+
+normally http://127.0.0.1:8080. The frontend proxy forwards /api requests to
+the backend, so browser code can use paths such as /api/auth/login rather than
+hardcoding a backend host.
+
+
+====================================================================
+11. ENDPOINT CHEAT SHEET
+====================================================================
+
+Public auth
+-----------
+
+POST /api/auth/register
+  Auth: no
+  Body: { email, password, fullName }
+  Success: 201, token + user
+  Errors: 400 validation, 409 EMAIL_EXISTS
+
+POST /api/auth/login
+  Auth: no
+  Body: { email, password }
+  Success: 200, token + user
+  Errors: 400 validation, 401 INVALID_CREDENTIALS
+
+User profile
+------------
+
+GET /api/users/me
+  Auth: USER or ADMIN JWT
+  Success: 200 UserResponse
+
+PUT /api/users/me
+  Auth: USER or ADMIN JWT
+  Body: { fullName }
+  Success: 200 UserResponse
+
+KYC user
+--------
+
+GET /api/kyc/my-status
+  Auth: JWT
+  Success: 200 KycStatusResponse
+
+POST /api/kyc/applications
+  Auth: JWT
+  Content-Type: multipart/form-data
+  Parts: docType, docNumber, files (1-4)
+  Success: 201 KycStatusResponse
+  Errors: 400 VALIDATION, 409 KYC_CONFLICT, 503 KYC_STORAGE_UNAVAILABLE
+
+GET /api/kyc/documents/{id}/content
+  Auth: owner or ADMIN JWT
+  Success: 200 attachment bytes
+  Other user: 404 KYC_NOT_FOUND
+
+Admin KYC
+---------
+
+GET /api/admin/kyc/applications?status=PENDING&page=0&size=50
+  Auth: ADMIN JWT
+  Success: 200 List<KycAdminRow>
+
+PUT /api/admin/kyc/applications/{id}/approve
+  Auth: ADMIN JWT
+  Body: { expectedVersion, reason? }
+  Success: 200 KycStatusResponse
+  Errors: 409 KYC_CONFLICT or KYC_ALREADY_DECIDED
+
+PUT /api/admin/kyc/applications/{id}/reject
+  Auth: ADMIN JWT
+  Body: { expectedVersion, reason }
+  Success: 200 KycStatusResponse
+  Errors: 400 REJECT_REASON_REQUIRED, 409 KYC_CONFLICT
+
+Support tickets
+---------------
+
+POST /api/tickets
+  Auth: JWT
+  Header: Idempotency-Key required
+  Body: { paymentId?, subject, body }
+  Success: 201 TicketResponse
+  Errors: 400 invalid request/key, 404 PAYMENT_NOT_FOUND,
+          409 IDEMPOTENCY_CONFLICT / OPERATION_IN_PROGRESS
+
+GET /api/tickets?page=0&size=20
+  Auth: JWT
+  Success: 200 TicketPageResponse, own tickets only
+
+GET /api/tickets/{id}
+  Auth: JWT
+  Success: 200 TicketResponse, owner only
+  Other user: 404 TICKET_NOT_FOUND
+
+Admin tickets
+-------------
+
+GET /api/admin/tickets?status=ALL&page=0&size=20
+  Auth: ADMIN JWT
+  Success: 200 TicketPageResponse
+
+PUT /api/admin/tickets/{id}
+  Auth: ADMIN JWT
+  Body: { status, assigneeAdminId? }
+  Success: 200 TicketResponse
+  USER token: 403 FORBIDDEN
+
+Reports
+-------
+
+GET /api/admin/reports/provider-summary?from=<ISO>&to=<ISO>
+  Auth: ADMIN JWT
+  Success: 200 List<ProviderRow>
+  Bad range: 400 INVALID_REPORT_RANGE
+
+
+====================================================================
+12. TESTS - WHAT PROVES THE MODULES
+====================================================================
+
+Core unit/service tests
+-----------------------
+
+backend/src/test/java/com/fluxpay/service/
+  AuthServiceTest.java
+  UserServiceTest.java
+  KycServiceTest.java
+  KycUploadServiceTest.java
+  KycDocumentFlowTest.java
+  DatabaseKycGateTest.java
+  PersistentWalletProvisionerTest.java
+  TicketServiceTest.java
+  ReportQueryServiceTest.java
+
+Repository/controller tests
+---------------------------
+
+backend/src/test/java/com/fluxpay/repository/
+  SupportTicketRepositoryTest.java
+
+backend/src/test/java/com/fluxpay/controller/
+  AuthKycControllerMvcTest.java
+  KycDocumentControllerTest.java
+  TicketControllerMvcTest.java
+  AdminTicketControllerMvcTest.java
+  AdminReportControllerMvcTest.java
+
+JWT/Oracle tests
+---------------
+
+backend/src/test/java/com/fluxpay/common/security/
+  JwtUtilTest.java
+
+backend/src/test/java/com/fluxpay/integration/
+  OracleAuthKycApiIntegrationTest.java
+
+Oracle integration tests require the dedicated test setup, including:
+
+  ORACLE_TESTS_ACTIVE=true
+  Spring profile: oracle-it
+
+They must use a dedicated test schema, never a shared developer/application
+schema.
+
+Useful commands from project root
+---------------------------------
+
+Start backend:
+
+  python scripts/start-backend.py --profile local --env-file .env
+
+Start frontend:
+
+  python scripts/start-frontend.py
+
+Run one focused backend test:
+
+  .\mvnw.cmd -f backend\pom.xml test -Dtest=DevelopmentDefaultsTest
+
+Run all backend tests:
+
+  .\mvnw.cmd -f backend\pom.xml test
+
+Run frontend type check:
+
+  npm.cmd run typecheck --prefix frontend\fluxpay-ui
+
+Run frontend build:
+
+  npm.cmd run build --prefix frontend\fluxpay-ui
+
+If frontend build says pdfjs-dist is missing, install frontend dependencies:
+
+  npm.cmd install --prefix frontend\fluxpay-ui --no-audit --no-fund
+
+
+====================================================================
+13. VIVA / INTERVIEW ANSWERS
+====================================================================
+
+Q: Explain registration from UI to database.
+A: The register view binds inputs to a Knockout ViewModel. Page.signUp calls
+   fluxApi.register, which sends POST /api/auth/register. AuthController
+   validates the DTO and calls AuthService. AuthService canonicalizes email,
+   checks duplicate email using lower(trim(email)), BCrypt-hashes the password,
+   creates only a USER, saves it, provisions USD/EUR/INR wallets in the same
+   transaction, and returns a one-hour JWT. The frontend stores the JWT only in
+   sessionStorage and navigates to KYC.
+
+Q: How is the password saved?
+A: AuthService uses BCryptPasswordEncoder.encode. Only the BCrypt hash goes
+   into users.password_hash. Login uses BCrypt matches; plaintext is never
+   stored or returned.
+
+Q: Why is email canonicalization important?
+A: It makes " Alice@Example.com " and "alice@example.com" the same identity.
+   Both Java repository queries and Oracle's function-based unique index use
+   lower(trim(email)), which prevents case/space duplicate accounts.
+
+Q: How does backend know who made a request?
+A: JwtAuthFilter validates the bearer token, creates CurrentUser from signed
+   claims, and puts it in Spring Security context. Controllers inject it using
+   @AuthenticationPrincipal rather than trusting a client-supplied user ID.
+
+Q: What happens if JWT is invalid or expired?
+A: The filter clears the security context; protected endpoints return JSON 401
+   AUTH_REQUIRED. The frontend removes the token, clears the session, and
+   navigates home.
+
+Q: How do you stop normal users reaching admin endpoints?
+A: SecurityConfig requires authentication for all protected APIs and
+   MethodSecurityConfig enables @PreAuthorize. Admin controllers use
+   hasRole('ADMIN'), based on ROLE_ADMIN placed by JwtAuthFilter. A USER gets
+   JSON 403 FORBIDDEN.
+
+Q: Explain the KYC upload security.
+A: It is multipart file upload, not client-provided metadata only. The backend
+   limits file count/size/types, checks actual PDF/image bytes, validates file
+   names, stores bytes in private UUID-named files, saves only metadata/storage
+   key in Oracle, prevents path traversal/symlinks, and lets only owner/admin
+   fetch a document with no-store/nosniff/sandbox headers.
+
+Q: How do you prevent two admins making conflicting KYC decisions?
+A: The case is loaded with a pessimistic lock and request carries expectedVersion.
+   The service compares version/status before decision. A stale request returns
+   409 KYC_CONFLICT. KycCase also has JPA @Version.
+
+Q: Why does cross-user ticket access return 404, not 403?
+A: A 403 reveals that a guessed ticket ID exists. Repository query includes both
+   id and owner ID, so a nonowner gets the same not-found response as an absent
+   ticket.
+
+Q: How does ticket idempotency work?
+A: POST requires Idempotency-Key. PaymentOperationService stores a normalized
+   request and final response in payment_operations. Same key/same request
+   replays saved result; same key/different request gives 409 conflict. This
+   prevents duplicate tickets from retries or double clicks.
+
+Q: How does the payment dropdown avoid wrong payment IDs?
+A: TicketsViewModel fetches only the signed-in user's payments and recipients,
+   filters non-submitted DRAFT/QUOTED items, and displays a date-recipient-amount
+   label. TicketService independently checks payment ownership by sender ID,
+   so changing browser data cannot attach another user's payment.
+
+Q: Is automatic ticket creation for a failed payment implemented?
+A: No. Current scope is manual user ticket creation. It was intentionally not
+   added to payment failure flow.
+
+Q: Is ticket reply/chat implemented?
+A: No. support_ticket_messages entity/repository/schema exist, but no endpoint
+   or frontend conversation UI currently uses them.
+
+Q: Does Plan 1 have a report UI?
+A: It has an ADMIN-only provider-summary backend endpoint and tests. There is
+   not yet a dedicated frontend report page.
+
+
+====================================================================
+14. DEMO ORDER - A CLEAN STORY TO PRESENT
+====================================================================
+
+1. Start Oracle/Kafka as required by local setup, then backend and frontend.
+2. Open Swagger at http://localhost:8080/swagger-ui.html and frontend at
+   http://localhost:8000.
+3. Register a new user. Explain BCrypt, canonical email, forced USER role,
+   transactional wallet provisioning, and JWT response.
+4. Open My account. Explain /api/users/me and that only full name is editable.
+5. Open Identity verification. Upload a valid file as multipart/form-data.
+   Explain storage and PENDING state.
+6. Log in as an administrator. Open Administration and show KYC queue.
+7. Approve/reject using expectedVersion. Explain stale conflict protection.
+8. As user, open Support tickets. Create a ticket with optional dropdown-linked
+   payment. Explain server-side ownership and idempotency.
+9. As admin, open Support review. Assign to yourself and move lifecycle state.
+10. Use Swagger/Postman to call provider-summary with valid ISO date range.
+
+
+====================================================================
+15. CURRENT LIMITATIONS / HONEST ANSWERS
+====================================================================
+
+- JWT lasts one hour; no refresh-token API/revocation flow is wired today.
+- KYC files are local private filesystem storage for this environment, not a
+  cloud/object-storage provider.
+- Ticket messages/replies are not exposed yet.
+- Failed payments do not auto-create tickets.
+- Ticket report has an API but no frontend report page.
+- User ticket list shows first page only in current UI, although backend paging
+  exists.
+- Admin ticket UI supports assign-to-me, not assignment dropdown to another
+  administrator, though backend supports valid assigneeAdminId.
+- KYC JSON metadata submission is intentionally rejected; use multipart files.
+
+End of Member 1 study guide.
