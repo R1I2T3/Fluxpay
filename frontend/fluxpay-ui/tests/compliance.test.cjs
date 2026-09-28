@@ -169,7 +169,7 @@ test('Copilot keeps a pending transcript entry until its cited answer arrives',a
 });
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
 test('admin templates render untrusted policy and AI text with text bindings, never HTML',()=>{const files=['ts/views/admin.html','ts/views/admin-policies.html','ts/views/admin-compliance.html','ts/views/admin-copilot.html'];for(const file of files)assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(read(file)),file);const policies=read('ts/views/admin-policies.html');for(const action of ['savePolicy','addChunk','confirm'])assert.ok(policies.includes(action),action);const compliance=read('ts/views/admin-compliance.html');for(const action of ['prepareDecision','confirm'])assert.ok(compliance.includes(action),action);const copilot=read('ts/views/admin-copilot.html');assert.ok(copilot.includes('askCited'));assert.ok(policies.includes('role="alertdialog"'));assert.ok(compliance.includes('maxlength="500"'));assert.ok(policies.includes('maxlength="200"'));});
-test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
+test('Copilot answers safely render Markdown lists and keep source cards compact',()=>{
   const html=read('ts/views/admin-copilot.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
   assert.match(html,/foreach:copilotHistory/);
   assert.match(html,/Referring to relevant policies/);
@@ -179,6 +179,10 @@ test('Copilot answers safely render only bold Markdown and keep source cards com
   assert.match(source,/sourceTitles/);
   assert.match(source,/document\.createTextNode/);
   assert.match(source,/document\.createElement\('strong'\)/);
+  assert.match(source,/document\.createElement\(ordered\?'ol':'ul'\)/);
+  assert.match(source,/document\.createElement\('h[2-4]'\)/);
+  assert.match(html,/class="preserve-text copilot-answer"/);
+  assert.match(css,/\.copilot-answer ol,\s*\.copilot-answer ul/);
   assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:\s*15px;/);
   assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:\s*13px;/);
 });
@@ -279,5 +283,5 @@ test('proxy allows longer AI requests without extending ordinary payment timeout
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../scripts/hooks/before_serve.js'),'utf8'),context);
   const config=await context.module.exports({});
   for(const url of ['/api/copilot/ask','/api/policies/'+id+'/index','/api/payments'])config.preMiddleware[0]({url,headers:{},method:'POST',pipe:()=>{}},{},()=>{});
-  assert.deepEqual(timeouts,[120000,120000,30000]);
+  assert.deepEqual(timeouts,[360000,360000,30000]);
 });

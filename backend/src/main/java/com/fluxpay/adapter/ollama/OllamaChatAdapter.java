@@ -218,7 +218,7 @@ public class OllamaChatAdapter implements ChatPort {
             .collect(java.util.stream.Collectors.joining("\n"));
     String responseFormat =
         structuredResponse
-            ? " Return only a JSON object with an answer string and an outOfScope boolean. The answer must be a concise, human-readable final response tailored to the user's question; do not reveal reasoning or a draft. Set outOfScope to true only when none of the supplied evidence applies, and give a brief scope explanation in answer."
+            ? " Return only a JSON object with an answer string and an outOfScope boolean. The answer must be a concise, human-readable final response tailored to the user's question; do not reveal reasoning or a draft. For reviewer steps or risks, use a short Markdown heading followed by one numbered or bulleted item per line. Set outOfScope to true only when none of the supplied evidence applies, and give a brief scope explanation in answer."
             : " Return only the final reviewer-facing answer in at most three concise bullets and 150 words; do not reveal reasoning or a draft.";
     String scopeInstruction =
         structuredResponse

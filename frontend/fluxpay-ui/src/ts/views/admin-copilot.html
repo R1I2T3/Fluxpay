@@ -49,7 +49,7 @@
       <!-- ko if:answer -->
       <article class="chat-message assistant">
         <span>Compliance Copilot</span>
-        <p class="preserve-text" data-bind="policyAnswer:{text:answer().answer,sources:answer().sources}"></p>
+        <div class="preserve-text copilot-answer" data-bind="policyAnswer:{text:answer().answer,sources:answer().sources}"></div>
         <p class="subtle-note">Review the cited policies before taking any administrative action.</p>
         <!-- ko if:answer().sources.length -->
         <section class="copilot-sources" aria-label="Source policies">
