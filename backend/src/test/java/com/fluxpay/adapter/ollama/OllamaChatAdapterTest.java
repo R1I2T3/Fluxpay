@@ -33,7 +33,7 @@ class OllamaChatAdapterTest {
           requestBody.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           byte[] body =
-              "{\"message\":{\"content\":\"Review the payment before release.\"}}"
+              "{\"message\":{\"content\":\"{\\\"answer\\\":\\\"Review the payment before release.\\\",\\\"outOfScope\\\":false}\"}}"
                   .getBytes(StandardCharsets.UTF_8);
           exchange.getResponseHeaders().set("Content-Type", "application/json");
           exchange.sendResponseHeaders(200, body.length);
@@ -67,14 +67,19 @@ class OllamaChatAdapterTest {
     JsonNode request = objectMapper.readTree(requestBody.get());
     assertThat(request.path("model").asText()).isEqualTo("qwen3:4b");
     assertThat(request.path("stream").asBoolean()).isFalse();
-    assertThat(request.path("think").asBoolean()).isTrue();
+    assertThat(request.path("think").asBoolean()).isFalse();
     assertThat(request.path("keep_alive").asText()).isEqualTo("30m");
-    assertThat(request.path("options").path("num_predict").asInt()).isEqualTo(1536);
+    assertThat(request.path("format").path("type").asText()).isEqualTo("object");
+    assertThat(request.path("options").path("num_predict").asInt()).isEqualTo(512);
     assertThat(request.path("options").path("num_ctx").asInt()).isEqualTo(4096);
     assertThat(request.toString())
         .contains("Payments require review.")
         .contains("Can we release it?")
-        .contains("Do not repeat or restate the question");
+        .contains("Do not repeat or restate the question")
+        .contains("Do not expose your analysis")
+        .contains("Address every part of the user's request")
+        .contains("Return only a JSON object")
+        .contains("Use outOfScope instead of a plain-text status marker");
   }
 
   @Test

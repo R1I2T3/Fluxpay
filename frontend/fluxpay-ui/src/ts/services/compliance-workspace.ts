@@ -97,27 +97,56 @@ ko.bindingHandlers.autoResize = {
   }
 };
 
-// The model output is untrusted. This intentionally supports only **bold** and constructs every
-// node as text, rather than rendering model-provided HTML.
+// The model output is untrusted. This deliberately supports only a small Markdown subset and
+// constructs every node as text, rather than rendering model-provided HTML.
 ko.bindingHandlers.policyAnswer = {
   update(element:HTMLElement,valueAccessor:()=>unknown){
     const raw=ko.unwrap(valueAccessor()) as string|{text?:string;sources?:CopilotAnswer['sources']}|undefined;
-    const value=typeof raw==='string'?raw:String(raw?.text??'');
+    const value=(typeof raw==='string'?raw:String(raw?.text??''))
+      .replace(/(?:^|\s)(\d+)[.)]\s+/g,(match,number,offset)=>`${offset?'\n':''}${number}. `);
     const sourceTitles=new Set((typeof raw==='string'?[]:raw?.sources??[]).map(source=>source.title.trim()).filter(Boolean));
     element.replaceChildren();
-    const emphasis=/\*\*([^*\n]+)\*\*|\[([^\]\n]+)\]/g;
-    let cursor=0,match:RegExpExecArray|null;
-    while((match=emphasis.exec(value))!==null){
-      element.append(document.createTextNode(value.slice(cursor,match.index)));
-      const boldText=match[1],sourceTitle=match[2];
-      if(boldText||sourceTitles.has(sourceTitle)){
-        const strong=document.createElement('strong');
-        strong.textContent=boldText||match[0];
-        element.append(strong);
-      }else element.append(document.createTextNode(match[0]));
-      cursor=match.index+match[0].length;
+    const appendInline=(parent:HTMLElement,text:string)=>{
+      const emphasis=/\*\*([^*\n]+)\*\*|\[([^\]\n]+)\]/g;
+      let cursor=0,match:RegExpExecArray|null;
+      while((match=emphasis.exec(text))!==null){
+        parent.append(document.createTextNode(text.slice(cursor,match.index)));
+        const boldText=match[1],sourceTitle=match[2];
+        if(boldText||sourceTitles.has(sourceTitle)){
+          const strong=document.createElement('strong');
+          strong.textContent=boldText||match[0];
+          parent.append(strong);
+        }else parent.append(document.createTextNode(match[0]));
+        cursor=match.index+match[0].length;
+      }
+      parent.append(document.createTextNode(text.slice(cursor)));
+    };
+    let list:HTMLOListElement|HTMLUListElement|undefined;
+    for(const line of value.split(/\r?\n/).map(item=>item.trim()).filter(Boolean)){
+      const numbered=line.match(/^\d+[.)]\s+(.+)$/);
+      const bullet=line.match(/^[-*]\s+(.+)$/);
+      const heading=line.match(/^(?:#{1,3}\s+)?([^:]{1,80}):$/);
+      if(heading){
+        list=undefined;
+        const title=document.createElement('h3');
+        appendInline(title,heading[1]);
+        element.append(title);
+      }else if(numbered||bullet){
+        const ordered=Boolean(numbered);
+        if(!list||list.tagName!==(ordered?'OL':'UL')){
+          list=document.createElement(ordered?'ol':'ul');
+          element.append(list);
+        }
+        const item=document.createElement('li');
+        appendInline(item,(numbered||bullet)![1]);
+        list.append(item);
+      }else{
+        list=undefined;
+        const paragraph=document.createElement('p');
+        appendInline(paragraph,line);
+        element.append(paragraph);
+      }
     }
-    element.append(document.createTextNode(value.slice(cursor)));
   }
 };
 
@@ -472,12 +501,13 @@ export class ComplianceWorkspace {
       const result=await api.indexPolicy(p.id);this.confirmation('');this.notice('Index published: '+result.chunkCount+' chunks.');await this.readPolicy(p.id);
     }
   });
-  ask = ()=>this.run(async()=>{
-    const question=this.question().trim(),paymentId=this.copilotPaymentId().trim();
+  ask = ()=>this.submitCopilotQuestion(this.question());
+  private submitCopilotQuestion = (submittedQuestion:string)=>this.run(async()=>{
+    const question=submittedQuestion.trim(),paymentId=this.copilotPaymentId().trim();
     if(!question)throw new Error('Enter a policy question.');
     if(paymentId&&!this.uuid(paymentId))throw new Error('Enter a valid payment UUID or leave it blank.');
     const entry:CopilotTranscriptEntry={question,answer:ko.observable(),pending:ko.observable(true),error:ko.observable('')};
-    this.answer(undefined);this.answeredQuestion(question);this.copilotHistory.push(entry);this.streamedAnswer(this.liveResponse());
+    this.answer(undefined);this.answeredQuestion(question);this.copilotHistory.push(entry);this.question('');this.streamedAnswer(this.liveResponse());
     try{
       if(!this.liveResponse()){
         const result=await api.askCopilot(question,paymentId||undefined);
@@ -491,5 +521,5 @@ export class ComplianceWorkspace {
     finally{entry.pending(false);}
   });
   stopLiveResponse=()=>this.streamAbort?.abort();
-  getCitedAnswer=()=>{if(!this.busy()){this.liveResponse(false);void this.ask();}};
+  getCitedAnswer=()=>{if(!this.busy()){this.liveResponse(false);void this.submitCopilotQuestion(this.answeredQuestion());}};
 }

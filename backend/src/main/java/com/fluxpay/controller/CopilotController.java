@@ -1,6 +1,7 @@
 package com.fluxpay.controller;
 
 import com.fluxpay.common.api.ApiResponse;
+import com.fluxpay.config.CopilotProperties;
 import com.fluxpay.dto.CopilotAnswerResponse;
 import com.fluxpay.dto.CopilotRequest;
 import com.fluxpay.service.CopilotService;
@@ -21,10 +22,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/copilot")
 public class CopilotController {
+  private static final long STREAM_GRACE_PERIOD_MILLIS = 30_000L;
   private final CopilotService copilotService;
+  private final CopilotProperties copilotProperties;
 
-  public CopilotController(CopilotService copilotService) {
+  public CopilotController(CopilotService copilotService, CopilotProperties copilotProperties) {
     this.copilotService = copilotService;
+    this.copilotProperties = copilotProperties;
   }
 
   @PostMapping("/ask")
@@ -38,7 +42,7 @@ public class CopilotController {
   @PostMapping(value = "/ask/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
   @PreAuthorize("hasRole('ADMIN')")
   public SseEmitter stream(@Valid @RequestBody CopilotRequest request) {
-    SseEmitter emitter = new SseEmitter(90_000L);
+    SseEmitter emitter = new SseEmitter(streamTimeoutMillis());
     CompletableFuture.runAsync(
         () -> {
           try {
@@ -58,5 +62,11 @@ public class CopilotController {
           }
         });
     return emitter;
+  }
+
+  private long streamTimeoutMillis() {
+    return Math.addExact(
+        Math.multiplyExact(copilotProperties.chatTimeoutSeconds(), 1_000L),
+        STREAM_GRACE_PERIOD_MILLIS);
   }
 }

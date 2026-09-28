@@ -3,6 +3,7 @@ package com.fluxpay.adapter.ollama;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fluxpay.common.contracts.EmbeddingPort;
+import com.fluxpay.common.contracts.EmbeddingModelLifecycle;
 import com.fluxpay.exception.EmbeddingException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -11,7 +12,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /** Ollama {@code /api/embed} adapter for the policy corpus. */
-public class OllamaEmbeddingAdapter implements EmbeddingPort {
+public class OllamaEmbeddingAdapter implements EmbeddingPort, EmbeddingModelLifecycle {
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
   private static final String QUERY_INSTRUCTION =
       "Instruct: Given a financial-compliance question, retrieve relevant policy passages.\nQuery: ";
@@ -19,6 +20,7 @@ public class OllamaEmbeddingAdapter implements EmbeddingPort {
   private final HttpClient client;
   private final ObjectMapper objectMapper;
   private final URI endpoint;
+  private final URI unloadEndpoint;
   private final String model;
   private final int dimensions;
 
@@ -35,7 +37,9 @@ public class OllamaEmbeddingAdapter implements EmbeddingPort {
     }
     this.client = client;
     this.objectMapper = objectMapper;
-    this.endpoint = URI.create(baseUrl.replaceFirst("/+$", "") + "/api/embed");
+    String apiBaseUrl = baseUrl.replaceFirst("/+$", "");
+    this.endpoint = URI.create(apiBaseUrl + "/api/embed");
+    this.unloadEndpoint = URI.create(apiBaseUrl + "/api/generate");
     this.model = model;
     this.dimensions = dimensions;
   }
@@ -48,6 +52,34 @@ public class OllamaEmbeddingAdapter implements EmbeddingPort {
   @Override
   public float[] embedQuery(String query) {
     return embed(QUERY_INSTRUCTION + requireText(query, "query"));
+  }
+
+  @Override
+  public void unload() {
+    try {
+      var requestBody = objectMapper.createObjectNode();
+      requestBody.put("model", model);
+      requestBody.put("keep_alive", 0);
+      HttpRequest request =
+          HttpRequest.newBuilder(unloadEndpoint)
+              .timeout(REQUEST_TIMEOUT)
+              .header("Content-Type", "application/json")
+              .POST(
+                  HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody)))
+              .build();
+      HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        throw new EmbeddingException(
+            "Ollama embedding provider returned HTTP " + response.statusCode());
+      }
+    } catch (EmbeddingException exception) {
+      throw exception;
+    } catch (Exception exception) {
+      if (exception instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      throw new EmbeddingException("Ollama embedding provider is unavailable", exception);
+    }
   }
 
   private float[] embed(String input) {

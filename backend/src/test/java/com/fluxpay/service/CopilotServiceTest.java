@@ -91,4 +91,35 @@ class CopilotServiceTest {
     assertThat(answer.answer()).contains("I can help with FluxPay compliance");
     assertThat(answer.sources()).isEmpty();
   }
+
+  @Test
+  void hidesSourcesWhenTheGroundedModelMarksTheQuestionOutOfScope() {
+    EmbeddingPort embeddings = mock(EmbeddingPort.class);
+    ChatPort chat = mock(ChatPort.class);
+    PolicySearchPort search = mock(PolicySearchPort.class);
+    when(embeddings.embedQuery("When is a customer's birthday?")).thenReturn(new float[] {0.1f});
+    when(search.search(any(float[].class), any(String.class), any(Integer.class)))
+        .thenReturn(
+            List.of(
+                new PolicyMatch(
+                    UUID.randomUUID(), UUID.randomUUID(), "KYC policy", 1, "KYC evidence", 0.08)));
+    when(chat.answer(eq("When is a customer's birthday?"), any())).thenReturn("OUT_OF_SCOPE");
+    CopilotService service =
+        new CopilotService(
+            embeddings,
+            chat,
+            search,
+            new VectorProperties(
+                "http://localhost:11434",
+                "qwen3-embedding:4b",
+                1536,
+                "ollama/qwen3-embedding:4b/1536",
+                "m5-sentence-v1"),
+            new CopilotProperties("qwen3:4b", 0.2, 0.65, 90, true, "30m", 512, 2048, 3));
+
+    var answer = service.ask(new CopilotRequest("When is a customer's birthday?", null));
+
+    assertThat(answer.answer()).contains("outside the scope");
+    assertThat(answer.sources()).isEmpty();
+  }
 }

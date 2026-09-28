@@ -306,14 +306,14 @@ test('empty Copilot sources render an explicit no-source state', () => {
   assert.match(read('ts/views/admin-copilot.html'), /No policy sources returned/);
 });
 
-test('Copilot provider errors preserve the question for retry', async () => {
+test('Copilot provider errors clear the submitted question after sending', async () => {
   const {page} = copilotPage({params: {}}, {askCopilot: async () => { throw Error('Compliance Copilot is temporarily unavailable.'); }});
   await page.ready;
   page.workspace.question('What requires review?');
   page.askCited();
   await settlePage(page, () => page.workspace.error());
   assert.match(page.workspace.error(), /unavailable/);
-  assert.equal(page.workspace.question(), 'What requires review?');
+  assert.equal(page.workspace.question(), '');
   assert.equal(page.workspace.answer(), undefined);
   page.disconnected();
 });

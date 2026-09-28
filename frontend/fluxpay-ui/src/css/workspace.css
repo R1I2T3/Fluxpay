@@ -188,6 +188,33 @@
   line-height: 1.75;
   font-size: 12px;
 }
+
+.copilot-answer {
+  line-height: 1.6;
+}
+
+.copilot-answer p {
+  white-space: normal;
+}
+
+.copilot-answer h3 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+}
+
+.copilot-answer h3:first-child {
+  margin-top: 0;
+}
+
+.copilot-answer ol,
+.copilot-answer ul {
+  margin: 6px 0 0;
+  padding-left: 22px;
+}
+
+.copilot-answer li + li {
+  margin-top: 5px;
+}
 .workspace-shell .panel-heading {
   gap: 16px;
   flex-wrap: wrap;

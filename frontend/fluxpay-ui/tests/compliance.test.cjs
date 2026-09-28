@@ -36,7 +36,7 @@ test('all 15 new endpoints use correct URLs, verbs, bodies and auth; DELETE acce
 });
 
 test('live Copilot accumulates text and offers the separate cited response without duplicate automatic requests',async()=>{
- const {page,calls}=workspace({streamCopilot:async(q,id,delta)=>{delta('Live ');delta('answer');}},true,{AbortController});page.liveResponse(true);page.question('When is review needed?');await page.ask();assert.equal(page.answer().answer,'Live answer');assert.equal(page.streamedAnswer(),true);assert.equal(calls.filter(c=>c[0]==='askCopilot').length,0);page.liveResponse(false);await page.ask();assert.equal(page.streamedAnswer(),false);assert.equal(page.answer().answer,'A sourced answer');
+ const {page,calls}=workspace({streamCopilot:async(q,id,delta)=>{delta('Live ');delta('answer');}},true,{AbortController});page.liveResponse(true);page.question('When is review needed?');await page.ask();assert.equal(page.answer().answer,'Live answer');assert.equal(page.streamedAnswer(),true);assert.equal(page.question(),'');assert.equal(calls.filter(c=>c[0]==='askCopilot').length,0);page.getCitedAnswer();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(page.streamedAnswer(),false);assert.equal(page.answer().answer,'A sourced answer');
 });
 
 test('saving manual chunk and guidance edits closes their editor after a successful write',async()=>{
@@ -157,10 +157,11 @@ test('case validation rejects invalid UUID and overlong suggested action',async(
 test('payment-linked approval and rejection use server-authored identity only',async()=>{for(const action of ['approve','reject']){const {page,calls}=workspace();page.selectedCase({...manual,reviewReference:'review-1'});page.decisionReason(' Verified supporting documents ');page.askConfirmation(action);await page.confirm();const call=calls.find(c=>c[0]==='decideComplianceCase');assert.equal(JSON.stringify(call),JSON.stringify(['decideComplianceCase',id,action,'Verified supporting documents']));assert.match(page.notice(),/linked payment has been updated/);assert.equal(page.confirmation(),'');page.dispose();}});
 test('expired review leaves case open and displays server reason',async()=>{const {page}=workspace({decideComplianceCase:async()=>{throw Error('The selected quote has expired during review.');}});page.selectedCase({...manual,reviewReference:'review-1'});page.askConfirmation('approve');await page.confirm();assert.equal(page.selectedCase().status,'OPEN');assert.match(page.error(),/expired/);assert.equal(page.notice(),'');page.dispose();});
 test('only open manual cases can be deleted',async()=>{for(const value of [{...manual,reviewReference:'auto-review'},{...manual,status:'APPROVED'}]){const {page,calls}=workspace();page.selectedCase(value);page.askConfirmation('delete-case');await page.confirm();assert.equal(calls.length,0);assert.match(page.error(),/Only open manual/);page.dispose();}const {page,calls}=workspace();page.selectedCase(manual);page.askConfirmation('delete-case');await page.confirm();assert.equal(page.selectedCase(),undefined);assert.equal(calls[0][0],'deleteComplianceCase');page.dispose();});
-test('Copilot handles citations, optional UUID, no-source fallback and provider errors',async()=>{const {page,calls}=workspace({askCopilot:async()=>({answer:'Review is required.',sources:[{policyDocumentId:id,title:'Policy',chunkNumber:1,excerpt:'Review clause'}]})});page.question(' What requires review? ');await page.ask();assert.equal(calls[0][2],undefined);assert.equal(page.answer().sources[0].policyDocumentId,id);page.copilotPaymentId('invalid');await page.ask();assert.match(page.error(),/UUID/);assert.equal(calls.length,1);page.dispose();const second=workspace({askCopilot:async()=>{throw Error('Compliance Copilot is temporarily unavailable.');}});second.page.question('Question');await second.page.ask();assert.equal(second.page.answer(),undefined);assert.match(second.page.error(),/unavailable/);second.page.dispose();});
+test('Copilot handles citations, optional UUID, no-source fallback and provider errors',async()=>{const {page,calls}=workspace({askCopilot:async()=>({answer:'Review is required.',sources:[{policyDocumentId:id,title:'Policy',chunkNumber:1,excerpt:'Review clause'}]})});page.question(' What requires review? ');await page.ask();assert.equal(calls[0][2],undefined);assert.equal(page.answer().sources[0].policyDocumentId,id);page.question('What requires review?');page.copilotPaymentId('invalid');await page.ask();assert.match(page.error(),/UUID/);assert.equal(calls.length,1);page.dispose();const second=workspace({askCopilot:async()=>{throw Error('Compliance Copilot is temporarily unavailable.');}});second.page.question('Question');await second.page.ask();assert.equal(second.page.answer(),undefined);assert.match(second.page.error(),/unavailable/);second.page.dispose();});
 test('Copilot keeps a pending transcript entry until its cited answer arrives',async()=>{
  let resolveAnswer;const {page}=workspace({askCopilot:()=>new Promise(resolve=>{resolveAnswer=resolve;})});
  page.question('Which policy applies?');const request=page.ask();
+ assert.equal(page.question(),'');
  assert.equal(page.copilotHistory().length,1);assert.equal(page.copilotHistory()[0].question,'Which policy applies?');assert.equal(page.copilotHistory()[0].pending(),true);
  resolveAnswer({answer:'Review the policy.',sources:[{policyDocumentId:id,title:'High-value payment review',chunkNumber:1,excerpt:'Review first.'}]});await request;
  assert.equal(page.copilotHistory()[0].pending(),false);assert.equal(page.copilotHistory()[0].answer().answer,'Review the policy.');
@@ -168,7 +169,7 @@ test('Copilot keeps a pending transcript entry until its cited answer arrives',a
 });
 test('rapid duplicate actions are blocked and logout clears late responses',async()=>{let finish;const {page,calls,session}=workspace({policies:()=>new Promise(resolve=>finish=resolve)});const first=page.loadPolicies();await page.loadPolicies();assert.equal(calls.length,1);session.user(null);finish([policy]);await first;assert.equal(page.policies().length,0);page.dispose();});
 test('admin templates render untrusted policy and AI text with text bindings, never HTML',()=>{const files=['ts/views/admin.html','ts/views/admin-policies.html','ts/views/admin-compliance.html','ts/views/admin-copilot.html'];for(const file of files)assert.ok(!/data-bind="[^"]*\bhtml\s*:/.test(read(file)),file);const policies=read('ts/views/admin-policies.html');for(const action of ['savePolicy','addChunk','confirm'])assert.ok(policies.includes(action),action);const compliance=read('ts/views/admin-compliance.html');for(const action of ['prepareDecision','confirm'])assert.ok(compliance.includes(action),action);const copilot=read('ts/views/admin-copilot.html');assert.ok(copilot.includes('askCited'));assert.ok(policies.includes('role="alertdialog"'));assert.ok(compliance.includes('maxlength="500"'));assert.ok(policies.includes('maxlength="200"'));});
-test('Copilot answers safely render only bold Markdown and keep source cards compact',()=>{
+test('Copilot answers safely render Markdown lists and keep source cards compact',()=>{
   const html=read('ts/views/admin-copilot.html'),source=read('ts/services/compliance-workspace.ts'),css=read('css/workspace.css');
   assert.match(html,/foreach:copilotHistory/);
   assert.match(html,/Referring to relevant policies/);
@@ -178,6 +179,10 @@ test('Copilot answers safely render only bold Markdown and keep source cards com
   assert.match(source,/sourceTitles/);
   assert.match(source,/document\.createTextNode/);
   assert.match(source,/document\.createElement\('strong'\)/);
+  assert.match(source,/document\.createElement\(ordered\?'ol':'ul'\)/);
+  assert.match(source,/document\.createElement\('h[2-4]'\)/);
+  assert.match(html,/class="preserve-text copilot-answer"/);
+  assert.match(css,/\.copilot-answer ol,\s*\.copilot-answer ul/);
   assert.match(css,/\.copilot-sources h4\s*\{[^}]*font-size:\s*15px;/);
   assert.match(css,/\.copilot-sources blockquote\s*\{[^}]*font-size:\s*13px;/);
 });
@@ -278,5 +283,5 @@ test('proxy allows longer AI requests without extending ordinary payment timeout
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../scripts/hooks/before_serve.js'),'utf8'),context);
   const config=await context.module.exports({});
   for(const url of ['/api/copilot/ask','/api/policies/'+id+'/index','/api/payments'])config.preMiddleware[0]({url,headers:{},method:'POST',pipe:()=>{}},{},()=>{});
-  assert.deepEqual(timeouts,[120000,120000,30000]);
+  assert.deepEqual(timeouts,[360000,360000,30000]);
 });

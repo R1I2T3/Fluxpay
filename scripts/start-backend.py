@@ -10,6 +10,8 @@ from platform_commands import (
     maven_command,
 )
 
+STARTUP_TIMEOUT_SECONDS = 180
+
 
 def terminate_process(process):
     if process.poll() is not None:
@@ -46,7 +48,7 @@ def main():
         command_args.append(f"-Dspring-boot.run.profiles={a.profile}")
     p = subprocess.Popen(maven_command(*command_args), cwd=PROJECT_ROOT)
     try:
-        for _ in range(30):
+        for _ in range(STARTUP_TIMEOUT_SECONDS // 2):
             returncode = p.poll()
             if returncode is not None:
                 print(f"backend exited before readiness (code {returncode})")
@@ -61,7 +63,7 @@ def main():
                 if a.verbose:
                     print("waiting backend...", e)
         terminate_process(p)
-        print("backend timeout")
+        print(f"backend timeout after {STARTUP_TIMEOUT_SECONDS} seconds")
         return 2
     except KeyboardInterrupt:
         print("stopping backend...")

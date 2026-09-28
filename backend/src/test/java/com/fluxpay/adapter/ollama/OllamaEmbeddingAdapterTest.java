@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 class OllamaEmbeddingAdapterTest {
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final AtomicReference<String> requestBody = new AtomicReference<>();
+  private final AtomicReference<String> unloadRequestBody = new AtomicReference<>();
   private HttpServer server;
   private AtomicReference<String> responseBody;
   private OllamaEmbeddingAdapter adapter;
@@ -37,6 +38,14 @@ class OllamaEmbeddingAdapterTest {
           exchange.getResponseHeaders().set("Content-Type", "application/json");
           exchange.sendResponseHeaders(200, body.length);
           exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    server.createContext(
+        "/api/generate",
+        exchange -> {
+          unloadRequestBody.set(
+              new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+          exchange.sendResponseHeaders(200, -1);
           exchange.close();
         });
     server.start();
@@ -83,6 +92,15 @@ class OllamaEmbeddingAdapterTest {
     assertThatThrownBy(() -> adapter.embedDocument("policy"))
         .isInstanceOf(EmbeddingException.class)
         .hasMessageContaining("1536");
+  }
+
+  @Test
+  void unloadsTheEmbeddingModelAfterIndexing() throws Exception {
+    adapter.unload();
+
+    JsonNode request = objectMapper.readTree(unloadRequestBody.get());
+    assertThat(request.path("model").asText()).isEqualTo("qwen3-embedding:4b");
+    assertThat(request.path("keep_alive").asInt()).isZero();
   }
 
   private static String embeddingResponse(int dimensions) {

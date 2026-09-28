@@ -10,9 +10,10 @@ module.exports = async function(config) {
       hostname:target.hostname,port:target.port || (target.protocol==='https:'?443:80),
       path:req.url,method:req.method,headers:{...req.headers,host:target.host}
     }, incoming => {res.writeHead(incoming.statusCode,incoming.headers);incoming.pipe(res);});
-    // Copilot may spend up to 90 seconds generating an answer; do not cut it off at 30s.
+    // Reasoning-enabled Copilot requests may use the backend's 300-second Ollama deadline.
+    // Allow a little extra time for the proxy to receive and relay the completed answer.
     const policyWork = req.url.startsWith('/api/copilot/') || /^\/api\/policies\/[^/]+\/index(?:\?|$)/.test(req.url);
-    upstream.setTimeout(policyWork ? 120000 : 30000,()=>upstream.destroy(new Error('Backend timeout')));
+    upstream.setTimeout(policyWork ? 360000 : 30000,()=>upstream.destroy(new Error('Backend timeout')));
     upstream.on('error',()=>{
       if(!res.headersSent) res.writeHead(502,{'Content-Type':'application/json'});
       res.end(JSON.stringify({code:'BACKEND_UNAVAILABLE',message:'The payment service is unavailable. Start the backend and try again.'}));
